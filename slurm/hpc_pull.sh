@@ -38,11 +38,16 @@ export CONDA_PREFIX="${CONDA_PREFIX:-${HOME}/mambaforge/envs/nextflow}"
 export PATH="${CONDA_PREFIX}/bin:${PATH}"
 
 # ── Singularity runtime dirs ─────────────────────────────────────────────────
-export SINGULARITY_TMPDIR="/tmp/${USER}_hpc_pull_${SLURM_JOB_ID:-$$}"
+export SINGULARITY_TMPDIR="/tmp/${USER}_job_${SLURM_JOB_ID}"
 export XDG_RUNTIME_DIR="${SINGULARITY_TMPDIR}/runtime"
-export NXF_SINGULARITY_CACHEDIR="${NXF_SINGULARITY_CACHEDIR:-${HOME}/singularity_cache}"
+export NXF_SINGULARITY_CACHEDIR="${HOME}/singularity_cache"
 mkdir -p "${SINGULARITY_TMPDIR}" "${XDG_RUNTIME_DIR}" "${NXF_SINGULARITY_CACHEDIR}"
 trap 'rm -rf "${SINGULARITY_TMPDIR}"' EXIT
+export CONDA_PREFIX="${HOME}/mambaforge/envs/nextflow"
+export PATH="${CONDA_PREFIX}/bin:${PATH}"
+unset JAVA_HOME; which singularity
+export NXF_SINGULARITY_HOME_MOUNT=true
+unset LD_LIBRARY_PATH PYTHONPATH R_LIBS R_LIBS_USER R_LIBS_SITE
 
 echo "======================================================================"
 echo " ctspinopelvic1k hpc_pull"

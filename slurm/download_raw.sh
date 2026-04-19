@@ -26,10 +26,6 @@
 #   SPINE_ONLY=1   sbatch slurm/download_raw.sh                 # CTSpine1K only
 #   PELVIC_ONLY=1  sbatch slurm/download_raw.sh                 # CTPelvic1K only
 #
-#   TCIA_SCOPE=filtered sbatch slurm/download_raw.sh            # ~1194 series
-#                                                               # (CTPelvic1K
-#                                                               # patients only)
-#
 # Env:
 #   HF_TOKEN    required for CTSpine1K (HuggingFace gated dataset)
 #
@@ -64,7 +60,6 @@ echo "   Node        : $(hostname)"
 echo "   Project     : ${PROJECT_ROOT}"
 echo "   Data root   : ${DATA_DIR}"
 echo "   Container   : ${SIF_PATH}"
-echo "   TCIA scope  : ${TCIA_SCOPE}"
 echo "   Run flags   : TCIA=${RUN_TCIA}  SPINE=${RUN_SPINE}  PELVIC=${RUN_PELVIC}"
 echo "   Started     : $(date)"
 echo "======================================================================"
@@ -72,7 +67,7 @@ echo "======================================================================"
 # ── Container runtime ────────────────────────────────────────────────────────
 if [[ ! -f "${SIF_PATH}" ]]; then
     echo "ERROR: container not found: ${SIF_PATH}"
-    echo "       Run: make build-container"
+    echo "       Run: sbatch slurm/hpc_pull.sh    (or: make build-container)"
     exit 1
 fi
 
@@ -105,20 +100,9 @@ if [[ "${RUN_TCIA}" == "1" ]]; then
     echo " 1/3  TCIA COLONOGRAPHY  →  ${TCIA_DIR}"
     echo "======================================================================"
 
-    if [[ "${TCIA_SCOPE}" == "all" ]]; then
-        TCIA_ALL="true"
-    else
-        TCIA_ALL="false"
-    fi
-
-    _run env \
-        TCIA_DEST="/data/tcia" \
-        MASKS_DIR="/data/ctpelvic1k/masks/CTPelvic1K_dataset2_mask_mappingback" \
-        TCIA_THREADS="${WORKERS}" \
-        TCIA_CONVERT="" \
-        TCIA_DOWNLOAD_ALL="${TCIA_ALL}" \
-        SLURM_JOB_ID="${SLURM_JOB_ID:-local}" \
-        python3 /workspace/scripts/download_tcia_colonog.py
+    _run python3 /workspace/scripts/download_tcia_colonog.py \
+        --out_dir  /data/tcia \
+        --workers  "${WORKERS}"
 
     echo "  TCIA done.  Series on disk: $(find ${TCIA_DIR} -maxdepth 1 -type d 2>/dev/null | wc -l)"
 fi

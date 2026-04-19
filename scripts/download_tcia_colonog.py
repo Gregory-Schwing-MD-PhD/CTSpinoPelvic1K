@@ -1,30 +1,37 @@
 """
 download_tcia_colonog.py — Download TCIA CT COLONOG series.
 
-Two modes:
-  --scope all       All ~3,451 CT COLONOG series       (default)
-  --scope filtered  Only the ~1,194 patients annotated in CTPelvic1K COLONOG
-                    (reads a series-list from the pelvic dataset or a provided
-                    JSON of canonical PatientIDs).
+Downloads every CT series in the CT COLONOGRAPHY collection (~3,451 series)
+into one subfolder per SeriesInstanceUID containing its DICOMs:
 
-Output tree: one subfolder per SeriesInstanceUID containing its DICOMs.
-  out_dir/{series_uid}/*.dcm
+    out_dir/{series_uid}/*.dcm
 
-Implementation: tcia_utils.getSeries() + getImageSRIES for DICOM bytes.
-Retry logic: exponential backoff up to 3 tries per series.
+Implementation: tcia_utils.getSeries() + downloadSeries(), parallelised via
+ThreadPoolExecutor.  Retry logic: exponential backoff up to 3 tries per series.
+
+Notes on tcia_utils quirks handled here:
+
+    1) downloadSeries() SILENTLY no-ops when its target series directory
+       already exists — even if empty.  So we must NOT pre-create the
+       series directory, and we must rmtree any pre-existing (partial) dir
+       before each attempt so tcia_utils can populate it cleanly.
+
+    2) A connection drop mid-series can leave a partial DICOM set on disk.
+       We therefore verify dcm_count >= ImageCount from the getSeries()
+       response before declaring success.  Series missing from the metadata
+       fall back to "any .dcm present" success.
 """
 from __future__ import annotations
 
 import argparse
-import json
 import logging
-import os
 import random
+import shutil
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import Dict, List
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,6 +41,10 @@ logging.basicConfig(
 log = logging.getLogger("ctspinopelvic1k.download_tcia")
 
 COLLECTION = "CT COLONOGRAPHY"
+
+# Populated in main() from TCIA getSeries() metadata; used by the worker
+# to verify completeness after each download attempt.
+_EXPECTED_COUNTS: Dict[str, int] = {}
 
 
 def _get_tcia_client():
@@ -45,19 +56,44 @@ def _get_tcia_client():
     return nbia
 
 
-def _series_already_downloaded(series_dir: Path) -> bool:
+def _dcm_count(series_dir: Path) -> int:
     if not series_dir.is_dir():
+        return 0
+    return sum(1 for _ in series_dir.glob("*.dcm"))
+
+
+def _series_complete(series_uid: str, series_dir: Path) -> bool:
+    """
+    True iff the series directory holds at least the expected number of
+    DICOMs (from TCIA metadata), or — if no expected count is known — at
+    least one DICOM.
+    """
+    n_have = _dcm_count(series_dir)
+    if n_have == 0:
         return False
-    return any(series_dir.glob("*.dcm"))
+    n_expect = _EXPECTED_COUNTS.get(series_uid, 0)
+    if n_expect > 0:
+        return n_have >= n_expect
+    return True  # unknown expectation: accept any non-empty dir
 
 
 def _download_one_series(series_uid: str, out_dir: Path, max_retry: int = 3) -> bool:
     nbia = _get_tcia_client()
     series_dir = out_dir / series_uid
-    if _series_already_downloaded(series_dir):
+
+    # Fast path: already complete per expected DICOM count.
+    if _series_complete(series_uid, series_dir):
         return True
 
-    series_dir.mkdir(parents=True, exist_ok=True)
+    # CRITICAL: tcia_utils.downloadSeries() silently no-ops when the target
+    # series directory already exists (even if empty or partial).  Any
+    # pre-existing dir here will cause every retry to skip the download and
+    # report failure with no error.  Clear it before each attempt.
+    #
+    # Do NOT mkdir series_dir — tcia_utils creates it itself during download.
+    if series_dir.exists():
+        shutil.rmtree(series_dir)
+
     for attempt in range(1, max_retry + 1):
         try:
             nbia.downloadSeries(
@@ -66,71 +102,55 @@ def _download_one_series(series_uid: str, out_dir: Path, max_retry: int = 3) -> 
                 format="df",
                 csv_filename=None,
             )
-            if _series_already_downloaded(series_dir):
+            if _series_complete(series_uid, series_dir):
                 return True
+
+            # Some versions of tcia_utils drop the download into a
+            # slightly-renamed folder; move it into place if so.
             dl_dirs = [d for d in out_dir.iterdir()
                        if d.is_dir() and series_uid in d.name]
             if dl_dirs and dl_dirs[0] != series_dir:
                 for f in dl_dirs[0].glob("*"):
                     f.rename(series_dir / f.name)
                 dl_dirs[0].rmdir()
-                if _series_already_downloaded(series_dir):
+                if _series_complete(series_uid, series_dir):
                     return True
+
+            # Log partial-download case so we know why the retry is happening.
+            n_have   = _dcm_count(series_dir)
+            n_expect = _EXPECTED_COUNTS.get(series_uid, 0)
+            if n_have and n_expect:
+                log.warning("  [attempt %d/%d] %s: partial %d/%d DICOMs",
+                            attempt, max_retry, series_uid, n_have, n_expect)
         except Exception as exc:
             log.warning("  [attempt %d/%d] %s: %s",
                         attempt, max_retry, series_uid, str(exc)[:200])
+
+        # Clear whatever partial/empty dir the failed attempt left behind
+        # so the next retry starts clean (see no-op bug above).
+        if series_dir.exists():
+            shutil.rmtree(series_dir)
+
         time.sleep(2 ** attempt + random.random())
 
     return False
 
 
-def _all_colonog_series() -> List[str]:
+def _all_colonog_series_df():
     nbia = _get_tcia_client()
     log.info("Querying TCIA for all CT COLONOGRAPHY CT series ...")
     df = nbia.getSeries(collection=COLLECTION, modality="CT", format="df")
-    uids = df["SeriesInstanceUID"].astype(str).tolist()
-    log.info("  → %d series", len(uids))
-    return uids
-
-
-def _filter_by_patient_uids(all_uids: List[str], wanted: Set[str]) -> List[str]:
-    nbia = _get_tcia_client()
-    log.info("Filtering %d series against %d target PatientIDs ...",
-             len(all_uids), len(wanted))
-    df = nbia.getSeries(collection=COLLECTION, modality="CT", format="df")
-    df_filt = df[df["PatientID"].astype(str).str.strip().isin(wanted)]
-    uids = df_filt["SeriesInstanceUID"].astype(str).tolist()
-    log.info("  → %d series matching target patients", len(uids))
-    return uids
-
-
-def _load_wanted_patient_uids(path: Optional[Path]) -> Set[str]:
-    if path is None:
-        return set()
-    if not path.exists():
-        log.error("PatientID list not found: %s", path)
-        sys.exit(1)
-    data = json.loads(path.read_text())
-    if isinstance(data, list):
-        return {str(x).strip() for x in data}
-    if isinstance(data, dict):
-        if "patient_uids" in data:
-            return {str(x).strip() for x in data["patient_uids"]}
-        return {str(k).strip() for k in data.keys()}
-    log.error("Unrecognised patient list format in %s", path)
-    sys.exit(1)
+    log.info("  -> %d series", len(df))
+    return df
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("--out_dir", required=True, type=Path,
                    help="Target root — each series gets its own subfolder")
-    p.add_argument("--scope", choices=("all", "filtered"), default="all",
-                   help="'all' downloads every CT COLONOG series; "
-                        "'filtered' restricts to --patient_list PatientIDs")
-    p.add_argument("--patient_list", type=Path, default=None,
-                   help="JSON list of canonical PatientIDs (required if --scope filtered)")
     p.add_argument("--workers", type=int, default=8,
                    help="Parallel download threads (default 8)")
     p.add_argument("--max_series", type=int, default=0,
@@ -141,23 +161,30 @@ def main():
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    if args.scope == "filtered" and args.patient_list is None:
-        log.error("--scope filtered requires --patient_list")
-        sys.exit(1)
+    # Pull the full metadata DataFrame so we can extract both SeriesInstanceUID
+    # and the canonical ImageCount for completeness verification.
+    df = _all_colonog_series_df()
+    uids: List[str] = df["SeriesInstanceUID"].astype(str).tolist()
 
-    if args.scope == "all":
-        uids = _all_colonog_series()
+    if "ImageCount" in df.columns:
+        global _EXPECTED_COUNTS
+        _EXPECTED_COUNTS = {
+            str(row["SeriesInstanceUID"]): int(row["ImageCount"])
+            for _, row in df.iterrows()
+            if row.get("ImageCount") and int(row["ImageCount"]) > 0
+        }
+        log.info("Expected DICOM counts loaded for %d / %d series",
+                 len(_EXPECTED_COUNTS), len(uids))
     else:
-        wanted = _load_wanted_patient_uids(args.patient_list)
-        all_uids = _all_colonog_series()
-        uids = _filter_by_patient_uids(all_uids, wanted)
+        log.warning("getSeries() response has no ImageCount column — "
+                    "completeness will fall back to 'any DICOM present'.")
 
     if args.max_series > 0:
         uids = uids[:args.max_series]
         log.info("Capped to first %d series", len(uids))
 
-    already = sum(1 for u in uids if _series_already_downloaded(args.out_dir / u))
-    log.info("Series to evaluate: %d   already downloaded: %d   remaining: %d",
+    already = sum(1 for u in uids if _series_complete(u, args.out_dir / u))
+    log.info("Series to evaluate: %d   already complete: %d   remaining: %d",
              len(uids), already, len(uids) - already)
 
     if args.dry_run:
@@ -190,7 +217,7 @@ def main():
                 rate    = i / max(elapsed, 1e-6)
                 eta     = (len(uids) - i) / max(rate, 1e-6)
                 log.info("  [%d/%d]  ok=%d  fail=%d  elapsed=%.0fs  ETA=%.0fs  (%.1f s/series)",
-                         i, len(uids), n_ok, n_fail, elapsed, eta, 1/max(rate,1e-6))
+                         i, len(uids), n_ok, n_fail, elapsed, eta, 1/max(rate, 1e-6))
 
     log.info("=" * 60)
     log.info("Download complete: ok=%d  fail=%d  total=%d",
