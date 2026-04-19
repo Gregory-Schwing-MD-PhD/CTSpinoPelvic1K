@@ -1,0 +1,48 @@
+# CTSpinoPelvic1K — TotalSegmentator zero-shot benchmark image.
+# Used for: scripts/benchmark_totalseg.py + scripts/viz_ts_case.py
+# GPU-only.  Bare necessities for TS inference.
+#
+# Build:   docker build -f docker/Dockerfile.totalsegmentator -t ctspinopelvic1k-ts:latest .
+# HPC:     singularity pull ctspinopelvic1k-ts.sif docker://<user>/ctspinopelvic1k-ts:latest
+
+FROM pytorch/pytorch:2.4.1-cuda12.4-cudnn9-runtime
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    TOTALSEG_HOME_DIR=/opt/totalseg \
+    TOTALSEG_WEIGHTS_PATH=/opt/totalseg/weights
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        dcm2niix \
+        libgomp1 \
+        ca-certificates \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/ctspinopelvic1k
+
+RUN pip install --upgrade pip && pip install \
+        TotalSegmentator==2.4.0 \
+        nibabel==5.2.1 \
+        SimpleITK==2.3.1 \
+        numpy==1.26.4 \
+        scipy==1.13.1 \
+        matplotlib==3.8.4 \
+        tqdm==4.66.4 \
+        scikit-image==0.22.0 \
+        huggingface_hub==0.24.5
+
+# Pre-create weights dir so container binds can overlay it.
+RUN mkdir -p $TOTALSEG_WEIGHTS_PATH && chmod -R 777 /opt/totalseg
+
+COPY scripts/dataset_interface.py    /opt/ctspinopelvic1k/scripts/
+COPY scripts/benchmark_totalseg.py   /opt/ctspinopelvic1k/scripts/
+COPY scripts/viz_ts_case.py          /opt/ctspinopelvic1k/scripts/
+COPY scripts/render_lstv_examples.py /opt/ctspinopelvic1k/scripts/
+COPY slurm/benchmark_totalseg.sh     /opt/ctspinopelvic1k/slurm/
+
+ENV PYTHONPATH=/opt/ctspinopelvic1k/scripts
+
+CMD ["python", "-c", "print('CTSpinoPelvic1K TS benchmark container. Use scripts/benchmark_totalseg.py.')"]

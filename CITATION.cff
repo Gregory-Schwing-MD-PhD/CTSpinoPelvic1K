@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this pipeline or the resulting dataset, please cite it as below."
+title: "CTSpinoPelvic1K: A CT-Native Benchmark for Lumbosacral Transitional Vertebra Segmentation"
+authors:
+  - family-names: "Schwing"
+    given-names: "Gregory"
+    affiliation: "Wayne State University"
+version: "1.0.0"
+date-released: "2026-04-18"
+url: "https://github.com/gschwing/ctspinopelvic1k"
+repository-code: "https://github.com/gschwing/ctspinopelvic1k"
+identifiers:
+  - type: url
+    value: "https://huggingface.co/datasets/anonymous-mlhc/CTSpinoPelvic1K"
+    description: "Constructed dataset on HuggingFace"
+license: Apache-2.0
+keywords:
+  - medical-imaging
+  - computed-tomography
+  - spine
+  - pelvis
+  - segmentation
+  - lumbosacral-transitional-vertebra
+  - lstv
+  - deep-learning
+abstract: >
+  CTSpinoPelvic1K unifies CTSpine1K and CTPelvic1K through patient-anchored,
+  registration-free multi-dataset label fusion. The pipeline in this repository
+  reproduces the dataset end-to-end: raw data download, patient-anchored
+  mask-to-series resolution, world-space affine mask placement, and export to
+  HuggingFace Hub with stratified train/val/test splits.

@@ -1,0 +1,70 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  syntax:
+    name: syntax check (python + bash)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: bash syntax check
+        run: |
+          set -eux
+          for f in slurm/*.sh containers/*.sh scripts/*.sh; do
+            if [ -f "$f" ]; then echo "checking $f"; bash -n "$f"; fi
+          done
+
+      - name: docker files present
+        run: |
+          set -eux
+          test -f docker/Dockerfile
+          test -f docker/Dockerfile.totalsegmentator
+
+      - name: python syntax check
+        run: |
+          set -eux
+          for f in scripts/*.py; do
+            python3 -m py_compile "$f"
+          done
+
+  imports:
+    name: import smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: install runtime deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy nibabel pydicom
+
+      - name: import schema modules
+        run: |
+          cd scripts
+          python -c "import patient_db; \
+                     print('PatientDB:', patient_db.PatientDB.__name__)"
+          python -c "import tcia_index; \
+                     print('build_tcia_patient_index:', \
+                           tcia_index.build_tcia_patient_index.__name__)"
+          python -c "import mask_index; \
+                     print('parse_spine_masks:', \
+                           mask_index.parse_spine_masks.__name__)"
+          python -c "import series_assigner; \
+                     print('determine_fusion_status:', \
+                           series_assigner.determine_fusion_status.__name__)"

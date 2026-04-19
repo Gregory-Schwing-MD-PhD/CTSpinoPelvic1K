@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ctspinopelvic1k"
+version = "1.0.0"
+description = "Pipeline for constructing CTSpinoPelvic1K — a unified CT spine + pelvis segmentation dataset with LSTV coverage."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Gregory Schwing", email = "gregory.schwing@med.wayne.edu"},
+]
+keywords = [
+    "medical-imaging",
+    "computed-tomography",
+    "spine",
+    "pelvis",
+    "segmentation",
+    "lstv",
+    "huggingface",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+dependencies = [
+    "numpy>=1.26",
+    "nibabel>=5.2",
+    "scipy>=1.12",
+    "scikit-image>=0.22",
+    "tqdm>=4.66",
+    "huggingface-hub[hf_transfer]>=0.24",
+    "datasets>=2.20",
+    "tcia-utils>=2.8",
+    "pydicom>=2.4",
+    "matplotlib>=3.8",
+    "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.5",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/gschwing/ctspinopelvic1k"
+Dataset = "https://huggingface.co/datasets/anonymous-mlhc/CTSpinoPelvic1K"
+Issues = "https://github.com/gschwing/ctspinopelvic1k/issues"
+
+[tool.setuptools]
+packages = ["scripts", "tools"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"

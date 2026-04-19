@@ -1,0 +1,64 @@
+# Data (everything under data/ is staged / downloaded / generated)
+data/*
+!data/.gitkeep
+!data/README.md
+
+# Logs
+logs/*
+!logs/.gitkeep
+
+# Containers (large; build locally)
+*.sif
+*.img
+containers/*.sif
+containers/*.img
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environments
+.env
+.venv
+venv/
+ENV/
+env/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Credentials — never commit
+*.token
+.huggingface/
+hf_token.txt
+
+# Large outputs
+*.nii.gz
+*.npz
+*.npy
+*.pkl
+*.arrow
+*.parquet
+*.tar.gz
+
+# Except the small canonical examples that ship with docs/
+!docs/**/*.png
+!docs/**/*.pdf
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb

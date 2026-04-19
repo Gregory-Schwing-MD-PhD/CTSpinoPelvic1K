@@ -1,0 +1,21 @@
+# Host-side dependencies (for scripts run outside the container).
+# Inside the container, these are all pre-installed (see docker/Dockerfile).
+
+numpy>=1.26
+nibabel>=5.2
+scipy>=1.12
+scikit-image>=0.22
+tqdm>=4.66
+pydicom>=2.4
+
+# HuggingFace
+huggingface-hub[hf_transfer]>=0.24
+datasets>=2.20
+
+# TCIA
+tcia-utils>=2.8
+requests>=2.31
+
+# Visualization / QC
+matplotlib>=3.8
+Pillow>=10.0
