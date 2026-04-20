@@ -83,6 +83,34 @@ BONE_ACCEPT_THRESH  = 20.0
 # Orientation helper (PIR)
 # ===========================================================================
 
+def _valid_affine(aff) -> bool:
+    """
+    True iff the 4x4 affine is usable for orientation / qform / PIR work:
+      • all entries finite (no NaN, no Inf)
+      • each spatial axis column has non-trivial norm (no degenerate axis,
+        which happens for 1-slice topograms / scouts in COLONOG)
+      • rotation 3x3 is non-singular (|det| > ~0)
+
+    Degenerate affines make io_orientation() return NaN and make qform SVD
+    fail to converge, which is what was crashing _to_pir() on some
+    pelvic candidates.
+    """
+    import numpy as np
+    if aff is None:
+        return False
+    a = np.asarray(aff, dtype=np.float64)
+    if a.shape != (4, 4):
+        return False
+    if not np.all(np.isfinite(a)):
+        return False
+    col_norms = np.linalg.norm(a[:3, :3], axis=0)
+    if (col_norms < 1e-6).any():
+        return False
+    if abs(float(np.linalg.det(a[:3, :3]))) < 1e-9:
+        return False
+    return True
+
+
 def _compute_bone_pct_from_files(placed_path, ct_path, bone_hu=200):
     """Recompute bone fraction from a placed mask + CT NIfTI (legacy cache)."""
     try:
@@ -306,6 +334,7 @@ def _bone_pct_of_placed(arr, ref_data):
 def _sorted_candidates(seg_affine, seg_shape, candidate_uids, primary_uid, nifti_dir):
     import nibabel as nib
     scored = []
+    n_skipped_degenerate = 0
     for uid in candidate_uids:
         if uid == primary_uid:
             continue
@@ -314,11 +343,24 @@ def _sorted_candidates(seg_affine, seg_shape, candidate_uids, primary_uid, nifti
             continue
         try:
             img = nib.load(str(nii_path))
+            # Reject scouts / topograms / otherwise degenerate NIfTIs —
+            # they'd crash io_orientation() and qform SVD downstream.
+            if not _valid_affine(img.affine):
+                n_skipped_degenerate += 1
+                continue
+            # Also reject trivially thin volumes (1- or 2-slice scouts still
+            # occasionally slip through with a non-singular affine).
+            sh = tuple(int(s) for s in img.shape[:3])
+            if min(sh) < 4:
+                n_skipped_degenerate += 1
+                continue
             ov, _, _ = _bbox_overlap_frac(
-                seg_affine, seg_shape, img.affine, img.shape[:3])
+                seg_affine, seg_shape, img.affine, sh)
             scored.append((ov, uid, img))
         except Exception:
             continue
+    if n_skipped_degenerate:
+        log.info("  [cands] skipped %d degenerate/scout NIfTI(s)", n_skipped_degenerate)
     scored.sort(key=lambda x: -x[0])
     return [(uid, img) for _, uid, img in scored]
 
@@ -653,6 +695,10 @@ def _place_spine_best_series(args):
         if best_arr is None or best_ref is None:
             return token, False, {"error": "all_methods_failed", "token": token}
 
+        # Defensive: refuse to save with a degenerate affine (would crash _to_pir).
+        if not _valid_affine(best_ref.affine):
+            return token, False, {"error": "best_ref_affine_degenerate", "token": token}
+
         n_vox  = int((best_arr > 0).sum())
         labels = sorted(set(best_arr.ravel().tolist()) - {0})
         checks = _spine_placement_checks(
@@ -661,7 +707,10 @@ def _place_spine_best_series(args):
         )
         out_path = out_dir / f"{best_uid}_seg_placed.nii.gz"
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        pir_data, pir_aff = _to_pir(best_arr, best_ref.affine)
+        try:
+            pir_data, pir_aff = _to_pir(best_arr, best_ref.affine)
+        except Exception as exc:
+            return token, False, {"error": f"to_pir_failed: {exc}", "token": token}
         nib.save(nib.Nifti1Image(pir_data, pir_aff), str(out_path))
 
         result = {
@@ -745,6 +794,11 @@ def _place_pelvic_best_series(args):
         mask_img      = nib.load(str(mask_path))
         orig_mask_aff = mask_img.affine
 
+        # If the pelvic mask's own affine is bad, nothing we do downstream
+        # will be sane.  Bail early.
+        if not _valid_affine(orig_mask_aff):
+            return token, False, {"error": "mask_affine_degenerate", "token": token}
+
         sorted_cands = _sorted_candidates(
             orig_mask_aff, mask_img.shape[:3], candidate_uids, "", nifti_dir,
         )
@@ -758,6 +812,16 @@ def _place_pelvic_best_series(args):
 
         for uid, ref_img in sorted_cands:
             ref_aff  = ref_img.affine
+
+            # Belt-and-suspenders: _sorted_candidates already filters, but
+            # make it absolutely impossible for a bad affine to reach _to_pir.
+            if not _valid_affine(ref_aff):
+                log.warning(
+                    "  [pelv]  token=%-8s  uid=...%s  ref_aff invalid — skipping",
+                    token, uid[-10:],
+                )
+                continue
+
             ref_data = ref_img.get_fdata(dtype=np.float32)
             ref_ornt = io_orientation(ref_aff)
             ref_nz   = ref_data.shape[2]
@@ -768,11 +832,14 @@ def _place_pelvic_best_series(args):
                     np.array(mask_img.dataobj, dtype=np.float32).astype(np.int32), xfm,
                 ).astype(np.float32)
             except ValueError:
+                # Mask cannot be reoriented into this ref's frame.  The old
+                # behaviour was to silently continue in the wrong orientation,
+                # which produced garbage placements; skip this candidate instead.
                 log.warning(
-                    "  [pelv]  token=%-8s  uid=...%s  ornt_transform NaN",
-                    token, uid[-10:] if sorted_cands else "?",
+                    "  [pelv]  token=%-8s  uid=...%s  ornt_transform NaN — skipping candidate",
+                    token, uid[-10:],
                 )
-                mask_data = np.array(mask_img.dataobj, dtype=np.float32).astype(np.float32)
+                continue
             mask_nz = mask_data.shape[2]
 
             ref_bone = np.array(
@@ -818,7 +885,19 @@ def _place_pelvic_best_series(args):
             if bp > best_bp:
                 placed_aff = ref_aff.copy()
                 placed_aff[:3, 3] = ref_aff[:3, 3] + z_off * ref_aff[:3, 2]
-                best_pir, best_pir_aff = _to_pir(md.astype(np.int32), placed_aff)
+
+                # Final guard: placed_aff should be valid (it derives from a
+                # validated ref_aff) but guard the _to_pir call explicitly so
+                # one bad candidate can never take down a whole token.
+                try:
+                    _pir, _pir_aff = _to_pir(md.astype(np.int32), placed_aff)
+                except (ValueError, np.linalg.LinAlgError) as exc:
+                    log.warning(
+                        "  [pelv]  token=%-8s  uid=...%s  _to_pir failed (%s) — skipping",
+                        token, uid[-10:], type(exc).__name__,
+                    )
+                    continue
+                best_pir, best_pir_aff = _pir, _pir_aff
                 best_uid, best_bp, best_z, best_score_val = uid, bp, z_off, score
 
         if best_pir is None:

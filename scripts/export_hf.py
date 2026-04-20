@@ -1,646 +1,804 @@
 """
-export_hf.py — Export CTSpinoPelvic1K as separate NIfTI image + label volumes.
+export_hf.py — Export CTSpinoPelvic1K to HuggingFace-compatible flat directory,
+then push directly to the Hub using upload_large_folder.
 
-INPUT
------
-  data/placed/placed_manifest.json        (from place_fused_masks.py)
-  data/tcia_nifti/{series_uid}.nii.gz     reference CTs (dcm2niix output)
-  data/placed/spine/{uid}_seg_placed.nii.gz
-  data/placed/pelvic/{stem}_pelvic_placed.nii.gz
+Reads placed_manifest.json (written by place_fused_masks.py) and for each case:
+  1. Load CT NIfTI (from tcia_nifti/{series_uid}.nii.gz)
+  2. Remap spine labels (VerSe → 10-class) + pelvic labels (4-class → 10-class)
+  3. Merge into single 10-class label map
+  4. Reorient CT + label to PIR canonical orientation
+  5. Strip PHI from NIfTI headers
+  6. Save to flat output:
+       ct/{token:04d}_{position}_ct.nii.gz
+       labels/{token:04d}_{position}_label.nii.gz
+  7. Write manifest.json, manifest.csv, data_splits.json
+  8. Push to HuggingFace
 
-OUTPUT TREE  (under --out_dir, flat NIfTI layout)
--------------------------------------------------
-  ct/<token:04d>_<config>_ct.nii.gz              int16, HU clipped, PIR orientation
-  labels/<token:04d>_<config>_label.nii.gz       uint8, 10-class fused label map
-  splits/{train,val,test}.json                   patient-level splits
-  manifest.json                                  per-record case metadata
-  splits_summary.json                            class stratification stats
-  README.md                                      dataset card rendered on the Hub
+placed_manifest.json is the single source of truth. It now carries all LSTV
+fields directly (lstv_pelvic, lstv_vertebral, lstv_agreement, lstv_confusion_zone)
+populated by place_fused_masks.py. No secondary manifest file is needed.
 
-DATASET CONFIGS (3 per-patient variants, derived from placed_manifest)
-----------------------------------------------------------------------
-  fused           one record per patient with match_type=fused;
-                  label is full 10-class (L1-L6 + sacrum + L/R hip)
-  spine_only      spine-only patients + the spine half of separate patients;
-                  label contains only L1-L6 (background elsewhere)
-  pelvic_native   pelvic-only patients + the pelvic half of separate patients;
-                  label contains only sacrum + L/R hip
+Label scheme:
+  0=bg  1=L1  2=L2  3=L3  4=L4  5=L5  6=L6(LSTV)  7=sacrum  8=left_hip  9=right_hip
 
-LABEL SCHEME (10-class)
------------------------
-  0 background
-  1 L1    2 L2    3 L3    4 L4    5 L5    6 L6 (LSTV / lumbarized S1)
-  7 sacrum   8 left_hip   9 right_hip
+Usage (matches slurm/export_dataset.sh):
+    python export_hf.py \\
+        --manifest   data/placed/placed_manifest.json \\
+        --nifti_dir  data/tcia_nifti \\
+        --spine_dir  data/placed/spine \\
+        --pelvic_dir data/placed/pelvic \\
+        --out_dir    data/hf_export \\
+        --workers    32 \\
+        [--skip_qc] [--no_pir] [--skip_export] \\
+        [--push_to_hub --hf_repo_id user/repo --hf_workers 8 [--hf_private]]
 
-CT and label share identical affines — no resampling at training time.
+    # Token via env var (keeps credentials out of shell history)
+    HF_TOKEN=hf_xxx python export_hf.py ... --push_to_hub
 """
+
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import logging
 import os
-import sys
+import shutil
 import time
-from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional
 
+import numpy as np
+
+log = logging.getLogger("spinesurg.export_hf")
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-8s  %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
+    datefmt="%H:%M:%S",
 )
-log = logging.getLogger("ctspinopelvic1k.export_hf")
 
-SPINE_REMAP: Dict[int, int] = {20:1, 21:2, 22:3, 23:4, 24:5, 25:6}
-PELVIC_REMAP: Dict[int, int] = {1:7, 2:8, 3:9}
-LABEL_NAMES = [
-    "background", "L1", "L2", "L3", "L4", "L5", "L6",
-    "sacrum", "left_hip", "right_hip",
-]
+# ── HuggingFace config ────────────────────────────────────────────────────────
 
+HF_REPO_ID   = "anonymous-mlhc/CTSpinoPelvic1K"
+HF_REPO_TYPE = "dataset"
 
-def _load_nifti(path: Path):
+# ── Label maps ────────────────────────────────────────────────────────────────
+
+VERSE_TO_10CLASS: Dict[int, int] = {
+    20: 1, 21: 2, 22: 3, 23: 4, 24: 5,
+    25: 6,
+    26: 7,
+}
+PELVIC_TO_10CLASS: Dict[int, int] = {1: 7, 2: 8, 3: 9}
+
+CLASS_NAMES = {
+    0: "background", 1: "L1", 2: "L2", 3: "L3", 4: "L4", 5: "L5",
+    6: "L6", 7: "sacrum", 8: "left_hip", 9: "right_hip",
+}
+
+_SEG_COLORS = {
+    1: (0.15, 0.40, 0.80, 0.55), 2: (0.25, 0.55, 0.85, 0.55),
+    3: (0.35, 0.65, 0.90, 0.55), 4: (0.45, 0.75, 0.92, 0.55),
+    5: (0.10, 0.80, 0.85, 0.55), 6: (0.75, 0.85, 0.20, 0.65),
+    7: (0.85, 0.15, 0.15, 0.55), 8: (0.95, 0.50, 0.10, 0.55),
+    9: (0.95, 0.80, 0.05, 0.55),
+}
+
+# ── NIfTI helpers ─────────────────────────────────────────────────────────────
+
+def _load_nii(path):
     import nibabel as nib
-    from nibabel.orientations import axcodes2ornt, ornt_transform, apply_orientation
-    import numpy as np
-    img       = nib.load(str(path))
-    src_ornt  = nib.io_orientation(img.affine)
-    dst_ornt  = axcodes2ornt(("P", "I", "R"))
-    xfm       = ornt_transform(src_ornt, dst_ornt)
-    data      = apply_orientation(img.get_fdata(dtype=np.float32), xfm).squeeze()
-    new_aff   = img.affine @ nib.orientations.inv_ornt_aff(xfm, img.shape[:3])
-    return data, new_aff
+    return nib.load(str(path))
 
 
-def _fuse_labels_fused(spine_arr, pelvic_arr, shape):
-    import numpy as np
-    fused = np.zeros(shape, dtype=np.uint8)
-    if spine_arr is not None:
-        mn = tuple(min(a, b) for a, b in zip(shape, spine_arr.shape))
-        sl = tuple(slice(0, m) for m in mn)
-        sa = spine_arr[sl]
-        for src, dst in SPINE_REMAP.items():
-            fused[sl][sa == src] = dst
-    if pelvic_arr is not None:
-        mn = tuple(min(a, b) for a, b in zip(shape, pelvic_arr.shape))
-        sl = tuple(slice(0, m) for m in mn)
-        pa = pelvic_arr[sl]
-        for src, dst in PELVIC_REMAP.items():
-            fused[sl][pa == src] = dst
-    return fused
-
-
-def _remap_spine_only(spine_arr, shape):
-    import numpy as np
-    out = np.zeros(shape, dtype=np.uint8)
-    if spine_arr is not None:
-        mn = tuple(min(a, b) for a, b in zip(shape, spine_arr.shape))
-        sl = tuple(slice(0, m) for m in mn)
-        sa = spine_arr[sl]
-        for src, dst in SPINE_REMAP.items():
-            out[sl][sa == src] = dst
-    return out
-
-
-def _remap_pelvic_only(pelvic_arr, shape):
-    import numpy as np
-    out = np.zeros(shape, dtype=np.uint8)
-    if pelvic_arr is not None:
-        mn = tuple(min(a, b) for a, b in zip(shape, pelvic_arr.shape))
-        sl = tuple(slice(0, m) for m in mn)
-        pa = pelvic_arr[sl]
-        for src, dst in PELVIC_REMAP.items():
-            out[sl][pa == src] = dst
-    return out
-
-
-def _enumerate_records(cases: List[Dict]) -> List[Dict]:
+def _validate_affine(affine, label: str = "") -> None:
     """
-    Turn manifest cases into per-(patient, config) export records.
-      fused       -> 1 'fused' record
-      spine_only  -> 1 'spine_only' record
-      pelvic_only -> 1 'pelvic_native' record
-      separate    -> 1 'spine_only' + 1 'pelvic_native' record
+    Raise ValueError early if the affine is degenerate before nibabel's
+    io_orientation crashes. Catches NaN/Inf columns and zero-norm columns
+    from degenerate dcm2niix outputs (localizer/scout series with missing
+    geometry tags) — same class of inputs that broke place_fused_masks.py
+    before _valid_affine() was added there.
     """
-    records = []
-    for c in cases:
-        token = str(c.get("patient_token", ""))
-        if not token:
-            continue
-        mt = c.get("match_type", "")
-        sp = c.get("spine")
-        pv = c.get("pelvic")
-        base = {
-            "patient_token":       token,
-            "match_type":          mt,
-            "lstv_pelvic":         c.get("lstv_pelvic", ""),
-            "lstv_vertebral":      c.get("lstv_vertebral", ""),
-            "lstv_agreement":      c.get("lstv_agreement"),
-            "lstv_confusion_zone": c.get("lstv_confusion_zone", False),
-            "lstv_class":          c.get("lstv_class", 0),
-        }
-        if mt == "fused" and sp and pv:
-            records.append({**base, "config": "fused", "spine": sp, "pelvic": pv})
-        elif mt == "spine_only" and sp:
-            records.append({**base, "config": "spine_only", "spine": sp, "pelvic": None})
-        elif mt == "pelvic_only" and pv:
-            records.append({**base, "config": "pelvic_native", "spine": None, "pelvic": pv})
-        elif mt == "separate" and sp:
-            records.append({**base, "config": "spine_only", "spine": sp, "pelvic": None})
-        if mt == "separate" and pv:
-            records.append({**base, "config": "pelvic_native", "spine": None, "pelvic": pv})
-    return records
+    tag = f"[{label}] " if label else ""
+    if affine is None or getattr(affine, "shape", None) != (4, 4):
+        raise ValueError(f"{tag}affine is not 4x4: shape={getattr(affine,'shape',None)}")
+    if not np.all(np.isfinite(affine)):
+        bad = np.argwhere(~np.isfinite(affine)).tolist()
+        raise ValueError(f"{tag}affine contains NaN/Inf at positions {bad}")
+    col_norms = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
+    if np.any(col_norms < 1e-6):
+        raise ValueError(
+            f"{tag}affine has near-zero column norm (degenerate series): "
+            f"norms={col_norms.tolist()}"
+        )
 
 
-def _export_one_record(args):
-    rec, nifti_dir_str, ct_out_dir_str, lbl_out_dir_str, hu_range = args
-    try:
-        import numpy as np
-        import nibabel as nib
+def reorient_to_pir(img):
+    from nibabel.orientations import axcodes2ornt, ornt_transform, io_orientation
+    _validate_affine(img.affine, label="reorient_to_pir")
+    target  = axcodes2ornt(('P', 'I', 'R'))
+    current = io_orientation(img.affine)
+    xfm     = ornt_transform(current, target)
+    return img.as_reoriented(xfm)
 
-        nifti_dir   = Path(nifti_dir_str)
-        ct_out_dir  = Path(ct_out_dir_str)
-        lbl_out_dir = Path(lbl_out_dir_str)
 
-        token  = rec["patient_token"]
-        config = rec["config"]
-        sp     = rec.get("spine")
-        pv     = rec.get("pelvic")
-
-        if config in ("fused", "spine_only") and sp:
-            ref_uid = sp["series_uid"]
-        elif config == "pelvic_native" and pv:
-            ref_uid = pv["series_uid"]
-        else:
-            return token, config, False, "no_series_uid"
-
-        ct_path = nifti_dir / f"{ref_uid}.nii.gz"
-        if not ct_path.exists():
-            return token, config, False, f"ct_missing:{ref_uid}"
-
+def strip_phi(img):
+    import nibabel as nib
+    hdr = img.header.copy()
+    for field in ('descrip', 'aux_file', 'db_name', 'intent_name'):
         try:
-            stem = f"{int(token):04d}_{config}"
-        except ValueError:
-            stem = f"{token}_{config}"
+            hdr[field] = b''
+        except (KeyError, ValueError):
+            pass
+    return nib.Nifti1Image(np.asarray(img.dataobj), img.affine, hdr)
 
-        ct_out_path  = ct_out_dir  / f"{stem}_ct.nii.gz"
-        lbl_out_path = lbl_out_dir / f"{stem}_label.nii.gz"
-        if ct_out_path.exists() and lbl_out_path.exists():
-            return token, config, True, "skip"
 
-        ct_arr, affine = _load_nifti(ct_path)
-        shape = ct_arr.shape
-        ct_arr = np.clip(ct_arr, hu_range[0], hu_range[1]).astype(np.int16)
+def merge_labels(spine_path, pelvic_path, ref_shape):
+    result = np.zeros(ref_shape, dtype=np.int16)
 
-        spine_arr = None
-        if sp and sp.get("placed") and Path(sp["placed"]).exists():
-            spine_arr, _ = _load_nifti(Path(sp["placed"]))
-            spine_arr = spine_arr.astype(np.int32)
-        pelvic_arr = None
-        if pv and pv.get("placed") and Path(pv["placed"]).exists():
-            pelvic_arr, _ = _load_nifti(Path(pv["placed"]))
-            pelvic_arr = pelvic_arr.astype(np.int32)
+    if pelvic_path and Path(pelvic_path).exists():
+        pelv = np.asarray(_load_nii(pelvic_path).dataobj, dtype=np.int16)
+        mn   = tuple(min(a, b) for a, b in zip(ref_shape, pelv.shape))
+        sl   = tuple(slice(0, m) for m in mn)
+        for pid, cls in PELVIC_TO_10CLASS.items():
+            result[sl][pelv[sl] == pid] = cls
 
-        if config == "fused":
-            label = _fuse_labels_fused(spine_arr, pelvic_arr, shape)
-        elif config == "spine_only":
-            label = _remap_spine_only(spine_arr, shape)
-        elif config == "pelvic_native":
-            label = _remap_pelvic_only(pelvic_arr, shape)
+    if spine_path and Path(spine_path).exists():
+        sp = np.asarray(_load_nii(spine_path).dataobj, dtype=np.int16)
+        mn = tuple(min(a, b) for a, b in zip(ref_shape, sp.shape))
+        sl = tuple(slice(0, m) for m in mn)
+        for vid, cls in VERSE_TO_10CLASS.items():
+            if cls in (1, 2, 3, 4, 5, 6):
+                result[sl][sp[sl] == vid] = cls
+            elif cls == 7:
+                # Only fill sacrum from spine seg where pelvic didn't already
+                mask = (sp[sl] == vid) & (result[sl] == 0)
+                result[sl][mask] = cls
+
+    return result
+
+
+# ── QC figure ─────────────────────────────────────────────────────────────────
+
+def _window(arr, lo=-150, hi=700):
+    return np.clip((arr.astype(np.float32) - lo) / (hi - lo), 0, 1)
+
+
+def _overlay(bg, labels):
+    rgb = np.stack([bg, bg, bg], axis=-1)
+    for cls_id, (r, g, b, a) in _SEG_COLORS.items():
+        mask = labels == cls_id
+        if mask.any():
+            for c, v in enumerate([r, g, b]):
+                rgb[..., c] = np.where(mask, rgb[..., c] * (1 - a) + v * a, rgb[..., c])
+    return np.clip(rgb, 0, 1)
+
+
+def _center_slice(ct, lbl):
+    nz = np.where(lbl > 0)
+    if not len(nz[0]):
+        return ct.shape[0]//2, ct.shape[1]//2, ct.shape[2]//2
+    return int(np.median(nz[0])), int(np.median(nz[1])), int(np.median(nz[2]))
+
+
+def make_qc_figure(ct, lbl, out_path, token, config, lstv, position):
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
+    except ImportError:
+        return False
+
+    present    = {int(v) for v in np.unique(lbl) if v > 0}
+    has_lumbar = bool(present & {1,2,3,4,5,6})
+    has_pelvic = bool(present & {7,8,9})
+
+    sp_lbl = np.where(np.isin(lbl, [1,2,3,4,5,6]), lbl, 0).astype(np.int16)
+    pv_lbl = np.where(np.isin(lbl, [7,8,9]),        lbl, 0).astype(np.int16)
+
+    if has_lumbar and has_pelvic:
+        cols   = ["CT (raw)", "CT + spine", "CT + pelvic", "CT + all"]
+        layout = "fused"
+    else:
+        name   = "spine" if has_lumbar else "pelvic"
+        cols   = ["CT (raw)", f"CT + {name}", f"{name.capitalize()} only"]
+        layout = "single"
+
+    i, j, k = _center_slice(ct, lbl)
+    planes   = [(0, i, "Sag"), (1, j, "Cor"), (2, k, "Ax")]
+
+    fig, axes = plt.subplots(3, len(cols),
+                              figsize=(3.5 * len(cols), 10),
+                              gridspec_kw={"hspace": 0.05, "wspace": 0.05})
+    fig.patch.set_facecolor("#111111")
+    for ax in axes.flat:
+        ax.set_facecolor("#111111"); ax.axis("off")
+    for ci, t in enumerate(cols):
+        axes[0, ci].set_title(t, fontsize=8, color="#cccccc", pad=4)
+
+    for row, (dim, idx, pname) in enumerate(planes):
+        sl   = [slice(None)]*3; sl[dim] = idx; sl = tuple(sl)
+        bg   = _window(ct[sl])
+        axes[row, 0].imshow(np.stack([bg,bg,bg], axis=-1),
+                            origin="lower", aspect="auto", interpolation="nearest")
+        axes[row, 0].text(-0.08, 0.5, pname, transform=axes[row,0].transAxes,
+                          fontsize=7, color="#aaaaaa", rotation=90, va="center")
+        if layout == "fused":
+            axes[row,1].imshow(_overlay(bg, sp_lbl[sl]), origin="lower", aspect="auto", interpolation="nearest")
+            axes[row,2].imshow(_overlay(bg, pv_lbl[sl]), origin="lower", aspect="auto", interpolation="nearest")
+            axes[row,3].imshow(_overlay(bg, lbl[sl]),    origin="lower", aspect="auto", interpolation="nearest")
         else:
-            return token, config, False, f"unknown_config:{config}"
+            axes[row,1].imshow(_overlay(bg, lbl[sl]),    origin="lower", aspect="auto", interpolation="nearest")
+            rgb = np.zeros((*lbl[sl].shape, 3), dtype=np.float32)
+            for cid, (r,g,b,_) in _SEG_COLORS.items():
+                rgb[lbl[sl]==cid] = [r,g,b]
+            axes[row,2].imshow(rgb, origin="lower", aspect="auto", interpolation="nearest")
 
-        # Identical affines for CT and label — this is the alignment guarantee.
-        ct_out_dir.mkdir(parents=True, exist_ok=True)
-        lbl_out_dir.mkdir(parents=True, exist_ok=True)
-        nib.save(nib.Nifti1Image(ct_arr, affine.astype(np.float32)), str(ct_out_path))
-        nib.save(nib.Nifti1Image(label,  affine.astype(np.float32)), str(lbl_out_path))
-        return token, config, True, stem
-    except Exception:
-        import traceback
-        return rec.get("patient_token","?"), rec.get("config","?"), False, traceback.format_exc()[-400:]
+    patches = [mpatches.Patch(facecolor=_SEG_COLORS[c][:3], label=CLASS_NAMES[c])
+               for c in sorted(present) if c in _SEG_COLORS]
+    if patches:
+        fig.legend(handles=patches, loc="lower center", ncol=min(9, len(patches)),
+                   fontsize=7, bbox_to_anchor=(0.5, 0.0),
+                   facecolor="#222222", labelcolor="#dddddd", edgecolor="#444444")
+
+    lstv_color = "#ff9944" if lstv.upper() not in ("NORMAL","UNKNOWN","") else "#44ff88"
+    fig.suptitle(f"Token {token}  [{config}]  pos={position}  LSTV={lstv}",
+                 fontsize=10, y=1.002, color=lstv_color)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(str(out_path), dpi=100, bbox_inches="tight", facecolor="#111111")
+    plt.close(fig)
+    return True
 
 
-def _coalesce_rare_strata(strata: List[str], min_count: int) -> List[str]:
-    """Collapse '<match>|<lstv>' strata that are too thin for splitting."""
-    counts = Counter(strata)
-    rare = {s for s, c in counts.items() if c < min_count}
-    if not rare:
-        return strata
-    out = []
-    for s in strata:
-        if s in rare and "|" in s:
-            out.append(s.split("|", 1)[0])
+# ── Per-case export worker ────────────────────────────────────────────────────
+
+def _export_one(args: dict) -> dict:
+    import nibabel as nib
+
+    token       = args["token"]
+    position    = args["position"]
+    config      = args["config"]
+    ct_path     = Path(args["ct_path"])
+    spine_path  = args.get("spine_path")
+    pelvic_path = args.get("pelvic_path")
+    out_ct      = Path(args["out_ct"])
+    out_lbl     = Path(args["out_lbl"])
+    out_qc      = Path(args["out_qc"])
+    lstv        = args.get("lstv", "unknown")
+    match_type  = args.get("match_type", "unknown")
+
+    result = dict(
+        token=token, position=position, config=config,
+        match_type=match_type, lstv_label=lstv, ok=False, error=None,
+        alignment_ok=False, has_l6=False, n_lumbar_labels=0,
+        ct_file=out_ct.name, label_file=out_lbl.name, qc_file=out_qc.name,
+        # LSTV fields — passed through from placed_manifest.json
+        lstv_pelvic=args.get("lstv_pelvic", ""),
+        lstv_vertebral=args.get("lstv_vertebral", ""),
+        lstv_agreement=args.get("lstv_agreement"),          # bool | None
+        lstv_confusion_zone=args.get("lstv_confusion_zone", False),
+        lstv_class=args.get("lstv_class", 0),
+    )
+
+    try:
+        ref_img = None
+        for p in [spine_path, pelvic_path]:
+            if p and Path(p).exists():
+                ref_img = _load_nii(p); break
+        if ref_img is None:
+            raise FileNotFoundError(f"No placed mask for token={token}")
+
+        _validate_affine(ref_img.affine, label=f"token={token} ref_mask")
+
+        ref_shape  = ref_img.shape[:3]
+        ref_affine = ref_img.affine.copy()
+
+        ct_img = _load_nii(ct_path)
+        _validate_affine(ct_img.affine, label=f"token={token} ct")
+        ct_data = np.asarray(ct_img.dataobj, dtype=np.float32)
+        if ct_img.shape[:3] != ref_shape:
+            from scipy.ndimage import affine_transform as _at
+            M       = np.linalg.inv(ct_img.affine) @ ref_affine
+            ct_data = _at(ct_data, M[:3,:3], offset=M[:3,3],
+                          output_shape=ref_shape, order=1,
+                          mode="constant", cval=-1024.0)
+
+        lbl_data = merge_labels(spine_path, pelvic_path, ref_shape)
+
+        ct_out  = nib.Nifti1Image(ct_data,  ref_affine)
+        lbl_out = nib.Nifti1Image(lbl_data, ref_affine)
+        lbl_out.header.set_data_dtype(np.int16)
+        lbl_out.header["scl_slope"] = 1.0
+        lbl_out.header["scl_inter"] = 0.0
+
+        if not args.get("skip_pir"):
+            ct_out  = reorient_to_pir(ct_out)
+            lbl_out = reorient_to_pir(lbl_out)
+
+        ct_out  = strip_phi(ct_out)
+        lbl_out = strip_phi(lbl_out)
+
+        out_ct.parent.mkdir(parents=True, exist_ok=True)
+        out_lbl.parent.mkdir(parents=True, exist_ok=True)
+        nib.save(ct_out,  str(out_ct))
+        nib.save(lbl_out, str(out_lbl))
+
+        ct_r  = nib.load(str(out_ct))
+        lbl_r = nib.load(str(out_lbl))
+        result["alignment_ok"] = (ct_r.shape[:3] == lbl_r.shape[:3] and
+                                   np.allclose(ct_r.affine, lbl_r.affine, atol=1e-4))
+
+        lbl_arr = np.asarray(lbl_r.dataobj, dtype=np.int16)
+        uniq    = {int(v) for v in np.unique(lbl_arr) if v > 0}
+        result["n_lumbar_labels"] = len({1,2,3,4,5,6} & uniq)
+        result["has_l6"]          = 6 in uniq
+
+        if not args.get("skip_qc"):
+            ct_arr = np.asarray(ct_r.dataobj, dtype=np.float32)
+            make_qc_figure(ct_arr, lbl_arr, out_qc,
+                           token=str(token), config=config,
+                           lstv=lstv, position=position)
+
+        result["ok"] = True
+
+    except Exception as exc:
+        result["error"] = str(exc)
+        log.error("FAIL token=%s: %s", token, exc)
+
+    return result
+
+
+# ── Build work items ──────────────────────────────────────────────────────────
+
+def build_work(manifest_path: Path, nifti_dir: Path,
+               spine_dir: Path, pelvic_dir: Path) -> List[dict]:
+    """
+    Build per-case export work from placed_manifest.json.
+
+    placed_manifest.json is the single source of truth. It carries LSTV fields
+    (lstv_pelvic, lstv_vertebral, lstv_agreement, lstv_confusion_zone) written
+    by place_fused_masks.py — no secondary manifest file needed.
+    """
+    data  = json.loads(manifest_path.read_text())
+    cases = data.get("cases", [])
+    if isinstance(cases, dict):
+        cases = list(cases.values())
+
+    work = []
+    for c in cases:
+        tok  = str(c.get("patient_token", "?"))
+        mt   = c.get("match_type", "unknown")
+        sp   = c.get("spine",  {}) or {}
+        pv   = c.get("pelvic", {}) or {}
+
+        # LSTV fields — now native to placed_manifest.json
+        lstv_pelvic       = c.get("lstv_pelvic",        "") or ""
+        lstv_vertebral    = c.get("lstv_vertebral",      "") or ""
+        lstv_agreement    = c.get("lstv_agreement")           # bool | None
+        lstv_confusion    = c.get("lstv_confusion_zone", False)
+
+        # Resolve a single lstv label string for filename / QC figure.
+        # Prefer lstv_class (already merged/resolved by place_fused_masks.py),
+        # fall back to the raw strings if class==0 in case vertebral detection
+        # caught something pelvic annotation missed.
+        _cls_map = {0: "normal", 1: "LUMBARIZATION", 2: "SEMI_SACRALIZATION",
+                    3: "SACRALIZATION", 4: "SACRALIZATION"}
+        _cls = int(c.get("lstv_class", 0) or 0)
+        if _cls > 0:
+            lstv = _cls_map[_cls]
         else:
-            out.append(s)
-    return out
+            _lp = lstv_pelvic    if lstv_pelvic.lower()    not in ("unknown", "", "normal") else ""
+            _lv = lstv_vertebral if lstv_vertebral.lower() not in ("unknown", "", "normal") else ""
+            lstv = _lp or _lv or "normal"
+        if not lstv:
+            # Fallback: derive from filename for legacy placed_manifest.json
+            mask_file = pv.get("mask_file") or pv.get("placed") or ""
+            fname = Path(mask_file).name.lower()
+            if   "sacrali"  in fname: lstv = "sacralization"
+            elif "lumbariz" in fname: lstv = "lumbarization"
+            elif "semi"     in fname: lstv = "semi"
+            else:                     lstv = "normal"
+
+        # Integer class for the manifest (passed through separately from the string)
+        _lmap = {"lumbarization": 1, "semi": 2, "semi-sacralization": 2,
+                 "sacralization": 3, "hard": 4}
+        lstv_class = _lmap.get(lstv.lower(), 0)
+
+        spine_uid  = sp.get("series_uid")
+        pelvic_uid = pv.get("series_uid")
+
+        spine_placed  = Path(sp["placed"])  if sp.get("placed")  else None
+        pelvic_placed = Path(pv["placed"])  if pv.get("placed")  else None
+
+        if spine_placed and not spine_placed.exists() and spine_uid:
+            cand = spine_dir / f"{spine_uid}_seg_placed.nii.gz"
+            if cand.exists():
+                spine_placed = cand
+        if pelvic_placed and not pelvic_placed.exists():
+            stem = Path(pv.get("placed","")).name
+            if stem:
+                cand = pelvic_dir / stem
+                if cand.exists():
+                    pelvic_placed = cand
+
+        spine_ct  = nifti_dir / f"{spine_uid}.nii.gz"  if spine_uid  else None
+        pelvic_ct = nifti_dir / f"{pelvic_uid}.nii.gz" if pelvic_uid else None
+
+        pos = sp.get("position", "")
+        if not pos:
+            fname = (str(spine_placed or "") + str(pelvic_placed or "")).lower()
+            pos   = "prone" if "prone" in fname else "supine" if "supine" in fname else "unknown"
+
+        tok_int = int(tok) if tok.isdigit() else abs(hash(tok)) % 10000
+        base    = f"{tok_int:04d}_{pos}"
+
+        # Shared LSTV kwargs passed to every work item
+        lstv_kwargs = dict(
+            lstv=lstv,
+            lstv_pelvic=lstv_pelvic,
+            lstv_vertebral=lstv_vertebral,
+            lstv_agreement=lstv_agreement,
+            lstv_confusion_zone=lstv_confusion,
+            lstv_class=lstv_class,
+        )
+
+        if mt == "fused":
+            if spine_placed and spine_placed.exists() and spine_ct and spine_ct.exists():
+                work.append(dict(
+                    token=tok, position=pos, config="fused", match_type=mt,
+                    ct_path=str(spine_ct), spine_path=str(spine_placed),
+                    pelvic_path=str(pelvic_placed) if pelvic_placed and pelvic_placed.exists() else None,
+                    fname_base=base, **lstv_kwargs,
+                ))
+        elif mt == "separate":
+            if spine_placed and spine_placed.exists() and spine_ct and spine_ct.exists():
+                work.append(dict(
+                    token=tok, position=pos, config="spine_only", match_type=mt,
+                    ct_path=str(spine_ct), spine_path=str(spine_placed), pelvic_path=None,
+                    fname_base=f"{base}_spine", **lstv_kwargs,
+                ))
+            if pelvic_placed and pelvic_placed.exists() and pelvic_ct and pelvic_ct.exists():
+                work.append(dict(
+                    token=tok, position=pos, config="pelvic_native", match_type=mt,
+                    ct_path=str(pelvic_ct), spine_path=None, pelvic_path=str(pelvic_placed),
+                    fname_base=f"{base}_pelvic", **lstv_kwargs,
+                ))
+        elif mt == "spine_only":
+            if spine_placed and spine_placed.exists() and spine_ct and spine_ct.exists():
+                work.append(dict(
+                    token=tok, position=pos, config="spine_only", match_type=mt,
+                    ct_path=str(spine_ct), spine_path=str(spine_placed), pelvic_path=None,
+                    fname_base=base, **lstv_kwargs,
+                ))
+        elif mt == "pelvic_only":
+            if pelvic_placed and pelvic_placed.exists() and pelvic_ct and pelvic_ct.exists():
+                work.append(dict(
+                    token=tok, position=pos, config="pelvic_native", match_type=mt,
+                    ct_path=str(pelvic_ct), spine_path=None, pelvic_path=str(pelvic_placed),
+                    fname_base=base, **lstv_kwargs,
+                ))
+
+    return work
 
 
-def _build_strata_labels(tokens: List[str],
-                         patient_keys: Dict[str, Tuple]) -> List[str]:
-    return [f"{patient_keys[t][1]}|{patient_keys[t][0]}" for t in tokens]
+# ── Splits ────────────────────────────────────────────────────────────────────
 
-
-def _stratify_test_holdout_and_kfold(
-        patient_keys: Dict[str, Tuple],
-        test_fraction: float,
-        n_folds: int,
-        seed: int,
-) -> Dict:
+def write_splits(records: List[dict], out_dir: Path, seed: int = 42) -> None:
     """
-    Patient-level stratification by (match_type | lstv_class).
-    Holds out `test_fraction` as a fixed test set, then runs StratifiedKFold
-    on the remaining trainval pool.
+    Write stratified train/val/test splits.
 
-    Returns a dict shaped like generate_5fold_splits.py schema v3.
+    Six strata — fused and non-fused kept separate within each LSTV subtype
+    so that fused LSTV cases (full 10-class GT) are guaranteed in val and test:
+
+      lumbarization_fused      70/15/15 — guarantees fused lumbarization in val+test
+      lumbarization_separate   70/15/15
+      sacralization_fused      70/15/15 — guarantees fused sacralization in val+test
+      sacralization_separate   70/15/15
+      fused_normal             70/15/15
+      nonfused_normal          70/15/15
+
+    Tiny-stratum handling:
+      n >= 3  →  at least 1 in val, 1 in test, rest in train
+      n == 2  →  1 train / 1 val / 0 test
+      n == 1  →  all train
     """
-    import warnings as _w
-    _w.filterwarnings("ignore",
-                      message="The least populated class in y has only",
-                      category=UserWarning)
-    try:
-        from sklearn.model_selection import (StratifiedShuffleSplit,
-                                              StratifiedKFold, ShuffleSplit, KFold)
-    except ImportError as e:
-        raise RuntimeError("scikit-learn required for 5-fold splitting. "
-                           "pip install scikit-learn") from e
+    import random
 
-    tokens  = sorted(patient_keys.keys())
-    strata  = _build_strata_labels(tokens, patient_keys)
+    ok = [r for r in records if r.get("ok")]
 
-    min_count_test = max(n_folds, int(round(1.0 / max(test_fraction, 1e-6))))
-    strata_test    = _coalesce_rare_strata(strata, min_count_test)
+    def _is_lstv(r, subtype):
+        lbl = (r.get("lstv_label") or "NORMAL").upper()
+        if subtype == "lumbarization":
+            return lbl == "LUMBARIZATION"
+        if subtype == "sacralization":
+            return lbl in ("SACRALIZATION", "SEMI_SACRALIZATION")
+        return False
 
-    # Holdout
-    try:
-        sss = StratifiedShuffleSplit(n_splits=1, test_size=test_fraction,
-                                      random_state=seed)
-        tv_idx, te_idx = next(sss.split(tokens, strata_test))
-    except ValueError as e:
-        log.warning("Stratified test holdout failed (%s); falling back.", e)
-        ss = ShuffleSplit(n_splits=1, test_size=test_fraction, random_state=seed)
-        tv_idx, te_idx = next(ss.split(tokens))
+    is_fused = lambda r: r.get("config") == "fused"
 
-    trainval_tokens = [tokens[i] for i in tv_idx]
-    test_tokens     = sorted(tokens[i] for i in te_idx)
-    trainval_strata = [strata[i] for i in tv_idx]
-    trainval_strata_safe = _coalesce_rare_strata(trainval_strata, n_folds)
+    strata = [
+        ("lumbarization_fused",    [r for r in ok if _is_lstv(r,"lumbarization") and     is_fused(r)]),
+        ("lumbarization_separate", [r for r in ok if _is_lstv(r,"lumbarization") and not is_fused(r)]),
+        ("sacralization_fused",    [r for r in ok if _is_lstv(r,"sacralization") and     is_fused(r)]),
+        ("sacralization_separate", [r for r in ok if _is_lstv(r,"sacralization") and not is_fused(r)]),
+        ("fused_normal",           [r for r in ok if not _is_lstv(r,"lumbarization")
+                                                  and not _is_lstv(r,"sacralization")
+                                                  and is_fused(r)]),
+        ("nonfused_normal",        [r for r in ok if not _is_lstv(r,"lumbarization")
+                                                  and not _is_lstv(r,"sacralization")
+                                                  and not is_fused(r)]),
+    ]
 
-    # KFold on trainval
-    try:
-        skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
-        fold_splits = list(skf.split(trainval_tokens, trainval_strata_safe))
-    except ValueError as e:
-        log.warning("StratifiedKFold failed (%s); falling back to KFold.", e)
-        kf = KFold(n_splits=n_folds, shuffle=True, random_state=seed)
-        fold_splits = list(kf.split(trainval_tokens))
+    def _split_stratum(lst, name, rng):
+        lst = list(lst); rng.shuffle(lst); n = len(lst)
+        if n == 0: return [], [], []
+        if n == 1: return lst, [], []
+        if n == 2: return lst[:1], lst[1:], []
+        n_test  = max(1, round(n * 0.15))
+        n_val   = max(1, round(n * 0.15))
+        n_train = n - n_val - n_test
+        if n_train < 1:
+            n_train, n_val, n_test = 1, max(1,(n-1)//2), n-1-max(1,(n-1)//2)
+        tr = lst[n_test+n_val:]; va = lst[n_test:n_test+n_val]; te = lst[:n_test]
+        log.info("  %-28s n=%3d  train=%d val=%d test=%d", name, n, len(tr), len(va), len(te))
+        return tr, va, te
 
-    folds = []
-    for tr_i, va_i in fold_splits:
-        folds.append({
-            "train_tokens": sorted(trainval_tokens[j] for j in tr_i),
-            "val_tokens":   sorted(trainval_tokens[j] for j in va_i),
-        })
+    train_recs: list = []
+    val_recs:   list = []
+    test_recs:  list = []
 
-    # Sanity: fold val sets are a disjoint partition of trainval_tokens
-    val_union: set = set()
-    for f in folds:
-        s = set(f["val_tokens"])
-        if val_union & s:
-            raise RuntimeError("Fold val sets are not disjoint")
-        val_union |= s
-    if val_union != set(trainval_tokens):
-        raise RuntimeError("Fold val union != trainval pool")
+    for name, recs in strata:
+        rng = random.Random(seed + hash(name) % 1000)
+        tr, va, te = _split_stratum(recs, name, rng)
+        train_recs.extend(tr); val_recs.extend(va); test_recs.extend(te)
 
-    from datetime import datetime, timezone
-    stratum_by_token = dict(zip(tokens, strata))
-    def _cnt(tok_list): return dict(Counter(stratum_by_token[t] for t in tok_list))
+    log.info("Splits  train=%d  val=%d  test=%d",
+             len(train_recs), len(val_recs), len(test_recs))
 
-    token_info = {
-        t: {"match_type": patient_keys[t][1],
-            "lstv_class": int(patient_keys[t][0])}
-        for t in tokens
-    }
+    _drop = {"ok", "error"}
+    def _clean(recs):
+        return [{k: ("" if v is None else v) for k, v in r.items() if k not in _drop}
+                for r in recs]
 
-    return {
-        "schema_version":    3,
-        "created_at":        datetime.now(timezone.utc)
-                              .isoformat(timespec="seconds").replace("+00:00", "Z"),
-        "source":            "export_hf.py",
-        "test_fraction":     test_fraction,
-        "n_folds":           n_folds,
-        "kfold_seed":        seed,
-        "strata_scheme":     "match_type_x_lstv",
-        "n_patients_total":  len(tokens),
-        "n_patients_test":   len(test_tokens),
-        "n_patients_trainval": len(trainval_tokens),
-        "test_tokens":       test_tokens,
-        "folds":             folds,
-        "strata_counts_total":        _cnt(tokens),
-        "strata_counts_test":         _cnt(test_tokens),
-        "strata_counts_per_fold_val": [_cnt(f["val_tokens"]) for f in folds],
-        "token_info":        token_info,
-    }
+    (out_dir / "manifest_train.json"     ).write_text(json.dumps(_clean(train_recs), indent=2))
+    (out_dir / "manifest_validation.json").write_text(json.dumps(_clean(val_recs),   indent=2))
+    (out_dir / "manifest_test.json"      ).write_text(json.dumps(_clean(test_recs),  indent=2))
+    (out_dir / "data_splits.json"        ).write_text(json.dumps({
+        "train": [r["ct_file"] for r in train_recs],
+        "val":   [r["ct_file"] for r in val_recs],
+        "test":  [r["ct_file"] for r in test_recs],
+    }, indent=2))
+    log.info("  manifest_train / validation / test .json written")
 
 
-def _write_readme(out_dir: Path, cv: Dict,
-                  n_records_by_config: Dict[str, int]) -> None:
-    n_total = sum(n_records_by_config.values())
-    n_test     = cv["n_patients_test"]
-    n_trainval = cv["n_patients_trainval"]
-    n_folds    = cv["n_folds"]
-    readme = f"""---
-license: cc-by-nc-4.0
-task_categories:
-- image-segmentation
-tags:
-- medical
-- ct
-- lumbar-spine
-- pelvis
-- colonography
-- lstv
-size_categories:
-- 1K<n<10K
----
+# ── Manifest ──────────────────────────────────────────────────────────────────
 
-# CTSpinoPelvic1K
+def write_manifest(records: List[dict], out_dir: Path) -> None:
+    """
+    Write manifest.json and manifest.csv.
 
-Fused spine + pelvis CT segmentation dataset via patient-level crosswalk of
-TCIA CT COLONOGRAPHY × CTSpine1K × CTPelvic1K.
+    HF Arrow/Parquet compatibility:
+    - 'ok' and 'error' stripped (bool-always-True and null-always-None break Parquet)
+    - None → "" for string fields; None lstv_agreement → "" (HF can't cast mixed null/bool)
+    """
+    _drop = {"ok", "error"}
+    ok = []
+    for r in records:
+        if not r.get("ok"):
+            continue
+        rec = {}
+        for k, v in r.items():
+            if k in _drop:
+                continue
+            if v is None:
+                rec[k] = ""
+            elif isinstance(v, bool):
+                rec[k] = v
+            else:
+                rec[k] = v
+        ok.append(rec)
 
-## Statistics
+    (out_dir / "manifest.json").write_text(json.dumps(ok, indent=2))
+    if not ok:
+        return
 
-- Total records:     {n_total}
-- fused:             {n_records_by_config.get('fused', 0)}
-- spine_only:        {n_records_by_config.get('spine_only', 0)}
-- pelvic_native:     {n_records_by_config.get('pelvic_native', 0)}
-- Test patients:     {n_test}  (fixed, {int(cv['test_fraction']*100)}% holdout)
-- Trainval patients: {n_trainval}  ({n_folds}-fold stratified CV)
+    n_confusion = sum(1 for r in ok if r.get("lstv_confusion_zone") is True)
+    n_agreed    = sum(1 for r in ok
+                      if r.get("lstv_agreement") is True
+                      and r.get("lstv_class", 0) > 0)
+    log.info("Manifest  %d cases  confusion_zone=%d  agreed_lstv=%d → manifest.json",
+             len(ok), n_confusion, n_agreed)
 
-## Labels (10-class)
-
-| ID | Name       |
-|----|------------|
-|  0 | background |
-|  1 | L1         |
-|  2 | L2         |
-|  3 | L3         |
-|  4 | L4         |
-|  5 | L5         |
-|  6 | L6 / LSTV  |
-|  7 | sacrum     |
-|  8 | left hip   |
-|  9 | right hip  |
-
-## Layout
-
-```
-ct/<token:04d>_<config>_ct.nii.gz         int16 HU, PIR orientation
-labels/<token:04d>_<config>_label.nii.gz  uint8 0..9, identical affine
-manifest.json                              per-record metadata
-splits/
-  test.json         fixed test holdout (list of patient tokens)
-  cv_5fold.json     stratified 5-fold CV on the trainval pool (schema v3)
-```
-
-CT and label share the same 4×4 affine — no resampling at training time.
-
-## Splits
-
-**Design:** a fixed test holdout (never touched during model selection) and a
-5-fold stratified CV on the remaining trainval pool. Both stratified at the
-*patient* level by `(match_type × lstv_class)`.
-
-### `splits/test.json`
-A flat list of patient tokens for the held-out test set. Use this for final
-reporting only — never for hyperparameter tuning.
-
-### `splits/cv_5fold.json`
-Schema v3 matching the output of `scripts/generate_5fold_splits.py`:
-```json
-{{
-  "schema_version": 3,
-  "n_folds": {n_folds},
-  "test_fraction": {cv['test_fraction']},
-  "strata_scheme": "match_type_x_lstv",
-  "test_tokens": [...],
-  "folds": [
-    {{"train_tokens": [...], "val_tokens": [...]}},
-    ... {n_folds} folds total ...
-  ],
-  "token_info": {{"<tok>": {{"match_type": "...", "lstv_class": 0}}, ...}}
-}}
-```
-
-A `separate` patient produces two records (`spine_only` + `pelvic_native`);
-both always land in the same fold / test split — no cross-split leak.
-
-## Configs
-
-- `fused`: spine + pelvis on one CT (10-class)
-- `spine_only`: spine-only patients + spine half of separate (6-class, L1-L6)
-- `pelvic_native`: pelvic-only patients + pelvic half of separate (3-class, sacrum + hips)
-
-## License
-
-- Source datasets retain their own licenses (TCIA CT COLONOGRAPHY, CTSpine1K, CTPelvic1K).
-- Derivative fused labels, splits, and code: **CC BY-NC 4.0**.
-"""
-    (out_dir / "README.md").write_text(readme)
+    keys = [
+        "token", "position", "config", "match_type",
+        "lstv_label", "lstv_class",
+        "lstv_pelvic", "lstv_vertebral", "lstv_agreement", "lstv_confusion_zone",
+        "has_l6", "n_lumbar_labels", "alignment_ok",
+        "ct_file", "label_file", "qc_file",
+    ]
+    with open(out_dir / "manifest.csv", "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore")
+        w.writeheader(); w.writerows(ok)
+    log.info("manifest.csv written (%d rows)", len(ok))
 
 
-def _push_to_hub(out_dir: Path, hf_repo: str) -> None:
+# ── HuggingFace push ──────────────────────────────────────────────────────────
+
+def push_to_hub(
+    out_dir:          Path,
+    repo_id:          str           = HF_REPO_ID,
+    token:            Optional[str] = None,
+    private:          bool          = False,
+    num_workers:      int           = 8,
+    interface_script: Optional[Path] = None,
+    readme_path:      Optional[Path] = None,
+) -> None:
+    """
+    Push ct/, labels/, manifest.json, manifest.csv, data_splits.json,
+    dataset_interface.py, and README.md to HuggingFace using upload_large_folder.
+
+    qc/ PNGs are excluded (large, derivative, regenerable).
+    Authenticates via HF_TOKEN bearer auth — no git credentials embedded.
+    """
     try:
         from huggingface_hub import HfApi, create_repo
     except ImportError:
-        log.error("huggingface_hub not installed.")
-        sys.exit(1)
-    token = os.environ.get("HF_TOKEN")
-    if not token:
-        log.error("HF_TOKEN env var not set.")
-        sys.exit(1)
-    api = HfApi(token=token)
-    create_repo(repo_id=hf_repo, repo_type="dataset",
-                exist_ok=True, private=False, token=token)
-    api.upload_folder(folder_path=str(out_dir), repo_id=hf_repo,
-                       repo_type="dataset",
-                       commit_message="CTSpinoPelvic1K release")
-    log.info("Pushed → https://huggingface.co/datasets/%s", hf_repo)
+        raise RuntimeError("pip install 'huggingface_hub[hf_transfer]'")
 
+    token = token or os.environ.get("HF_TOKEN")
+    if not token:
+        raise ValueError(
+            "HuggingFace token required. Set HF_TOKEN env var or pass --hf_token."
+        )
+
+    api = HfApi(token=token)
+    log.info("Ensuring repo: %s  (private=%s) ...", repo_id, private)
+    create_repo(repo_id=repo_id, repo_type=HF_REPO_TYPE,
+                private=private, exist_ok=True, token=token)
+
+    # Auto-detect interface script and README if staged next to or above this file
+    if interface_script is None:
+        for cand in [Path(__file__).parent / "dataset_interface.py",
+                     Path(__file__).parent.parent / "dataset_interface.py"]:
+            if cand.exists():
+                interface_script = cand; break
+
+    if readme_path is None:
+        for cand in [Path(__file__).parent / "README.md",
+                     Path(__file__).parent.parent / "README.md"]:
+            if cand.exists():
+                readme_path = cand; break
+
+    if interface_script and interface_script.exists():
+        dst = out_dir / "dataset_interface.py"
+        if not dst.exists():
+            shutil.copy2(str(interface_script), str(dst))
+        log.info("  dataset_interface.py ready")
+    else:
+        log.warning("  dataset_interface.py not found — skipping")
+
+    if readme_path and readme_path.exists():
+        dst = out_dir / "README.md"
+        if not dst.exists():
+            shutil.copy2(str(readme_path), str(dst))
+        log.info("  README.md ready")
+    else:
+        log.warning("  README.md not found — skipping")
+
+    n_ct     = sum(1 for _ in (out_dir / "ct"    ).glob("*.nii.gz")) if (out_dir / "ct"    ).exists() else 0
+    n_labels = sum(1 for _ in (out_dir / "labels").glob("*.nii.gz")) if (out_dir / "labels").exists() else 0
+
+    log.info("=" * 60)
+    log.info("Pushing to HuggingFace: %s", repo_id)
+    log.info("  CTs=%d  Labels=%d  Workers=%d", n_ct, n_labels, num_workers)
+    log.info("  Upload folder: %s", out_dir)
+    log.info("  Excluding: qc/  (QC figures not pushed)")
+    log.info("  Upload is resumable — re-run if interrupted")
+    log.info("=" * 60)
+
+    api.upload_large_folder(
+        repo_id=repo_id, repo_type=HF_REPO_TYPE,
+        folder_path=str(out_dir), num_workers=num_workers,
+        ignore_patterns=["qc/*", "qc/**/*", ".hf_staging/*"],
+    )
+    log.info("Push complete → https://huggingface.co/datasets/%s", repo_id)
+
+
+# ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--manifest",  required=True, type=Path)
-    p.add_argument("--nifti_dir", required=True, type=Path)
-    p.add_argument("--out_dir",   required=True, type=Path)
-    p.add_argument("--workers",   default=16, type=int)
-    p.add_argument("--seed",      default=42, type=int)
-    p.add_argument("--test_fraction", default=0.15, type=float,
-                   help="Fraction of patients held out as the fixed test set")
-    p.add_argument("--n_folds",   default=5, type=int,
-                   help="K for StratifiedKFold on the trainval pool")
-    p.add_argument("--hu_min",    default=-1024, type=int)
-    p.add_argument("--hu_max",    default= 2048, type=int)
-    p.add_argument("--push",      action="store_true")
-    p.add_argument("--hf_repo",   default="", type=str)
-    args = p.parse_args()
+    ap = argparse.ArgumentParser(description=__doc__,
+             formatter_class=argparse.RawDescriptionHelpFormatter)
+    # Required I/O
+    ap.add_argument("--manifest",    required=True,  type=Path)
+    ap.add_argument("--nifti_dir",   required=True,  type=Path)
+    ap.add_argument("--spine_dir",   required=True,  type=Path)
+    ap.add_argument("--pelvic_dir",  required=True,  type=Path)
+    ap.add_argument("--out_dir",     required=True,  type=Path)
+    # Export behaviour
+    ap.add_argument("--workers",     default=8,      type=int)
+    ap.add_argument("--skip_qc",     action="store_true")
+    ap.add_argument("--no_pir",      action="store_true")
+    ap.add_argument("--debug_n",     default=0,      type=int)
+    ap.add_argument("--skip_export", action="store_true")
+    # HuggingFace push
+    ap.add_argument("--push_to_hub", action="store_true")
+    ap.add_argument("--hf_repo_id",  default=HF_REPO_ID)
+    ap.add_argument("--hf_token",    default=None)
+    ap.add_argument("--hf_private",  action="store_true")
+    ap.add_argument("--hf_workers",  default=8, type=int)
+    ap.add_argument("--interface_script", default=None, type=Path)
+    ap.add_argument("--readme_path",      default=None, type=Path)
+    args = ap.parse_args()
 
-    if not args.manifest.exists():
-        log.error("Manifest not found: %s", args.manifest)
-        sys.exit(1)
+    # ── Export ────────────────────────────────────────────────────────────────
+    if not args.skip_export:
+        for d in [args.out_dir/"ct", args.out_dir/"labels", args.out_dir/"qc"]:
+            d.mkdir(parents=True, exist_ok=True)
 
-    manifest = json.loads(args.manifest.read_text())
-    cases    = manifest.get("cases", [])
-    log.info("Manifest: %d cases", len(cases))
+        log.info("Building work from %s ...", args.manifest)
+        work = build_work(args.manifest, args.nifti_dir, args.spine_dir, args.pelvic_dir)
+        log.info("Work items: %d", len(work))
 
-    records = _enumerate_records(cases)
-    n_records_by_config = Counter(r["config"] for r in records)
-    log.info("Records per config: %s", dict(n_records_by_config))
+        if args.debug_n > 0:
+            work = work[:args.debug_n]
 
-    # Patient-level stratification on (lstv_class, match_type)
-    patient_info: Dict[str, Tuple] = {}
-    for r in records:
-        tok = r["patient_token"]
-        if tok not in patient_info:
-            patient_info[tok] = (r.get("lstv_class", 0), r.get("match_type", ""))
-    log.info("Unique patients: %d", len(patient_info))
+        for item in work:
+            base = item.pop("fname_base")
+            item["out_ct"]   = str(args.out_dir / "ct"     / f"{base}_ct.nii.gz")
+            item["out_lbl"]  = str(args.out_dir / "labels" / f"{base}_label.nii.gz")
+            item["out_qc"]   = str(args.out_dir / "qc"     / f"{base}_qc.png")
+            item["skip_qc"]  = args.skip_qc
+            item["skip_pir"] = args.no_pir
 
-    log.info("Stratifying: %d%% test holdout + %d-fold CV  (strata: match_type × lstv_class)",
-             int(args.test_fraction * 100), args.n_folds)
-    cv = _stratify_test_holdout_and_kfold(
-        patient_keys  = patient_info,
-        test_fraction = args.test_fraction,
-        n_folds       = args.n_folds,
-        seed          = args.seed,
-    )
-    test_tokens     = set(cv["test_tokens"])
-    trainval_tokens = set(t for f in cv["folds"] for t in f["train_tokens"]) \
-                      | set(t for f in cv["folds"] for t in f["val_tokens"])
-    log.info("  test=%d patients   trainval=%d patients (across %d folds)",
-             len(test_tokens), len(trainval_tokens), args.n_folds)
+        records, n_ok, n_fail = [], 0, 0
+        t0 = time.time()
 
-    token_to_split: Dict[str, str] = {
-        **{t: "test"     for t in test_tokens},
-        **{t: "trainval" for t in trainval_tokens},
-    }
+        with ProcessPoolExecutor(max_workers=args.workers) as ex:
+            futs = {ex.submit(_export_one, w): w["token"] for w in work}
+            for i, fut in enumerate(as_completed(futs), 1):
+                tok = futs[fut]
+                try:
+                    rec = fut.result()
+                except Exception as exc:
+                    rec = {"token": tok, "ok": False, "error": str(exc)}
+                records.append(rec)
+                if rec.get("ok"):
+                    n_ok += 1
+                else:
+                    n_fail += 1
+                    log.warning("FAIL token=%s  %s", tok, rec.get("error","?"))
+                if i % 50 == 0 or i == len(work):
+                    elapsed = time.time() - t0
+                    eta = (len(work)-i) / max(i/elapsed, 1e-9)
+                    log.info("[%d/%d]  ok=%d  fail=%d  elapsed=%.0fs  ETA=%.0fs",
+                             i, len(work), n_ok, n_fail, elapsed, eta)
 
-    args.out_dir.mkdir(parents=True, exist_ok=True)
-    ct_dir  = args.out_dir / "ct"
-    lbl_dir = args.out_dir / "labels"
-    ct_dir.mkdir(exist_ok=True)
-    lbl_dir.mkdir(exist_ok=True)
-    (args.out_dir / "splits").mkdir(exist_ok=True)
+        write_manifest(records, args.out_dir)
+        write_splits(records,   args.out_dir)
 
-    # Fixed test holdout (simple token list for downstream convenience)
-    (args.out_dir / "splits" / "test.json").write_text(
-        json.dumps(sorted(test_tokens), indent=2))
-    # Full 5-fold CV structure on trainval pool (schema v3, matches
-    # generate_5fold_splits.py — stable across both entry points)
-    (args.out_dir / "splits" / "cv_5fold.json").write_text(
-        json.dumps(cv, indent=2))
+        bad = [r for r in records if r.get("ok") and not r.get("alignment_ok", True)]
+        log.info("EXPORT DONE  ok=%d  fail=%d  alignment_fail=%d",
+                 n_ok, n_fail, len(bad))
+        if bad:
+            log.error("ALIGNMENT MISMATCHES: %s", [r["token"] for r in bad])
+    else:
+        log.info("--skip_export: skipping export phase.")
 
-    work = [(r, str(args.nifti_dir), str(ct_dir), str(lbl_dir),
-             (args.hu_min, args.hu_max)) for r in records]
-
-    log.info("Exporting %d NIfTI pairs (workers=%d) ...", len(work), args.workers)
-    t0 = time.time()
-    n_ok = n_fail = n_skip = 0
-    ok_set = set()
-    with ProcessPoolExecutor(max_workers=args.workers) as ex:
-        futs = {ex.submit(_export_one_record, w): w[0] for w in work}
-        for i, fut in enumerate(as_completed(futs), 1):
-            tok, cfg, ok, msg = fut.result()
-            if msg == "skip":
-                n_skip += 1; ok_set.add((tok, cfg))
-            elif ok:
-                n_ok += 1;   ok_set.add((tok, cfg))
-            else:
-                n_fail += 1
-                log.warning("  FAIL token=%s config=%s: %s", tok, cfg,
-                            msg.strip().splitlines()[-1] if msg else "?")
-            if i % 25 == 0 or i == len(work):
-                elapsed = time.time() - t0
-                eta     = elapsed / i * (len(work) - i) if i < len(work) else 0
-                log.info("  [%d/%d] ok=%d skip=%d fail=%d  %.0fs ETA=%.0fs",
-                         i, len(work), n_ok, n_skip, n_fail, elapsed, eta)
-
-    log.info("Export done: ok=%d skip=%d fail=%d", n_ok, n_skip, n_fail)
-
-    # Master manifest.json with one record per exported NIfTI pair
-    master_records = []
-    for r in records:
-        key = (r["patient_token"], r["config"])
-        if key not in ok_set:
-            continue
-        try:
-            stem = f"{int(r['patient_token']):04d}_{r['config']}"
-        except ValueError:
-            stem = f"{r['patient_token']}_{r['config']}"
-        sp = r.get("spine") or {}
-        pv = r.get("pelvic") or {}
-        master_records.append({
-            "token":             r["patient_token"],
-            "config":            r["config"],
-            "match_type":        r["match_type"],
-            "ct_file":           f"ct/{stem}_ct.nii.gz",
-            "label_file":        f"labels/{stem}_label.nii.gz",
-            "split":             token_to_split.get(r["patient_token"], "unknown"),
-            "lstv_label":        r.get("lstv_pelvic") or r.get("lstv_vertebral") or "",
-            "lstv_pelvic":       r.get("lstv_pelvic", ""),
-            "lstv_vertebral":    r.get("lstv_vertebral", ""),
-            "lstv_agreement":    r.get("lstv_agreement"),
-            "lstv_confusion_zone": r.get("lstv_confusion_zone", False),
-            "lstv_class":        r.get("lstv_class", 0),
-            "has_l6":           bool(("lumbar" in str(r.get("lstv_pelvic","")).lower())
-                                      or ("lumbar" in str(r.get("lstv_vertebral","")).lower())),
-            "position":          sp.get("patient_position") or pv.get("patient_position") or "unknown",
-            "spine_series_uid":  sp.get("series_uid"),
-            "pelvic_series_uid": pv.get("series_uid"),
-            "spine_bone_pct":    sp.get("bone_pct"),
-            "pelvic_bone_pct":   pv.get("bone_pct"),
-        })
-
-    master = {
-        "dataset_name": "CTSpinoPelvic1K",
-        "n_records":    len(master_records),
-        "n_patients":   len(set(r["token"] for r in master_records)),
-        "label_scheme": LABEL_NAMES,
-        "records":      master_records,
-    }
-    (args.out_dir / "manifest.json").write_text(json.dumps(master, indent=2, default=str))
-    log.info("Master manifest → %s  (%d records)",
-             args.out_dir / "manifest.json", len(master_records))
-
-    stats = {
-        "n_records":       len(master_records),
-        "n_patients":      len(set(r["token"] for r in master_records)),
-        "records_by_config": dict(n_records_by_config),
-        "records_by_split":  {s: sum(1 for r in master_records if r["split"] == s)
-                               for s in ("trainval", "test")},
-        "patients_by_split":  {"test":     len(test_tokens),
-                                "trainval": len(trainval_tokens)},
-        "n_folds":          args.n_folds,
-        "test_fraction":    args.test_fraction,
-        "strata_scheme":    cv["strata_scheme"],
-        "lstv_classes":     dict(Counter(r["lstv_class"] for r in master_records)),
-        "match_types":      dict(Counter(r["match_type"] for r in master_records)),
-        "export_stats":     {"ok": n_ok, "skip": n_skip, "fail": n_fail},
-    }
-    (args.out_dir / "splits_summary.json").write_text(json.dumps(stats, indent=2))
-
-    _write_readme(args.out_dir, cv, n_records_by_config)
-    log.info("Wrote README.md and splits_summary.json → %s", args.out_dir)
-
-    if args.push:
-        if not args.hf_repo:
-            log.error("--push requires --hf_repo USER/REPO")
-            sys.exit(1)
-        _push_to_hub(args.out_dir, args.hf_repo)
+    # ── Push ──────────────────────────────────────────────────────────────────
+    if args.push_to_hub:
+        push_to_hub(
+            out_dir=args.out_dir, repo_id=args.hf_repo_id,
+            token=args.hf_token, private=args.hf_private,
+            num_workers=args.hf_workers,
+            interface_script=args.interface_script,
+            readme_path=args.readme_path,
+        )
+    else:
+        log.info("HuggingFace push skipped. Add --push_to_hub to upload.")
 
 
 if __name__ == "__main__":
