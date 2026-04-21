@@ -236,10 +236,65 @@ def _log_header_diff(token, ref_img, sp_img, overlap):
 
 
 def _spine_placement_checks(spine_arr, ref_data, placed_labels, ref_aff, token):
-    """PCA-based vertebral ordering check — handles lordosis robustly."""
-    import numpy as np
+    """
+    Vertebral ordering check using data-anchored world-space centroids, with
+    per-label largest-CC extraction to reject spurious segmentation fragments.
 
-    IS_ORDER_TOL_MM = 8.0
+    DESIGN
+    ------
+    Replaces the prior PCA-principal-axis check. PCA eigenvectors are sign-
+    ambiguous (v and -v are identical principal components), and the old
+    `if axis[2] < 0: axis = -axis` tiebreak relied on world Z being roughly
+    aligned with patient SI. When the spine axis came out nearly orthogonal
+    to world Z — which happens in decubitus scans, axial-prescribed studies,
+    or anything where the scanner's Z is not the patient's SI — the Z-sign
+    tiebreak became effectively random and flipped the projection direction,
+    producing false-positive IS_ORDER_FAIL warnings at ~inter-vertebral
+    distance (~100–180 mm).
+
+    The SI direction is now taken directly from the labeled data: the most-
+    superior label (smallest VerSe id) and the most-inferior label (largest
+    id) define an oriented axis whose sign is fixed by label semantics. All
+    other labels are projected onto this axis and checked for monotonicity
+    in sorted-label order.
+
+    ROBUSTNESS FILTERS
+    ------------------
+    Raw `np.where(spine_arr == lbl).mean()` weights every voxel equally, so
+    a 10-voxel stray blob sitting 100mm from a 50,000-voxel real vertebra
+    pulls the label's centroid off anatomy. This showed up on real cases
+    as IS_ORDER_FAIL warnings of 100–180 mm (token 7: (14,17,145.9), token
+    606: (16,17,180.4), etc.) where the actual vertebrae were correctly
+    placed and only the trace fragments were misbehaving.
+
+    Two filters reject this:
+
+      1. MIN_LABEL_VOX: drop any label whose TOTAL voxel count in the
+         placed mask is below threshold. Real vertebrae are ~10k-100k
+         voxels; 500 is well below any legitimate vertebra.
+      2. Largest connected component: within a label, compute the CC
+         sizes and use only the largest CC's centroid. Disconnected
+         fragments — whether from segmentation noise or from placement
+         cropping the scan edge — are discarded.
+
+    VerSe convention: ascending label id ↔ descending anatomical height
+    (1–7 cervical, 8–19 thoracic, 20–25 lumbar, 26 sacrum). After sorting
+    ascending by id, projections must monotonically INCREASE along the
+    lo→hi axis.
+
+    Limitation: this catches LOCAL order violations (one label misplaced
+    between neighbours). A globally inverted mask whose labels are
+    internally consistent with each other will still pass — detecting
+    that requires external info (DICOM PatientPosition / body anatomy)
+    and is handled downstream by orientation_fix.py.
+    """
+    import numpy as np
+    from scipy.ndimage import label as _cc_label
+
+    IS_ORDER_TOL_MM      = 8.0
+    MIN_LABEL_VOX        = 500   # min total voxels to treat a label as real
+    MIN_LARGEST_CC_VOX   = 500   # min largest-CC size to treat as real
+    MIN_LABELS_FOR_CHECK = 3     # need at least 3 valid labels
 
     spine_bool = (spine_arr > 0)
     if not spine_bool.any():
@@ -264,56 +319,112 @@ def _spine_placement_checks(spine_arr, ref_data, placed_labels, ref_aff, token):
         log.info("  [spine_check] token=%-8s bone=%.0f%% hu=%.0f  OK",
                  token, bp, mhu)
 
+    # Per-label world-space centroid, using LARGEST CONNECTED COMPONENT only,
+    # and skipping labels whose total or largest-CC voxel count is trivial.
     label_world: dict = {}
     label_z:     dict = {}
+    label_info:  dict = {}  # for debug logging on violation
+    dropped:     list = []
+
     for lbl in placed_labels:
-        vox_idx = np.where(spine_arr == lbl)
-        if not len(vox_idx[0]):
+        mask = (spine_arr == lbl)
+        n_total = int(mask.sum())
+        if n_total < MIN_LABEL_VOX:
+            if n_total > 0:
+                dropped.append((int(lbl), n_total, "too_small"))
             continue
+
+        cc_arr, n_cc = _cc_label(mask)
+        if n_cc == 0:
+            continue
+
+        # bincount starts at 0 = background; skip it
+        counts = np.bincount(cc_arr.ravel())
+        if len(counts) < 2:
+            continue
+        cc_sizes = counts[1:]  # sizes of CC 1..N
+        largest_cc_idx = int(np.argmax(cc_sizes)) + 1
+        largest_size   = int(cc_sizes[largest_cc_idx - 1])
+
+        if largest_size < MIN_LARGEST_CC_VOX:
+            dropped.append((int(lbl), largest_size, "largest_cc_small"))
+            continue
+
+        vox_idx = np.where(cc_arr == largest_cc_idx)
+        n = len(vox_idx[0])
         hv = np.vstack([
-            np.array(vox_idx[0], dtype="float32"),
-            np.array(vox_idx[1], dtype="float32"),
-            np.array(vox_idx[2], dtype="float32"),
-            np.ones(len(vox_idx[0]), dtype="float32"),
+            np.asarray(vox_idx[0], dtype=np.float32),
+            np.asarray(vox_idx[1], dtype=np.float32),
+            np.asarray(vox_idx[2], dtype=np.float32),
+            np.ones(n, dtype=np.float32),
         ])
         world = (ref_aff @ hv)[:3]
-        cx, cy, cz = float(world[0].mean()), float(world[1].mean()), float(world[2].mean())
-        label_world[lbl] = np.array([cx, cy, cz], dtype=np.float64)
-        label_z[lbl]     = cz
+        c = world.mean(axis=1)
+        label_world[int(lbl)] = np.array(
+            [float(c[0]), float(c[1]), float(c[2])], dtype=np.float64,
+        )
+        label_z[int(lbl)] = float(c[2])
+        label_info[int(lbl)] = {
+            "n_total":      n_total,
+            "n_largest_cc": largest_size,
+            "n_cc":         int(n_cc),
+        }
 
     is_ordered = True
-    if len(label_world) >= 2:
-        sl     = sorted(label_world.items(), key=lambda x: x[0])
-        labels = [lbl for lbl, _ in sl]
-        pts    = np.stack([c for _, c in sl], axis=0)
+    violations: list = []
 
-        if len(pts) >= 3:
-            centered = pts - pts.mean(axis=0)
-            _, _, Vt = np.linalg.svd(centered, full_matrices=False)
-            spine_axis = Vt[0]
-        else:
-            spine_axis = pts[1] - pts[0]
-            spine_axis = spine_axis / (np.linalg.norm(spine_axis) + 1e-9)
-
-        if spine_axis[2] < 0:
-            spine_axis = -spine_axis
-
-        projections = {lbl: float(np.dot(c, spine_axis)) for lbl, c in label_world.items()}
-        proj_sorted = [projections[lbl] for lbl in labels]
-
-        violations = []
-        for i in range(len(proj_sorted) - 1):
-            delta = proj_sorted[i] - proj_sorted[i + 1]
-            if delta < -IS_ORDER_TOL_MM:
-                violations.append((labels[i], labels[i + 1], round(-delta, 1)))
-
-        is_ordered = len(violations) == 0
-        if not is_ordered:
-            log.warning(
-                "  [spine_check] token=%-8s IS_ORDER_FAIL (PCA axis) "
-                "violations (lbl_a, lbl_b, reversal_mm): %s",
-                token, violations,
+    if len(label_world) < MIN_LABELS_FOR_CHECK:
+        # Not enough reliable labels; don't flag.
+        if dropped:
+            log.info(
+                "  [spine_check] token=%-8s IS_ORDER skipped "
+                "(only %d valid label(s); dropped %s)",
+                token, len(label_world), dropped,
             )
+        return dict(bone_pct=bp, mean_hu=mhu, is_ordered=True,
+                    label_z_centroids=label_z)
+
+    # VerSe ascending label id == descending anatomical height.
+    labels_sorted = sorted(label_world.keys())
+    lo_label = labels_sorted[0]   # smallest id → most superior
+    hi_label = labels_sorted[-1]  # largest id  → most inferior
+
+    # Data-anchored SI axis. Sign is fixed by label semantics, so there
+    # is no tiebreak and no external-frame assumption.
+    si_vec  = label_world[hi_label] - label_world[lo_label]
+    si_norm = float(np.linalg.norm(si_vec))
+
+    if si_norm < 1e-6:
+        # Labels all collapse to a single point — nothing to order.
+        return dict(bone_pct=bp, mean_hu=mhu, is_ordered=True,
+                    label_z_centroids=label_z)
+
+    si_axis = si_vec / si_norm
+    # Scalar projection from the most-superior centroid.
+    projections = {
+        lbl: float(np.dot(label_world[lbl] - label_world[lo_label], si_axis))
+        for lbl in labels_sorted
+    }
+    proj_sorted = [projections[lbl] for lbl in labels_sorted]
+
+    for i in range(len(proj_sorted) - 1):
+        # expect proj[i+1] > proj[i]  (next label more inferior)
+        delta = proj_sorted[i + 1] - proj_sorted[i]
+        if delta < -IS_ORDER_TOL_MM:
+            violations.append(
+                (labels_sorted[i], labels_sorted[i + 1], round(-delta, 1))
+            )
+
+    is_ordered = len(violations) == 0
+    if not is_ordered:
+        log.warning(
+            "  [spine_check] token=%-8s IS_ORDER_FAIL (world-axis) "
+            "violations (lbl_a, lbl_b, reversal_mm): %s  "
+            "(valid_labels=%s  dropped=%s)",
+            token, violations,
+            {l: label_info[l]["n_largest_cc"] for l in labels_sorted},
+            dropped,
+        )
 
     return dict(bone_pct=bp, mean_hu=mhu, is_ordered=is_ordered,
                 label_z_centroids=label_z)
