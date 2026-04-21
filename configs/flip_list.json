@@ -1,0 +1,104 @@
+{
+  "_schema_version": "3",
+  "_description": "Reviewer-curated manifest-level overrides. Two mechanisms:\n  1. 'flips' — tokens whose CT + masks need AP-flipping. Flipped across the CT's world-Y bounding-box center via full 3D resampling; all affected files for the case mirror about the SAME external plane to preserve mask-on-CT alignment. Optional 'sides' field controls which side flips on separate cases.\n  2. 'exclusions' — tokens to drop entirely from the output manifest because the mask/series pairing is wrong (mis-assigned series, placement failure beyond AP orientation, etc.). Flipping won't fix these; they must be removed or re-placed manually before they can rejoin the dataset.\nTokens not listed in either section pass through unchanged.",
+  "_reviewer_instructions": [
+    "1. Run Stage 2 once without any flips/exclusions (empty lists).",
+    "2. Inspect data/qc_figures/ -- identify cases needing flips vs exclusions.",
+    "3. Add flip entries for AP-inverted-but-correctly-paired cases.",
+    "4. Add exclusion entries for cases where the mask and CT don't belong together.",
+    "5. Re-run Stage 2; Step C picks up both lists.",
+    "6. Inspect data/qc_figures_orifix/ to confirm.",
+    "7. Excluded tokens appear in the Stage 2 log but not in the output manifest."
+  ],
+  "_sides_field": [
+    "Optional 'sides' list on flip entries controls WHICH files get flipped:",
+    "  omitted (default)  : all applicable files for the case's match_type",
+    "                       fused       -> CT + spine mask + pelvic mask",
+    "                       pelvic_only -> pelvic CT + pelvic mask",
+    "                       spine_only  -> spine CT + spine mask",
+    "                       separate    -> pelvic CT + pelvic mask (conservative)",
+    "  ['spine']          : flip ONLY the spine CT + spine mask (separate cases)",
+    "  ['pelvic']         : flip ONLY the pelvic CT + pelvic mask (separate cases)",
+    "  ['spine','pelvic'] : flip both sides on a separate case (rare)",
+    "For fused / spine_only / pelvic_only, 'sides' is ignored."
+  ],
+  "exclusions": [
+    {
+      "token": "680",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-21",
+      "reason": "series_mismatch",
+      "side_affected": "spine",
+      "notes": "Spine mask is totally misaligned with bone on the CT. This is not AP inversion — flipping will not fix it. Likely cause: place_fused_masks.py picked a wrong-series candidate as the best spine match for this patient, OR the CTSpine1K annotation references a scan that was never reliably paired. Excluding from dataset pending manual re-investigation (inspect placed_manifest entry for 680; consider pulling alternative candidate series UIDs from patient_db.json and re-running placement with a forced UID override)."
+    }
+  ],
+  "flips": [
+    {
+      "token": "3",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-21",
+      "match_type": "fused",
+      "notes": "Fused; visually inverted. CT + spine + pelvic flip together."
+    },
+    {
+      "token": "75",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-21",
+      "match_type": "separate",
+      "sides": ["spine"],
+      "notes": "Separate. Spine side inverted; pelvic side is correctly oriented. Flip spine CT + spine mask only."
+    },
+    {
+      "token": "460",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-21",
+      "match_type": "fused",
+      "notes": "Fused; visually inverted. CT + spine + pelvic flip together."
+    },
+    {
+      "token": "480",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-21",
+      "match_type": "fused",
+      "notes": "Fused supine; pelvic mass anterior of body middle by ~40mm. Visually confirmed inverted across sagittal + coronal + axial views. body-center detector delta_posterior_mm = -40.9."
+    },
+    {
+      "token": "557",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-21",
+      "match_type": "separate",
+      "sides": ["spine"],
+      "notes": "Separate. Spine side inverted; pelvic side correct. Flip spine CT + spine mask only."
+    },
+    {
+      "token": "616",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-21",
+      "match_type": "fused",
+      "notes": "Fused; visually inverted. CT + spine + pelvic flip together."
+    },
+    {
+      "token": "656",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-21",
+      "match_type": "separate",
+      "sides": ["spine"],
+      "notes": "Separate. Spine side inverted; pelvic side correct. Flip spine CT + spine mask only."
+    },
+    {
+      "token": "703",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-21",
+      "match_type": "pelvic_only",
+      "notes": "Pelvic-only; inverted. Flip pelvic CT + pelvic mask (only side applicable)."
+    },
+    {
+      "token": "704",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-21",
+      "match_type": "separate",
+      "sides": ["pelvic"],
+      "notes": "Separate. Pelvic side inverted; spine side correct. Flip pelvic CT + pelvic mask only."
+    }
+  ]
+}

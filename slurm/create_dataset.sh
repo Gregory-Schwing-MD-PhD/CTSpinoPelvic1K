@@ -11,39 +11,38 @@
 #SBATCH --mail-type=END,FAIL
 
 # =============================================================================
-# Stage 2 — create dataset
+# Stage 2 — create dataset  (v4: manual flip list, no heuristic detector)
 #
 # Reads raw data from Stage 1 and produces:
-#   Step A  build_db.py          → data/patient_db.json   (canonical DB)
-#   Step B  place_fused_masks.py → data/placed/*.nii.gz   (placed masks)
-#                                → data/placed/placed_manifest.json
-#   Step C  orientation_fix.py   → data/placed/*_orientation_fixed.nii.gz
-#                                → data/placed/placed_manifest_orientation_fixed.json
-#   Step D  visualize_qc.py      → data/qc_figures/       (optional, per-case)
+#   Step A  build_db.py           → data/patient_db.json
+#   Step B  place_fused_masks.py  → data/placed/*.nii.gz + placed_manifest.json
+#   Step C  apply_manual_flips.py → data/placed/*_orientation_fixed.nii.gz
+#                                 → data/placed/placed_manifest_orientation_fixed.json
+#                                   (only tokens listed in configs/flip_list.json)
+#   Step D  visualize_qc.py       → data/qc_figures/        (QC on originals)
+#   Step E  visualize_qc.py       → data/qc_figures_orifix/ (QC on flipped manifest)
 #
-# patient_db.json REPLACES colonog_matched_pairs.json as the source of truth.
-# Mask-to-series resolution is patient-anchored (DICOM PatientID equality),
-# not affine-based.  place_fused_masks.py has been adapted to consume
-# patient_db.json directly.
+# The AP-orientation heuristic (orientation_fix.py) is NOT run. Instead,
+# reviewers populate configs/flip_list.json with tokens whose CT + masks need
+# flipping, and Step C flips exactly those listed tokens via world-space
+# resampling. Tokens not listed are left untouched.
 #
-# orientation_fix.py is a second-pass AP orientation consistency check run
-# AFTER placement.  place_fused_masks.py always places masks on the original
-# images; any AP-inverted scans detected here emit parallel files with the
-# `_orientation_fixed` suffix alongside the originals.  Originals are never
-# modified.  For fused cases, CT + spine mask + pelvic mask all flip together.
+# Workflow:
+#   1. Run this script once with an empty configs/flip_list.json "flips" list
+#   2. Inspect data/qc_figures/ to identify tokens needing flips
+#   3. Add entries to configs/flip_list.json for each
+#   4. Re-run this script — Step C picks up the new entries and re-generates
+#      placed_manifest_orientation_fixed.json accordingly
+#   5. Inspect data/qc_figures_orifix/ to confirm
 #
 # Usage:
 #   make create-dataset                                           # full run
 #   DEBUG_N=5        make create-dataset                          # first 5 patients
 #   DEBUG_TOKENS="145,184,205"  make create-dataset               # specific tokens
 #   SKIP_PLACE=1     make create-dataset                          # only build_db
-#   SKIP_ORIENTATION_FIX=1  make create-dataset                   # skip orientation pass
+#   SKIP_MANUAL_FLIPS=1  make create-dataset                      # skip Step C
 #   SKIP_QC=1        make create-dataset                          # skip QC figures
-#   ORIENTATION_FIX_DRY_RUN=1 make create-dataset                 # detect only, no flips
-#   ORIENTATION_FIX_THRESHOLD_MM=20 make create-dataset           # stricter threshold
-#
-# Next stage:
-#   HF_TOKEN=hf_xxx make export-dataset PUSH=1
+#   SKIP_QC_ORIFIX=1 make create-dataset                          # skip Step E only
 # =============================================================================
 
 set -euo pipefail
@@ -56,24 +55,21 @@ source configs/default.env
 # ── Step toggles ─────────────────────────────────────────────────────────────
 SKIP_BUILD_DB="${SKIP_BUILD_DB:-0}"
 SKIP_PLACE="${SKIP_PLACE:-0}"
-SKIP_ORIENTATION_FIX="${SKIP_ORIENTATION_FIX:-0}"
+SKIP_MANUAL_FLIPS="${SKIP_MANUAL_FLIPS:-0}"
 SKIP_QC="${SKIP_QC:-0}"
+SKIP_QC_ORIFIX="${SKIP_QC_ORIFIX:-0}"
 REBUILD_TCIA_INDEX="${REBUILD_TCIA_INDEX:-0}"
 REBUILD_MASK_CACHE="${REBUILD_MASK_CACHE:-0}"
 
-# Orientation-fix knobs (v3: body-center detector + explicit ct_nifti paths
-# written into the output manifest. No staging dir; viz reads paths directly.)
-ORIENTATION_FIX_THRESHOLD_MM="${ORIENTATION_FIX_THRESHOLD_MM:-10.0}"
-ORIENTATION_FIX_DRY_RUN="${ORIENTATION_FIX_DRY_RUN:-0}"
-# Also run a second QC pass against the orientation-fixed manifest.
-SKIP_QC_ORIFIX="${SKIP_QC_ORIFIX:-0}"
+# Flip list location (on the host). Default lives under configs/.
+FLIP_LIST="${FLIP_LIST:-${PROJECT_ROOT}/configs/flip_list.json}"
 
 mkdir -p "${LOGS_DIR}" "${NIFTI_DIR}" \
          "${PLACED_DIR}/spine" "${PLACED_DIR}/pelvic" "${PLACED_DIR}/fused" \
-         "${DATA_DIR}/qc_figures"
+         "${DATA_DIR}/qc_figures" "${DATA_DIR}/qc_figures_orifix"
 
 echo "======================================================================"
-echo " Stage 2: Create dataset"
+echo " Stage 2: Create dataset  (manual-flip workflow)"
 echo "   Job ID         : ${SLURM_JOB_ID:-local}"
 echo "   Node           : $(hostname)"
 echo "   CPUs           : ${WORKERS}"
@@ -82,9 +78,9 @@ echo "   Spine root     : ${CTSPINE1K_DIR}"
 echo "   Pelvis root    : ${CTPELVIC1K_DIR}"
 echo "   PatientDB      : ${PATIENT_DB}"
 echo "   Placed dir     : ${PLACED_DIR}"
+echo "   Flip list      : ${FLIP_LIST}"
 echo "   DEBUG_N        : ${DEBUG_N}"
 echo "   DEBUG_TOKENS   : ${DEBUG_TOKENS:-<none>}"
-echo "   OrientFix thr  : ${ORIENTATION_FIX_THRESHOLD_MM} mm  (dry_run=${ORIENTATION_FIX_DRY_RUN})"
 echo "   Started        : $(date)"
 echo "======================================================================"
 
@@ -128,7 +124,7 @@ _run() {
         "${SIF_PATH}" "$@"
 }
 
-# ── Translate host paths to container paths ──────────────────────────────────
+# ── Container-side paths ─────────────────────────────────────────────────────
 C_TCIA="/data/tcia"
 C_SPINE="/data/ctspine1k"
 C_PELVIC="/data/ctpelvic1k"
@@ -138,7 +134,9 @@ C_PLACED="/data/placed"
 C_PATIENT_DB="/data/patient_db.json"
 C_MANIFEST="/data/placed/placed_manifest.json"
 C_MANIFEST_ORIFIX="/data/placed/placed_manifest_orientation_fixed.json"
+C_FLIP_LIST="/workspace/configs/flip_list.json"
 C_QC="/data/qc_figures"
+C_QC_ORIFIX="/data/qc_figures_orifix"
 
 # ── Flag construction ────────────────────────────────────────────────────────
 TOKENS_ARG=""
@@ -161,7 +159,6 @@ if [[ "${SKIP_BUILD_DB}" != "1" ]]; then
     echo ""
     echo "======================================================================"
     echo " Step A: build_db.py → patient_db.json"
-    echo "   Patient-anchored mask→series resolution (DICOM PatientID equality)"
     echo "======================================================================"
 
     _run python3 /workspace/scripts/build_db.py \
@@ -197,14 +194,12 @@ else
 fi
 
 # =============================================================================
-# Step B: place_fused_masks.py  →  data/placed/*.nii.gz + placed_manifest.json
+# Step B: place_fused_masks.py  →  placed_manifest.json
 # =============================================================================
 if [[ "${SKIP_PLACE}" != "1" ]]; then
     echo ""
     echo "======================================================================"
     echo " Step B: place_fused_masks.py → placed masks + manifest"
-    echo "   Consumes patient_db.json (NOT colonog_matched_pairs.json)"
-    echo "   Per-mask independent best-series selection by bone coverage"
     echo "======================================================================"
 
     _run python3 /workspace/scripts/place_fused_masks.py \
@@ -233,9 +228,9 @@ cases = m.get("cases", [])
 sbp = [c["spine"]["bone_pct"]  for c in cases if c.get("spine")  and c["spine"] .get("bone_pct") is not None]
 pbp = [c["pelvic"]["bone_pct"] for c in cases if c.get("pelvic") and c["pelvic"].get("bone_pct") is not None]
 if sbp:
-    print(f"  Spine bone_pct   : mean={statistics.mean(sbp):.1f}%  min={min(sbp):.1f}%  low(<20%): {sum(1 for v in sbp if v<20)}")
+    print(f"  Spine bone_pct   : mean={statistics.mean(sbp):.1f}%  min={min(sbp):.1f}%")
 if pbp:
-    print(f"  Pelvic bone_pct  : mean={statistics.mean(pbp):.1f}%  min={min(pbp):.1f}%  low(<15%): {sum(1 for v in pbp if v<15)}")
+    print(f"  Pelvic bone_pct  : mean={statistics.mean(pbp):.1f}%  min={min(pbp):.1f}%")
 PYEOF
     else
         echo "ERROR: placed_manifest.json not produced."
@@ -246,49 +241,50 @@ else
 fi
 
 # =============================================================================
-# Step C: orientation_fix.py  →  AP orientation consistency pass
+# Step C: apply_manual_flips.py  →  placed_manifest_orientation_fixed.json
 # =============================================================================
-#
-# Runs AFTER placement.  Detects AP-inverted scans via sacrum vs combined hip
-# centroids projected onto PIR axis 0.  Flagged cases get parallel files with
-# the `_orientation_fixed` suffix next to the originals.  Originals are never
-# modified.  For fused cases, CT + spine mask + pelvic mask flip together.
-#
-# Skip with SKIP_ORIENTATION_FIX=1.
-# Run detection-only with ORIENTATION_FIX_DRY_RUN=1 (no files written).
-# Tune sensitivity with ORIENTATION_FIX_THRESHOLD_MM (default 15.0).
+# Reads configs/flip_list.json — ONLY tokens listed there get flipped.
+# Non-listed tokens pass through with explicit ct_nifti and series_uid
+# paths so downstream (export_hf.py, visualize_qc.py) can consume this
+# single manifest without special-casing.
 # =============================================================================
-if [[ "${SKIP_ORIENTATION_FIX}" != "1" ]]; then
+if [[ "${SKIP_MANUAL_FLIPS}" != "1" ]]; then
     if [[ ! -f "${PLACED_MANIFEST}" ]]; then
         echo ""
         echo "  Step C skipped: placed_manifest.json missing (did Step B run?)"
+    elif [[ ! -f "${FLIP_LIST}" ]]; then
+        echo ""
+        echo "  Step C skipped: flip list not found at ${FLIP_LIST}"
+        echo "  (create configs/flip_list.json to enable manual flips)"
     else
         echo ""
         echo "======================================================================"
-        echo " Step C: orientation_fix.py → AP orientation consistency pass (v3)"
-        echo "   Detects AP-inverted scans via pelvic mass vs body-bbox center"
-        echo "   along world Y (body-center detector)."
-        echo "   Threshold: |delta_posterior_mm| > ${ORIENTATION_FIX_THRESHOLD_MM}"
-        echo "              → pelvic mass anterior of body middle = INVERTED"
-        echo "   Flagged cases → parallel _orientation_fixed files next to originals."
-        echo "   For fused cases, CT + spine mask + pelvic mask flip together."
-        echo "   Output manifest carries explicit spine.ct_nifti and pelvic.ct_nifti"
-        echo "   for every case (originals for OK cases, flipped paths for inverted)."
+        echo " Step C: apply_manual_flips.py → AP flips from curated review list"
+        echo "   Flip list : ${FLIP_LIST}"
+        python3 - "${FLIP_LIST}" << 'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+flips = d.get("flips", [])
+print(f"   {len(flips)} token(s) listed")
+for f in flips[:25]:
+    tok    = f.get("token", "?")
+    rev    = f.get("reviewer", "?")
+    dt     = f.get("date", "?")
+    notes  = (f.get("notes", "") or "").replace("\n", " ")
+    if len(notes) > 80:
+        notes = notes[:77] + "..."
+    print(f"     token={tok:<14}  reviewer={rev:<24}  date={dt:<12}  {notes}")
+if len(flips) > 25:
+    print(f"     ... and {len(flips) - 25} more")
+PYEOF
         echo "======================================================================"
 
-        ORIFIX_FLAGS=""
-        if [[ "${ORIENTATION_FIX_DRY_RUN}" == "1" ]]; then
-            ORIFIX_FLAGS="--dry_run"
-            echo "  DRY RUN — no _orientation_fixed files will be written"
-        fi
-
-        _run python3 /workspace/scripts/orientation_fix.py \
-            --manifest     "${C_MANIFEST}" \
-            --nifti_dir    "${C_NIFTI}" \
-            --placed_dir   "${C_PLACED}" \
-            --workers      "${WORKERS}" \
-            --threshold_mm "${ORIENTATION_FIX_THRESHOLD_MM}" \
-            ${ORIFIX_FLAGS}
+        _run python3 /workspace/scripts/apply_manual_flips.py \
+            --manifest   "${C_MANIFEST}" \
+            --flip_list  "${C_FLIP_LIST}" \
+            --nifti_dir  "${C_NIFTI}" \
+            --placed_dir "${C_PLACED}" \
+            --workers    "${WORKERS}"
 
         ORIFIX_MANIFEST="${PLACED_DIR}/placed_manifest_orientation_fixed.json"
         if [[ -f "${ORIFIX_MANIFEST}" ]]; then
@@ -296,59 +292,57 @@ if [[ "${SKIP_ORIENTATION_FIX}" != "1" ]]; then
             python3 - "${ORIFIX_MANIFEST}" << 'PYEOF'
 import json, sys
 m = json.load(open(sys.argv[1]))
-print(f"  Total cases          : {m.get('n_cases','?')}")
-print(f"  AP ok                : {m.get('n_ap_ok','?')}")
-print(f"  AP inverted          : {m.get('n_ap_inverted','?')}")
-print(f"  AP indeterminate     : {m.get('n_ap_indeterminate','?')}")
-print(f"  AP skipped (no pelv) : {m.get('n_ap_skipped','?')}")
-print(f"  Detector             : {m.get('detector','?')}")
-print(f"  Threshold (mm)       : {m.get('threshold_mm','?')}")
-print(f"  Dry run              : {m.get('dry_run', False)}")
-inv = [c for c in m.get("cases", [])
-       if (c.get("orientation_check") or {}).get("status") == "inverted"]
-if inv:
-    def _key(c):
-        oc = c.get("orientation_check") or {}
-        return oc.get("delta_posterior_mm") or 0
-    inv.sort(key=_key)   # most negative first = strongest inversion signal
+print(f"  Total cases (output)  : {m.get('n_cases','?')}")
+print(f"  Total cases (input)   : {m.get('n_cases_input','?')}")
+print(f"  Flip requested        : {m.get('n_flip_requested','?')}")
+print(f"  Flip missing          : {m.get('n_flip_missing','?')}   (listed but not in manifest)")
+print(f"  Flipped OK            : {m.get('n_manually_flipped','?')}")
+print(f"  Flip failed           : {m.get('n_flip_failed','?')}")
+print(f"  Exclude requested     : {m.get('n_exclude_requested','?')}")
+print(f"  Excluded (applied)    : {m.get('n_excluded','?')}")
+print(f"  Exclude missing       : {m.get('n_exclude_missing','?')}   (listed but not in manifest)")
+print(f"  Schema                : {m.get('schema_version','?')}")
+excluded = m.get('excluded_tokens') or []
+if excluded:
+    print(f"  Excluded tokens       : {excluded}")
+flipped_cases = [c for c in m.get("cases", [])
+                 if (c.get("orientation_check") or {}).get("status") == "flipped"]
+if flipped_cases:
     print("")
-    print("  Inverted tokens (most negative delta_posterior_mm first):")
-    for c in inv[:25]:
+    print("  Flipped tokens — post-flip alignment:")
+    for c in flipped_cases:
         oc = c.get("orientation_check") or {}
-        n_files = len((c.get("orientation_fixed") or {}) or {})
-        print(f"    token={str(c.get('patient_token','?')):<12}  "
-              f"delta_post={oc.get('delta_posterior_mm',0):+7.1f} mm  "
-              f"delta_sh={oc.get('delta_sacrum_hip_mm',0):+7.1f} mm  "
-              f"match={c.get('match_type','?'):<10}  files_flipped={n_files}")
-    if len(inv) > 25:
-        print(f"    ... and {len(inv) - 25} more")
+        tok = c.get("patient_token", "?")
+        bp  = oc.get("post_flip_bone_pct")
+        hu  = oc.get("post_flip_mean_hu")
+        rev = oc.get("reviewer", "")
+        sides = oc.get("sides") or []
+        print(f"    token={str(tok):<12}  sides={str(sides):<22}  bone%={bp if bp is not None else '?':>5}  "
+              f"mean_HU={hu if hu is not None else '?':>7}  reviewer={rev}")
 PYEOF
         else
-            echo "  WARNING: orientation_fix did not produce ${ORIFIX_MANIFEST}"
+            echo "  WARNING: apply_manual_flips did not produce ${ORIFIX_MANIFEST}"
         fi
     fi
 else
     echo ""
-    echo "  Step C skipped (SKIP_ORIENTATION_FIX=1)"
+    echo "  Step C skipped (SKIP_MANUAL_FLIPS=1)"
 fi
 
 # =============================================================================
-# Step D: QC figures  (optional, but recommended)
-#
-# Uses placed_manifest.json (the original) by default.  QC figures therefore
-# show the ORIGINAL placed masks — which is what you want for identifying
-# inversions by eye.  To re-run QC on the orientation-fixed files:
-#
-#   _run python3 /workspace/scripts/visualize_qc.py \
-#       --manifest /data/placed/placed_manifest_orientation_fixed.json \
-#       --nifti_dir /data/tcia_nifti --placed_dir /data/placed \
-#       --out_dir /data/qc_figures_orifix --per_case --workers 32
+# Step D: QC figures on the ORIGINAL manifest
 # =============================================================================
 if [[ "${SKIP_QC}" != "1" ]]; then
     echo ""
     echo "======================================================================"
-    echo " Step D: visualize_qc.py → per-case QC figures"
+    echo " Step D: visualize_qc.py → QC on ORIGINAL manifest (pre-flip)"
+    echo "   Output dir : ${DATA_DIR}/qc_figures"
     echo "======================================================================"
+
+    if [[ -d "${DATA_DIR}/qc_figures" ]]; then
+        echo "  Clearing stale figures in ${DATA_DIR}/qc_figures/"
+        find "${DATA_DIR}/qc_figures" -type f -name '*.png' -delete 2>/dev/null || true
+    fi
 
     QC_EXTRA=""
     [[ -n "${DEBUG_TOKENS}" ]] && QC_EXTRA="--tokens ${DEBUG_TOKENS// /,}"
@@ -363,23 +357,13 @@ if [[ "${SKIP_QC}" != "1" ]]; then
         ${QC_EXTRA}
 
     N_QC=$(find "${DATA_DIR}/qc_figures" -name "*.png" 2>/dev/null | wc -l)
-    echo "  QC figures produced: ${N_QC}"
+    echo "  QC figures (original) produced: ${N_QC}"
 else
     echo "  Step D skipped (SKIP_QC=1)"
 fi
 
 # =============================================================================
-# Step E: QC figures on the orientation-FIXED manifest  (optional)
-#
-# The v3 orientation-fixed manifest is self-contained: every case has
-# explicit spine.ct_nifti and pelvic.ct_nifti pointing at the file to load
-# (flipped for inverted cases, original otherwise). visualize_qc.py should
-# read these paths directly — no UID-based fallback, no staging dir.
-#
-# REQUIRED viz change (one-line, if not already done):
-#   ct_path = Path(case["spine"]["ct_nifti"])   # was: nifti_dir / f"{uid}.nii.gz"
-#
-# Skip with SKIP_QC_ORIFIX=1.
+# Step E: QC figures on the ORIENTATION-FIXED manifest
 # =============================================================================
 ORIFIX_MANIFEST="${PLACED_DIR}/placed_manifest_orientation_fixed.json"
 
@@ -387,26 +371,30 @@ if [[ "${SKIP_QC}" != "1" && "${SKIP_QC_ORIFIX}" != "1" \
       && -f "${ORIFIX_MANIFEST}" ]]; then
     echo ""
     echo "======================================================================"
-    echo " Step E: visualize_qc.py → QC on orientation-fixed manifest"
+    echo " Step E: visualize_qc.py → QC on ORIENTATION-FIXED manifest (post-flip)"
     echo "   Manifest   : placed_manifest_orientation_fixed.json"
-    echo "   CT paths   : read from case.{spine,pelvic}.ct_nifti in manifest"
     echo "   Output dir : ${DATA_DIR}/qc_figures_orifix"
     echo "======================================================================"
+
+    if [[ -d "${DATA_DIR}/qc_figures_orifix" ]]; then
+        echo "  Clearing stale figures in ${DATA_DIR}/qc_figures_orifix/"
+        find "${DATA_DIR}/qc_figures_orifix" -type f -name '*.png' -delete 2>/dev/null || true
+    fi
 
     QC_EXTRA=""
     [[ -n "${DEBUG_TOKENS}" ]] && QC_EXTRA="--tokens ${DEBUG_TOKENS// /,}"
 
     _run python3 /workspace/scripts/visualize_qc.py \
-        --manifest   /data/placed/placed_manifest_orientation_fixed.json \
+        --manifest   "${C_MANIFEST_ORIFIX}" \
         --nifti_dir  "${C_NIFTI}" \
         --placed_dir "${C_PLACED}" \
-        --out_dir    /data/qc_figures_orifix \
+        --out_dir    "${C_QC_ORIFIX}" \
         --per_case \
         --workers    "${WORKERS}" \
         ${QC_EXTRA}
 
     N_QC_ORIFIX=$(find "${DATA_DIR}/qc_figures_orifix" -name "*.png" 2>/dev/null | wc -l)
-    echo "  Orientation-fixed QC figures produced: ${N_QC_ORIFIX}"
+    echo "  QC figures (orientation-fixed) produced: ${N_QC_ORIFIX}"
 elif [[ "${SKIP_QC_ORIFIX}" == "1" ]]; then
     echo "  Step E skipped (SKIP_QC_ORIFIX=1)"
 elif [[ ! -f "${ORIFIX_MANIFEST}" ]]; then
@@ -429,10 +417,15 @@ echo "   Placed pelvic masks          : $(find ${PLACED_DIR}/pelvic -name '*_pel
 echo "   Orientation-fixed spine      : $(find ${PLACED_DIR}/spine  -name '*_orientation_fixed.nii.gz' 2>/dev/null | wc -l)"
 echo "   Orientation-fixed pelvic     : $(find ${PLACED_DIR}/pelvic -name '*_orientation_fixed.nii.gz' 2>/dev/null | wc -l)"
 echo "   Orientation-fixed CT         : $(find ${NIFTI_DIR}        -name '*_orientation_fixed.nii.gz' 2>/dev/null | wc -l)"
-echo "   QC figures                   : $(find ${DATA_DIR}/qc_figures -name '*.png' 2>/dev/null | wc -l)"
+echo "   QC figures (original)        : $(find ${DATA_DIR}/qc_figures -name '*.png' 2>/dev/null | wc -l)"
 echo "   QC figures (orientation-fix) : $(find ${DATA_DIR}/qc_figures_orifix -name '*.png' 2>/dev/null | wc -l)"
+echo ""
+echo " Manual-flip review workflow:"
+echo "   1. eyeball ${DATA_DIR}/qc_figures/ for AP-inverted cases"
+echo "   2. add those tokens to ${FLIP_LIST}"
+echo "   3. re-run (Steps C + E will pick up the new entries)"
 echo ""
 echo " Next stage:"
 echo "   HF_TOKEN=hf_xxx make export-dataset PUSH=1"
-echo "   (point export_hf.py at placed_manifest_orientation_fixed.json to use fixed files)"
+echo "   (MANIFEST_FILE defaults to placed_manifest_orientation_fixed.json)"
 echo "======================================================================"
