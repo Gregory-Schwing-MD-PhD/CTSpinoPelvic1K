@@ -48,11 +48,16 @@ DEBUG_N      ?= 0
 DEBUG_TOKENS ?=
 
 # ── Stage 3 control ──────────────────────────────────────────────────────────
-SKIP_QC     ?= 0
-NO_PIR      ?= 0
-SKIP_EXPORT ?= 0
-HF_PRIVATE  ?= 0
-HF_WORKERS  ?= 8
+# MANIFEST_FILE: which Stage 2 manifest Stage 3 consumes.  Default is the
+# orientation-fixed manifest so AP-inverted cases (e.g., token 480) are
+# exported with flipped CT + masks.  Override with MANIFEST_FILE=placed_manifest.json
+# to export from the un-fixed manifest.
+MANIFEST_FILE ?= placed_manifest_orientation_fixed.json
+SKIP_QC       ?= 0
+NO_PIR        ?= 0
+SKIP_EXPORT   ?= 0
+HF_PRIVATE    ?= 0
+HF_WORKERS    ?= 8
 
 # ── Stage 4 control (TotalSegmentator benchmark) ─────────────────────────────
 TS_WINDOW_MM    ?= 40.0
@@ -89,6 +94,9 @@ help:  ## Show this help
 	@echo "  DEBUG_N=5       Limit create-dataset to first 5 patients"
 	@echo "  DEBUG_TOKENS=\"145,184\"   Specific tokens only"
 	@echo "  WORKERS=16      Override CPU count"
+	@echo "  MANIFEST_FILE   Stage 2 manifest for Stage 3"
+	@echo "                  default: placed_manifest_orientation_fixed.json"
+	@echo "                  override: MANIFEST_FILE=placed_manifest.json"
 	@echo ""
 
 
@@ -147,8 +155,16 @@ export-dataset: check-container  ## Stage 3 — split, export, optionally push t
 	  echo "ERROR: PUSH=1 requires HF_TOKEN.  Prepend HF_TOKEN=hf_xxx to the command."; \
 	  exit 1; \
 	fi
-	@echo "Submitting Stage 3: export-dataset  (PUSH=$(PUSH))  ..."
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),PUSH=$(PUSH),HF_REPO_ID=$(HF_REPO_ID),HF_WORKERS=$(HF_WORKERS),HF_PRIVATE=$(HF_PRIVATE),SKIP_QC=$(SKIP_QC),NO_PIR=$(NO_PIR),SKIP_EXPORT=$(SKIP_EXPORT) \
+	@if [ ! -f $(DATA_DIR)/placed/$(MANIFEST_FILE) ]; then \
+	  echo "ERROR: manifest not found at $(DATA_DIR)/placed/$(MANIFEST_FILE)"; \
+	  echo "       Either run 'make create-dataset' first, or override with"; \
+	  echo "       MANIFEST_FILE=placed_manifest.json make export-dataset ..."; \
+	  exit 1; \
+	fi
+	@echo "Submitting Stage 3: export-dataset"
+	@echo "  MANIFEST_FILE = $(MANIFEST_FILE)"
+	@echo "  PUSH          = $(PUSH)"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),PUSH=$(PUSH),HF_REPO_ID=$(HF_REPO_ID),HF_WORKERS=$(HF_WORKERS),HF_PRIVATE=$(HF_PRIVATE),SKIP_QC=$(SKIP_QC),NO_PIR=$(NO_PIR),SKIP_EXPORT=$(SKIP_EXPORT),MANIFEST_FILE=$(MANIFEST_FILE) \
 	       slurm/export_dataset.sh
 
 
@@ -171,6 +187,10 @@ status:  ## Show disk usage and stage completion status
 	  "$$(test -f $(DATA_DIR)/patient_db.json && echo BUILT || echo MISSING)"
 	@printf "  %-40s %s\n" "placed_manifest.json:" \
 	  "$$(test -f $(DATA_DIR)/placed/placed_manifest.json && echo BUILT || echo MISSING)"
+	@printf "  %-40s %s\n" "placed_manifest_orientation_fixed.json:" \
+	  "$$(test -f $(DATA_DIR)/placed/placed_manifest_orientation_fixed.json && echo BUILT || echo MISSING)"
+	@printf "  %-40s %s\n" "Active manifest for export (MANIFEST_FILE):" \
+	  "$(MANIFEST_FILE)"
 	@printf "  %-40s %s\n" "hf_export/:" \
 	  "$$(du -sh $(DATA_DIR)/hf_export 2>/dev/null | cut -f1 || echo 'NOT EXPORTED')"
 	@echo ""
@@ -214,7 +234,7 @@ benchmark-totalseg: check-ts-container  ## Stage 4 — zero-shot TotalSegmentato
 .PHONY: build-manifest
 build-manifest:  ## Build external training manifest (NIfTI paths) from placed_manifest
 	python scripts/build_manifest.py \
-	    --placed_manifest $(DATA_DIR)/placed/placed_manifest.json \
+	    --placed_manifest $(DATA_DIR)/placed/$(MANIFEST_FILE) \
 	    --patient_db      $(DATA_DIR)/patient_db.json \
 	    --out             $(DATA_DIR)/matched/colonog_training_manifest.json \
 	    --nifti_dir       $(DATA_DIR)/tcia_nifti \
@@ -226,7 +246,7 @@ build-manifest:  ## Build external training manifest (NIfTI paths) from placed_m
 render-lstv-gt:  ## Render publication LSTV panel (ground-truth labels)
 	python scripts/render_lstv_examples.py \
 	    --source gt \
-	    --manifest  $(DATA_DIR)/placed/placed_manifest.json \
+	    --manifest  $(DATA_DIR)/placed/$(MANIFEST_FILE) \
 	    --spine_dir $(DATA_DIR)/placed/spine \
 	    --fused_dir $(DATA_DIR)/placed/fused \
 	    --pelv_dir  $(DATA_DIR)/placed/pelvic_native \
@@ -239,7 +259,7 @@ render-lstv-ts:  ## Render LSTV panel using TS predictions (needs --ts_pred_dir)
 	fi
 	python scripts/render_lstv_examples.py \
 	    --source ts \
-	    --manifest      $(DATA_DIR)/placed/placed_manifest.json \
+	    --manifest      $(DATA_DIR)/placed/$(MANIFEST_FILE) \
 	    --ts_pred_dir   $(TS_PRED_DIR) \
 	    --hf_export_dir $(DATA_DIR)/hf_export \
 	    --spine_dir     $(DATA_DIR)/placed/spine \
