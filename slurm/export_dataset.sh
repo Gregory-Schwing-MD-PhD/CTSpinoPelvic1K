@@ -13,7 +13,12 @@
 # =============================================================================
 # Stage 3 — export dataset + push to HuggingFace
 #
-# Reads placed_manifest.json from Stage 2 and produces:
+# Reads placed_manifest_orientation_fixed.json from Stage 2 by default (since
+# that manifest carries AP-inverted flips for tokens like 480 where the
+# anatomy was wrong in the original scan). To export against the un-fixed
+# manifest instead, set MANIFEST_FILE=placed_manifest.json.
+#
+# Produces:
 #   data/hf_export/ct/          CT NIfTIs (PIR, PHI-stripped)
 #   data/hf_export/labels/      10-class label NIfTIs (voxel-aligned with CT)
 #   data/hf_export/qc/          QC overlays (optional)
@@ -35,10 +40,11 @@
 #                                                               # push existing
 #
 # Options:
-#   SKIP_QC=1       skip QC figure generation
-#   NO_PIR=1        skip PIR reorientation (native voxel space)
-#   HF_PRIVATE=1    create HF repo as private
-#   HF_WORKERS=8    HF upload workers (default 8)
+#   MANIFEST_FILE=placed_manifest.json   use un-fixed manifest (default: fixed)
+#   SKIP_QC=1        skip QC figure generation
+#   NO_PIR=1         skip PIR reorientation (native voxel space)
+#   HF_PRIVATE=1     create HF repo as private
+#   HF_WORKERS=8     HF upload workers (default 8)
 # =============================================================================
 
 set -euo pipefail
@@ -48,13 +54,32 @@ PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "${PROJECT_ROOT}"
 source configs/default.env
 
+# ── Manifest selection ───────────────────────────────────────────────────────
+# Default to the orientation-fixed manifest. Its schema is a strict superset of
+# the original placed_manifest.json (same top-level keys + additional
+# orientation_check/orientation_fixed fields per case + patched series_uid
+# for flipped cases). export_hf.py reads series_uid to locate CT files, so
+# using this manifest automatically picks up the flipped CT NIfTIs.
+MANIFEST_FILE="${MANIFEST_FILE:-placed_manifest_orientation_fixed.json}"
+HOST_MANIFEST="${PLACED_DIR}/${MANIFEST_FILE}"
+
+# Fallback: if the orientation-fixed manifest doesn't exist (e.g. Stage 2 ran
+# without Step C), fall back to the original with a loud warning.
+if [[ ! -f "${HOST_MANIFEST}" && "${MANIFEST_FILE}" == "placed_manifest_orientation_fixed.json" ]]; then
+    echo "WARNING: ${HOST_MANIFEST} not found."
+    echo "         Falling back to placed_manifest.json (no AP-inversion fix applied)."
+    echo "         Run Stage 2 with Step C enabled to produce the orientation-fixed manifest."
+    MANIFEST_FILE="placed_manifest.json"
+    HOST_MANIFEST="${PLACED_DIR}/${MANIFEST_FILE}"
+fi
+
 mkdir -p "${LOGS_DIR}" "${HF_EXPORT_DIR}"
 
 echo "======================================================================"
 echo " Stage 3: Export dataset"
 echo "   Job ID       : ${SLURM_JOB_ID:-local}"
 echo "   Node         : $(hostname)"
-echo "   Manifest     : ${PLACED_MANIFEST}"
+echo "   Manifest     : ${HOST_MANIFEST}"
 echo "   Export dir   : ${HF_EXPORT_DIR}"
 echo "   HF repo      : ${HF_REPO_ID}"
 echo "   PUSH         : ${PUSH}"
@@ -82,19 +107,27 @@ fi
 
 # ── Pre-flight ───────────────────────────────────────────────────────────────
 if [[ "${SKIP_EXPORT}" != "1" ]]; then
-    if [[ ! -f "${PLACED_MANIFEST}" ]]; then
-        echo "ERROR: placed_manifest.json not found."
+    if [[ ! -f "${HOST_MANIFEST}" ]]; then
+        echo "ERROR: ${MANIFEST_FILE} not found at ${HOST_MANIFEST}"
         echo "       Run Stage 2 first:  make create-dataset"
         exit 1
     fi
 
     echo ""
-    python3 - "${PLACED_MANIFEST}" << 'PYEOF'
+    python3 - "${HOST_MANIFEST}" << 'PYEOF'
 import json, sys
 m = json.load(open(sys.argv[1]))
 print(f"  Input manifest: {m.get('n_cases','?')} cases "
       f"(fused={m.get('n_fused','?')}  separate={m.get('n_separate','?')}  "
       f"spine_only={m.get('n_spine_only','?')}  pelvic_only={m.get('n_pelvic_only','?')})")
+# Surface orientation-fix fields when present
+if "n_ap_inverted" in m:
+    print(f"  Orientation   : ok={m.get('n_ap_ok','?')}  "
+          f"inverted={m.get('n_ap_inverted','?')}  "
+          f"indeterminate={m.get('n_ap_indeterminate','?')}  "
+          f"skipped={m.get('n_ap_skipped','?')}")
+    if m.get('schema_version'):
+        print(f"  Schema        : {m['schema_version']}")
 PYEOF
 fi
 
@@ -120,7 +153,7 @@ _run() {
 }
 
 # ── Container-side paths ─────────────────────────────────────────────────────
-C_MANIFEST="/data/placed/placed_manifest.json"
+C_MANIFEST="/data/placed/${MANIFEST_FILE}"
 C_NIFTI="/data/tcia_nifti"
 C_PLACED_SPINE="/data/placed/spine"
 C_PLACED_PELVIC="/data/placed/pelvic"
