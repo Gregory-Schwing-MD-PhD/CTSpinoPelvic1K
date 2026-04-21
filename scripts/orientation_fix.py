@@ -36,8 +36,11 @@ ischium) is unambiguously posterior.
 
 FLIP
 ====
-np.flip(data, axis=0) with the affine UNCHANGED. Preserves the PIR
-orientation claim while making the data match the anatomy.
+Full 3D resampling that reflects each volume across the CT's world-Y
+bounding-box center. Using a COMMON external mirror plane (instead of
+np.flip's per-volume self-center) preserves mask-on-CT alignment even
+when CT and placed masks were produced by different code paths with
+different Y translations in their affines.
 
 FLIP SET BY MATCH TYPE
 ======================
@@ -184,71 +187,154 @@ def _detect_ap_inversion_body_center(
 
 # ── Flip ─────────────────────────────────────────────────────────────────────
 
-def _find_ap_axis(aff: np.ndarray) -> Tuple[int, np.ndarray]:
+def _bbox_y_extent(img) -> Tuple[float, float]:
+    """Return (y_min, y_max) world-Y extent of the volume's voxel bounding box."""
+    shape = img.shape[:3]
+    aff = img.affine.astype(np.float64)
+    corners = np.array([
+        [0, 0, 0], [shape[0]-1, 0, 0], [0, shape[1]-1, 0], [0, 0, shape[2]-1],
+        [shape[0]-1, shape[1]-1, 0], [shape[0]-1, 0, shape[2]-1],
+        [0, shape[1]-1, shape[2]-1],
+        [shape[0]-1, shape[1]-1, shape[2]-1],
+    ], dtype=np.float64)
+    h = np.hstack([corners, np.ones((8, 1))])
+    world_y = (aff @ h.T).T[:, 1]
+    return float(world_y.min()), float(world_y.max())
+
+
+def _flip_world_y_resample(
+    src: Path,
+    dst: Path,
+    mirror_plane_y: float,
+    is_label_map: bool,
+    label: str = "",
+) -> bool:
     """
-    Return (voxel_axis_index, y_components) for the voxel axis most aligned
-    with world Y (the anterior-posterior axis in nibabel's RAS+ convention).
+    Reflect the volume across the world plane  Y = mirror_plane_y  via full
+    3D resampling. Output shape & affine == input; only the data content
+    is reshuffled to reflect the world-space mirror.
 
-    Each column of aff[:3, :3] is the world-space direction vector of the
-    corresponding voxel axis. Row 1 (world Y component) tells us which
-    voxel axis carries the AP direction.
+    Why resampling, not np.flip
+    ---------------------------
+    np.flip(data, axis=k) mirrors the anatomy about the VOLUME'S OWN
+    voxel-center along axis k, which in world space is
+        Y_self_center = aff[1, k] * (N_k - 1) / 2  +  aff[1, 3]
+    i.e., it depends on the volume's shape AND its Y translation.
 
-    For a PIR volume (placed masks) this returns 0.
-    For an LPS volume (typical TCIA CT from dcm2niix) this returns 1.
-    For an LAS volume this also returns 1 (sign differs but abs-max is 1).
-    """
-    y_components = np.abs(aff[:3, :3][1, :].astype(np.float64))
-    ap_axis = int(np.argmax(y_components))
-    return ap_axis, y_components
+    For a fused case, the TCIA CT (LPS, dcm2niix-produced) and the placed
+    masks (PIR, placement-produced) are aligned in world space but have
+    DIFFERENT Y translations in their affines — so their self-centers
+    differ, and independent np.flip calls displace CT and masks relative
+    to each other by (aff_ct[1,3] - aff_mask[1,3]) in world Y.
 
-
-def _flip_along_world_y(src: Path, dst: Path, label: str = "") -> Optional[int]:
-    """
-    Flip the volume along the voxel axis most aligned with world Y (AP).
-    Affine is preserved — flipping data (not the affine) is what makes the
-    PIR/LPS claim become anatomically accurate for an inverted scan.
-
-    Returns the voxel axis that was flipped, or None on failure.
-
-    Previously this function was hard-coded to axis=0, which worked for PIR
-    masks but silently mirrored LPS CTs left-right instead of flipping them
-    anterior-posterior. The affine-driven axis choice is the fix.
+    Reflecting both about an EXTERNAL common plane (here: the CT's bbox-Y
+    center) applies the identical world-space transformation to every
+    file, preserving relative alignment. That's "doing the same thing to
+    both" in the way that actually matters for mask-on-CT geometry.
     """
     import nibabel as nib
+    from scipy.ndimage import map_coordinates
+
     try:
-        img  = nib.load(str(src))
+        img = nib.load(str(src))
         data = np.asarray(img.dataobj)
-        aff  = img.affine
+        aff = img.affine.astype(np.float64)
+        inv_aff = np.linalg.inv(aff)
 
-        ap_axis, y_components = _find_ap_axis(aff)
+        shape = data.shape
+        if len(shape) != 3:
+            log.error("  flip FAILED %s: expected 3D, got shape %s", src.name, shape)
+            return False
 
-        # Sanity: warn if no voxel axis is clearly AP-aligned (oblique volume)
-        total = float(y_components.sum()) + 1e-9
-        dominance = float(y_components[ap_axis]) / total
-        if dominance < 0.7:
-            log.warning(
-                "  flip %s: AP axis unclear (dominance=%.2f, y_components=%s)"
-                " — using axis %d anyway",
-                label or src.name, dominance,
-                [f"{v:.2f}" for v in y_components.tolist()],
-                ap_axis,
+        # Process slice-by-slice along axis 2 to keep peak memory bounded
+        # (per-slice coord scratch = ~3 * shape[0] * shape[1] * 4 bytes).
+        order = 0 if is_label_map else 1
+        cval  = 0 if is_label_map else -1024.0
+        src_data = data if is_label_map else data.astype(np.float32)
+
+        output = np.empty_like(data)
+
+        for k in range(shape[2]):
+            ii, jj = np.meshgrid(
+                np.arange(shape[0], dtype=np.float32),
+                np.arange(shape[1], dtype=np.float32),
+                indexing="ij",
             )
+            # Output voxel (i, j, k) → output world (x, y, z)
+            wx = aff[0, 0]*ii + aff[0, 1]*jj + aff[0, 2]*k + aff[0, 3]
+            wy = aff[1, 0]*ii + aff[1, 1]*jj + aff[1, 2]*k + aff[1, 3]
+            wz = aff[2, 0]*ii + aff[2, 1]*jj + aff[2, 2]*k + aff[2, 3]
 
-        flipped = np.ascontiguousarray(np.flip(data, axis=ap_axis))
-        new_img = nib.Nifti1Image(flipped, aff, header=img.header)
+            # Mirror the Y coordinate about the external common plane
+            wy_src = (2.0 * mirror_plane_y) - wy
+
+            # Mirrored world → source voxel in the SAME file's voxel grid
+            si = inv_aff[0, 0]*wx + inv_aff[0, 1]*wy_src + inv_aff[0, 2]*wz + inv_aff[0, 3]
+            sj = inv_aff[1, 0]*wx + inv_aff[1, 1]*wy_src + inv_aff[1, 2]*wz + inv_aff[1, 3]
+            sk = inv_aff[2, 0]*wx + inv_aff[2, 1]*wy_src + inv_aff[2, 2]*wz + inv_aff[2, 3]
+
+            coords = np.stack([si, sj, sk], axis=0)
+            slice_out = map_coordinates(
+                src_data, coords, order=order, mode="constant", cval=cval
+            )
+            output[..., k] = slice_out.astype(data.dtype)
+
+        new_img = nib.Nifti1Image(output, aff, header=img.header)
         new_img.set_data_dtype(img.get_data_dtype())
 
         dst.parent.mkdir(parents=True, exist_ok=True)
         nib.save(new_img, str(dst))
 
+        y_min, y_max = _bbox_y_extent(img)
         log.info(
-            "  flipped %s: ap_axis=%d  shape=%s  y_components=%s",
-            label or src.name, ap_axis, tuple(data.shape),
-            [f"{v:.2f}" for v in y_components.tolist()],
+            "  flipped %s: mirror_y=%.2f  shape=%s  own_y_range=[%.1f, %.1f]  own_y_center=%.2f  is_label=%s",
+            label or src.name, mirror_plane_y, tuple(shape),
+            y_min, y_max, (y_min + y_max) / 2, is_label_map,
         )
-        return ap_axis
+        return True
     except Exception as e:
         log.error("  flip FAILED %s → %s: %s", src.name, dst.name, e)
+        return False
+
+
+def _verify_bone_alignment(ct_path: Path, mask_path: Path) -> Optional[dict]:
+    """
+    Post-flip sanity: sample the CT at every pelvic-mask voxel's world
+    position and compute bone% (HU > 200) + mean HU. If the flip worked,
+    bone% should come out comparable to the pre-flip value from the
+    manifest (~70% for a well-placed pelvic mask). bone% under ~30% means
+    mask and CT are not aligned in world space.
+    """
+    try:
+        import nibabel as nib
+        from scipy.ndimage import map_coordinates
+
+        ct   = nib.load(str(ct_path))
+        mask = nib.load(str(mask_path))
+        mask_data = np.asarray(mask.dataobj)
+
+        vox = np.argwhere(mask_data > 0)
+        if len(vox) < 1000:
+            return None
+
+        h      = np.hstack([vox.astype(np.float64), np.ones((len(vox), 1))])
+        world  = (mask.affine.astype(np.float64) @ h.T).T[:, :3]
+        inv_ct = np.linalg.inv(ct.affine.astype(np.float64))
+        hw     = np.hstack([world, np.ones((len(world), 1))])
+        ct_vox = (inv_ct @ hw.T).T[:, :3]
+
+        ct_data = np.asarray(ct.dataobj, dtype=np.float32)
+        sampled = map_coordinates(
+            ct_data, ct_vox.T, order=0, mode="constant", cval=-1000.0
+        )
+
+        return {
+            "bone_pct":   float((sampled > 200).sum()) / len(sampled) * 100.0,
+            "mean_hu":    float(sampled.mean()),
+            "n_mask_vox": int(len(vox)),
+        }
+    except Exception as e:
+        log.error("  verify_bone_alignment failed: %s", e)
         return None
 
 
@@ -314,7 +400,24 @@ def _process_case(args) -> dict:
     if is_inv is None or not is_inv:
         return out
 
-    # ── Flagged as inverted — flip files ─────────────────────────────────────
+    # ── Flagged as inverted — flip files about CT's world-Y center ──────────
+    # Key: all three files mirror about the SAME external world-Y plane
+    # so their relative alignment is preserved after the flip.
+    import nibabel as nib
+    try:
+        ct_img = nib.load(str(ct_path))
+        ct_y_min, ct_y_max = _bbox_y_extent(ct_img)
+        mirror_plane_y = (ct_y_min + ct_y_max) / 2.0
+    except Exception as e:
+        out["error"] = f"mirror_plane_compute_failed:{type(e).__name__}"
+        return out
+
+    log.info(
+        "  [token=%s] common mirror plane (world Y): %.2f  "
+        "(from CT y_range=[%.1f, %.1f])",
+        token, mirror_plane_y, ct_y_min, ct_y_max,
+    )
+
     flipped: Dict[str, str] = {}
     originals: Dict[str, Optional[str]] = {
         "ct":             str(ct_path),
@@ -326,21 +429,21 @@ def _process_case(args) -> dict:
     ct_src = ct_path
     if ct_src.exists():
         ct_dst = _with_suffix(ct_src, SUFFIX)
-        axis = None if dry_run else _flip_along_world_y(
-            ct_src, ct_dst, label=f"CT[token={token}]"
+        ok = dry_run or _flip_world_y_resample(
+            ct_src, ct_dst, mirror_plane_y,
+            is_label_map=False, label=f"CT[token={token}]",
         )
-        if dry_run or axis is not None:
+        if dry_run or ok:
             flipped["ct"] = str(ct_dst)
-            flipped["ct_ap_axis"] = axis if not dry_run else None
 
     pm_src = Path(pelvic_placed)
     pm_dst = _with_suffix(pm_src, SUFFIX)
-    axis = None if dry_run else _flip_along_world_y(
-        pm_src, pm_dst, label=f"pelvic_mask[token={token}]"
+    ok = dry_run or _flip_world_y_resample(
+        pm_src, pm_dst, mirror_plane_y,
+        is_label_map=True, label=f"pelvic_mask[token={token}]",
     )
-    if dry_run or axis is not None:
+    if dry_run or ok:
         flipped["pelvic_placed"] = str(pm_dst)
-        flipped["pelvic_ap_axis"] = axis if not dry_run else None
 
     sp = case.get("spine") or {}
     if match_type == "fused" and sp.get("placed"):
@@ -348,12 +451,26 @@ def _process_case(args) -> dict:
         if sp_src.exists():
             sp_dst = _with_suffix(sp_src, SUFFIX)
             originals["spine_placed"] = str(sp_src)
-            axis = None if dry_run else _flip_along_world_y(
-                sp_src, sp_dst, label=f"spine_mask[token={token}]"
+            ok = dry_run or _flip_world_y_resample(
+                sp_src, sp_dst, mirror_plane_y,
+                is_label_map=True, label=f"spine_mask[token={token}]",
             )
-            if dry_run or axis is not None:
+            if dry_run or ok:
                 flipped["spine_placed"] = str(sp_dst)
-                flipped["spine_ap_axis"] = axis if not dry_run else None
+
+    # Post-flip sanity check: mask-on-flipped-CT bone%. If this comes out
+    # comparable to the pre-flip manifest bone_pct, alignment is preserved.
+    if not dry_run and "ct" in flipped and "pelvic_placed" in flipped:
+        chk = _verify_bone_alignment(Path(flipped["ct"]), Path(flipped["pelvic_placed"]))
+        if chk is not None:
+            log.info(
+                "  [token=%s] post-flip alignment check: bone%%=%.1f  mean_HU=%.1f  "
+                "(pre-flip manifest pelvic bone_pct=%.1f)",
+                token, chk["bone_pct"], chk["mean_hu"],
+                (case.get("pelvic") or {}).get("bone_pct", -1),
+            )
+            out["orientation_check"]["post_flip_bone_pct"] = round(chk["bone_pct"], 1)
+            out["orientation_check"]["post_flip_mean_hu"]  = round(chk["mean_hu"],  1)
 
     out["orientation_fixed"]    = flipped if flipped else None
     out["orientation_original"] = originals if flipped else None
@@ -366,9 +483,17 @@ def _merge_case(case: dict,
                 ori_by_token: Dict[str, dict],
                 nifti_dir: Path) -> dict:
     """
-    Build the output case entry. Key invariant: every case has explicit
-    spine.ct_nifti and pelvic.ct_nifti pointing at the file to load — no
-    UID-based resolution needed downstream.
+    Build the output case entry. Key invariants for every case:
+
+      1. spine.ct_nifti / pelvic.ct_nifti carry explicit absolute paths
+         (flipped for inverted cases, original otherwise).
+      2. spine.series_uid / pelvic.series_uid are PATCHED for inverted
+         cases to the _orientation_fixed stem, so any downstream consumer
+         that resolves CT via `{nifti_dir}/{series_uid}.nii.gz` — e.g.
+         visualize_qc.py — lands on the flipped CT without code changes.
+         Original UIDs are preserved in series_uid_original.
+      3. spine.placed / pelvic.placed point at the flipped mask files for
+         inverted cases; originals kept in placed_original.
     """
     merged = dict(case)
     tok    = str(case.get("patient_token", "?"))
@@ -378,6 +503,18 @@ def _merge_case(case: dict,
     ofx = ori.get("orientation_fixed") or {}
     flipped_ct_path = ofx.get("ct")
 
+    # Derive the flipped UID from the filename. The flipped CT lives in
+    # nifti_dir with a _orientation_fixed-suffixed filename, so its "UID"
+    # (the filename stem) is just the original UID + SUFFIX.
+    flipped_ct_uid: Optional[str] = None
+    if flipped_ct_path:
+        stem = Path(flipped_ct_path).name
+        if stem.endswith(".nii.gz"):
+            stem = stem[:-7]
+        elif stem.endswith(".nii"):
+            stem = stem[:-4]
+        flipped_ct_uid = stem
+
     if ori:
         merged["orientation_check"] = ori["orientation_check"]
     if ori.get("orientation_fixed"):
@@ -385,10 +522,6 @@ def _merge_case(case: dict,
         merged["orientation_original"] = ori["orientation_original"]
 
     # Which side(s) flip their CT?
-    #   fused        → spine and pelvic share the CT, both sides flip
-    #   separate     → only pelvic CT flips; spine CT is a different series
-    #   pelvic_only  → pelvic CT flips; no spine side
-    #   spine_only   → nothing flips
     spine_ct_flips  = (match_type == "fused")
     pelvic_ct_flips = (match_type in ("fused", "separate", "pelvic_only"))
 
@@ -402,12 +535,19 @@ def _merge_case(case: dict,
     sp = merged.get("spine")
     if isinstance(sp, dict):
         new_sp = dict(sp)
-        new_sp["ct_nifti"] = _resolve_ct(sp.get("series_uid"), spine_ct_flips)
+        orig_spine_uid = sp.get("series_uid")
+
+        # Patch series_uid → flipped stem so UID-based CT resolution hits
+        # the flipped file. Keep the original UID for traceability.
+        if spine_ct_flips and flipped_ct_uid:
+            new_sp["series_uid_original"] = orig_spine_uid
+            new_sp["series_uid"]          = flipped_ct_uid
+
+        new_sp["ct_nifti"] = _resolve_ct(new_sp["series_uid"], spine_ct_flips)
         if spine_ct_flips and flipped_ct_path:
             new_sp["ct_nifti_original"] = str(
-                (nifti_dir / f"{sp.get('series_uid')}.nii.gz").resolve()
+                (nifti_dir / f"{orig_spine_uid}.nii.gz").resolve()
             )
-        # Also patch the placed mask path if it was flipped
         if ofx.get("spine_placed"):
             new_sp["placed"]          = ofx["spine_placed"]
             new_sp["placed_original"] = (
@@ -418,10 +558,16 @@ def _merge_case(case: dict,
     pv = merged.get("pelvic")
     if isinstance(pv, dict):
         new_pv = dict(pv)
-        new_pv["ct_nifti"] = _resolve_ct(pv.get("series_uid"), pelvic_ct_flips)
+        orig_pelvic_uid = pv.get("series_uid")
+
+        if pelvic_ct_flips and flipped_ct_uid:
+            new_pv["series_uid_original"] = orig_pelvic_uid
+            new_pv["series_uid"]          = flipped_ct_uid
+
+        new_pv["ct_nifti"] = _resolve_ct(new_pv["series_uid"], pelvic_ct_flips)
         if pelvic_ct_flips and flipped_ct_path:
             new_pv["ct_nifti_original"] = str(
-                (nifti_dir / f"{pv.get('series_uid')}.nii.gz").resolve()
+                (nifti_dir / f"{orig_pelvic_uid}.nii.gz").resolve()
             )
         if ofx.get("pelvic_placed"):
             new_pv["placed"]          = ofx["pelvic_placed"]
