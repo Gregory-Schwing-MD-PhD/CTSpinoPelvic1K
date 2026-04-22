@@ -11,15 +11,16 @@ per-case PNG figures:
     Col 2  Pelvic CT + pelvic mask  (own CT for separate cases)
     Col 3  Compatibility metrics panel (computed + manifest values)
 
+Data orientation: stored volumes are PIR (axis 0 = Posterior, axis 1 = Inferior,
+axis 2 = patient-Right as index increases). This script reorients every input
+to PIR via `_load()`, then slices and displays so that:
+  Row 1 "Coronal"   dim=0  -- head at top, feet at bottom
+  Row 2 "Axial"     dim=1  -- anterior at top, posterior (spine) at bottom
+  Row 3 "Sagittal"  dim=2  -- head at top, spine runs vertically (requires transpose)
+
 IS_fail cases (vertebral centroid ordering check failed) are routed to
   per_case/is_fail/
 with a red IS_ORDER_FAIL banner. All other cases go to per_case/{match_type}/.
-This makes flagged cases easy to inspect without digging through 800 figures.
-
-Compatibility metrics computed per placed mask:
-  bone_coverage_pct  HU > 200 under mask  (spine >= 30%, pelvic >= 20%)
-  fov_overlap_pct    mask voxels within CT FOV (>= 80%)
-  z_position_pct     mask centroid z as % of CT z-extent
 
 Usage
 -----
@@ -28,9 +29,6 @@ Usage
       --nifti_dir data/tcia_nifti \
       --placed_dir data/placed \
       --out_dir   data/qc_figures
-
-  # Debug specific tokens
-  python scripts/visualize_qc.py ... --tokens 69,75,149 --per_case
 """
 from __future__ import annotations
 
@@ -141,6 +139,23 @@ def _choose_slices(ct, seg, pelv):
     return (int(np.clip(i, 0, ct.shape[0] - 1)),
             int(np.clip(j, 0, ct.shape[1] - 1)),
             int(np.clip(k, 0, ct.shape[2] - 1)))
+
+
+def _display_slice(arr2d: np.ndarray, dim: int) -> np.ndarray:
+    """Orient a 2D slice for radiological display assuming PIR source.
+
+    PIR: axis 0 = P (A->P as idx++), axis 1 = I (S->I as idx++), axis 2 = R (L->R as idx++).
+
+    dim=0 (coronal):  slice shape (I, R). imshow default: row 0 top = I=0 = superior. OK as-is.
+    dim=1 (axial):    slice shape (P, R). imshow default: row 0 top = P=0 = anterior. OK as-is.
+    dim=2 (sagittal): slice shape (P, I). We want row=I (head up), col=P. Transpose.
+    """
+    return arr2d.T if dim == 2 else arr2d
+
+
+def _display_shape(shape_3d: Tuple[int, ...], dim: int) -> Tuple[int, int]:
+    raw = tuple(s for d, s in enumerate(shape_3d) if d != dim)
+    return raw[::-1] if dim == 2 else raw
 
 
 def _grey_panel(shape_2d):
@@ -384,49 +399,51 @@ def _fill_section(axes, col_offset, spine_ct_path, spine_seg_path,
 
     ref_ct = ct_sp if has_spine else ct_pv
 
-    i_sag, j_cor, k_ax = _choose_slices(
+    i_cor, j_ax, k_sag = _choose_slices(
         ref_ct,
         seg_arr  if has_spine  else None,
         pelv_arr if (has_pelvic and same_space) else None,
     )
-    plane_names = [f"Sagittal i={i_sag}", f"Coronal j={j_cor}", f"Axial k={k_ax}"]
+    plane_names = [f"Coronal i={i_cor}", f"Axial j={j_ax}", f"Sagittal k={k_sag}"]
 
     if has_pelvic and not same_space:
-        pi_sag, pj_cor, pk_ax = _choose_slices(ct_pv, None, pelv_arr)
+        pi_cor, pj_ax, pk_sag = _choose_slices(ct_pv, None, pelv_arr)
     else:
-        pi_sag, pj_cor, pk_ax = i_sag, j_cor, k_ax
-    pelvic_plane_idx = {0: pi_sag, 1: pj_cor, 2: pk_ax}
+        pi_cor, pj_ax, pk_sag = i_cor, j_ax, k_sag
+    pelvic_plane_idx = {0: pi_cor, 1: pj_ax, 2: pk_sag}
 
-    for row, (dim, idx) in enumerate([(0, i_sag), (1, j_cor), (2, k_ax)]):
+    for row, (dim, idx) in enumerate([(0, i_cor), (1, j_ax), (2, k_sag)]):
         pv_idx = pelvic_plane_idx[row]
 
-        ref_shape_2d = tuple(s for d, s in enumerate(ref_ct.shape) if d != dim)
+        ref_shape_2d = _display_shape(ref_ct.shape, dim)
 
         ax = axes[row, col_offset]
         if has_spine:
-            rgb = _overlay(_window(_safe_slice(ct_sp, dim, idx)),
-                           _safe_slice(seg_arr, dim, idx), _SPINE_COLORS)
+            ct_2d  = _display_slice(_safe_slice(ct_sp, dim, idx), dim)
+            seg_2d = _display_slice(_safe_slice(seg_arr, dim, idx), dim)
+            rgb    = _overlay(_window(ct_2d), seg_2d, _SPINE_COLORS)
         else:
             rgb = _grey_panel(ref_shape_2d)
             if row == 1:
                 ax.text(0.5, 0.5, "No Spine Scan", transform=ax.transAxes,
                         color="#888888", fontsize=9, fontweight="bold",
                         ha="center", va="center")
-        ax.imshow(rgb, origin="lower", aspect="auto", interpolation="nearest")
+        ax.imshow(rgb, aspect="auto", interpolation="nearest")
         ax.axis("off")
 
         ax = axes[row, col_offset + 1]
         pelvic_slice_empty = has_pelvic and not (_safe_slice(pelv_arr, dim, pv_idx) > 0).any()
         if has_pelvic:
-            rgb = _overlay(_window(_safe_slice(ct_pv, dim, pv_idx)),
-                           _safe_slice(pelv_arr, dim, pv_idx), _PELVIC_COLORS)
+            ct_2d   = _display_slice(_safe_slice(ct_pv, dim, pv_idx), dim)
+            pelv_2d = _display_slice(_safe_slice(pelv_arr, dim, pv_idx), dim)
+            rgb     = _overlay(_window(ct_2d), pelv_2d, _PELVIC_COLORS)
         else:
             rgb = _grey_panel(ref_shape_2d)
             if row == 1:
                 ax.text(0.5, 0.5, "No Pelvic Scan", transform=ax.transAxes,
                         color="#888888", fontsize=9, fontweight="bold",
                         ha="center", va="center")
-        ax.imshow(rgb, origin="lower", aspect="auto", interpolation="nearest")
+        ax.imshow(rgb, aspect="auto", interpolation="nearest")
         if pelvic_slice_empty and row == 1:
             ax.text(0.5, 0.5, "MASK OUTSIDE SLICE\n(pelvis below FOV)",
                     transform=ax.transAxes, color="#ff6600", fontsize=7,
@@ -436,16 +453,19 @@ def _fill_section(axes, col_offset, spine_ct_path, spine_seg_path,
 
         ax = axes[row, col_offset + 2]
         if has_spine:
-            rgb = _overlay(_window(_safe_slice(ct_sp, dim, idx)),
-                           _safe_slice(seg_arr, dim, idx), _SPINE_COLORS)
+            ct_2d  = _display_slice(_safe_slice(ct_sp, dim, idx), dim)
+            seg_2d = _display_slice(_safe_slice(seg_arr, dim, idx), dim)
+            rgb    = _overlay(_window(ct_2d), seg_2d, _SPINE_COLORS)
             if has_pelvic and same_space:
-                rgb = _overlay(rgb, _safe_slice(pelv_arr, dim, pv_idx), _PELVIC_COLORS)
+                pelv_2d = _display_slice(_safe_slice(pelv_arr, dim, pv_idx), dim)
+                rgb     = _overlay(rgb, pelv_2d, _PELVIC_COLORS)
         elif has_pelvic:
-            rgb = _overlay(_window(_safe_slice(ct_pv, dim, pv_idx)),
-                           _safe_slice(pelv_arr, dim, pv_idx), _PELVIC_COLORS)
+            ct_2d   = _display_slice(_safe_slice(ct_pv, dim, pv_idx), dim)
+            pelv_2d = _display_slice(_safe_slice(pelv_arr, dim, pv_idx), dim)
+            rgb     = _overlay(_window(ct_2d), pelv_2d, _PELVIC_COLORS)
         else:
             rgb = _grey_panel(ref_shape_2d)
-        ax.imshow(rgb, origin="lower", aspect="auto", interpolation="nearest")
+        ax.imshow(rgb, aspect="auto", interpolation="nearest")
 
         if show_metrics and pelvic_metrics and same_space:
             _add_metrics_overlay(ax, pelvic_metrics, row)
@@ -478,23 +498,23 @@ def _fill_debug_section(axes, col_offset, ct, spine_seg, pelvic_mask,
     is_separate = pelvic_ct is not None
     pv_ct = pelvic_ct if is_separate else ct
 
-    i_sag, j_cor, k_ax = _choose_slices(ct, spine_seg,
+    i_cor, j_ax, k_sag = _choose_slices(ct, spine_seg,
                                          pelvic_mask if not is_separate else None)
     if is_separate and pelvic_mask is not None:
-        _, pj_cor, pk_ax = _choose_slices(pv_ct, None, pelvic_mask)
+        _, pj_ax, pk_sag = _choose_slices(pv_ct, None, pelvic_mask)
     else:
-        pj_cor, pk_ax = j_cor, k_ax
+        pj_ax, pk_sag = j_ax, k_sag
 
-    plane_names = [f"Sagittal i={i_sag}", f"Coronal j={j_cor}", f"Axial k={k_ax}"]
+    plane_names = [f"Coronal i={i_cor}", f"Axial j={j_ax}", f"Sagittal k={k_sag}"]
 
-    for row, (dim, idx) in enumerate([(0, i_sag), (1, j_cor), (2, k_ax)]):
-        pv_idx = {0: i_sag, 1: pj_cor, 2: pk_ax}[row]
+    for row, (dim, idx) in enumerate([(0, i_cor), (1, j_ax), (2, k_sag)]):
+        pv_idx = {0: i_cor, 1: pj_ax, 2: pk_sag}[row]
 
-        ct_win = _window(_safe_slice(ct, dim, idx))
+        ct_win = _window(_display_slice(_safe_slice(ct, dim, idx), dim))
 
         ax = axes[row, col_offset]
         ax.imshow(np.stack([ct_win, ct_win, ct_win], axis=-1),
-                  origin="lower", aspect="auto", interpolation="nearest")
+                  aspect="auto", interpolation="nearest")
         ax.axis("off")
         if row == 0:
             ax.set_title("Raw CT (spine)", fontsize=8, color="#cccccc", pad=2)
@@ -507,14 +527,15 @@ def _fill_debug_section(axes, col_offset, ct, spine_seg, pelvic_mask,
             mn = tuple(min(a, b) for a, b in zip(ct.shape, spine_seg.shape))
             ct_c  = ct[:mn[0],:mn[1],:mn[2]]
             seg_c = spine_seg[:mn[0],:mn[1],:mn[2]]
-            rgb = _overlay(_window(_safe_slice(ct_c, dim, idx)),
-                           _safe_slice(seg_c, dim, idx), _SPINE_COLORS)
+            ct_2d  = _display_slice(_safe_slice(ct_c, dim, idx), dim)
+            seg_2d = _display_slice(_safe_slice(seg_c, dim, idx), dim)
+            rgb    = _overlay(_window(ct_2d), seg_2d, _SPINE_COLORS)
         else:
             rgb = np.stack([ct_win, ct_win, ct_win], axis=-1)
             if row == 1:
                 ax.text(0.5, 0.5, "No Spine Seg", transform=ax.transAxes,
                         color="#666666", fontsize=8, ha="center", va="center")
-        ax.imshow(rgb, origin="lower", aspect="auto", interpolation="nearest")
+        ax.imshow(rgb, aspect="auto", interpolation="nearest")
         ax.axis("off")
         if row == 0:
             ax.set_title("CT + Spine Seg", fontsize=8, color="#cccccc", pad=2)
@@ -524,15 +545,16 @@ def _fill_debug_section(axes, col_offset, ct, spine_seg, pelvic_mask,
             mn   = tuple(min(a, b) for a, b in zip(pv_ct.shape, pelvic_mask.shape))
             pvc  = pv_ct[:mn[0],:mn[1],:mn[2]]
             pkc  = pelvic_mask[:mn[0],:mn[1],:mn[2]]
-            rgb  = _overlay(_window(_safe_slice(pvc, dim, pv_idx)),
-                            _safe_slice(pkc, dim, pv_idx), _PELVIC_COLORS)
+            ct_2d   = _display_slice(_safe_slice(pvc, dim, pv_idx), dim)
+            pelv_2d = _display_slice(_safe_slice(pkc, dim, pv_idx), dim)
+            rgb     = _overlay(_window(ct_2d), pelv_2d, _PELVIC_COLORS)
         else:
-            pv_win = _window(_safe_slice(pv_ct, dim, pv_idx))
-            rgb = np.stack([pv_win, pv_win, pv_win], axis=-1)
+            pv_win = _window(_display_slice(_safe_slice(pv_ct, dim, pv_idx), dim))
+            rgb    = np.stack([pv_win, pv_win, pv_win], axis=-1)
             if row == 1:
                 ax.text(0.5, 0.5, "No Pelvic Mask", transform=ax.transAxes,
                         color="#666666", fontsize=8, ha="center", va="center")
-        ax.imshow(rgb, origin="lower", aspect="auto", interpolation="nearest")
+        ax.imshow(rgb, aspect="auto", interpolation="nearest")
         ax.axis("off")
         if row == 0:
             series_label = "separate series" if is_separate else "same CT -> conflict check"
@@ -905,7 +927,7 @@ def main():
     if args.tokens.strip():
         token_filter = {t.strip() for t in args.tokens.split(",") if t.strip()}
         args.per_case = True
-        log.info("Token filter: %d tokens → %s", len(token_filter), sorted(token_filter))
+        log.info("Token filter: %d tokens -> %s", len(token_filter), sorted(token_filter))
 
     debug_layout = bool(args.debug or token_filter)
     n_load = 0 if args.per_case else args.n_each
@@ -919,7 +941,7 @@ def main():
     )
 
     if not fused_cases and not separate_cases and not pelvic_cases and not spine_cases:
-        log.error("No cases found — verify place_fused_masks.py has run.")
+        log.error("No cases found -- verify place_fused_masks.py has run.")
         return
 
     n_ok = n_skip = n_fail = 0

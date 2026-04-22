@@ -9,16 +9,16 @@ at runtime by rescanning TCIA directories to recover the full per-patient
 series list (the `_augment_patient_uids_from_tcia` helper).  That entire
 step is now unnecessary:
 
-  • build_db.py already indexes EVERY TCIA series grouped by canonical
+  * build_db.py already indexes EVERY TCIA series grouped by canonical
     PatientID (via `tcia_index.build_tcia_patient_index`), so the list of
     candidate UIDs for each patient is already complete and sitting inside
     patient_db.json at `patients[uid].tcia_series[*].series_uid`.
 
-  • build_db.py already attaches spine and pelvic masks to patients via
+  * build_db.py already attaches spine and pelvic masks to patients via
     DICOM PatientID equality, so there is no need to re-derive the
     spine-path / pelvic-path / sp_nii-path mapping from a secondary manifest.
 
-  • LSTV fields (lstv_pelvic, lstv_vertebral, lstv_agreement,
+  * LSTV fields (lstv_pelvic, lstv_vertebral, lstv_agreement,
     lstv_confusion_zone, lstv_class) are derived directly from the per-mask
     `lstv_label` fields in patient_db.json.  No cross-check JSON is needed.
 
@@ -31,20 +31,29 @@ ARCHITECTURE
 For each patient, independently finds the TCIA CT series that maximises bone
 coverage (HU > 200) under each placed label volume:
 
-  Spine seg   (CTSpine1K)  → world-space affine NN resample, best bone_pct
-  Pelvic mask (CTPelvic1K) → bone z-profile cross-correlation, best bone_pct
+  Spine seg   (CTSpine1K)  -> world-space affine NN resample, best bone_pct
+  Pelvic mask (CTPelvic1K) -> bone z-profile cross-correlation, best bone_pct
 
 Every TCIA series for the patient is tried for each mask.  match_type is
 determined post-hoc from results:
-  same winning series for both → fused
-  different winning series     → separate
-  one mask only                → spine_only / pelvic_only
+  same winning series for both -> fused
+  different winning series     -> separate
+  one mask only                -> spine_only / pelvic_only
 
 FALLBACK CHAIN (spine only)
 ============================
   1. World-space affine NN resample (all series, best bone_pct)
   2. Phase cross-correlation + 8 axis-flips
   3. CTSpine1K NIfTI anchor (last resort, bone gate bypassed)
+
+SCOUT / DEGENERATE INPUT HANDLING
+==================================
+Any CTSpine1K / CTPelvic1K mask file whose spatial shape has fewer than
+MIN_VALID_SHAPE voxels on any axis is rejected up-front as a scout / localizer
+derivative.  These cannot carry a usable 3D segmentation and crash downstream
+consumers (visualize_qc, export_hf, nnU-Net).  Token-level failures are
+logged with a clear reason so they can be distinguished from genuine
+placement failures.
 
 OUTPUTS
 =======
@@ -78,6 +87,11 @@ MIN_SPINE_VOXELS    = 10_000
 SPINE_BONE_WARN     = 40.0
 BONE_ACCEPT_THRESH  = 20.0
 
+# Any spatial axis smaller than this is treated as a scout / localizer /
+# degenerate volume and rejected at ingest.  Real CT volumes have hundreds
+# of voxels on every axis; 10 is well below any legitimate reconstruction.
+MIN_VALID_SHAPE     = 10
+
 
 # ===========================================================================
 # Orientation helper (PIR)
@@ -86,10 +100,10 @@ BONE_ACCEPT_THRESH  = 20.0
 def _valid_affine(aff) -> bool:
     """
     True iff the 4x4 affine is usable for orientation / qform / PIR work:
-      • all entries finite (no NaN, no Inf)
-      • each spatial axis column has non-trivial norm (no degenerate axis,
+      * all entries finite (no NaN, no Inf)
+      * each spatial axis column has non-trivial norm (no degenerate axis,
         which happens for 1-slice topograms / scouts in COLONOG)
-      • rotation 3x3 is non-singular (|det| > ~0)
+      * rotation 3x3 is non-singular (|det| > ~0)
 
     Degenerate affines make io_orientation() return NaN and make qform SVD
     fail to converge, which is what was crashing _to_pir() on some
@@ -111,8 +125,43 @@ def _valid_affine(aff) -> bool:
     return True
 
 
+def _valid_volume_shape(shape, min_axis: int = MIN_VALID_SHAPE) -> bool:
+    """
+    True iff the 3D spatial shape is non-degenerate for segmentation work.
+
+    A scout / localizer has 1--3 slices along one axis; a true CT
+    reconstruction has tens to thousands on every axis.  This filter
+    catches:
+      * 1-2 slice topograms silently emitted by dcm2niix
+      * 2D masks from upstream label datasets
+      * NIfTIs with shape like (512, 512, 2) that crash io_orientation
+        downstream with 'index 2 is out of bounds for axis 2 with size 2'
+        or 'affine matrix has wrong number of rows'
+    """
+    try:
+        sh = tuple(int(s) for s in shape[:3])
+    except (TypeError, ValueError):
+        return False
+    if len(sh) != 3:
+        return False
+    return min(sh) >= min_axis
+
+
 def _compute_bone_pct_from_files(placed_path, ct_path, bone_hu=200):
-    """Recompute bone fraction from a placed mask + CT NIfTI (legacy cache)."""
+    """
+    Recompute bone fraction from a placed mask + CT NIfTI (legacy cache).
+
+    REFACTOR NOTE (PIR): the previous version had a 'partial-match' branch
+    that assumed axis 2 was the superior-inferior direction (it computed a
+    z-voxel offset from the world-space Z translation and indexed
+    ct_pir.dataobj[:, :, z0c:z1c]).  Under PIR, axis 2 is patient-RIGHT,
+    so that branch was slicing an L-R strip and computing bone% on the
+    wrong region.  Because placement and QC both save in PIR, the placed
+    mask's shape should always match the PIR-reoriented CT's shape
+    exactly.  If it doesn't, we return None rather than compute a
+    meaningless number -- the caller treats None as 'could not recompute'
+    and preserves whatever was in the manifest.
+    """
     try:
         import nibabel as _nib_bp
         import numpy  as _np_bp
@@ -121,6 +170,13 @@ def _compute_bone_pct_from_files(placed_path, ct_path, bone_hu=200):
         placed_img = _nib_bp.load(str(placed_path))
         ct_img     = _nib_bp.load(str(ct_path))
 
+        if (not _valid_affine(placed_img.affine)
+                or not _valid_affine(ct_img.affine)):
+            return None
+        if (not _valid_volume_shape(placed_img.shape)
+                or not _valid_volume_shape(ct_img.shape)):
+            return None
+
         _target  = axcodes2ornt(("P", "I", "R"))
         _current = io_orientation(ct_img.affine)
         _xfm     = ornt_transform(_current, _target)
@@ -128,32 +184,14 @@ def _compute_bone_pct_from_files(placed_path, ct_path, bone_hu=200):
 
         placed_arr = _np_bp.asarray(placed_img.dataobj) > 0
 
-        if ct_pir.shape[:3] == placed_arr.shape[:3]:
-            ct_data  = _np_bp.asarray(ct_pir.dataobj, dtype=_np_bp.float32)
-            n_vox    = int(placed_arr.sum())
-            if n_vox == 0:
-                return None
-            return round(float((ct_data[placed_arr] > bone_hu).sum() / n_vox * 100), 1)
+        if ct_pir.shape[:3] != placed_arr.shape[:3]:
+            return None
 
-        if (ct_pir.shape[0] == placed_arr.shape[0]
-                and ct_pir.shape[1] == placed_arr.shape[1]):
-            placed_aff = placed_img.affine
-            ct_aff     = ct_pir.affine
-            dz_world = placed_aff[2, 3] - ct_aff[2, 3]
-            vox_sz_z = abs(ct_aff[2, 2]) or 1.0
-            z0 = int(round(dz_world / vox_sz_z))
-            z1 = z0 + placed_arr.shape[2]
-            z0c = max(0, z0); z1c = min(ct_pir.shape[2], z1)
-            if z1c <= z0c:
-                return None
-            ct_slice = _np_bp.asarray(ct_pir.dataobj[:, :, z0c:z1c], dtype=_np_bp.float32)
-            mask_slice = placed_arr[:, :, :ct_slice.shape[2]]
-            n_vox = int(mask_slice.sum())
-            if n_vox == 0:
-                return None
-            return round(float((ct_slice[mask_slice] > bone_hu).sum() / n_vox * 100), 1)
-
-        return None
+        ct_data = _np_bp.asarray(ct_pir.dataobj, dtype=_np_bp.float32)
+        n_vox   = int(placed_arr.sum())
+        if n_vox == 0:
+            return None
+        return round(float((ct_data[placed_arr] > bone_hu).sum() / n_vox * 100), 1)
     except Exception:
         return None
 
@@ -246,11 +284,11 @@ def _spine_placement_checks(spine_arr, ref_data, placed_labels, ref_aff, token):
     ambiguous (v and -v are identical principal components), and the old
     `if axis[2] < 0: axis = -axis` tiebreak relied on world Z being roughly
     aligned with patient SI. When the spine axis came out nearly orthogonal
-    to world Z — which happens in decubitus scans, axial-prescribed studies,
-    or anything where the scanner's Z is not the patient's SI — the Z-sign
+    to world Z -- which happens in decubitus scans, axial-prescribed studies,
+    or anything where the scanner's Z is not the patient's SI -- the Z-sign
     tiebreak became effectively random and flipped the projection direction,
     producing false-positive IS_ORDER_FAIL warnings at ~inter-vertebral
-    distance (~100–180 mm).
+    distance (~100-180 mm).
 
     The SI direction is now taken directly from the labeled data: the most-
     superior label (smallest VerSe id) and the most-inferior label (largest
@@ -263,7 +301,7 @@ def _spine_placement_checks(spine_arr, ref_data, placed_labels, ref_aff, token):
     Raw `np.where(spine_arr == lbl).mean()` weights every voxel equally, so
     a 10-voxel stray blob sitting 100mm from a 50,000-voxel real vertebra
     pulls the label's centroid off anatomy. This showed up on real cases
-    as IS_ORDER_FAIL warnings of 100–180 mm (token 7: (14,17,145.9), token
+    as IS_ORDER_FAIL warnings of 100-180 mm (token 7: (14,17,145.9), token
     606: (16,17,180.4), etc.) where the actual vertebrae were correctly
     placed and only the trace fragments were misbehaving.
 
@@ -274,17 +312,17 @@ def _spine_placement_checks(spine_arr, ref_data, placed_labels, ref_aff, token):
          voxels; 500 is well below any legitimate vertebra.
       2. Largest connected component: within a label, compute the CC
          sizes and use only the largest CC's centroid. Disconnected
-         fragments — whether from segmentation noise or from placement
-         cropping the scan edge — are discarded.
+         fragments -- whether from segmentation noise or from placement
+         cropping the scan edge -- are discarded.
 
-    VerSe convention: ascending label id ↔ descending anatomical height
-    (1–7 cervical, 8–19 thoracic, 20–25 lumbar, 26 sacrum). After sorting
+    VerSe convention: ascending label id <-> descending anatomical height
+    (1-7 cervical, 8-19 thoracic, 20-25 lumbar, 26 sacrum). After sorting
     ascending by id, projections must monotonically INCREASE along the
-    lo→hi axis.
+    lo->hi axis.
 
     Limitation: this catches LOCAL order violations (one label misplaced
     between neighbours). A globally inverted mask whose labels are
-    internally consistent with each other will still pass — detecting
+    internally consistent with each other will still pass -- detecting
     that requires external info (DICOM PatientPosition / body anatomy)
     and is handled downstream by orientation_fix.py.
     """
@@ -386,8 +424,8 @@ def _spine_placement_checks(spine_arr, ref_data, placed_labels, ref_aff, token):
 
     # VerSe ascending label id == descending anatomical height.
     labels_sorted = sorted(label_world.keys())
-    lo_label = labels_sorted[0]   # smallest id → most superior
-    hi_label = labels_sorted[-1]  # largest id  → most inferior
+    lo_label = labels_sorted[0]   # smallest id -> most superior
+    hi_label = labels_sorted[-1]  # largest id  -> most inferior
 
     # Data-anchored SI axis. Sign is fixed by label semantics, so there
     # is no tiebreak and no external-frame assumption.
@@ -395,7 +433,7 @@ def _spine_placement_checks(spine_arr, ref_data, placed_labels, ref_aff, token):
     si_norm = float(np.linalg.norm(si_vec))
 
     if si_norm < 1e-6:
-        # Labels all collapse to a single point — nothing to order.
+        # Labels all collapse to a single point -- nothing to order.
         return dict(bone_pct=bp, mean_hu=mhu, is_ordered=True,
                     label_z_centroids=label_z)
 
@@ -454,17 +492,17 @@ def _sorted_candidates(seg_affine, seg_shape, candidate_uids, primary_uid, nifti
             continue
         try:
             img = nib.load(str(nii_path))
-            # Reject scouts / topograms / otherwise degenerate NIfTIs —
+            # Reject scouts / topograms / otherwise degenerate NIfTIs --
             # they'd crash io_orientation() and qform SVD downstream.
             if not _valid_affine(img.affine):
                 n_skipped_degenerate += 1
                 continue
-            # Also reject trivially thin volumes (1- or 2-slice scouts still
+            # Reject scout / localizer shapes (1-2 slice topograms still
             # occasionally slip through with a non-singular affine).
-            sh = tuple(int(s) for s in img.shape[:3])
-            if min(sh) < 4:
+            if not _valid_volume_shape(img.shape):
                 n_skipped_degenerate += 1
                 continue
+            sh = tuple(int(s) for s in img.shape[:3])
             ov, _, _ = _bbox_overlap_frac(
                 seg_affine, seg_shape, img.affine, sh)
             scored.append((ov, uid, img))
@@ -734,6 +772,17 @@ def _place_spine_best_series(args):
         from scipy.ndimage import affine_transform
 
         seg_img  = nib.load(str(seg_path))
+
+        # Scout / degenerate input guard: if the source CTSpine1K mask is
+        # a 2-slice topogram derivative, the whole patient is unusable.
+        if not _valid_volume_shape(seg_img.shape):
+            return token, False, {
+                "error": f"seg_scout_shape={tuple(int(s) for s in seg_img.shape[:3])}",
+                "token": token,
+            }
+        if not _valid_affine(seg_img.affine):
+            return token, False, {"error": "seg_affine_degenerate", "token": token}
+
         seg_data = np.array(seg_img.dataobj, dtype=np.int32).squeeze()
         if seg_data.ndim != 3:
             return token, False, {"error": f"seg_ndim={seg_data.ndim}"}
@@ -822,6 +871,14 @@ def _place_spine_best_series(args):
             pir_data, pir_aff = _to_pir(best_arr, best_ref.affine)
         except Exception as exc:
             return token, False, {"error": f"to_pir_failed: {exc}", "token": token}
+
+        # Final shape sanity check: refuse to write a scout-shaped output.
+        if not _valid_volume_shape(pir_data.shape):
+            return token, False, {
+                "error": f"placed_scout_shape={tuple(int(s) for s in pir_data.shape[:3])}",
+                "token": token,
+            }
+
         nib.save(nib.Nifti1Image(pir_data, pir_aff), str(out_path))
 
         result = {
@@ -905,6 +962,14 @@ def _place_pelvic_best_series(args):
         mask_img      = nib.load(str(mask_path))
         orig_mask_aff = mask_img.affine
 
+        # Scout / degenerate input guard: if the source CTPelvic1K mask is
+        # a 2-slice topogram derivative, the whole patient is unusable.
+        if not _valid_volume_shape(mask_img.shape):
+            return token, False, {
+                "error": f"mask_scout_shape={tuple(int(s) for s in mask_img.shape[:3])}",
+                "token": token,
+            }
+
         # If the pelvic mask's own affine is bad, nothing we do downstream
         # will be sane.  Bail early.
         if not _valid_affine(orig_mask_aff):
@@ -928,7 +993,7 @@ def _place_pelvic_best_series(args):
             # make it absolutely impossible for a bad affine to reach _to_pir.
             if not _valid_affine(ref_aff):
                 log.warning(
-                    "  [pelv]  token=%-8s  uid=...%s  ref_aff invalid — skipping",
+                    "  [pelv]  token=%-8s  uid=...%s  ref_aff invalid -- skipping",
                     token, uid[-10:],
                 )
                 continue
@@ -947,7 +1012,7 @@ def _place_pelvic_best_series(args):
                 # behaviour was to silently continue in the wrong orientation,
                 # which produced garbage placements; skip this candidate instead.
                 log.warning(
-                    "  [pelv]  token=%-8s  uid=...%s  ornt_transform NaN — skipping candidate",
+                    "  [pelv]  token=%-8s  uid=...%s  ornt_transform NaN -- skipping candidate",
                     token, uid[-10:],
                 )
                 continue
@@ -1004,7 +1069,7 @@ def _place_pelvic_best_series(args):
                     _pir, _pir_aff = _to_pir(md.astype(np.int32), placed_aff)
                 except (ValueError, np.linalg.LinAlgError) as exc:
                     log.warning(
-                        "  [pelv]  token=%-8s  uid=...%s  _to_pir failed (%s) — skipping",
+                        "  [pelv]  token=%-8s  uid=...%s  _to_pir failed (%s) -- skipping",
                         token, uid[-10:], type(exc).__name__,
                     )
                     continue
@@ -1013,6 +1078,13 @@ def _place_pelvic_best_series(args):
 
         if best_pir is None:
             return token, False, {"error": "all_candidates_zero_bone", "token": token}
+
+        # Final shape sanity check: refuse to write a scout-shaped output.
+        if not _valid_volume_shape(best_pir.shape):
+            return token, False, {
+                "error": f"placed_scout_shape={tuple(int(s) for s in best_pir.shape[:3])}",
+                "token": token,
+            }
 
         out_path = out_dir / f"{mask_stem}_pelvic_placed.nii.gz"
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1114,7 +1186,7 @@ def run_pelvic_placement(work, workers):
 
 
 # ===========================================================================
-# PatientDB → registry (the refactored input layer)
+# PatientDB -> registry (the refactored input layer)
 # ===========================================================================
 
 def _lstv_derived_fields(spine_label: str, pelvic_label: str) -> Dict:
@@ -1258,9 +1330,9 @@ def main():
     token_filter: Optional[Set[str]] = None
     if args.tokens.strip():
         token_filter = {t.strip() for t in args.tokens.split(",") if t.strip()}
-        log.info("Token filter: %d → %s", len(token_filter), sorted(token_filter))
+        log.info("Token filter: %d -> %s", len(token_filter), sorted(token_filter))
 
-    # ── Step 0: Build patient registry from patient_db.json ──────────────
+    # -- Step 0: Build patient registry from patient_db.json ------------------
     if not args.patient_db.exists():
         log.error("patient_db.json not found: %s", args.patient_db)
         log.error("       Run build_db.py first (Stage 2 Step A).")
@@ -1277,7 +1349,7 @@ def main():
                                             if r["segs"] and r["masks"]))
     log.info("  total TCIA UIDs  : %d", sum(len(r["uids"]) for r in patients.values()))
 
-    # ── Build work items ──────────────────────────────────────────────────
+    # -- Build work items -----------------------------------------------------
     spine_work:  List[Tuple] = []
     pelvic_work: List[Tuple] = []
 
@@ -1322,7 +1394,7 @@ def main():
         log.info("  Token filter            : %s", sorted(token_filter))
     log.info("======================================================================")
 
-    # ── Step 1: dcm2niix ──────────────────────────────────────────────────
+    # -- Step 1: dcm2niix -----------------------------------------------------
     if not args.skip_convert:
         if uid_dirs:
             convert_series(list(uid_dirs.items()), args.nifti_dir, args.dcm2niix_workers)
@@ -1333,7 +1405,7 @@ def main():
         log.info("--convert_only: done.")
         return
 
-    # ── Step 2: Spine placement ───────────────────────────────────────────
+    # -- Step 2: Spine placement ----------------------------------------------
     force = str(os.environ.get("FORCE_PLACEMENT", "0")).strip() == "1"
     if force:
         log.warning("FORCE_PLACEMENT=1: deleting cached spine + pelvic placements")
@@ -1353,7 +1425,7 @@ def main():
             if ok and isinstance(msg, dict):
                 spine_results[tok] = msg
 
-    # ── Step 3: Pelvic placement ──────────────────────────────────────────
+    # -- Step 3: Pelvic placement ---------------------------------------------
     pelvic_results: Dict[str, dict] = {}
     if pelvic_work:
         log.info("Step 3: Pelvic placement  %d cases  workers=%d",
@@ -1363,7 +1435,7 @@ def main():
             if ok and isinstance(msg, dict):
                 pelvic_results[tok] = msg
 
-    # ── Step 4: Merge results → determine match type ─────────────────────
+    # -- Step 4: Merge results -> determine match type ------------------------
     all_tokens = sorted(set(spine_results) | set(pelvic_results),
                         key=lambda t: (0, int(t)) if t.isdigit() else (1, t))
     manifest_cases = []
@@ -1394,7 +1466,7 @@ def main():
             case["pelvic"] = pv
         manifest_cases.append(case)
 
-    # ── Step 5: Write placed_manifest.json ────────────────────────────────
+    # -- Step 5: Write placed_manifest.json -----------------------------------
     manifest = {
         "n_cases":       len(manifest_cases),
         "n_fused":       sum(1 for c in manifest_cases if c["match_type"] == "fused"),
@@ -1406,7 +1478,7 @@ def main():
     manifest_path = args.out_dir / "placed_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, default=str))
 
-    # ── Summary ───────────────────────────────────────────────────────────
+    # -- Summary --------------------------------------------------------------
     import numpy as np
     log.info("======================================================================")
     log.info("  dcm2niix NIfTIs:    %d", len(list(args.nifti_dir.glob("*.nii.gz"))))
@@ -1427,7 +1499,7 @@ def main():
                  float(np.percentile(spine_bps, 50)), min(spine_bps))
         low = sum(1 for v in spine_bps if v < 20)
         if low:
-            log.warning("  %d spine cases below BONE_ACCEPT_THRESH (20%%) — check QC", low)
+            log.warning("  %d spine cases below BONE_ACCEPT_THRESH (20%%) -- check QC", low)
 
     pelvic_bps = [
         c["pelvic"]["bone_pct"] for c in manifest_cases
@@ -1438,7 +1510,7 @@ def main():
                  float(np.mean(pelvic_bps)), float(np.percentile(pelvic_bps, 10)),
                  float(np.percentile(pelvic_bps, 50)), min(pelvic_bps))
 
-    log.info("  Manifest →  %s", manifest_path)
+    log.info("  Manifest ->  %s", manifest_path)
     log.info("======================================================================")
 
 

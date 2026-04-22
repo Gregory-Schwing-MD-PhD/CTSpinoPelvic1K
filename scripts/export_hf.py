@@ -4,7 +4,7 @@ then push directly to the Hub using upload_large_folder.
 
 Reads placed_manifest.json (written by place_fused_masks.py) and for each case:
   1. Load CT NIfTI (from tcia_nifti/{series_uid}.nii.gz)
-  2. Remap spine labels (VerSe → 10-class) + pelvic labels (4-class → 10-class)
+  2. Remap spine labels (VerSe -> 10-class) + pelvic labels (4-class -> 10-class)
   3. Merge into single 10-class label map
   4. Reorient CT + label to PIR canonical orientation
   5. Strip PHI from NIfTI headers
@@ -20,6 +20,16 @@ populated by place_fused_masks.py. No secondary manifest file is needed.
 
 Label scheme:
   0=bg  1=L1  2=L2  3=L3  4=L4  5=L5  6=L6(LSTV)  7=sacrum  8=left_hip  9=right_hip
+
+Output orientation: every CT + label pair is written in PIR canonical:
+  axis 0 = Posterior  (A->P as idx++)
+  axis 1 = Inferior   (S->I as idx++)
+  axis 2 = patient-Right (L->R as idx++)
+
+QC figures are sliced and displayed assuming PIR, so rows correspond to:
+  Row 1 "Coronal"   fix axis 0, show (I, R)  -- head at top, feet at bottom
+  Row 2 "Axial"     fix axis 1, show (P, R)  -- anterior at top, spine at bottom
+  Row 3 "Sagittal"  fix axis 2, show (P, I)  -- transposed for head-up
 
 Usage (matches slurm/export_dataset.sh):
     python export_hf.py \\
@@ -58,12 +68,16 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
-# ── HuggingFace config ────────────────────────────────────────────────────────
+# -- HuggingFace config -------------------------------------------------------
 
 HF_REPO_ID   = "anonymous-mlhc/CTSpinoPelvic1K"
 HF_REPO_TYPE = "dataset"
 
-# ── Label maps ────────────────────────────────────────────────────────────────
+# Any spatial axis smaller than this is treated as a scout / localizer /
+# degenerate volume and rejected at ingest. Mirrors place_fused_masks.py.
+MIN_VALID_SHAPE = 10
+
+# -- Label maps ---------------------------------------------------------------
 
 VERSE_TO_10CLASS: Dict[int, int] = {
     20: 1, 21: 2, 22: 3, 23: 4, 24: 5,
@@ -85,7 +99,7 @@ _SEG_COLORS = {
     9: (0.95, 0.80, 0.05, 0.55),
 }
 
-# ── NIfTI helpers ─────────────────────────────────────────────────────────────
+# -- NIfTI helpers ------------------------------------------------------------
 
 def _load_nii(path):
     import nibabel as nib
@@ -97,7 +111,7 @@ def _validate_affine(affine, label: str = "") -> None:
     Raise ValueError early if the affine is degenerate before nibabel's
     io_orientation crashes. Catches NaN/Inf columns and zero-norm columns
     from degenerate dcm2niix outputs (localizer/scout series with missing
-    geometry tags) — same class of inputs that broke place_fused_masks.py
+    geometry tags) -- same class of inputs that broke place_fused_masks.py
     before _valid_affine() was added there.
     """
     tag = f"[{label}] " if label else ""
@@ -111,6 +125,29 @@ def _validate_affine(affine, label: str = "") -> None:
         raise ValueError(
             f"{tag}affine has near-zero column norm (degenerate series): "
             f"norms={col_norms.tolist()}"
+        )
+
+
+def _validate_shape(shape, label: str = "",
+                    min_axis: int = MIN_VALID_SHAPE) -> None:
+    """
+    Raise ValueError if the spatial shape is degenerate for segmentation
+    work (scout / localizer / 2-slice derivative). Mirrors the
+    _valid_volume_shape filter in place_fused_masks.py so the same class
+    of bad inputs gets rejected at both stages with a readable reason
+    instead of an IndexError deep in the stack.
+    """
+    tag = f"[{label}] " if label else ""
+    try:
+        sh = tuple(int(s) for s in shape[:3])
+    except (TypeError, ValueError):
+        raise ValueError(f"{tag}shape is not 3D: {shape}")
+    if len(sh) != 3:
+        raise ValueError(f"{tag}shape is not 3D: {shape}")
+    if min(sh) < min_axis:
+        raise ValueError(
+            f"{tag}volume too thin for segmentation (scout / localizer): "
+            f"shape={sh} min_axis_required={min_axis}"
         )
 
 
@@ -159,10 +196,26 @@ def merge_labels(spine_path, pelvic_path, ref_shape):
     return result
 
 
-# ── QC figure ─────────────────────────────────────────────────────────────────
+# -- QC figure ----------------------------------------------------------------
 
 def _window(arr, lo=-150, hi=700):
     return np.clip((arr.astype(np.float32) - lo) / (hi - lo), 0, 1)
+
+
+def _display_slice(arr2d: np.ndarray, dim: int) -> np.ndarray:
+    """Orient a 2D slice for radiological display assuming PIR source.
+
+    PIR: axis 0 = P (A->P as idx++), axis 1 = I (S->I as idx++),
+         axis 2 = R (L->R as idx++).
+
+    dim=0 (coronal):  slice shape (I, R). Default imshow row-0-top puts
+                      superior at top. No transform needed.
+    dim=1 (axial):    slice shape (P, R). Row-0-top puts anterior at top,
+                      posterior (spine) at bottom. No transform needed.
+    dim=2 (sagittal): slice shape (P, I). We want row=I (head up),
+                      col=P. Transpose.
+    """
+    return arr2d.T if dim == 2 else arr2d
 
 
 def _overlay(bg, labels):
@@ -183,6 +236,18 @@ def _center_slice(ct, lbl):
 
 
 def make_qc_figure(ct, lbl, out_path, token, config, lstv, position):
+    """
+    Render a 3-row QC figure assuming PIR storage order.
+
+    Rows correspond to PIR axes:
+      row 0: dim=0 (P axis fixed) -> coronal view
+      row 1: dim=1 (I axis fixed) -> axial view
+      row 2: dim=2 (R axis fixed) -> sagittal view (requires transpose)
+
+    Each slice is routed through _display_slice() so that superior is
+    at the top of coronal and sagittal views, and anterior is at the top
+    of axial (spine at bottom, matching TotalSegmentator convention).
+    """
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -207,7 +272,8 @@ def make_qc_figure(ct, lbl, out_path, token, config, lstv, position):
         layout = "single"
 
     i, j, k = _center_slice(ct, lbl)
-    planes   = [(0, i, "Sag"), (1, j, "Cor"), (2, k, "Ax")]
+    # PIR dims: 0 = coronal plane (fix P), 1 = axial (fix I), 2 = sagittal (fix R)
+    planes = [(0, i, "Coronal"), (1, j, "Axial"), (2, k, "Sagittal")]
 
     fig, axes = plt.subplots(3, len(cols),
                               figsize=(3.5 * len(cols), 10),
@@ -219,22 +285,30 @@ def make_qc_figure(ct, lbl, out_path, token, config, lstv, position):
         axes[0, ci].set_title(t, fontsize=8, color="#cccccc", pad=4)
 
     for row, (dim, idx, pname) in enumerate(planes):
-        sl   = [slice(None)]*3; sl[dim] = idx; sl = tuple(sl)
-        bg   = _window(ct[sl])
-        axes[row, 0].imshow(np.stack([bg,bg,bg], axis=-1),
-                            origin="lower", aspect="auto", interpolation="nearest")
-        axes[row, 0].text(-0.08, 0.5, pname, transform=axes[row,0].transAxes,
+        sl = [slice(None)] * 3
+        sl[dim] = idx
+        sl = tuple(sl)
+
+        # Apply PIR-aware display orientation to every slice we render.
+        bg       = _display_slice(_window(ct[sl]),    dim)
+        sp_slice = _display_slice(sp_lbl[sl],         dim)
+        pv_slice = _display_slice(pv_lbl[sl],         dim)
+        full_slice = _display_slice(lbl[sl],          dim)
+
+        axes[row, 0].imshow(np.stack([bg, bg, bg], axis=-1),
+                            aspect="auto", interpolation="nearest")
+        axes[row, 0].text(-0.08, 0.5, pname, transform=axes[row, 0].transAxes,
                           fontsize=7, color="#aaaaaa", rotation=90, va="center")
         if layout == "fused":
-            axes[row,1].imshow(_overlay(bg, sp_lbl[sl]), origin="lower", aspect="auto", interpolation="nearest")
-            axes[row,2].imshow(_overlay(bg, pv_lbl[sl]), origin="lower", aspect="auto", interpolation="nearest")
-            axes[row,3].imshow(_overlay(bg, lbl[sl]),    origin="lower", aspect="auto", interpolation="nearest")
+            axes[row, 1].imshow(_overlay(bg, sp_slice),  aspect="auto", interpolation="nearest")
+            axes[row, 2].imshow(_overlay(bg, pv_slice),  aspect="auto", interpolation="nearest")
+            axes[row, 3].imshow(_overlay(bg, full_slice), aspect="auto", interpolation="nearest")
         else:
-            axes[row,1].imshow(_overlay(bg, lbl[sl]),    origin="lower", aspect="auto", interpolation="nearest")
-            rgb = np.zeros((*lbl[sl].shape, 3), dtype=np.float32)
-            for cid, (r,g,b,_) in _SEG_COLORS.items():
-                rgb[lbl[sl]==cid] = [r,g,b]
-            axes[row,2].imshow(rgb, origin="lower", aspect="auto", interpolation="nearest")
+            axes[row, 1].imshow(_overlay(bg, full_slice), aspect="auto", interpolation="nearest")
+            rgb = np.zeros((*full_slice.shape, 3), dtype=np.float32)
+            for cid, (r, g, b, _) in _SEG_COLORS.items():
+                rgb[full_slice == cid] = [r, g, b]
+            axes[row, 2].imshow(rgb, aspect="auto", interpolation="nearest")
 
     patches = [mpatches.Patch(facecolor=_SEG_COLORS[c][:3], label=CLASS_NAMES[c])
                for c in sorted(present) if c in _SEG_COLORS]
@@ -253,7 +327,7 @@ def make_qc_figure(ct, lbl, out_path, token, config, lstv, position):
     return True
 
 
-# ── Per-case export worker ────────────────────────────────────────────────────
+# -- Per-case export worker ---------------------------------------------------
 
 def _export_one(args: dict) -> dict:
     import nibabel as nib
@@ -275,7 +349,7 @@ def _export_one(args: dict) -> dict:
         match_type=match_type, lstv_label=lstv, ok=False, error=None,
         alignment_ok=False, has_l6=False, n_lumbar_labels=0,
         ct_file=out_ct.name, label_file=out_lbl.name, qc_file=out_qc.name,
-        # LSTV fields — passed through from placed_manifest.json
+        # LSTV fields -- passed through from placed_manifest.json
         lstv_pelvic=args.get("lstv_pelvic", ""),
         lstv_vertebral=args.get("lstv_vertebral", ""),
         lstv_agreement=args.get("lstv_agreement"),          # bool | None
@@ -292,12 +366,15 @@ def _export_one(args: dict) -> dict:
             raise FileNotFoundError(f"No placed mask for token={token}")
 
         _validate_affine(ref_img.affine, label=f"token={token} ref_mask")
+        _validate_shape(ref_img.shape,   label=f"token={token} ref_mask")
 
         ref_shape  = ref_img.shape[:3]
         ref_affine = ref_img.affine.copy()
 
         ct_img = _load_nii(ct_path)
         _validate_affine(ct_img.affine, label=f"token={token} ct")
+        _validate_shape(ct_img.shape,   label=f"token={token} ct")
+
         ct_data = np.asarray(ct_img.dataobj, dtype=np.float32)
         if ct_img.shape[:3] != ref_shape:
             from scipy.ndimage import affine_transform as _at
@@ -351,7 +428,7 @@ def _export_one(args: dict) -> dict:
     return result
 
 
-# ── Build work items ──────────────────────────────────────────────────────────
+# -- Build work items ---------------------------------------------------------
 
 def build_work(manifest_path: Path, nifti_dir: Path,
                spine_dir: Path, pelvic_dir: Path) -> List[dict]:
@@ -360,7 +437,7 @@ def build_work(manifest_path: Path, nifti_dir: Path,
 
     placed_manifest.json is the single source of truth. It carries LSTV fields
     (lstv_pelvic, lstv_vertebral, lstv_agreement, lstv_confusion_zone) written
-    by place_fused_masks.py — no secondary manifest file needed.
+    by place_fused_masks.py -- no secondary manifest file needed.
     """
     data  = json.loads(manifest_path.read_text())
     cases = data.get("cases", [])
@@ -374,7 +451,7 @@ def build_work(manifest_path: Path, nifti_dir: Path,
         sp   = c.get("spine",  {}) or {}
         pv   = c.get("pelvic", {}) or {}
 
-        # LSTV fields — now native to placed_manifest.json
+        # LSTV fields -- now native to placed_manifest.json
         lstv_pelvic       = c.get("lstv_pelvic",        "") or ""
         lstv_vertebral    = c.get("lstv_vertebral",      "") or ""
         lstv_agreement    = c.get("lstv_agreement")           # bool | None
@@ -484,26 +561,26 @@ def build_work(manifest_path: Path, nifti_dir: Path,
     return work
 
 
-# ── Splits ────────────────────────────────────────────────────────────────────
+# -- Splits -------------------------------------------------------------------
 
 def write_splits(records: List[dict], out_dir: Path, seed: int = 42) -> None:
     """
     Write stratified train/val/test splits.
 
-    Six strata — fused and non-fused kept separate within each LSTV subtype
+    Six strata -- fused and non-fused kept separate within each LSTV subtype
     so that fused LSTV cases (full 10-class GT) are guaranteed in val and test:
 
-      lumbarization_fused      70/15/15 — guarantees fused lumbarization in val+test
+      lumbarization_fused      70/15/15 -- guarantees fused lumbarization in val+test
       lumbarization_separate   70/15/15
-      sacralization_fused      70/15/15 — guarantees fused sacralization in val+test
+      sacralization_fused      70/15/15 -- guarantees fused sacralization in val+test
       sacralization_separate   70/15/15
       fused_normal             70/15/15
       nonfused_normal          70/15/15
 
     Tiny-stratum handling:
-      n >= 3  →  at least 1 in val, 1 in test, rest in train
-      n == 2  →  1 train / 1 val / 0 test
-      n == 1  →  all train
+      n >= 3  ->  at least 1 in val, 1 in test, rest in train
+      n == 2  ->  1 train / 1 val / 0 test
+      n == 1  ->  all train
     """
     import random
 
@@ -574,7 +651,7 @@ def write_splits(records: List[dict], out_dir: Path, seed: int = 42) -> None:
     log.info("  manifest_train / validation / test .json written")
 
 
-# ── Manifest ──────────────────────────────────────────────────────────────────
+# -- Manifest -----------------------------------------------------------------
 
 def write_manifest(records: List[dict], out_dir: Path) -> None:
     """
@@ -582,7 +659,7 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
 
     HF Arrow/Parquet compatibility:
     - 'ok' and 'error' stripped (bool-always-True and null-always-None break Parquet)
-    - None → "" for string fields; None lstv_agreement → "" (HF can't cast mixed null/bool)
+    - None -> "" for string fields; None lstv_agreement -> "" (HF can't cast mixed null/bool)
     """
     _drop = {"ok", "error"}
     ok = []
@@ -609,7 +686,7 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
     n_agreed    = sum(1 for r in ok
                       if r.get("lstv_agreement") is True
                       and r.get("lstv_class", 0) > 0)
-    log.info("Manifest  %d cases  confusion_zone=%d  agreed_lstv=%d → manifest.json",
+    log.info("Manifest  %d cases  confusion_zone=%d  agreed_lstv=%d -> manifest.json",
              len(ok), n_confusion, n_agreed)
 
     keys = [
@@ -625,7 +702,7 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
     log.info("manifest.csv written (%d rows)", len(ok))
 
 
-# ── HuggingFace push ──────────────────────────────────────────────────────────
+# -- HuggingFace push ---------------------------------------------------------
 
 def push_to_hub(
     out_dir:          Path,
@@ -641,7 +718,7 @@ def push_to_hub(
     dataset_interface.py, and README.md to HuggingFace using upload_large_folder.
 
     qc/ PNGs are excluded (large, derivative, regenerable).
-    Authenticates via HF_TOKEN bearer auth — no git credentials embedded.
+    Authenticates via HF_TOKEN bearer auth -- no git credentials embedded.
     """
     try:
         from huggingface_hub import HfApi, create_repo
@@ -678,7 +755,7 @@ def push_to_hub(
             shutil.copy2(str(interface_script), str(dst))
         log.info("  dataset_interface.py ready")
     else:
-        log.warning("  dataset_interface.py not found — skipping")
+        log.warning("  dataset_interface.py not found -- skipping")
 
     if readme_path and readme_path.exists():
         dst = out_dir / "README.md"
@@ -686,7 +763,7 @@ def push_to_hub(
             shutil.copy2(str(readme_path), str(dst))
         log.info("  README.md ready")
     else:
-        log.warning("  README.md not found — skipping")
+        log.warning("  README.md not found -- skipping")
 
     n_ct     = sum(1 for _ in (out_dir / "ct"    ).glob("*.nii.gz")) if (out_dir / "ct"    ).exists() else 0
     n_labels = sum(1 for _ in (out_dir / "labels").glob("*.nii.gz")) if (out_dir / "labels").exists() else 0
@@ -696,7 +773,7 @@ def push_to_hub(
     log.info("  CTs=%d  Labels=%d  Workers=%d", n_ct, n_labels, num_workers)
     log.info("  Upload folder: %s", out_dir)
     log.info("  Excluding: qc/  (QC figures not pushed)")
-    log.info("  Upload is resumable — re-run if interrupted")
+    log.info("  Upload is resumable -- re-run if interrupted")
     log.info("=" * 60)
 
     api.upload_large_folder(
@@ -704,10 +781,10 @@ def push_to_hub(
         folder_path=str(out_dir), num_workers=num_workers,
         ignore_patterns=["qc/*", "qc/**/*", ".hf_staging/*"],
     )
-    log.info("Push complete → https://huggingface.co/datasets/%s", repo_id)
+    log.info("Push complete -> https://huggingface.co/datasets/%s", repo_id)
 
 
-# ── Main ─────────────────────────────────────────────────────────────────────
+# -- Main ---------------------------------------------------------------------
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
@@ -734,7 +811,7 @@ def main():
     ap.add_argument("--readme_path",      default=None, type=Path)
     args = ap.parse_args()
 
-    # ── Export ────────────────────────────────────────────────────────────────
+    # -- Export ---------------------------------------------------------------
     if not args.skip_export:
         for d in [args.out_dir/"ct", args.out_dir/"labels", args.out_dir/"qc"]:
             d.mkdir(parents=True, exist_ok=True)
@@ -788,7 +865,7 @@ def main():
     else:
         log.info("--skip_export: skipping export phase.")
 
-    # ── Push ──────────────────────────────────────────────────────────────────
+    # -- Push -----------------------------------------------------------------
     if args.push_to_hub:
         push_to_hub(
             out_dir=args.out_dir, repo_id=args.hf_repo_id,
