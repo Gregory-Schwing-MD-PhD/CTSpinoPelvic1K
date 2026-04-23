@@ -22,9 +22,19 @@ step is now unnecessary:
     lstv_confusion_zone, lstv_class) are derived directly from the per-mask
     `lstv_label` fields in patient_db.json.  No cross-check JSON is needed.
 
-Everything below the input-parsing layer (dcm2niix, spine placement,
-pelvic placement, manifest writing) is functionally unchanged from the
-original.
+SCHEMA VERSION 2.1
+==================
+Each case now carries `orientation_check = {"status": "unreviewed", ...}` by
+default. `apply_manual_flips.py` overwrites this when a token is reviewed.
+Downstream code (visualize_qc.py, export_hf.py, generate_5fold_splits.py)
+can therefore rely on `orientation_check` always existing instead of
+testing for its presence.
+
+Each case also carries `annotations = {"core": true, "spinous": false,
+"discs": false, "tp": false}` to support future expansion to new mask types
+(spinous process, transverse process, disc height, etc.) without a schema
+break. Adding a new annotation source later is a matter of flipping one
+bool and shipping new files under a parallel `placed/spinous/` directory.
 
 ARCHITECTURE
 ============
@@ -55,12 +65,30 @@ consumers (visualize_qc, export_hf, nnU-Net).  Token-level failures are
 logged with a clear reason so they can be distinguished from genuine
 placement failures.
 
+MEMORY BEHAVIOUR
+================
+Each worker processes one patient at a time, but the scoring loop iterates
+over every TCIA candidate for that patient (COLONOG cases can have 4-10
+candidate series).  We use `np.asarray(img.dataobj, dtype=...)` instead of
+`img.get_fdata(...)` in the candidate loops so that per-candidate CT volumes
+(~400MB float32 each) are NOT cached on the nibabel image object.  Without
+this, sorted_cands keeps ~Nx400MB pinned per worker until the loop exits,
+and 32 workers x 8 candidates x 400MB = 100+ GB easily crosses --mem=128G.
+
+`_autocap_workers` caps the pool size based on the SLURM cgroup memory
+limit so the script degrades gracefully on tight memory budgets instead
+of OOMing.
+
 OUTPUTS
 =======
   tcia_nifti/{uid}.nii.gz                   dcm2niix reference NIfTIs (PIR)
   placed/spine/{uid}_seg_placed.nii.gz      best spine seg per patient
   placed/pelvic/{stem}_pelvic_placed.nii.gz best pelvic mask per patient
-  placed/placed_manifest.json               winning series + bone_pct per case
+  placed/placed_manifest.json               winning series + bone_pct + position per case
+
+Downstream: export_hf.py reads `placed_manifest.json` and expects each
+spine/pelvic sub-dict to contain `series_uid`, `placed`, `bone_pct`, and
+`position`.  All four are written by the workers here.
 """
 from __future__ import annotations
 
@@ -81,6 +109,13 @@ logging.basicConfig(
 )
 log = logging.getLogger("spinesurg.place_masks")
 
+# Manifest schema version written to placed_manifest.json. Bump when the
+# case-level shape changes in a way export_hf.py / dataset_interface.py
+# needs to know about.
+#   2.0 = LSTV fields native + per-case position.
+#   2.1 = default orientation_check + annotations expandability field.
+PLACED_MANIFEST_SCHEMA = "2.1"
+
 BONE_HU             = 200.0
 MIN_VOXELS          = 50
 MIN_SPINE_VOXELS    = 10_000
@@ -91,6 +126,151 @@ BONE_ACCEPT_THRESH  = 20.0
 # degenerate volume and rejected at ingest.  Real CT volumes have hundreds
 # of voxels on every axis; 10 is well below any legitimate reconstruction.
 MIN_VALID_SHAPE     = 10
+
+
+# ===========================================================================
+# Memory-aware worker scaling
+# ===========================================================================
+
+def _autocap_workers(requested: int, per_worker_gb: float = 3.5,
+                     label: str = "workers") -> int:
+    """
+    Cap `requested` by the SLURM cgroup memory ceiling so a pool with too
+    many workers doesn't OOM the whole step.
+
+    Reads cgroup v2 (memory.max) then v1 (memory.limit_in_bytes), falling
+    back to psutil.virtual_memory().available if neither cgroup is readable
+    (non-SLURM dev runs, unprivileged containers).  Leaves a 10% headroom
+    for the parent process + OS page cache, then divides the usable budget
+    by `per_worker_gb`.
+
+    per_worker_gb default (3.5) is sized for the spine worker on COLONOG:
+    a typical patient has 4-10 candidate TCIA series, scored as float32 CTs
+    (~400MB each) plus int32 placed masks plus scoring intermediates.  With
+    the asarray fix below, only the CURRENT candidate's CT is in memory per
+    worker, so 3.5GB is comfortable. Override via env SPINESURG_PER_WORKER_GB
+    (e.g. set to 2.5 for pelvic-only runs, which are lighter).
+
+    Empirically: 128GB node, 32 requested workers
+      - cgroup_mem=128GB, headroom=0.9 -> 115GB usable
+      - 115/3.5 ~= 32, so no cap hit on a normally-configured node
+      - but on a 64GB node, cap kicks in at ~16 workers
+    """
+    override = os.environ.get("SPINESURG_PER_WORKER_GB")
+    if override:
+        try:
+            per_worker_gb = float(override)
+        except ValueError:
+            pass
+
+    avail = None
+    for path, parse in (
+        ("/sys/fs/cgroup/memory.max",
+         lambda s: None if s.strip() == "max" else int(s)),
+        ("/sys/fs/cgroup/memory/memory.limit_in_bytes", int),
+    ):
+        try:
+            with open(path) as f:
+                v = parse(f.read().strip())
+            # cgroup v1 uses ~2^63 as "unlimited"; ignore absurd values
+            if v and v < (1 << 62):
+                avail = v
+                break
+        except (OSError, ValueError):
+            continue
+
+    if avail is None:
+        try:
+            import psutil
+            avail = psutil.virtual_memory().available
+        except ImportError:
+            log.warning(
+                "[%s] no cgroup / psutil available; using requested=%d",
+                label, requested,
+            )
+            return max(1, requested)
+
+    usable_gb = (avail * 0.90) / (1024 ** 3)
+    cap       = max(1, int(usable_gb // per_worker_gb))
+    effective = min(max(1, requested), cap)
+
+    if effective < requested:
+        log.warning(
+            "[%s] memory autocap: requested=%d  cgroup_mem=%.1fGB  "
+            "per_worker=%.1fGB  cap=%d  -> effective=%d",
+            label, requested, avail / (1024 ** 3),
+            per_worker_gb, cap, effective,
+        )
+    else:
+        log.info(
+            "[%s] memory autocap: requested=%d  cgroup_mem=%.1fGB  "
+            "per_worker=%.1fGB  cap=%d  -> effective=%d  (no cap hit)",
+            label, requested, avail / (1024 ** 3),
+            per_worker_gb, cap, effective,
+        )
+    return effective
+
+
+# ===========================================================================
+# Small helpers
+# ===========================================================================
+
+def _derive_position_from_path(*paths) -> str:
+    """
+    Pull 'prone' / 'supine' / 'unknown' out of a filename.
+
+    CTSpine1K and CTPelvic1K both tag position in the mask filename (e.g.
+    ``..._prone_seg.nii.gz``, ``..._SUPINE_mask.nii.gz``); case-insensitive
+    substring match is sufficient.  Takes multiple paths so the caller can
+    hand in both the spine seg and pelvic mask — first hit wins.
+
+    Used by both worker functions so the per-case `position` is written
+    into placed_manifest.json alongside series_uid / bone_pct, eliminating
+    export_hf.py's need to re-parse filenames.
+    """
+    for p in paths:
+        if not p:
+            continue
+        s = str(p).lower()
+        if "prone" in s:
+            return "prone"
+        if "supine" in s:
+            return "supine"
+    return "unknown"
+
+
+def _default_orientation_check() -> Dict:
+    """Default orientation_check payload written into every case by
+    place_fused_masks.py. apply_manual_flips.py overwrites this when a
+    token is reviewed — see its _merge_case(). Having every case carry
+    the field lets downstream consumers (visualize_qc.py, QC dashboards,
+    schema validators) rely on it existing."""
+    return {
+        "status": "unreviewed",
+        "source": "none",
+    }
+
+
+def _default_annotations() -> Dict:
+    """Default annotations payload — signals what mask types are present
+    for this case. `core` is the 10-class CTSpine1K + CTPelvic1K fusion.
+    Future expansions (manual annotation passes for spinous process,
+    transverse process, disc height, facet joints, etc.) flip these to
+    true and ship files under parallel directories, without forcing a
+    manifest schema break.
+
+    Paired fields to add when a new annotation ships:
+      annotations.{key}: bool
+      annotations_{key}_dir: optional str (e.g. 'placed/spinous')
+      annotations_{key}_reviewer, _date, _n_reviewed: provenance
+    """
+    return {
+        "core":    True,   # 10-class label map from CTSpine1K + CTPelvic1K
+        "spinous": False,  # spinous process segmentation (future)
+        "tp":      False,  # transverse process segmentation (future)
+        "discs":   False,  # disc height measurements (future; JSON sidecar)
+        "facets":  False,  # facet joint segmentation (future)
+    }
 
 
 # ===========================================================================
@@ -324,7 +504,7 @@ def _spine_placement_checks(spine_arr, ref_data, placed_labels, ref_aff, token):
     between neighbours). A globally inverted mask whose labels are
     internally consistent with each other will still pass -- detecting
     that requires external info (DICOM PatientPosition / body anatomy)
-    and is handled downstream by orientation_fix.py.
+    and is handled downstream by apply_manual_flips.py.
     """
     import numpy as np
     from scipy.ndimage import label as _cc_label
@@ -531,7 +711,10 @@ def _phase_xcorr_with_flips(seg_data, seg_affine, refs_to_try, token):
 
     for uid_label, ref_img in refs_to_try:
         try:
-            ref_data    = ref_img.get_fdata(dtype=np.float32)
+            # MEMORY: np.asarray(img.dataobj, ...) instead of get_fdata --
+            # get_fdata caches the float32 array on ref_img, so with N
+            # candidates we'd pin N * ~400MB until the loop exits.
+            ref_data    = np.asarray(ref_img.dataobj, dtype=np.float32)
             ref_bone    = (ref_data > BONE_HU).astype(np.float32)
             ref_shape   = tuple(ref_img.shape[:3])
             ref_bone_ds = ref_bone[::4, ::4, ::4]
@@ -586,6 +769,10 @@ def _phase_xcorr_with_flips(seg_data, seg_affine, refs_to_try, token):
                                 f"shift={[round(float(s), 1) for s in shift_full]}  "
                                 f"bone={bone_pct:.0f}%  vox={n_vox}"
                             )
+            # Release per-candidate CT volume as soon as we finish scoring
+            # this candidate.  Without this, ref_data (~400MB) stays pinned
+            # until the next loop iteration overwrites it.
+            del ref_data, ref_bone, ref_bone_ds
         except Exception:
             continue
 
@@ -715,6 +902,11 @@ def _place_spine_best_series(args):
      candidate_uids, nifti_dir, out_dir) = args
     out_dir = Path(out_dir)
 
+    # Position is a property of the upstream CTSpine1K mask, not of the
+    # chosen TCIA series, so it can be derived once before anything else
+    # and attached to every result path below (cache hit, fresh, sidecar).
+    position = _derive_position_from_path(seg_path)
+
     import logging as _log
     import json as _json_c
     _spine_log = _log.getLogger("spinesurg.place_masks")
@@ -726,9 +918,18 @@ def _place_spine_best_series(args):
                 try:
                     _r = _json_c.loads(_sidecar.read_text())
                     _r["method"] = "cached"
+                    # Backfill position on cached records written by older
+                    # place_fused_masks.py versions that didn't include it.
+                    if not _r.get("position"):
+                        _r["position"] = position
+                        try:
+                            _sidecar.write_text(_json_c.dumps(_r, indent=2, default=str))
+                        except Exception:
+                            pass
                     _spine_log.info(
-                        "  [spine] token=%-8s  CACHED (sidecar) %s  bone=%.1f%%",
+                        "  [spine] token=%-8s  CACHED (sidecar) %s  bone=%.1f%%  pos=%s",
                         token, _cached_file.name, _r.get("bone_pct") or 0.0,
+                        _r.get("position", "unknown"),
                     )
                     return token, True, _r
                 except Exception:
@@ -759,6 +960,7 @@ def _place_spine_best_series(args):
                 "labels":     _labels,
                 "method":     "cached",
                 "IS_ok":      _is_ok,
+                "position":   position,
             }
             try:
                 _sidecar.write_text(_json_c.dumps(_result, indent=2, default=str))
@@ -803,7 +1005,11 @@ def _place_spine_best_series(args):
                 output_shape=tuple(ref_img.shape[:3]),
                 order=0, mode="constant", cval=0, prefilter=False,
             ).astype(np.int32)
-            rd  = ref_img.get_fdata(dtype=np.float32)
+            # MEMORY: np.asarray(img.dataobj, ...) instead of get_fdata so
+            # the float32 CT volume (~400MB) is NOT cached on ref_img.
+            # Combined with `del rd` below, each candidate's volume is
+            # released at end-of-iteration instead of at end-of-worker.
+            rd  = np.asarray(ref_img.dataobj, dtype=np.float32)
             bp  = _bone_pct_of_placed(cand, rd)
             vox = int((cand > 0).sum())
             log.info(
@@ -812,6 +1018,7 @@ def _place_spine_best_series(args):
             )
             if vox >= MIN_SPINE_VOXELS and bp > best_bp:
                 best_uid, best_arr, best_ref, best_bp = uid, cand, ref_img, bp
+            del rd
 
         method = f"world_space:{best_uid}" if best_uid else None
 
@@ -843,7 +1050,10 @@ def _place_spine_best_series(args):
                     order=0, mode="constant", cval=0, prefilter=False,
                 ).astype(np.int32)
                 if int((cand > 0).sum()) >= MIN_SPINE_VOXELS:
-                    rd  = _fref.get_fdata(dtype=np.float32)
+                    # MEMORY: see note above. _fref may not have cached
+                    # data if the scoring loop used asarray, so this is
+                    # a fresh read either way.
+                    rd  = np.asarray(_fref.dataobj, dtype=np.float32)
                     bp  = _bone_pct_of_placed(cand, rd)
                     log.warning(
                         "  [spine] token=%-8s  NIFTI_ANCHOR  uid=%s  bone=%.0f%%  (last resort)",
@@ -851,6 +1061,7 @@ def _place_spine_best_series(args):
                     )
                     best_uid, best_arr, best_ref, best_bp = _fuid, cand, _fref, bp
                     method = f"nifti_anchor:{_fuid}"
+                    del rd
 
         if best_arr is None or best_ref is None:
             return token, False, {"error": "all_methods_failed", "token": token}
@@ -861,6 +1072,8 @@ def _place_spine_best_series(args):
 
         n_vox  = int((best_arr > 0).sum())
         labels = sorted(set(best_arr.ravel().tolist()) - {0})
+        # Single read of the winning candidate's CT for the IS-ordering /
+        # bone_pct checks. No candidate fan-out here, so get_fdata is fine.
         checks = _spine_placement_checks(
             best_arr, best_ref.get_fdata(dtype=np.float32),
             labels, best_ref.affine, token,
@@ -890,6 +1103,7 @@ def _place_spine_best_series(args):
             "labels":     labels,
             "method":     method,
             "IS_ok":      checks["is_ordered"],
+            "position":   position,
         }
 
         sidecar_path = out_dir / f"{best_uid}_seg_placed.json"
@@ -897,8 +1111,8 @@ def _place_spine_best_series(args):
         sidecar_path.write_text(_json_s.dumps(result, indent=2, default=str))
 
         log.info(
-            "  [spine] token=%-8s  BEST uid=...%s  bone=%.0f%%  vox=%d  IS_ok=%s",
-            token, best_uid[-10:], best_bp, n_vox, checks["is_ordered"],
+            "  [spine] token=%-8s  BEST uid=...%s  bone=%.0f%%  vox=%d  IS_ok=%s  pos=%s",
+            token, best_uid[-10:], best_bp, n_vox, checks["is_ordered"], position,
         )
         return token, True, result
 
@@ -915,6 +1129,11 @@ def _place_pelvic_best_series(args):
     (token, mask_path, candidate_uids, nifti_dir, out_dir) = args
     out_dir = Path(out_dir)
 
+    # Same pattern as the spine worker: position is a property of the
+    # upstream CTPelvic1K mask filename, derived once so every return
+    # path carries it identically.
+    position = _derive_position_from_path(mask_path)
+
     mask_stem = Path(mask_path).name.replace(".nii.gz", "").replace(".nii", "")
     existing_p = out_dir / f"{mask_stem}_pelvic_placed.nii.gz"
     if existing_p.exists():
@@ -926,19 +1145,36 @@ def _place_pelvic_best_series(args):
             try:
                 _r = _json_pc.loads(_sidecar_p.read_text())
                 _r["method"] = "cached"
+                # Backfill position on cached records written by older
+                # place_fused_masks.py versions.
+                if not _r.get("position"):
+                    _r["position"] = position
+                    try:
+                        _sidecar_p.write_text(_json_pc.dumps(_r, indent=2, default=str))
+                    except Exception:
+                        pass
                 return token, True, _r
             except Exception:
                 pass
 
+        # Perf note: prior versions re-iterated every candidate UID and
+        # recomputed bone_pct for every re-run, even when the sidecar
+        # already had a valid series_uid. We now skip the rematch when
+        # the sidecar yielded a usable result (handled above via the
+        # try-return path); this fallback branch only runs when the
+        # sidecar is missing or malformed.
         result = {"token": token, "placed": str(existing_p),
                   "series_uid": None, "bone_pct": None,
-                  "vox": None, "z_off": None, "method": "cached"}
+                  "vox": None, "z_off": None, "method": "cached",
+                  "position": position}
 
         if result["series_uid"] is None:
             _best_uid_r = None
             _best_bp_r  = -1.0
             for _uid_r in candidate_uids:
                 _ct_r = Path(nifti_dir) / f"{_uid_r}.nii.gz"
+                if not _ct_r.exists():
+                    continue
                 _bp_r = _compute_bone_pct_from_files(existing_p, _ct_r)
                 if _bp_r is not None and _bp_r > _best_bp_r:
                     _best_bp_r  = _bp_r
@@ -998,7 +1234,10 @@ def _place_pelvic_best_series(args):
                 )
                 continue
 
-            ref_data = ref_img.get_fdata(dtype=np.float32)
+            # MEMORY: np.asarray(img.dataobj, ...) instead of get_fdata --
+            # prevents the CT volume from being cached on ref_img so that
+            # sorted_cands doesn't pin N * ~400MB across loop iterations.
+            ref_data = np.asarray(ref_img.dataobj, dtype=np.float32)
             ref_ornt = io_orientation(ref_aff)
             ref_nz   = ref_data.shape[2]
 
@@ -1015,6 +1254,7 @@ def _place_pelvic_best_series(args):
                     "  [pelv]  token=%-8s  uid=...%s  ornt_transform NaN -- skipping candidate",
                     token, uid[-10:],
                 )
+                del ref_data
                 continue
             mask_nz = mask_data.shape[2]
 
@@ -1072,9 +1312,16 @@ def _place_pelvic_best_series(args):
                         "  [pelv]  token=%-8s  uid=...%s  _to_pir failed (%s) -- skipping",
                         token, uid[-10:], type(exc).__name__,
                     )
+                    del ref_data, mask_data, ref_bone, mask_lbl, md
                     continue
                 best_pir, best_pir_aff = _pir, _pir_aff
                 best_uid, best_bp, best_z, best_score_val = uid, bp, z_off, score
+
+            # Release per-candidate volumes before the next iteration.
+            # ref_data (~400MB) and mask_data (~50MB) dominate; explicit
+            # del ensures Python reclaims them now rather than waiting
+            # for the next assignment to overwrite them.
+            del ref_data, mask_data, ref_bone, mask_lbl, md
 
         if best_pir is None:
             return token, False, {"error": "all_candidates_zero_bone", "token": token}
@@ -1102,6 +1349,7 @@ def _place_pelvic_best_series(args):
             "bone_pct":   round(best_bp, 1),
             "vox":        n_nz,
             "z_off":      best_z,
+            "position":   position,
         }
 
         sidecar_path = Path(str(out_path).replace(".nii.gz", ".json"))
@@ -1109,8 +1357,8 @@ def _place_pelvic_best_series(args):
         sidecar_path.write_text(_json_p.dumps(result, indent=2, default=str))
 
         log.info(
-            "  [pelv]  token=%-8s  BEST uid=...%s  z_off=%d  bone=%.0f%%  vox=%d",
-            token, best_uid[-10:], best_z, best_bp, n_nz,
+            "  [pelv]  token=%-8s  BEST uid=...%s  z_off=%d  bone=%.0f%%  vox=%d  pos=%s",
+            token, best_uid[-10:], best_z, best_bp, n_nz, position,
         )
         return token, True, result
 
@@ -1126,7 +1374,16 @@ def _place_pelvic_best_series(args):
 def _run_parallel(work, worker_fn, workers, label):
     n_ok = n_fail = n_skip = 0
     t0        = time.time()
-    effective = 1 if len(work) <= 5 else workers
+
+    # Autocap workers from the SLURM cgroup memory limit. Small batches
+    # (<= 5 tasks, e.g. DEBUG_TOKENS runs) serialize to avoid pool overhead;
+    # larger runs go through _autocap_workers so we degrade gracefully on
+    # memory-constrained nodes instead of OOMing.
+    if len(work) <= 5:
+        effective = 1
+    else:
+        effective = _autocap_workers(workers, label=label)
+
     failures  = []
     results   = []
 
@@ -1450,15 +1707,32 @@ def main():
         else:
             match_type = "pelvic_only"
 
+        # Case-level position: prefer spine, fall back to pelvic, then unknown.
+        # Both workers derive position from their respective mask filenames,
+        # so these should agree when both are present; if they don't (rare),
+        # spine wins by convention.
+        case_position = "unknown"
+        if sp and sp.get("position") and sp["position"] != "unknown":
+            case_position = sp["position"]
+        elif pv and pv.get("position") and pv["position"] != "unknown":
+            case_position = pv["position"]
+
         pdata = patients.get(tok, {})
         case = {
             "patient_token":       tok,
             "match_type":          match_type,
+            "position":            case_position,
             "lstv_pelvic":         pdata.get("lstv_pelvic",    ""),
             "lstv_vertebral":      pdata.get("lstv_vertebral", ""),
             "lstv_agreement":      pdata.get("lstv_agreement"),
             "lstv_confusion_zone": pdata.get("lstv_confusion_zone", False),
             "lstv_class":          pdata.get("lstv_class", 0),
+            # Schema v2.1: every case carries these two fields by default so
+            # downstream consumers don't have to test for presence.
+            # apply_manual_flips.py overwrites orientation_check when the
+            # case has been manually reviewed.
+            "orientation_check":   _default_orientation_check(),
+            "annotations":         _default_annotations(),
         }
         if sp:
             case["spine"] = sp
@@ -1468,6 +1742,7 @@ def main():
 
     # -- Step 5: Write placed_manifest.json -----------------------------------
     manifest = {
+        "schema_version": PLACED_MANIFEST_SCHEMA,
         "n_cases":       len(manifest_cases),
         "n_fused":       sum(1 for c in manifest_cases if c["match_type"] == "fused"),
         "n_separate":    sum(1 for c in manifest_cases if c["match_type"] == "separate"),
@@ -1481,12 +1756,18 @@ def main():
     # -- Summary --------------------------------------------------------------
     import numpy as np
     log.info("======================================================================")
+    log.info("  Schema version:     %s", PLACED_MANIFEST_SCHEMA)
     log.info("  dcm2niix NIfTIs:    %d", len(list(args.nifti_dir.glob("*.nii.gz"))))
     log.info("  Spine placed:       %d", len(list(spine_out.glob("*_seg_placed.nii.gz"))))
     log.info("  Pelvic placed:      %d", len(list(pelvic_out.glob("*_pelvic_placed.nii.gz"))))
     log.info("  Cases in manifest:  %d  (fused=%d  separate=%d  spine_only=%d  pelvic_only=%d)",
              manifest["n_cases"], manifest["n_fused"], manifest["n_separate"],
              manifest["n_spine_only"], manifest["n_pelvic_only"])
+
+    # Position distribution (cheap sanity check -- unknown should be rare)
+    from collections import Counter
+    pos_counts = Counter(c.get("position", "unknown") for c in manifest_cases)
+    log.info("  Position dist:      %s", dict(pos_counts))
     log.info("======================================================================")
 
     spine_bps = [
