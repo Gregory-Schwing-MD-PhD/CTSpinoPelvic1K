@@ -11,10 +11,24 @@ Expected layout (produced by scripts/export_hf.py):
   <root>/
     ct/<token:04d>_<config>_ct.nii.gz
     labels/<token:04d>_<config>_label.nii.gz
-    manifest.json                 per-record metadata
-    splits/
-      test.json                   fixed test holdout (flat token list)
-      cv_5fold.json               5-fold CV on trainval pool (schema v3)
+    manifest.json                 per-record metadata (flat list OR
+                                  {"records": [...]} wrapper — both accepted)
+    splits_5fold.json             PREFERRED: unified splits file (schema v3+)
+                                  from scripts/generate_5fold_splits.py.
+                                  Carries test_tokens + folds in one file.
+    splits/                       legacy layout (still read as fallback):
+      test.json                   flat list of unique test patient tokens
+      cv_5fold.json               5-fold CV on trainval pool
+    data_splits.json              earliest format: {"train": [...], "val":
+                                  [...], "test": [...]} of ct_file basenames
+                                  (last-resort fallback)
+    splits_summary.json           aggregate split stats (optional)
+
+Splits resolution order (first hit wins):
+  1. splits_5fold.json                 (unified, schema v3 from
+                                        generate_5fold_splits.py)
+  2. splits/test.json + splits/cv_5fold.json (legacy pair)
+  3. data_splits.json                  (earliest export_hf.py format)
 
 Quickstart (benchmarking / viz — no splits):
   >>> from dataset_interface import CTSpinoPelvic1K
@@ -30,6 +44,10 @@ Quickstart (training):
   >>> ds_tr = CTSpinoPelvicDataset("data/hf_export", split=("fold", 0, "train"))
   >>> ds_va = CTSpinoPelvicDataset("data/hf_export", split=("fold", 0, "val"))
   >>> ds_te = CTSpinoPelvicDataset("data/hf_export", split="test")
+
+Quickstart (annotation-aware filtering, placed_manifest schema v2.1+):
+  >>> # Cases with optional spinous-process annotations added in a future pass
+  >>> sp = ds.filter(has_annotation="spinous", present_only=True)
 """
 from __future__ import annotations
 
@@ -78,6 +96,10 @@ class Case:
     pelvic_series_uid:   Optional[str] = None
     spine_bone_pct:      Optional[float] = None
     pelvic_bone_pct:     Optional[float] = None
+    # Mask-type flags (placed_manifest schema v2.1+, forwarded through
+    # export_hf.py).  Default to just `core` so records from older
+    # manifests look like they always did.
+    annotations:         Dict[str, bool] = field(default_factory=lambda: {"core": True})
 
     def exists(self) -> bool:
         return self.ct_path.exists() and self.label_path.exists()
@@ -85,6 +107,12 @@ class Case:
     def aligned(self) -> bool:
         """CT and label share the same affine by construction in export_hf.py."""
         return True
+
+    def has_annotation(self, kind: str) -> bool:
+        """True iff this case has the given annotation kind available
+        (e.g. 'spinous', 'tp', 'discs', 'facets').  'core' (the 10-class
+        spine + pelvis fusion) is True for every case."""
+        return bool(self.annotations.get(kind, False))
 
     def load_ct(self):
         import nibabel as nib
@@ -99,16 +127,176 @@ class Case:
         return np.asarray(img.dataobj, dtype=np.int16), img.affine
 
 
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _coerce_optional_bool(v):
+    """HF Parquet doesn't tolerate mixed null/bool columns, so export_hf.py
+    may write None as "".  Reverse that here so lstv_agreement is back to
+    Optional[bool]."""
+    if v is None or v == "":
+        return None
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        s = v.strip().lower()
+        if s in ("true", "1", "yes"):  return True
+        if s in ("false", "0", "no"):  return False
+    return None
+
+
+def _coerce_optional_float(v):
+    """Normalize numeric fields to Optional[float].
+
+    Current export_hf.py writes None for missing bone_pct (Parquet-native),
+    but older exports converted None to "" for all columns.  Handle both,
+    plus stringified floats from hand-edited manifests and NaN.
+    """
+    if v is None or v == "":
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return None if f != f else f  # reject NaN
+
+
+def _coerce_optional_str(v):
+    """Normalize strings, treating None/"" as missing."""
+    if v is None:
+        return None
+    s = str(v)
+    return s if s else None
+
+
+def _coerce_annotations(v):
+    """Normalize the annotations field from a manifest record.
+
+    Accepts:
+      None / ""              -> {"core": True}
+      {"core": True, ...}    -> as-is with bools coerced
+      '{"core": true, ...}'  -> parsed JSON (some Parquet round-trips stringify)
+    Any other shape falls back to the default {"core": True}.
+    """
+    if v is None or v == "":
+        return {"core": True}
+    if isinstance(v, str):
+        try:
+            v = json.loads(v)
+        except (TypeError, ValueError):
+            return {"core": True}
+    if isinstance(v, dict):
+        return {str(k): bool(val) for k, val in v.items()}
+    return {"core": True}
+
+
 # ── Main dataset class ───────────────────────────────────────────────────────
 
 class CTSpinoPelvic1K:
     """Directory-backed dataset with rich per-case metadata."""
+
+    # Splits schema version read from splits_5fold.json. Recorded on the
+    # instance so callers can introspect which schema actually fed the
+    # in-memory splits without re-reading the file.
+    splits_schema_version: Optional[int] = None
+    splits_scheme:         Optional[str] = None
 
     def __init__(self, root):
         self.root = Path(os.path.expanduser(str(root)))
         if not self.root.exists():
             raise FileNotFoundError(f"Dataset root not found: {self.root}")
         self._load()
+
+    # ── Internal: splits resolution ─────────────────────────────────────
+    def _resolve_splits(self) -> Tuple[Dict[str, str], Dict[str, str], Optional[Dict]]:
+        """
+        Return (token_to_split, ctfile_to_split, cv_doc).
+
+        `token_to_split` maps patient tokens to "test" / "trainval" (we do
+        not fill val-specific labels here — fold membership is looked up
+        separately via self.cv and self.fold()).
+
+        `ctfile_to_split` is the fallback for legacy data_splits.json,
+        mapping ct_file basenames to "train"/"val"/"test".  Consulted only
+        when neither splits_5fold.json nor splits/test.json exist.
+
+        `cv_doc` is the unified splits document (schema v3) when read from
+        splits_5fold.json, OR the legacy splits/cv_5fold.json content.
+        `None` if no CV folds are available.
+        """
+        token_to_split:  Dict[str, str] = {}
+        ctfile_to_split: Dict[str, str] = {}
+        cv_doc:          Optional[Dict] = None
+
+        # ── Source 1 (preferred): splits_5fold.json ────────────────────
+        # generate_5fold_splits.py writes a single document with both the
+        # test holdout and the 5-fold CV structure, which is strictly more
+        # informative than the legacy split files and easier to keep
+        # consistent.
+        unified_path = self.root / "splits_5fold.json"
+        if unified_path.exists():
+            try:
+                doc = json.loads(unified_path.read_text())
+                schema = int(doc.get("schema_version", 0) or 0)
+                if schema < 3:
+                    # Too old to trust the unified shape; fall through to
+                    # legacy sources.  A loud warning so the user knows to
+                    # regenerate.
+                    import warnings as _w
+                    _w.warn(
+                        f"{unified_path} has schema_version={schema}; "
+                        "expected >=3. Ignoring and falling back to legacy "
+                        "splits files.",
+                        stacklevel=3,
+                    )
+                else:
+                    self.splits_schema_version = schema
+                    self.splits_scheme = str(
+                        doc.get("strata_scheme") or doc.get("strata_scheme_intended") or ""
+                    )
+                    for tok in doc.get("test_tokens", []) or []:
+                        token_to_split[str(tok)] = "test"
+                    # Expose the folds structure in the shape self.cv and
+                    # self.fold() already speak.
+                    if "folds" in doc:
+                        cv_doc = {"folds": doc["folds"]}
+                    # Done — unified wins, no need to consult legacy files.
+                    return token_to_split, ctfile_to_split, cv_doc
+            except (OSError, ValueError, TypeError) as e:
+                import warnings as _w
+                _w.warn(
+                    f"Could not read unified splits at {unified_path}: {e}. "
+                    "Falling back to legacy splits files.",
+                    stacklevel=3,
+                )
+
+        # ── Source 2 (legacy): splits/test.json + splits/cv_5fold.json ──
+        test_path = self.root / "splits" / "test.json"
+        if test_path.exists():
+            try:
+                for tok in json.loads(test_path.read_text()):
+                    token_to_split[str(tok)] = "test"
+            except (OSError, ValueError):
+                pass
+
+        cv_path = self.root / "splits" / "cv_5fold.json"
+        if cv_path.exists():
+            try:
+                cv_doc = json.loads(cv_path.read_text())
+            except (OSError, ValueError):
+                cv_doc = None
+
+        # ── Source 3 (earliest): data_splits.json ──────────────────────
+        data_splits_path = self.root / "data_splits.json"
+        if data_splits_path.exists() and not token_to_split:
+            try:
+                ds_splits = json.loads(data_splits_path.read_text())
+                for side in ("test", "val", "train"):
+                    for ctfile in ds_splits.get(side, []) or []:
+                        ctfile_to_split[str(ctfile)] = side
+            except (OSError, ValueError):
+                pass
+
+        return token_to_split, ctfile_to_split, cv_doc
 
     def _load(self) -> None:
         manifest_path = self.root / "manifest.json"
@@ -117,49 +305,67 @@ class CTSpinoPelvic1K:
                 f"manifest.json missing under {self.root}. "
                 "Re-run scripts/export_hf.py.")
         manifest = json.loads(manifest_path.read_text())
-        raw_records = manifest.get("records", [])
 
-        # Per-record split assignment: "test" vs "trainval"
-        # Source: splits/test.json (flat token list).  Anyone not in test is
-        # treated as trainval (the CV folds further subdivide).
-        token_to_split: Dict[str, str] = {}
-        test_path = self.root / "splits" / "test.json"
-        if test_path.exists():
-            for tok in json.loads(test_path.read_text()):
-                token_to_split[str(tok)] = "test"
+        # manifest.json is written by export_hf.py as a flat list of records.
+        # Older/alternative exports may wrap it as {"records": [...]}.
+        # Accept both shapes.
+        if isinstance(manifest, list):
+            raw_records = manifest
+        elif isinstance(manifest, dict):
+            raw_records = manifest.get("records", [])
+        else:
+            raise ValueError(
+                f"manifest.json has unexpected type {type(manifest).__name__}; "
+                "expected list or dict.")
 
-        # Full 5-fold CV structure (trainval pool).  Optional — not every
-        # downstream consumer needs folds.
-        self.cv: Optional[Dict] = None
-        cv_path = self.root / "splits" / "cv_5fold.json"
-        if cv_path.exists():
-            self.cv = json.loads(cv_path.read_text())
+        # ── Split assignment ────────────────────────────────────────────
+        # Resolve splits from (in order): splits_5fold.json, legacy
+        # splits/test.json + splits/cv_5fold.json, then data_splits.json.
+        token_to_split, ctfile_to_split, self.cv = self._resolve_splits()
 
         self.cases: List[Case] = []
         for r in raw_records:
-            token = str(r.get("token", ""))
-            cfg   = str(r.get("config", ""))
-            split = r.get("split") or token_to_split.get(token) or \
-                    ("test" if token in token_to_split else "trainval")
+            token    = str(r.get("token", ""))
+            cfg      = str(r.get("config", ""))
+            ct_file  = r.get("ct_file", "") or ""
+
+            # Resolution order: explicit record 'split' -> splits_5fold.json /
+            # splits/test.json -> data_splits.json (by ct_file) -> "trainval".
+            # "train"/"val" from data_splits.json are both normalised to
+            # "trainval" since per-record train/val is a CV-fold concern.
+            split = r.get("split")
+            if not split:
+                split = token_to_split.get(token)
+            if not split:
+                mapped = ctfile_to_split.get(ct_file) or \
+                         ctfile_to_split.get(Path(ct_file).name)
+                if mapped == "test":
+                    split = "test"
+                elif mapped in ("train", "val"):
+                    split = "trainval"
+            if not split:
+                split = "trainval"
+
             self.cases.append(Case(
                 token               = token,
                 config              = cfg,
-                match_type          = r.get("match_type", ""),
-                ct_path             = self.root / r.get("ct_file", ""),
-                label_path          = self.root / r.get("label_file", ""),
+                match_type          = r.get("match_type", "") or "",
+                ct_path             = self.root / ct_file,
+                label_path          = self.root / (r.get("label_file", "") or ""),
                 split               = split,
-                lstv_label          = r.get("lstv_label", ""),
-                lstv_pelvic         = r.get("lstv_pelvic", ""),
-                lstv_vertebral      = r.get("lstv_vertebral", ""),
-                lstv_agreement      = r.get("lstv_agreement"),
+                lstv_label          = r.get("lstv_label", "") or "",
+                lstv_pelvic         = r.get("lstv_pelvic", "") or "",
+                lstv_vertebral      = r.get("lstv_vertebral", "") or "",
+                lstv_agreement      = _coerce_optional_bool(r.get("lstv_agreement")),
                 lstv_confusion_zone = bool(r.get("lstv_confusion_zone", False)),
-                lstv_class          = int(r.get("lstv_class", 0)),
+                lstv_class          = int(r.get("lstv_class", 0) or 0),
                 has_l6              = bool(r.get("has_l6", False)),
-                position            = r.get("position", "unknown"),
-                spine_series_uid    = r.get("spine_series_uid"),
-                pelvic_series_uid   = r.get("pelvic_series_uid"),
-                spine_bone_pct      = r.get("spine_bone_pct"),
-                pelvic_bone_pct     = r.get("pelvic_bone_pct"),
+                position            = r.get("position", "unknown") or "unknown",
+                spine_series_uid    = _coerce_optional_str(r.get("spine_series_uid")),
+                pelvic_series_uid   = _coerce_optional_str(r.get("pelvic_series_uid")),
+                spine_bone_pct      = _coerce_optional_float(r.get("spine_bone_pct")),
+                pelvic_bone_pct     = _coerce_optional_float(r.get("pelvic_bone_pct")),
+                annotations         = _coerce_annotations(r.get("annotations")),
             ))
 
         self._by_token_config: Dict[Tuple[str, str], Case] = {
@@ -181,19 +387,26 @@ class CTSpinoPelvic1K:
             repo_type = "dataset",
             token     = token,
             cache_dir = str(Path(os.path.expanduser(cache_dir))) if cache_dir else None,
-            allow_patterns = ["manifest.json", "splits/**", "README.md",
-                              "splits_summary.json"],
+            allow_patterns = [
+                "manifest.json",
+                "splits_5fold.json",   # unified splits (schema v3 preferred)
+                "splits/**",           # legacy splits/ directory
+                "data_splits.json",    # earliest-format fallback
+                "splits_summary.json",
+                "README.md",
+            ],
         )
         return cls(local_dir)
 
     # ── Filtering ─────────────────────────────────────────────────────────
     def filter(self,
-               config:        Optional[str]  = None,
-               match_type:    Optional[str]  = None,
-               lstv_label:    Optional[str]  = None,
-               split:         Optional[str]  = None,
-               aligned_only:  bool = False,
-               present_only:  bool = False) -> List[Case]:
+               config:         Optional[str]  = None,
+               match_type:     Optional[str]  = None,
+               lstv_label:     Optional[str]  = None,
+               split:          Optional[str]  = None,
+               has_annotation: Optional[str]  = None,
+               aligned_only:   bool = False,
+               present_only:   bool = False) -> List[Case]:
         out = list(self.cases)
         if config:
             out = [c for c in out if c.config == config]
@@ -204,6 +417,8 @@ class CTSpinoPelvic1K:
             out = [c for c in out if c.lstv_label.lower() == lc]
         if split:
             out = [c for c in out if c.split == split]
+        if has_annotation:
+            out = [c for c in out if c.has_annotation(has_annotation)]
         if aligned_only:
             out = [c for c in out if c.aligned()]
         if present_only:
@@ -222,15 +437,16 @@ class CTSpinoPelvic1K:
     def fold(self, i: int) -> Tuple[List[Case], List[Case]]:
         """Return (train_cases, val_cases) for fold i ∈ [0, n_folds).
 
-        Raises RuntimeError if cv_5fold.json wasn't shipped with the dataset.
+        Raises RuntimeError if no CV splits are available in the dataset.
         Each case appears via its patient token across ALL config records —
         a patient with both spine_only + pelvic_native records will get both
         records yielded together.
         """
         if self.cv is None:
             raise RuntimeError(
-                "splits/cv_5fold.json not found. The dataset shipped without "
-                "5-fold CV; either re-export with scripts/export_hf.py or run "
+                "No 5-fold CV found. Looked for splits_5fold.json (schema v3 "
+                "from generate_5fold_splits.py) and splits/cv_5fold.json "
+                "(legacy). Either re-export with scripts/export_hf.py or run "
                 "scripts/generate_5fold_splits.py to produce one."
             )
         folds = self.cv.get("folds", [])
@@ -275,6 +491,20 @@ class CTSpinoPelvic1K:
         mt   = Counter(c.match_type for c in self.cases)
         lstv = Counter(c.lstv_class for c in self.cases)
         n_present = sum(1 for c in self.cases if c.exists())
+        n_sp_uid  = sum(1 for c in self.cases if c.spine_series_uid)
+        n_pv_uid  = sum(1 for c in self.cases if c.pelvic_series_uid)
+        n_sp_pct  = sum(1 for c in self.cases if c.spine_bone_pct  is not None)
+        n_pv_pct  = sum(1 for c in self.cases if c.pelvic_bone_pct is not None)
+
+        # Annotations availability — counts per kind across the cohort.
+        ann_keys = set()
+        for c in self.cases:
+            ann_keys.update(c.annotations.keys())
+        ann_counts = {
+            k: sum(1 for c in self.cases if c.annotations.get(k))
+            for k in sorted(ann_keys)
+        }
+
         lines = [
             "CTSpinoPelvic1K",
             f"  root:            {self.root}",
@@ -284,6 +514,12 @@ class CTSpinoPelvic1K:
             f"  match_types:     {dict(mt)}",
             f"  lstv_class dist: {dict(lstv)}",
             f"  cv folds:        {self.n_folds}",
+            f"  splits source:   schema_v{self.splits_schema_version}  scheme={self.splits_scheme or '-'}"
+            if self.splits_schema_version
+            else f"  splits source:   (legacy splits/ or data_splits.json)",
+            f"  annotations:     {ann_counts}",
+            f"  provenance:      spine_uid={n_sp_uid}  pelvic_uid={n_pv_uid}  "
+            f"spine_bone_pct={n_sp_pct}  pelvic_bone_pct={n_pv_pct}",
         ]
         return "\n".join(lines)
 
@@ -357,6 +593,11 @@ class CTSpinoPelvicDataset(Dataset):
                 "lstv_confusion_zone": c.lstv_confusion_zone,
                 "has_l6":              c.has_l6,
                 "position":            c.position,
+                "spine_series_uid":    c.spine_series_uid,
+                "pelvic_series_uid":   c.pelvic_series_uid,
+                "spine_bone_pct":      c.spine_bone_pct,
+                "pelvic_bone_pct":     c.pelvic_bone_pct,
+                "annotations":         dict(c.annotations),
             },
         }
         if self.transform is not None:
@@ -382,3 +623,8 @@ if __name__ == "__main__":
         print(f"  token={c.token}  config={c.config}  split={c.split}  lstv={c.lstv_label}")
         print(f"  ct:    {c.ct_path}  (exists={c.ct_path.exists()})")
         print(f"  label: {c.label_path}  (exists={c.label_path.exists()})")
+        print(f"  provenance: spine_uid={c.spine_series_uid}  "
+              f"pelvic_uid={c.pelvic_series_uid}  "
+              f"spine_bone_pct={c.spine_bone_pct}  "
+              f"pelvic_bone_pct={c.pelvic_bone_pct}")
+        print(f"  annotations: {c.annotations}")

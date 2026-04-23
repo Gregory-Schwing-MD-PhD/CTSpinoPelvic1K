@@ -21,6 +21,10 @@ for non-inverted cases they resolve to the originals. No external routing,
 no staging dirs, no UID-lookup logic downstream. visualize_qc.py becomes
 one-line: load what the manifest says.
 
+ALL top-level case fields from the input manifest survive unchanged
+(position, lstv_*, match_type, patient_token, etc.), so v2.0+ placed
+manifests from place_fused_masks.py round-trip cleanly.
+
 DETECTION (body-center)
 =======================
 A correctly-oriented pelvis has its bone mass sitting in the POSTERIOR half
@@ -50,6 +54,13 @@ FLIP SET BY MATCH TYPE
                  pelvic-based detector can't judge it → untouched)
   spine_only   → skipped (no pelvic anatomy)
 
+IDEMPOTENCY
+===========
+If any of the case's referenced paths already carry the _orientation_fixed
+suffix, or the case is flagged orientation_fix_applied=True, the case is
+skipped with status 'skipped_already_fixed'. You can safely re-run this
+script against its own output without double-flipping.
+
 USAGE
 =====
     python scripts/orientation_fix.py \\
@@ -57,7 +68,7 @@ USAGE
         --nifti_dir  data/tcia_nifti \\
         --placed_dir data/placed \\
         --workers    16 \\
-        [--threshold_mm 10.0] [--dry_run]
+        [--threshold_mm 10.0] [--dry_run] [--tokens 149,153]
 """
 
 from __future__ import annotations
@@ -65,9 +76,10 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
@@ -78,6 +90,8 @@ logging.basicConfig(
 )
 log = logging.getLogger("orientation_fix")
 
+# ── Constants ────────────────────────────────────────────────────────────────
+
 PELV_SACRUM    = 1
 PELV_LEFT_HIP  = 2
 PELV_RIGHT_HIP = 3
@@ -85,6 +99,86 @@ PELV_RIGHT_HIP = 3
 SUFFIX            = "_orientation_fixed"
 BODY_HU_THRESHOLD = -500.0
 DEFAULT_THRESHOLD = 10.0   # mm
+
+# Schema tag appended to the input schema_version to form the output
+# schema_version. e.g. input "2.0" -> output "2.0+ap-fix".
+OUTPUT_SCHEMA_TAG    = "+ap-fix"
+ORIENTATION_FIX_VERSION = "v3_explicit_ct_paths"
+
+
+# ── I/O helpers ──────────────────────────────────────────────────────────────
+
+def _atomic_write_json(path: Path, obj) -> None:
+    """Write JSON via tmp file + os.replace so a partial write can never
+    leave a half-formed manifest on disk."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(obj, indent=2, default=str))
+    os.replace(str(tmp), str(path))
+
+
+def _load_placed_manifest(path: Path) -> Tuple[dict, List[dict], str]:
+    """
+    Load placed_manifest.json and return (doc, cases, schema_version).
+
+    Accepts both manifest shapes:
+      * v2.0+ : {"schema_version": "2.0", "cases": [...], ...}
+      * legacy: flat list of case dicts
+    Raises ValueError on anything else, with a readable reason.
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"Manifest not found: {path}")
+    try:
+        raw = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        raise ValueError(f"{path}: malformed JSON ({e})") from e
+
+    if isinstance(raw, list):
+        log.warning("%s is a flat list (pre-v2.0); wrapping as legacy.", path.name)
+        return {"cases": raw}, raw, "1.x-legacy"
+
+    if not isinstance(raw, dict):
+        raise ValueError(
+            f"{path}: manifest root is {type(raw).__name__}; "
+            "expected dict or list."
+        )
+
+    if "cases" not in raw:
+        raise ValueError(
+            f"{path}: manifest dict has no 'cases' key. "
+            f"Top-level keys: {sorted(raw.keys())}"
+        )
+
+    cases = raw["cases"]
+    if not isinstance(cases, list):
+        raise ValueError(
+            f"{path}: 'cases' must be a list, got {type(cases).__name__}"
+        )
+
+    schema = str(raw.get("schema_version", "unknown"))
+    return raw, cases, schema
+
+
+def _looks_already_fixed(*paths) -> bool:
+    """True if any path string already contains the orientation-fix suffix.
+
+    Used for idempotency: a case whose placed masks already carry SUFFIX
+    has been through this script before and must not be flipped again.
+    """
+    for p in paths:
+        if p and SUFFIX in str(p):
+            return True
+    return False
+
+
+def _with_suffix(p: Path, suffix: str) -> Path:
+    """foo.nii.gz → foo{suffix}.nii.gz"""
+    name = p.name
+    if name.endswith(".nii.gz"):
+        return p.with_name(name[:-7] + suffix + ".nii.gz")
+    if name.endswith(".nii"):
+        return p.with_name(name[:-4] + suffix + ".nii")
+    return p.with_name(p.stem + suffix + p.suffix)
 
 
 # ── Affine sanity ────────────────────────────────────────────────────────────
@@ -338,16 +432,6 @@ def _verify_bone_alignment(ct_path: Path, mask_path: Path) -> Optional[dict]:
         return None
 
 
-def _with_suffix(p: Path, suffix: str) -> Path:
-    """foo.nii.gz → foo{suffix}.nii.gz"""
-    name = p.name
-    if name.endswith(".nii.gz"):
-        return p.with_name(name[:-7] + suffix + ".nii.gz")
-    if name.endswith(".nii"):
-        return p.with_name(name[:-4] + suffix + ".nii")
-    return p.with_name(p.stem + suffix + p.suffix)
-
-
 # ── Per-case worker ──────────────────────────────────────────────────────────
 
 def _process_case(args) -> dict:
@@ -372,7 +456,20 @@ def _process_case(args) -> dict:
         "error":                None,
     }
 
-    pv            = case.get("pelvic") or {}
+    sp = case.get("spine")  or {}
+    pv = case.get("pelvic") or {}
+
+    # ── Idempotency guard ───────────────────────────────────────────────────
+    # A case whose placed paths already carry SUFFIX, or which is explicitly
+    # flagged orientation_fix_applied, has been through this script before
+    # and must never be flipped again.
+    if (case.get("orientation_fix_applied") is True
+            or _looks_already_fixed(
+                pv.get("placed"), sp.get("placed"),
+                pv.get("ct_nifti"), sp.get("ct_nifti"))):
+        out["orientation_check"]["status"] = "skipped_already_fixed"
+        return out
+
     pelvic_placed = pv.get("placed")
     pelvic_uid    = pv.get("series_uid")
 
@@ -445,7 +542,6 @@ def _process_case(args) -> dict:
     if dry_run or ok:
         flipped["pelvic_placed"] = str(pm_dst)
 
-    sp = case.get("spine") or {}
     if match_type == "fused" and sp.get("placed"):
         sp_src = Path(sp["placed"])
         if sp_src.exists():
@@ -463,14 +559,23 @@ def _process_case(args) -> dict:
     if not dry_run and "ct" in flipped and "pelvic_placed" in flipped:
         chk = _verify_bone_alignment(Path(flipped["ct"]), Path(flipped["pelvic_placed"]))
         if chk is not None:
+            pre_bone = (case.get("pelvic") or {}).get("bone_pct", None)
             log.info(
-                "  [token=%s] post-flip alignment check: bone%%=%.1f  mean_HU=%.1f  "
-                "(pre-flip manifest pelvic bone_pct=%.1f)",
+                "  [token=%s] post-flip alignment: bone%%=%.1f  mean_HU=%.1f  "
+                "(pre-flip manifest pelvic bone_pct=%s)",
                 token, chk["bone_pct"], chk["mean_hu"],
-                (case.get("pelvic") or {}).get("bone_pct", -1),
+                f"{pre_bone:.1f}" if isinstance(pre_bone, (int, float)) else "?",
             )
             out["orientation_check"]["post_flip_bone_pct"] = round(chk["bone_pct"], 1)
             out["orientation_check"]["post_flip_mean_hu"]  = round(chk["mean_hu"],  1)
+            # Soft warning if the flip visibly destroyed alignment.
+            if chk["bone_pct"] < 30.0 and isinstance(pre_bone, (int, float)) and pre_bone > 40:
+                log.warning(
+                    "  [token=%s] post-flip bone%% collapsed (%.1f%% < 30, "
+                    "pre=%.1f) — likely bad flip, investigate",
+                    token, chk["bone_pct"], pre_bone,
+                )
+                out["orientation_check"]["post_flip_warning"] = "bone_pct_collapsed"
 
     out["orientation_fixed"]    = flipped if flipped else None
     out["orientation_original"] = originals if flipped else None
@@ -485,15 +590,21 @@ def _merge_case(case: dict,
     """
     Build the output case entry. Key invariants for every case:
 
-      1. spine.ct_nifti / pelvic.ct_nifti carry explicit absolute paths
+      1. All top-level fields from the input case are preserved unchanged
+         (position, lstv_*, match_type, patient_token, plus any future
+         additions — merged = dict(case) is shallow but sufficient since
+         our schema uses immutable leaf types).
+      2. spine.ct_nifti / pelvic.ct_nifti carry explicit absolute paths
          (flipped for inverted cases, original otherwise).
-      2. spine.series_uid / pelvic.series_uid are PATCHED for inverted
+      3. spine.series_uid / pelvic.series_uid are PATCHED for inverted
          cases to the _orientation_fixed stem, so any downstream consumer
          that resolves CT via `{nifti_dir}/{series_uid}.nii.gz` — e.g.
          visualize_qc.py — lands on the flipped CT without code changes.
          Original UIDs are preserved in series_uid_original.
-      3. spine.placed / pelvic.placed point at the flipped mask files for
+      4. spine.placed / pelvic.placed point at the flipped mask files for
          inverted cases; originals kept in placed_original.
+      5. orientation_fix_applied is an explicit bool so downstream
+         consumers don't have to check the presence of orientation_fixed.
     """
     merged = dict(case)
     tok    = str(case.get("patient_token", "?"))
@@ -515,11 +626,17 @@ def _merge_case(case: dict,
             stem = stem[:-4]
         flipped_ct_uid = stem
 
+    # Attach per-case orientation audit fields
     if ori:
         merged["orientation_check"] = ori["orientation_check"]
     if ori.get("orientation_fixed"):
         merged["orientation_fixed"]    = ori["orientation_fixed"]
         merged["orientation_original"] = ori["orientation_original"]
+
+    # Explicit applied flag (primary signal for downstream consumers).
+    # True  = files flipped, referenced paths point at *_orientation_fixed
+    # False = no change, referenced paths point at originals
+    merged["orientation_fix_applied"] = bool(ofx)
 
     # Which side(s) flip their CT?
     spine_ct_flips  = (match_type == "fused")
@@ -579,6 +696,47 @@ def _merge_case(case: dict,
     return merged
 
 
+# ── Post-merge invariants ────────────────────────────────────────────────────
+
+def _validate_merged_cases(new_cases: List[dict]) -> None:
+    """
+    Sanity-check invariants across all merged cases. Logs warnings; does
+    not raise, because exotic inputs may legitimately violate some of
+    these (e.g. spine_only cases have no pelvic sub-dict).
+    """
+    n = len(new_cases)
+    n_fixed = sum(1 for c in new_cases if c.get("orientation_fix_applied"))
+    n_spine_ct = sum(1 for c in new_cases
+                     if (c.get("spine") or {}).get("ct_nifti"))
+    n_pelvic_ct = sum(1 for c in new_cases
+                      if (c.get("pelvic") or {}).get("ct_nifti"))
+
+    # Tokens should be unique across cases; if not, the input placed
+    # manifest has duplicates we can't sensibly merge.
+    tokens = [str(c.get("patient_token", "")) for c in new_cases]
+    dup_tokens = {t for t in tokens if tokens.count(t) > 1 and t}
+    if dup_tokens:
+        log.warning("Duplicate patient_tokens in output: %s (input manifest "
+                    "has duplicates; merge may have collapsed them)", dup_tokens)
+
+    # Every flipped case should have at least pelvic_placed set.
+    for c in new_cases:
+        if not c.get("orientation_fix_applied"):
+            continue
+        ofx = c.get("orientation_fixed") or {}
+        if "pelvic_placed" not in ofx:
+            log.warning(
+                "Token=%s marked orientation_fix_applied but orientation_fixed "
+                "has no pelvic_placed: keys=%s",
+                c.get("patient_token"), sorted(ofx),
+            )
+
+    log.info(
+        "Merge invariants  total=%d  flipped=%d  with_spine_ct=%d  with_pelvic_ct=%d",
+        n, n_fixed, n_spine_ct, n_pelvic_ct,
+    )
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -592,24 +750,43 @@ def main():
     ap.add_argument("--threshold_mm", default=DEFAULT_THRESHOLD, type=float)
     ap.add_argument("--workers",      default=16, type=int)
     ap.add_argument("--dry_run",      action="store_true")
+    ap.add_argument("--tokens",       default="", type=str,
+                    help="Comma-separated tokens to process (debug; default=all).")
     args = ap.parse_args()
 
-    if not args.manifest.exists():
-        log.error("Manifest not found: %s", args.manifest); return
+    # ── Load + validate input ───────────────────────────────────────────────
+    try:
+        manifest, cases, input_schema = _load_placed_manifest(args.manifest)
+    except (FileNotFoundError, ValueError) as e:
+        log.error("%s", e)
+        raise SystemExit(1)
 
-    manifest = json.loads(args.manifest.read_text())
-    cases    = manifest.get("cases", [])
-    log.info("Loaded %d cases from %s", len(cases), args.manifest)
+    log.info("Loaded %d cases from %s  (schema=%s)",
+             len(cases), args.manifest, input_schema)
     log.info("Detector: body_center  |  threshold: |delta_posterior_mm| > %.1f mm",
              args.threshold_mm)
     if args.dry_run:
-        log.warning("DRY RUN — no files will be written")
+        log.warning("DRY RUN — no files will be written, no manifest updated")
+
+    token_filter: Optional[Set[str]] = None
+    if args.tokens.strip():
+        token_filter = {t.strip() for t in args.tokens.split(",") if t.strip()}
+        cases = [c for c in cases
+                 if str(c.get("patient_token", "")) in token_filter]
+        log.info("Token filter: %d tokens → %d cases kept",
+                 len(token_filter), len(cases))
+
+    if not cases:
+        log.error("No cases to process.")
+        raise SystemExit(1)
 
     work = [(c, args.threshold_mm, str(args.nifti_dir), args.dry_run)
             for c in cases]
 
+    # ── Run workers ─────────────────────────────────────────────────────────
     results: List[dict] = []
-    with ProcessPoolExecutor(max_workers=args.workers) as ex:
+    effective_workers = max(1, min(args.workers, len(work)))
+    with ProcessPoolExecutor(max_workers=effective_workers) as ex:
         futs = [ex.submit(_process_case, w) for w in work]
         for i, f in enumerate(as_completed(futs), 1):
             try:
@@ -663,7 +840,7 @@ def main():
             key=lambda r: (r["orientation_check"]["delta_posterior_mm"] or 0)
         )
         for r in inverted:
-            n_files = len(r["orientation_fixed"] or {})
+            n_files = len(r.get("orientation_fixed") or {})
             log.info("  token=%-12s  delta_post=%+7.1f  delta_sh=%+7.1f  "
                      "match=%-10s  files=%d",
                      r["patient_token"],
@@ -673,32 +850,49 @@ def main():
                      n_files)
 
     # ── Merge and write manifest ────────────────────────────────────────────
+    if args.dry_run:
+        log.info("--dry_run set: skipping manifest write.")
+        return
+
     ori_by_token = {r["patient_token"]: r for r in results}
     new_cases = [_merge_case(c, ori_by_token, args.nifti_dir) for c in cases]
 
+    _validate_merged_cases(new_cases)
+
+    # Schema: output = input_schema + "+ap-fix"  (e.g. "2.0" -> "2.0+ap-fix")
+    output_schema = (
+        f"{input_schema}{OUTPUT_SCHEMA_TAG}"
+        if input_schema and input_schema != "unknown"
+        else f"unknown{OUTPUT_SCHEMA_TAG}"
+    )
+
     out_path = args.placed_dir / "placed_manifest_orientation_fixed.json"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_doc = {
+        # Provenance
+        "schema_version":         output_schema,
+        "input_schema_version":   input_schema,
+        "orientation_fix_version": ORIENTATION_FIX_VERSION,
+        # Counts preserved from input (when present)
         "n_cases":            manifest.get("n_cases", len(new_cases)),
         "n_fused":            manifest.get("n_fused"),
         "n_separate":         manifest.get("n_separate"),
         "n_spine_only":       manifest.get("n_spine_only"),
         "n_pelvic_only":      manifest.get("n_pelvic_only"),
+        # This pass
         "n_ap_inverted":      len(inverted),
         "n_ap_ok":            by_status.get("ok", 0),
         "n_ap_indeterminate": by_status.get("indeterminate", 0),
-        "n_ap_skipped":       (
-            by_status.get("skipped_no_pelvic", 0)
-            + by_status.get("skipped_no_uid", 0)
-        ),
+        "n_ap_skipped_no_pelvic": by_status.get("skipped_no_pelvic", 0),
+        "n_ap_skipped_no_uid":    by_status.get("skipped_no_uid", 0),
+        "n_ap_skipped_already_fixed": by_status.get("skipped_already_fixed", 0),
         "threshold_mm":       args.threshold_mm,
         "detector":           "body_center",
-        "dry_run":            args.dry_run,
-        "schema_version":     "v3_explicit_ct_paths",
+        "dry_run":            False,
         "cases":              new_cases,
     }
-    out_path.write_text(json.dumps(out_doc, indent=2, default=str))
-    log.info("Manifest → %s", out_path)
+
+    _atomic_write_json(out_path, out_doc)
+    log.info("Manifest → %s  (schema=%s)", out_path, output_schema)
     log.info("Schema: every case carries explicit spine.ct_nifti and "
              "pelvic.ct_nifti. visualize_qc.py should read these paths "
              "directly; no UID-based resolution.")

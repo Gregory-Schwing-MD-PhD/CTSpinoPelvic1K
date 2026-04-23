@@ -11,7 +11,8 @@ Reads placed_manifest.json (written by place_fused_masks.py) and for each case:
   6. Save to flat output:
        ct/{token:04d}_{position}_ct.nii.gz
        labels/{token:04d}_{position}_label.nii.gz
-  7. Write manifest.json, manifest.csv, data_splits.json
+  7. Write manifest.json, manifest.csv, data_splits.json, splits/test.json,
+     splits_summary.json
   8. Push to HuggingFace
 
 placed_manifest.json is the single source of truth. It now carries all LSTV
@@ -77,6 +78,10 @@ HF_REPO_TYPE = "dataset"
 # degenerate volume and rejected at ingest. Mirrors place_fused_masks.py.
 MIN_VALID_SHAPE = 10
 
+# Optional numeric fields — written as `null` (not "") in manifest.json so
+# Parquet sees a clean nullable-float column rather than mixed str/float.
+_OPTIONAL_NUMERIC_FIELDS = frozenset({"spine_bone_pct", "pelvic_bone_pct"})
+
 # -- Label maps ---------------------------------------------------------------
 
 VERSE_TO_10CLASS: Dict[int, int] = {
@@ -98,6 +103,31 @@ _SEG_COLORS = {
     7: (0.85, 0.15, 0.15, 0.55), 8: (0.95, 0.50, 0.10, 0.55),
     9: (0.95, 0.80, 0.05, 0.55),
 }
+
+# -- Small helpers ------------------------------------------------------------
+
+def _first_not_none(*vals):
+    """Return the first non-None value, or None if all are None.
+
+    Used to resolve provenance fields (series_uid, bone_pct) across the
+    handful of key-name variants that have shown up in placed_manifest.json
+    over the life of the pipeline.  Treats 0.0 correctly (unlike `or`).
+    """
+    for v in vals:
+        if v is not None:
+            return v
+    return None
+
+
+def _to_optional_float(v):
+    """Coerce to float, or None if value is empty/missing/unparseable."""
+    if v is None or v == "":
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
 
 # -- NIfTI helpers ------------------------------------------------------------
 
@@ -355,6 +385,11 @@ def _export_one(args: dict) -> dict:
         lstv_agreement=args.get("lstv_agreement"),          # bool | None
         lstv_confusion_zone=args.get("lstv_confusion_zone", False),
         lstv_class=args.get("lstv_class", 0),
+        # Provenance fields -- passed through from placed_manifest.json
+        spine_series_uid=args.get("spine_series_uid"),
+        pelvic_series_uid=args.get("pelvic_series_uid"),
+        spine_bone_pct=args.get("spine_bone_pct"),
+        pelvic_bone_pct=args.get("pelvic_bone_pct"),
     )
 
     try:
@@ -436,8 +471,9 @@ def build_work(manifest_path: Path, nifti_dir: Path,
     Build per-case export work from placed_manifest.json.
 
     placed_manifest.json is the single source of truth. It carries LSTV fields
-    (lstv_pelvic, lstv_vertebral, lstv_agreement, lstv_confusion_zone) written
-    by place_fused_masks.py -- no secondary manifest file needed.
+    (lstv_pelvic, lstv_vertebral, lstv_agreement, lstv_confusion_zone) and
+    placement provenance (series_uid, bone_pct) written by place_fused_masks.py
+    -- no secondary manifest file needed.
     """
     data  = json.loads(manifest_path.read_text())
     cases = data.get("cases", [])
@@ -465,7 +501,7 @@ def build_work(manifest_path: Path, nifti_dir: Path,
                     3: "SACRALIZATION", 4: "SACRALIZATION"}
         _cls = int(c.get("lstv_class", 0) or 0)
         if _cls > 0:
-            lstv = _cls_map[_cls]
+            lstv = _cls_map.get(_cls, "normal")
         else:
             _lp = lstv_pelvic    if lstv_pelvic.lower()    not in ("unknown", "", "normal") else ""
             _lv = lstv_vertebral if lstv_vertebral.lower() not in ("unknown", "", "normal") else ""
@@ -484,8 +520,24 @@ def build_work(manifest_path: Path, nifti_dir: Path,
                  "sacralization": 3, "hard": 4}
         lstv_class = _lmap.get(lstv.lower(), 0)
 
-        spine_uid  = sp.get("series_uid")
-        pelvic_uid = pv.get("series_uid")
+        # Provenance: series UIDs + bone_pct from placed_manifest.json.
+        # Key-name variants covered for backward compat with older
+        # place_fused_masks.py outputs (top-level vs nested).
+        spine_uid  = _first_not_none(sp.get("series_uid"),
+                                     c.get("spine_series_uid"))
+        pelvic_uid = _first_not_none(pv.get("series_uid"),
+                                     c.get("pelvic_series_uid"))
+
+        spine_bone_pct  = _to_optional_float(_first_not_none(
+            sp.get("bone_pct"),
+            sp.get("spine_bone_pct"),
+            c.get("spine_bone_pct"),
+        ))
+        pelvic_bone_pct = _to_optional_float(_first_not_none(
+            pv.get("bone_pct"),
+            pv.get("pelvic_bone_pct"),
+            c.get("pelvic_bone_pct"),
+        ))
 
         spine_placed  = Path(sp["placed"])  if sp.get("placed")  else None
         pelvic_placed = Path(pv["placed"])  if pv.get("placed")  else None
@@ -504,15 +556,19 @@ def build_work(manifest_path: Path, nifti_dir: Path,
         spine_ct  = nifti_dir / f"{spine_uid}.nii.gz"  if spine_uid  else None
         pelvic_ct = nifti_dir / f"{pelvic_uid}.nii.gz" if pelvic_uid else None
 
-        pos = sp.get("position", "")
-        if not pos:
+        # Position resolution order:
+        #   1. case-level c["position"]       (place_fused_masks.py >= v2.0)
+        #   2. sp["position"] / pv["position"] (per-mask, also v2.0+)
+        #   3. filename substring             (legacy placed_manifest.json)
+        pos = (c.get("position") or sp.get("position") or pv.get("position") or "")
+        if not pos or pos == "unknown":
             fname = (str(spine_placed or "") + str(pelvic_placed or "")).lower()
             pos   = "prone" if "prone" in fname else "supine" if "supine" in fname else "unknown"
 
         tok_int = int(tok) if tok.isdigit() else abs(hash(tok)) % 10000
         base    = f"{tok_int:04d}_{pos}"
 
-        # Shared LSTV kwargs passed to every work item
+        # Shared kwargs passed to every work item derived from this case
         lstv_kwargs = dict(
             lstv=lstv,
             lstv_pelvic=lstv_pelvic,
@@ -521,6 +577,12 @@ def build_work(manifest_path: Path, nifti_dir: Path,
             lstv_confusion_zone=lstv_confusion,
             lstv_class=lstv_class,
         )
+        prov_kwargs = dict(
+            spine_series_uid=spine_uid,
+            pelvic_series_uid=pelvic_uid,
+            spine_bone_pct=spine_bone_pct,
+            pelvic_bone_pct=pelvic_bone_pct,
+        )
 
         if mt == "fused":
             if spine_placed and spine_placed.exists() and spine_ct and spine_ct.exists():
@@ -528,34 +590,34 @@ def build_work(manifest_path: Path, nifti_dir: Path,
                     token=tok, position=pos, config="fused", match_type=mt,
                     ct_path=str(spine_ct), spine_path=str(spine_placed),
                     pelvic_path=str(pelvic_placed) if pelvic_placed and pelvic_placed.exists() else None,
-                    fname_base=base, **lstv_kwargs,
+                    fname_base=base, **lstv_kwargs, **prov_kwargs,
                 ))
         elif mt == "separate":
             if spine_placed and spine_placed.exists() and spine_ct and spine_ct.exists():
                 work.append(dict(
                     token=tok, position=pos, config="spine_only", match_type=mt,
                     ct_path=str(spine_ct), spine_path=str(spine_placed), pelvic_path=None,
-                    fname_base=f"{base}_spine", **lstv_kwargs,
+                    fname_base=f"{base}_spine", **lstv_kwargs, **prov_kwargs,
                 ))
             if pelvic_placed and pelvic_placed.exists() and pelvic_ct and pelvic_ct.exists():
                 work.append(dict(
                     token=tok, position=pos, config="pelvic_native", match_type=mt,
                     ct_path=str(pelvic_ct), spine_path=None, pelvic_path=str(pelvic_placed),
-                    fname_base=f"{base}_pelvic", **lstv_kwargs,
+                    fname_base=f"{base}_pelvic", **lstv_kwargs, **prov_kwargs,
                 ))
         elif mt == "spine_only":
             if spine_placed and spine_placed.exists() and spine_ct and spine_ct.exists():
                 work.append(dict(
                     token=tok, position=pos, config="spine_only", match_type=mt,
                     ct_path=str(spine_ct), spine_path=str(spine_placed), pelvic_path=None,
-                    fname_base=base, **lstv_kwargs,
+                    fname_base=base, **lstv_kwargs, **prov_kwargs,
                 ))
         elif mt == "pelvic_only":
             if pelvic_placed and pelvic_placed.exists() and pelvic_ct and pelvic_ct.exists():
                 work.append(dict(
                     token=tok, position=pos, config="pelvic_native", match_type=mt,
                     ct_path=str(pelvic_ct), spine_path=None, pelvic_path=str(pelvic_placed),
-                    fname_base=base, **lstv_kwargs,
+                    fname_base=base, **lstv_kwargs, **prov_kwargs,
                 ))
 
     return work
@@ -581,6 +643,14 @@ def write_splits(records: List[dict], out_dir: Path, seed: int = 42) -> None:
       n >= 3  ->  at least 1 in val, 1 in test, rest in train
       n == 2  ->  1 train / 1 val / 0 test
       n == 1  ->  all train
+
+    Outputs:
+      manifest_{train,validation,test}.json   per-record splits (legacy)
+      data_splits.json                         {"train":[...], "val":[...], "test":[...]}
+                                               of ct_file basenames (legacy)
+      splits/test.json                         flat list of unique test tokens
+                                               (dataset_interface.py preferred path)
+      splits_summary.json                      aggregate split stats
     """
     import random
 
@@ -626,19 +696,34 @@ def write_splits(records: List[dict], out_dir: Path, seed: int = 42) -> None:
     train_recs: list = []
     val_recs:   list = []
     test_recs:  list = []
+    strata_stats: List[dict] = []
 
     for name, recs in strata:
         rng = random.Random(seed + hash(name) % 1000)
         tr, va, te = _split_stratum(recs, name, rng)
         train_recs.extend(tr); val_recs.extend(va); test_recs.extend(te)
+        strata_stats.append({
+            "name": name, "n_total": len(recs),
+            "n_train": len(tr), "n_val": len(va), "n_test": len(te),
+        })
 
     log.info("Splits  train=%d  val=%d  test=%d",
              len(train_recs), len(val_recs), len(test_recs))
 
     _drop = {"ok", "error"}
     def _clean(recs):
-        return [{k: ("" if v is None else v) for k, v in r.items() if k not in _drop}
-                for r in recs]
+        out = []
+        for r in recs:
+            rec = {}
+            for k, v in r.items():
+                if k in _drop:
+                    continue
+                if v is None:
+                    rec[k] = None if k in _OPTIONAL_NUMERIC_FIELDS else ""
+                else:
+                    rec[k] = v
+            out.append(rec)
+        return out
 
     (out_dir / "manifest_train.json"     ).write_text(json.dumps(_clean(train_recs), indent=2))
     (out_dir / "manifest_validation.json").write_text(json.dumps(_clean(val_recs),   indent=2))
@@ -650,6 +735,32 @@ def write_splits(records: List[dict], out_dir: Path, seed: int = 42) -> None:
     }, indent=2))
     log.info("  manifest_train / validation / test .json written")
 
+    # splits/test.json -- flat unique-token list for dataset_interface.py's
+    # preferred split-resolution path.
+    splits_dir = out_dir / "splits"
+    splits_dir.mkdir(exist_ok=True)
+    test_tokens = sorted({str(r["token"]) for r in test_recs})
+    (splits_dir / "test.json").write_text(json.dumps(test_tokens, indent=2))
+    log.info("  splits/test.json written (%d unique tokens)", len(test_tokens))
+
+    # splits_summary.json -- at-a-glance aggregate stats
+    summary = {
+        "seed": seed,
+        "n_records": {
+            "train": len(train_recs), "val": len(val_recs), "test": len(test_recs),
+            "total": len(ok),
+        },
+        "n_tokens": {
+            "train": len({r["token"] for r in train_recs}),
+            "val":   len({r["token"] for r in val_recs}),
+            "test":  len({r["token"] for r in test_recs}),
+            "total": len({r["token"] for r in ok}),
+        },
+        "strata": strata_stats,
+    }
+    (out_dir / "splits_summary.json").write_text(json.dumps(summary, indent=2))
+    log.info("  splits_summary.json written")
+
 
 # -- Manifest -----------------------------------------------------------------
 
@@ -660,9 +771,12 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
     HF Arrow/Parquet compatibility:
     - 'ok' and 'error' stripped (bool-always-True and null-always-None break Parquet)
     - None -> "" for string fields; None lstv_agreement -> "" (HF can't cast mixed null/bool)
+    - None left as null for optional numeric fields (spine/pelvic_bone_pct) --
+      Parquet handles nullable float columns natively, so stringifying would
+      force a mixed str/float column.
     """
     _drop = {"ok", "error"}
-    ok = []
+    ok: List[dict] = []
     for r in records:
         if not r.get("ok"):
             continue
@@ -671,7 +785,7 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
             if k in _drop:
                 continue
             if v is None:
-                rec[k] = ""
+                rec[k] = None if k in _OPTIONAL_NUMERIC_FIELDS else ""
             elif isinstance(v, bool):
                 rec[k] = v
             else:
@@ -686,14 +800,24 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
     n_agreed    = sum(1 for r in ok
                       if r.get("lstv_agreement") is True
                       and r.get("lstv_class", 0) > 0)
+    n_sp_uid    = sum(1 for r in ok if r.get("spine_series_uid"))
+    n_pv_uid    = sum(1 for r in ok if r.get("pelvic_series_uid"))
+    n_sp_pct    = sum(1 for r in ok if r.get("spine_bone_pct")  is not None)
+    n_pv_pct    = sum(1 for r in ok if r.get("pelvic_bone_pct") is not None)
     log.info("Manifest  %d cases  confusion_zone=%d  agreed_lstv=%d -> manifest.json",
              len(ok), n_confusion, n_agreed)
+    log.info("  provenance:  spine_uid=%d/%d  pelvic_uid=%d/%d  "
+             "spine_bone_pct=%d/%d  pelvic_bone_pct=%d/%d",
+             n_sp_uid, len(ok), n_pv_uid, len(ok),
+             n_sp_pct, len(ok), n_pv_pct, len(ok))
 
     keys = [
         "token", "position", "config", "match_type",
         "lstv_label", "lstv_class",
         "lstv_pelvic", "lstv_vertebral", "lstv_agreement", "lstv_confusion_zone",
         "has_l6", "n_lumbar_labels", "alignment_ok",
+        "spine_series_uid", "pelvic_series_uid",
+        "spine_bone_pct", "pelvic_bone_pct",
         "ct_file", "label_file", "qc_file",
     ]
     with open(out_dir / "manifest.csv", "w", newline="") as f:
@@ -715,7 +839,8 @@ def push_to_hub(
 ) -> None:
     """
     Push ct/, labels/, manifest.json, manifest.csv, data_splits.json,
-    dataset_interface.py, and README.md to HuggingFace using upload_large_folder.
+    splits/, splits_summary.json, dataset_interface.py, and README.md to
+    HuggingFace using upload_large_folder.
 
     qc/ PNGs are excluded (large, derivative, regenerable).
     Authenticates via HF_TOKEN bearer auth -- no git credentials embedded.

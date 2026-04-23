@@ -14,8 +14,8 @@
 # Stage 3 — export dataset + push to HuggingFace
 #
 # Reads placed_manifest_orientation_fixed.json from Stage 2 by default (since
-# that manifest carries AP-inverted flips for tokens like 480 where the
-# anatomy was wrong in the original scan). To export against the un-fixed
+# that manifest carries manually-reviewed AP-inversion flips for tokens where
+# the anatomy was wrong in the original scan). To export against the un-fixed
 # manifest instead, set MANIFEST_FILE=placed_manifest.json.
 #
 # Produces:
@@ -24,10 +24,7 @@
 #   data/hf_export/qc/          QC overlays (optional)
 #   data/hf_export/manifest.json
 #   data/hf_export/manifest.csv
-#   data/hf_export/manifest_train.json       LSTV-stratified 70/15/15 splits
-#   data/hf_export/manifest_validation.json
-#   data/hf_export/manifest_test.json
-#   data/hf_export/data_splits.json
+#   data/hf_export/splits_5fold.json         LSTV-stratified 5-fold + test
 #   data/hf_export/dataset_interface.py      runtime Python API
 #   data/hf_export/README.md                 dataset card
 #
@@ -45,6 +42,7 @@
 #   NO_PIR=1         skip PIR reorientation (native voxel space)
 #   HF_PRIVATE=1     create HF repo as private
 #   HF_WORKERS=8     HF upload workers (default 8)
+#   SKIP_SPLITS=1    skip 5-fold splits generation
 # =============================================================================
 
 set -euo pipefail
@@ -55,11 +53,12 @@ cd "${PROJECT_ROOT}"
 source configs/default.env
 
 # ── Manifest selection ───────────────────────────────────────────────────────
-# Default to the orientation-fixed manifest. Its schema is a strict superset of
-# the original placed_manifest.json (same top-level keys + additional
-# orientation_check/orientation_fixed fields per case + patched series_uid
-# for flipped cases). export_hf.py reads series_uid to locate CT files, so
-# using this manifest automatically picks up the flipped CT NIfTIs.
+# Default to the orientation-fixed manifest. Its schema (v6_manual_flips_with_exclusions)
+# is a strict superset of the original placed_manifest.json — same top-level
+# keys plus additional orientation_check / orientation_fixed fields per case
+# plus patched series_uid for flipped cases. export_hf.py reads series_uid to
+# locate CT files, so using this manifest automatically picks up the flipped
+# CT NIfTIs.
 MANIFEST_FILE="${MANIFEST_FILE:-placed_manifest_orientation_fixed.json}"
 HOST_MANIFEST="${PLACED_DIR}/${MANIFEST_FILE}"
 
@@ -67,11 +66,13 @@ HOST_MANIFEST="${PLACED_DIR}/${MANIFEST_FILE}"
 # without Step C), fall back to the original with a loud warning.
 if [[ ! -f "${HOST_MANIFEST}" && "${MANIFEST_FILE}" == "placed_manifest_orientation_fixed.json" ]]; then
     echo "WARNING: ${HOST_MANIFEST} not found."
-    echo "         Falling back to placed_manifest.json (no AP-inversion fix applied)."
+    echo "         Falling back to placed_manifest.json (no manual-flip review applied)."
     echo "         Run Stage 2 with Step C enabled to produce the orientation-fixed manifest."
     MANIFEST_FILE="placed_manifest.json"
     HOST_MANIFEST="${PLACED_DIR}/${MANIFEST_FILE}"
 fi
+
+SKIP_SPLITS="${SKIP_SPLITS:-0}"
 
 mkdir -p "${LOGS_DIR}" "${HF_EXPORT_DIR}"
 
@@ -85,6 +86,7 @@ echo "   HF repo      : ${HF_REPO_ID}"
 echo "   PUSH         : ${PUSH}"
 echo "   SKIP_EXPORT  : ${SKIP_EXPORT}"
 echo "   SKIP_QC      : ${SKIP_QC}"
+echo "   SKIP_SPLITS  : ${SKIP_SPLITS}"
 echo "   NO_PIR       : ${NO_PIR}"
 echo "   HF_PRIVATE   : ${HF_PRIVATE}"
 echo "   Started      : $(date)"
@@ -120,14 +122,23 @@ m = json.load(open(sys.argv[1]))
 print(f"  Input manifest: {m.get('n_cases','?')} cases "
       f"(fused={m.get('n_fused','?')}  separate={m.get('n_separate','?')}  "
       f"spine_only={m.get('n_spine_only','?')}  pelvic_only={m.get('n_pelvic_only','?')})")
-# Surface orientation-fix fields when present
-if "n_ap_inverted" in m:
-    print(f"  Orientation   : ok={m.get('n_ap_ok','?')}  "
-          f"inverted={m.get('n_ap_inverted','?')}  "
-          f"indeterminate={m.get('n_ap_indeterminate','?')}  "
-          f"skipped={m.get('n_ap_skipped','?')}")
+
+# Surface v6 manual-flip review fields when present (orientation-fixed manifest)
+if "n_manually_flipped" in m:
+    print(f"  Manual flips  : flipped={m.get('n_manually_flipped','?')}  "
+          f"requested={m.get('n_flip_requested','?')}  "
+          f"missing={m.get('n_flip_missing','?')}  "
+          f"failed={m.get('n_flip_failed','?')}")
+    if "n_excluded" in m:
+        print(f"  Exclusions    : applied={m.get('n_excluded','?')}  "
+              f"requested={m.get('n_exclude_requested','?')}  "
+              f"missing={m.get('n_exclude_missing','?')}")
     if m.get('schema_version'):
         print(f"  Schema        : {m['schema_version']}")
+    if m.get('excluded_tokens'):
+        print(f"  Excluded      : {m['excluded_tokens']}")
+else:
+    print(f"  Schema        : {m.get('schema_version','unknown (pre-v6, no manual flips)')}")
 PYEOF
 fi
 
@@ -204,6 +215,35 @@ _run python3 /workspace/scripts/export_hf.py \
     ${EXPORT_FLAGS}
 
 # =============================================================================
+# Generate 5-fold CV splits (from the HF manifest we just produced)
+# =============================================================================
+if [[ "${SKIP_EXPORT}" != "1" && "${SKIP_SPLITS}" != "1" ]]; then
+    if [[ -f "${HF_EXPORT_DIR}/manifest.json" ]]; then
+        echo ""
+        echo "======================================================================"
+        echo " Generating 5-fold CV splits"
+        echo "======================================================================"
+
+        _run python3 /workspace/scripts/generate_5fold_splits.py \
+            --placed_manifest "${C_MANIFEST}" \
+            --out             "${C_HF_EXPORT}/splits_5fold.json" \
+            --n_folds         5 \
+            --test_fraction   0.15 \
+            --seed            42
+
+        if [[ -f "${HF_EXPORT_DIR}/splits_5fold.json" ]]; then
+            echo "  Splits file: ${HF_EXPORT_DIR}/splits_5fold.json"
+        else
+            echo "  WARNING: splits file was not produced."
+        fi
+    else
+        echo "  Skipping splits: ${HF_EXPORT_DIR}/manifest.json not found."
+    fi
+elif [[ "${SKIP_SPLITS}" == "1" ]]; then
+    echo "  Splits generation skipped (SKIP_SPLITS=1)"
+fi
+
+# =============================================================================
 # Summary
 # =============================================================================
 echo ""
@@ -225,12 +265,28 @@ if [[ -f "${HF_EXPORT_DIR}/manifest.json" ]]; then
 import json, sys
 from collections import Counter
 m = json.load(open(sys.argv[1]))
-cfg = Counter(r["config"] for r in m)
-lbl = Counter(r["lstv_label"] for r in m)
-bad = sum(1 for r in m if not r.get("alignment_ok", True))
+# manifest.json may be a flat list OR {"records": [...]}
+recs = m if isinstance(m, list) else m.get("records", [])
+cfg = Counter(r["config"] for r in recs)
+lbl = Counter(r.get("lstv_label", "") for r in recs)
+bad = sum(1 for r in recs if not r.get("alignment_ok", True))
 print(f"  Configs      : {dict(cfg)}")
 print(f"  LSTV         : {dict(lbl)}")
 print(f"  Align fails  : {bad}")
+PYEOF
+fi
+
+if [[ -f "${HF_EXPORT_DIR}/splits_5fold.json" ]]; then
+    python3 - "${HF_EXPORT_DIR}/splits_5fold.json" << 'PYEOF'
+import json, sys
+s = json.load(open(sys.argv[1]))
+print(f"  Splits       : schema v{s.get('schema_version','?')}  "
+      f"strata={s.get('strata_scheme','?')}")
+print(f"    total     = {s.get('n_tokens_total','?')}")
+print(f"    test      = {s.get('n_tokens_test','?')}")
+print(f"    trainval  = {s.get('n_tokens_trainval','?')}")
+print(f"    n_folds   = {s.get('n_folds','?')}")
+print(f"    validated = {s.get('invariants_validated', False)}")
 PYEOF
 fi
 

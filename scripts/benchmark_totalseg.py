@@ -296,7 +296,7 @@ def benchmark_one(token, ct_path, label_path, pred_dir, case_meta,
 
 # Aggregation helpers (simplified for brevity)
 
-def _nanmean(vals): 
+def _nanmean(vals):
     v = [x for x in vals if x is not None and x == x]
     return round(float(np.mean(v)), 4) if v else None
 
@@ -359,29 +359,54 @@ def aggregate(results):
 
 
 def format_table5(summary) -> str:
-    def _f(v): return f"{v:.3f}" if v is not None and v == v else "  —  "
-    lines = ["", "=" * 104,
-             "  TABLE 5  —  TotalSegmentator Zero-Shot Benchmark (per-vertebra Dice)",
-             "=" * 104]
-    header = (f"\n  {'Subgroup':<26}  {'n':>3}  "
-              f"{'L1':>5}  {'L2':>5}  {'L3':>5}  {'L4':>5}  {'L5':>5}  "
-              f"{'L6':>5}  {'Sac':>5}  {'HipL':>5}  {'HipR':>5}  {'JxnDSC':>7}")
+    """Publication-ready per-vertebra Dice table.
+
+    Column layout (fixed widths, space-separated):
+      Subgroup (26) | n (3) | L1-L5 (5 ea) | L6 (5, always dash) | Sac/HipL/HipR (5 ea) | JxnDSC (7)
+    """
+    def _f(v):
+        return f"{v:>5.3f}" if v is not None and v == v else f"{'—':>5}"
+
+    lines = [
+        "",
+        "=" * 104,
+        "  TABLE 5  —  TotalSegmentator Zero-Shot Benchmark (per-vertebra Dice)",
+        "=" * 104,
+    ]
+    header = (
+        f"\n  {'Subgroup':<26}  {'n':>3}  "
+        f"{'L1':>5}  {'L2':>5}  {'L3':>5}  {'L4':>5}  {'L5':>5}  "
+        f"{'L6':>5}  {'Sac':>5}  {'HipL':>5}  {'HipR':>5}  {'JxnDSC':>7}"
+    )
     lines.append(header)
     lines.append("  " + "-" * 100)
-    for key in ["all","fused_only","spine_only","pelvic_native","normal","any_lstv","sacralization","lumbarization"]:
+
+    for key in ["all", "fused_only", "spine_only", "pelvic_native",
+                "normal", "any_lstv", "sacralization", "lumbarization"]:
         sg = summary["subgroups"].get(key)
         if not sg or sg.get("n", 0) == 0:
             continue
         cls = sg.get("classes", {})
         jxn = sg.get("junction", {})
+
+        # Build the row piece-by-piece with consistent widths so columns
+        # align regardless of which values are "—". Previous version had
+        # a no-op str.replace() trying to normalize spacing that did
+        # nothing; this version uses format specifiers directly.
+        lumbar_cells = "  ".join(
+            _f(cls.get(n, {}).get("dice_mean"))
+            for n in ("L1", "L2", "L3", "L4", "L5")
+        )
+        pelvic_cells = "  ".join(
+            _f(cls.get(n, {}).get("dice_mean"))
+            for n in ("sacrum", "hip_left", "hip_right")
+        )
+        l6_cell  = f"{'—':>5}"  # TS has no L6 by construction
+        jxn_cell = f"{_f(jxn.get('mean_junction_dsc')):>7}"
+
         lines.append(
             f"  {sg['label']:<26}  {sg['n']:>3}  "
-            + "  ".join(_f(cls.get(n, {}).get("dice_mean"))
-                         for n in ("L1","L2","L3","L4","L5")).replace("  ", "  ", 10)
-            + f"  {'  —  ':>5}  "
-            + "  ".join(_f(cls.get(n, {}).get("dice_mean"))
-                         for n in ("sacrum","hip_left","hip_right"))
-            + f"  {_f(jxn.get('mean_junction_dsc')):>7}"
+            f"{lumbar_cells}  {l6_cell}  {pelvic_cells}  {jxn_cell}"
         )
     lines.append("")
     lines.append("  † L6 column = '—': TS has no L6 label.")

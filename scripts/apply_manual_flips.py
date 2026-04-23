@@ -114,6 +114,11 @@ def _flip_world_y_resample(
     Using a COMMON external mirror plane (not np.flip's per-volume
     self-center) preserves mask-on-CT alignment when CT and masks have
     different Y translations in their affines.
+
+    PERF NOTE: the XY-plane contribution to world coordinates is identical
+    for every Z slice — only the aff[*,2]*k + aff[*,3] offset changes
+    across slices. We hoist the meshgrid and the XY contributions out of
+    the per-slice loop, roughly halving the per-volume work.
     """
     import nibabel as nib
     from scipy.ndimage import map_coordinates
@@ -136,22 +141,45 @@ def _flip_world_y_resample(
         cval  = 0 if is_label_map else -1024.0
         src_data = data if is_label_map else data.astype(np.float32)
 
+        # ── Hoisted (slice-invariant) terms ────────────────────────────
+        # Per-voxel in-plane world contributions: depend only on (i, j),
+        # not on k. We compute them once here instead of shape[2] times
+        # in the old per-slice loop.
+        ii, jj = np.meshgrid(
+            np.arange(shape[0], dtype=np.float32),
+            np.arange(shape[1], dtype=np.float32),
+            indexing="ij",
+        )
+        wx_xy = aff[0, 0] * ii + aff[0, 1] * jj + aff[0, 3]  # add aff[0,2]*k + aff[0,3] per-k
+        wy_xy = aff[1, 0] * ii + aff[1, 1] * jj + aff[1, 3]
+        wz_xy = aff[2, 0] * ii + aff[2, 1] * jj + aff[2, 3]
+
+        # Note: the two "+ aff[.,3]" terms above fold in the translation
+        # once; the per-slice update below adds only "aff[.,2]*k" (the
+        # z-column contribution, sans translation), so we subtract the
+        # translation back out to keep arithmetic identical to the
+        # original formulation.
+        wx_xy -= aff[0, 3]
+        wy_xy -= aff[1, 3]
+        wz_xy -= aff[2, 3]
+
+        # Inverse-affine coefficients are also slice-invariant.
+        ia = inv_aff  # shorthand
+
         output = np.empty_like(data)
         for k in range(shape[2]):
-            ii, jj = np.meshgrid(
-                np.arange(shape[0], dtype=np.float32),
-                np.arange(shape[1], dtype=np.float32),
-                indexing="ij",
-            )
-            wx = aff[0, 0]*ii + aff[0, 1]*jj + aff[0, 2]*k + aff[0, 3]
-            wy = aff[1, 0]*ii + aff[1, 1]*jj + aff[1, 2]*k + aff[1, 3]
-            wz = aff[2, 0]*ii + aff[2, 1]*jj + aff[2, 2]*k + aff[2, 3]
+            # World coordinates for this slice: XY contribution + Z column + translation.
+            wx = wx_xy + aff[0, 2] * k + aff[0, 3]
+            wy = wy_xy + aff[1, 2] * k + aff[1, 3]
+            wz = wz_xy + aff[2, 2] * k + aff[2, 3]
 
+            # Reflect across the mirror plane in world-Y.
             wy_src = (2.0 * mirror_plane_y) - wy
 
-            si = inv_aff[0, 0]*wx + inv_aff[0, 1]*wy_src + inv_aff[0, 2]*wz + inv_aff[0, 3]
-            sj = inv_aff[1, 0]*wx + inv_aff[1, 1]*wy_src + inv_aff[1, 2]*wz + inv_aff[1, 3]
-            sk = inv_aff[2, 0]*wx + inv_aff[2, 1]*wy_src + inv_aff[2, 2]*wz + inv_aff[2, 3]
+            # Map back to voxel coordinates via the inverse affine.
+            si = ia[0, 0]*wx + ia[0, 1]*wy_src + ia[0, 2]*wz + ia[0, 3]
+            sj = ia[1, 0]*wx + ia[1, 1]*wy_src + ia[1, 2]*wz + ia[1, 3]
+            sk = ia[2, 0]*wx + ia[2, 1]*wy_src + ia[2, 2]*wz + ia[2, 3]
 
             coords = np.stack([si, sj, sk], axis=0)
             slice_out = map_coordinates(

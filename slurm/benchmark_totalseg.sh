@@ -28,14 +28,22 @@ SIF_PATH="${SIF_PATH:-${PROJECT_ROOT}/containers/ctspinopelvic1k-ts.sif}"
 OUT_DIR="${OUT_DIR:-${PROJECT_ROOT}/results/totalseg_bench_${SLURM_JOB_ID:-local}}"
 TOTALSEG_WEIGHTS="${TOTALSEG_WEIGHTS:-${HOME}/totalseg_weights}"
 
-mkdir -p logs "${OUT_DIR}" "${TOTALSEG_WEIGHTS}"
 
-# Singularity runtime dirs
+# ── Singularity runtime dirs ─────────────────────────────────────────────────
 export SINGULARITY_TMPDIR="/tmp/${USER}_job_${SLURM_JOB_ID:-$$}"
 export XDG_RUNTIME_DIR="${SINGULARITY_TMPDIR}/runtime"
-export TOTALSEG_WEIGHTS_PATH="${TOTALSEG_WEIGHTS}"
 mkdir -p "${SINGULARITY_TMPDIR}" "${XDG_RUNTIME_DIR}"
+export NXF_SINGULARITY_CACHEDIR="${HOME}/singularity_cache"
+mkdir -p "${SINGULARITY_TMPDIR}" "${XDG_RUNTIME_DIR}" "${NXF_SINGULARITY_CACHEDIR}"
 trap 'rm -rf "${SINGULARITY_TMPDIR}"' EXIT
+export CONDA_PREFIX="${HOME}/mambaforge/envs/nextflow"
+export PATH="${CONDA_PREFIX}/bin:${PATH}"
+unset JAVA_HOME; which singularity
+export NXF_SINGULARITY_HOME_MOUNT=true
+unset LD_LIBRARY_PATH PYTHONPATH R_LIBS R_LIBS_USER R_LIBS_SITE
+
+export TOTALSEG_WEIGHTS_PATH="${TOTALSEG_WEIGHTS}"
+mkdir -p logs "${OUT_DIR}" "${TOTALSEG_WEIGHTS}"
 
 # Scrub host LD_LIBRARY_PATH etc. so the container's libs win
 unset JAVA_HOME LD_LIBRARY_PATH PYTHONPATH R_LIBS R_LIBS_USER R_LIBS_SITE
