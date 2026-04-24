@@ -32,6 +32,13 @@ QC figures are sliced and displayed assuming PIR, so rows correspond to:
   Row 2 "Axial"     fix axis 1, show (P, R)  -- anterior at top, spine at bottom
   Row 3 "Sagittal"  fix axis 2, show (P, I)  -- transposed for head-up
 
+Manifest path convention: ct_file / label_file / qc_file are stored as
+relative paths that INCLUDE the subdirectory prefix (e.g. 'ct/0017_supine_ct.nii.gz'),
+so that `dataset_root / ct_file` resolves to the right file under both the
+local nested layout and the nested layout produced by HF upload_large_folder.
+Forward slashes are used unconditionally so the manifest is portable
+across OSes.
+
 Usage (matches slurm/export_dataset.sh):
     python export_hf.py \\
         --manifest   data/placed/placed_manifest.json \\
@@ -129,6 +136,16 @@ def _to_optional_float(v):
         return None
 
 
+def _posix_rel(*parts: str) -> str:
+    """Join path parts with '/' always, regardless of OS.
+
+    Used for building manifest-relative paths like 'ct/foo.nii.gz'.
+    Pathlib's Path would emit '\\' on Windows, which breaks portable
+    manifest consumers.
+    """
+    return "/".join(p.strip("/\\") for p in parts if p)
+
+
 # -- NIfTI helpers ------------------------------------------------------------
 
 def _load_nii(path):
@@ -139,10 +156,9 @@ def _load_nii(path):
 def _validate_affine(affine, label: str = "") -> None:
     """
     Raise ValueError early if the affine is degenerate before nibabel's
-    io_orientation crashes. Catches NaN/Inf columns and zero-norm columns
+    io_orientation crashes.  Catches NaN/Inf columns and zero-norm columns
     from degenerate dcm2niix outputs (localizer/scout series with missing
-    geometry tags) -- same class of inputs that broke place_fused_masks.py
-    before _valid_affine() was added there.
+    geometry tags).
     """
     tag = f"[{label}] " if label else ""
     if affine is None or getattr(affine, "shape", None) != (4, 4):
@@ -162,10 +178,8 @@ def _validate_shape(shape, label: str = "",
                     min_axis: int = MIN_VALID_SHAPE) -> None:
     """
     Raise ValueError if the spatial shape is degenerate for segmentation
-    work (scout / localizer / 2-slice derivative). Mirrors the
-    _valid_volume_shape filter in place_fused_masks.py so the same class
-    of bad inputs gets rejected at both stages with a readable reason
-    instead of an IndexError deep in the stack.
+    work (scout / localizer / 2-slice derivative).  Mirrors the
+    _valid_volume_shape filter in place_fused_masks.py.
     """
     tag = f"[{label}] " if label else ""
     try:
@@ -268,15 +282,6 @@ def _center_slice(ct, lbl):
 def make_qc_figure(ct, lbl, out_path, token, config, lstv, position):
     """
     Render a 3-row QC figure assuming PIR storage order.
-
-    Rows correspond to PIR axes:
-      row 0: dim=0 (P axis fixed) -> coronal view
-      row 1: dim=1 (I axis fixed) -> axial view
-      row 2: dim=2 (R axis fixed) -> sagittal view (requires transpose)
-
-    Each slice is routed through _display_slice() so that superior is
-    at the top of coronal and sagittal views, and anterior is at the top
-    of axial (spine at bottom, matching TotalSegmentator convention).
     """
     try:
         import matplotlib
@@ -302,7 +307,6 @@ def make_qc_figure(ct, lbl, out_path, token, config, lstv, position):
         layout = "single"
 
     i, j, k = _center_slice(ct, lbl)
-    # PIR dims: 0 = coronal plane (fix P), 1 = axial (fix I), 2 = sagittal (fix R)
     planes = [(0, i, "Coronal"), (1, j, "Axial"), (2, k, "Sagittal")]
 
     fig, axes = plt.subplots(3, len(cols),
@@ -319,7 +323,6 @@ def make_qc_figure(ct, lbl, out_path, token, config, lstv, position):
         sl[dim] = idx
         sl = tuple(sl)
 
-        # Apply PIR-aware display orientation to every slice we render.
         bg       = _display_slice(_window(ct[sl]),    dim)
         sp_slice = _display_slice(sp_lbl[sl],         dim)
         pv_slice = _display_slice(pv_lbl[sl],         dim)
@@ -374,11 +377,20 @@ def _export_one(args: dict) -> dict:
     lstv        = args.get("lstv", "unknown")
     match_type  = args.get("match_type", "unknown")
 
+    # Manifest-relative paths INCLUDING subdirectory.  Resolving them via
+    # `dataset_root / ct_file` is what every downstream consumer does
+    # (dataset_interface.Case.ct_path, data_splits.json, HF hf_hub_download),
+    # so recording the basename alone broke every one of them when the
+    # files actually live under ct/ and labels/.  Forward slashes only.
+    rel_ct_file  = _posix_rel("ct",     out_ct.name)
+    rel_lbl_file = _posix_rel("labels", out_lbl.name)
+    rel_qc_file  = _posix_rel("qc",     out_qc.name)
+
     result = dict(
         token=token, position=position, config=config,
         match_type=match_type, lstv_label=lstv, ok=False, error=None,
         alignment_ok=False, has_l6=False, n_lumbar_labels=0,
-        ct_file=out_ct.name, label_file=out_lbl.name, qc_file=out_qc.name,
+        ct_file=rel_ct_file, label_file=rel_lbl_file, qc_file=rel_qc_file,
         # LSTV fields -- passed through from placed_manifest.json
         lstv_pelvic=args.get("lstv_pelvic", ""),
         lstv_vertebral=args.get("lstv_vertebral", ""),
@@ -469,11 +481,6 @@ def build_work(manifest_path: Path, nifti_dir: Path,
                spine_dir: Path, pelvic_dir: Path) -> List[dict]:
     """
     Build per-case export work from placed_manifest.json.
-
-    placed_manifest.json is the single source of truth. It carries LSTV fields
-    (lstv_pelvic, lstv_vertebral, lstv_agreement, lstv_confusion_zone) and
-    placement provenance (series_uid, bone_pct) written by place_fused_masks.py
-    -- no secondary manifest file needed.
     """
     data  = json.loads(manifest_path.read_text())
     cases = data.get("cases", [])
@@ -494,9 +501,6 @@ def build_work(manifest_path: Path, nifti_dir: Path,
         lstv_confusion    = c.get("lstv_confusion_zone", False)
 
         # Resolve a single lstv label string for filename / QC figure.
-        # Prefer lstv_class (already merged/resolved by place_fused_masks.py),
-        # fall back to the raw strings if class==0 in case vertebral detection
-        # caught something pelvic annotation missed.
         _cls_map = {0: "normal", 1: "LUMBARIZATION", 2: "SEMI_SACRALIZATION",
                     3: "SACRALIZATION", 4: "SACRALIZATION"}
         _cls = int(c.get("lstv_class", 0) or 0)
@@ -507,7 +511,6 @@ def build_work(manifest_path: Path, nifti_dir: Path,
             _lv = lstv_vertebral if lstv_vertebral.lower() not in ("unknown", "", "normal") else ""
             lstv = _lp or _lv or "normal"
         if not lstv:
-            # Fallback: derive from filename for legacy placed_manifest.json
             mask_file = pv.get("mask_file") or pv.get("placed") or ""
             fname = Path(mask_file).name.lower()
             if   "sacrali"  in fname: lstv = "sacralization"
@@ -515,14 +518,11 @@ def build_work(manifest_path: Path, nifti_dir: Path,
             elif "semi"     in fname: lstv = "semi"
             else:                     lstv = "normal"
 
-        # Integer class for the manifest (passed through separately from the string)
         _lmap = {"lumbarization": 1, "semi": 2, "semi-sacralization": 2,
                  "sacralization": 3, "hard": 4}
         lstv_class = _lmap.get(lstv.lower(), 0)
 
         # Provenance: series UIDs + bone_pct from placed_manifest.json.
-        # Key-name variants covered for backward compat with older
-        # place_fused_masks.py outputs (top-level vs nested).
         spine_uid  = _first_not_none(sp.get("series_uid"),
                                      c.get("spine_series_uid"))
         pelvic_uid = _first_not_none(pv.get("series_uid"),
@@ -568,7 +568,6 @@ def build_work(manifest_path: Path, nifti_dir: Path,
         tok_int = int(tok) if tok.isdigit() else abs(hash(tok)) % 10000
         base    = f"{tok_int:04d}_{pos}"
 
-        # Shared kwargs passed to every work item derived from this case
         lstv_kwargs = dict(
             lstv=lstv,
             lstv_pelvic=lstv_pelvic,
@@ -629,27 +628,11 @@ def write_splits(records: List[dict], out_dir: Path, seed: int = 42) -> None:
     """
     Write stratified train/val/test splits.
 
-    Six strata -- fused and non-fused kept separate within each LSTV subtype
-    so that fused LSTV cases (full 10-class GT) are guaranteed in val and test:
-
-      lumbarization_fused      70/15/15 -- guarantees fused lumbarization in val+test
-      lumbarization_separate   70/15/15
-      sacralization_fused      70/15/15 -- guarantees fused sacralization in val+test
-      sacralization_separate   70/15/15
-      fused_normal             70/15/15
-      nonfused_normal          70/15/15
-
-    Tiny-stratum handling:
-      n >= 3  ->  at least 1 in val, 1 in test, rest in train
-      n == 2  ->  1 train / 1 val / 0 test
-      n == 1  ->  all train
-
     Outputs:
       manifest_{train,validation,test}.json   per-record splits (legacy)
       data_splits.json                         {"train":[...], "val":[...], "test":[...]}
-                                               of ct_file basenames (legacy)
+                                               of ct_file relative paths
       splits/test.json                         flat list of unique test tokens
-                                               (dataset_interface.py preferred path)
       splits_summary.json                      aggregate split stats
     """
     import random
@@ -743,7 +726,6 @@ def write_splits(records: List[dict], out_dir: Path, seed: int = 42) -> None:
     (splits_dir / "test.json").write_text(json.dumps(test_tokens, indent=2))
     log.info("  splits/test.json written (%d unique tokens)", len(test_tokens))
 
-    # splits_summary.json -- at-a-glance aggregate stats
     summary = {
         "seed": seed,
         "n_records": {
@@ -769,11 +751,9 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
     Write manifest.json and manifest.csv.
 
     HF Arrow/Parquet compatibility:
-    - 'ok' and 'error' stripped (bool-always-True and null-always-None break Parquet)
-    - None -> "" for string fields; None lstv_agreement -> "" (HF can't cast mixed null/bool)
-    - None left as null for optional numeric fields (spine/pelvic_bone_pct) --
-      Parquet handles nullable float columns natively, so stringifying would
-      force a mixed str/float column.
+    - 'ok' and 'error' stripped
+    - None -> "" for string fields
+    - None left as null for optional numeric fields (spine/pelvic_bone_pct)
     """
     _drop = {"ok", "error"}
     ok: List[dict] = []
@@ -811,6 +791,17 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
              n_sp_uid, len(ok), n_pv_uid, len(ok),
              n_sp_pct, len(ok), n_pv_pct, len(ok))
 
+    # Sanity: every ct_file / label_file should be a relative path
+    # including its subdirectory prefix.  If any come back as a bare
+    # basename, something in _export_one regressed -- log loudly so the
+    # manifest never silently ships broken paths.
+    n_bad_ct = sum(1 for r in ok if "/" not in str(r.get("ct_file", "")))
+    n_bad_lb = sum(1 for r in ok if "/" not in str(r.get("label_file", "")))
+    if n_bad_ct or n_bad_lb:
+        log.error("MANIFEST PATH BUG: %d records have bare-basename ct_file, "
+                  "%d have bare-basename label_file. These will not resolve "
+                  "under the nested dataset layout.", n_bad_ct, n_bad_lb)
+
     keys = [
         "token", "position", "config", "match_type",
         "lstv_label", "lstv_class",
@@ -843,7 +834,6 @@ def push_to_hub(
     HuggingFace using upload_large_folder.
 
     qc/ PNGs are excluded (large, derivative, regenerable).
-    Authenticates via HF_TOKEN bearer auth -- no git credentials embedded.
     """
     try:
         from huggingface_hub import HfApi, create_repo
@@ -861,7 +851,6 @@ def push_to_hub(
     create_repo(repo_id=repo_id, repo_type=HF_REPO_TYPE,
                 private=private, exist_ok=True, token=token)
 
-    # Auto-detect interface script and README if staged next to or above this file
     if interface_script is None:
         for cand in [Path(__file__).parent / "dataset_interface.py",
                      Path(__file__).parent.parent / "dataset_interface.py"]:
@@ -914,19 +903,16 @@ def push_to_hub(
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
              formatter_class=argparse.RawDescriptionHelpFormatter)
-    # Required I/O
     ap.add_argument("--manifest",    required=True,  type=Path)
     ap.add_argument("--nifti_dir",   required=True,  type=Path)
     ap.add_argument("--spine_dir",   required=True,  type=Path)
     ap.add_argument("--pelvic_dir",  required=True,  type=Path)
     ap.add_argument("--out_dir",     required=True,  type=Path)
-    # Export behaviour
     ap.add_argument("--workers",     default=8,      type=int)
     ap.add_argument("--skip_qc",     action="store_true")
     ap.add_argument("--no_pir",      action="store_true")
     ap.add_argument("--debug_n",     default=0,      type=int)
     ap.add_argument("--skip_export", action="store_true")
-    # HuggingFace push
     ap.add_argument("--push_to_hub", action="store_true")
     ap.add_argument("--hf_repo_id",  default=HF_REPO_ID)
     ap.add_argument("--hf_token",    default=None)
@@ -936,7 +922,6 @@ def main():
     ap.add_argument("--readme_path",      default=None, type=Path)
     args = ap.parse_args()
 
-    # -- Export ---------------------------------------------------------------
     if not args.skip_export:
         for d in [args.out_dir/"ct", args.out_dir/"labels", args.out_dir/"qc"]:
             d.mkdir(parents=True, exist_ok=True)
@@ -990,7 +975,6 @@ def main():
     else:
         log.info("--skip_export: skipping export phase.")
 
-    # -- Push -----------------------------------------------------------------
     if args.push_to_hub:
         push_to_hub(
             out_dir=args.out_dir, repo_id=args.hf_repo_id,

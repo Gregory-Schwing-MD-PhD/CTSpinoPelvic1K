@@ -20,9 +20,16 @@ Expected layout (produced by scripts/export_hf.py):
       test.json                   flat list of unique test patient tokens
       cv_5fold.json               5-fold CV on trainval pool
     data_splits.json              earliest format: {"train": [...], "val":
-                                  [...], "test": [...]} of ct_file basenames
+                                  [...], "test": [...]} of ct_file entries
                                   (last-resort fallback)
     splits_summary.json           aggregate split stats (optional)
+
+Manifest ct_file / label_file paths can be either a relative path
+("ct/0017_supine_ct.nii.gz") or a bare basename ("0017_supine_ct.nii.gz").
+The path resolver tries the value verbatim first and falls back to
+`root/ct/{basename}` (or `root/labels/{basename}`) if the primary misses.
+This keeps the class tolerant of manifests that predate the path-prefix
+fix in export_hf.py.
 
 Splits resolution order (first hit wins):
   1. splits_5fold.json                 (unified, schema v3 from
@@ -46,7 +53,6 @@ Quickstart (training):
   >>> ds_te = CTSpinoPelvicDataset("data/hf_export", split="test")
 
 Quickstart (annotation-aware filtering, placed_manifest schema v2.1+):
-  >>> # Cases with optional spinous-process annotations added in a future pass
   >>> sp = ds.filter(has_annotation="spinous", present_only=True)
 """
 from __future__ import annotations
@@ -189,6 +195,38 @@ def _coerce_annotations(v):
     return {"core": True}
 
 
+def _resolve_file(root: Path, rel: str, canonical_subdir: str) -> Path:
+    """Resolve a manifest-declared file path against the dataset root.
+
+    Handles two manifest generations uniformly:
+
+      * New exports (export_hf.py with the subdir-prefix fix) store
+        ct_file='ct/XXXX_ct.nii.gz'.  `root / rel` already points to the
+        right file; the fallback branch is a no-op.
+
+      * Old exports stored just the basename ct_file='XXXX_ct.nii.gz',
+        but the files actually live at root/ct/XXXX_ct.nii.gz.  The
+        fallback catches that and returns the canonical location.
+
+    Guardrails:
+      * Empty `rel` returns `root` unchanged (caller will see missing file).
+      * If `rel` contains any path separator, assume the manifest author
+        meant it — don't second-guess with the fallback.
+      * If the fallback location doesn't exist either, return the primary
+        path so `exists()` downstream produces a meaningful 'missing file'
+        error pointing at the manifest's declared location.
+    """
+    if not rel:
+        return root
+    primary = root / rel
+    if primary.exists():
+        return primary
+    if "/" in rel or "\\" in rel:
+        return primary
+    fallback = root / canonical_subdir / rel
+    return fallback if fallback.exists() else primary
+
+
 # ── Main dataset class ───────────────────────────────────────────────────────
 
 class CTSpinoPelvic1K:
@@ -216,8 +254,9 @@ class CTSpinoPelvic1K:
         separately via self.cv and self.fold()).
 
         `ctfile_to_split` is the fallback for legacy data_splits.json,
-        mapping ct_file basenames to "train"/"val"/"test".  Consulted only
-        when neither splits_5fold.json nor splits/test.json exist.
+        mapping ct_file entries to "train"/"val"/"test".  Both the full
+        relative path and the basename are registered so lookup works
+        regardless of which form the manifest uses for ct_file.
 
         `cv_doc` is the unified splits document (schema v3) when read from
         splits_5fold.json, OR the legacy splits/cv_5fold.json content.
@@ -228,19 +267,12 @@ class CTSpinoPelvic1K:
         cv_doc:          Optional[Dict] = None
 
         # ── Source 1 (preferred): splits_5fold.json ────────────────────
-        # generate_5fold_splits.py writes a single document with both the
-        # test holdout and the 5-fold CV structure, which is strictly more
-        # informative than the legacy split files and easier to keep
-        # consistent.
         unified_path = self.root / "splits_5fold.json"
         if unified_path.exists():
             try:
                 doc = json.loads(unified_path.read_text())
                 schema = int(doc.get("schema_version", 0) or 0)
                 if schema < 3:
-                    # Too old to trust the unified shape; fall through to
-                    # legacy sources.  A loud warning so the user knows to
-                    # regenerate.
                     import warnings as _w
                     _w.warn(
                         f"{unified_path} has schema_version={schema}; "
@@ -255,11 +287,8 @@ class CTSpinoPelvic1K:
                     )
                     for tok in doc.get("test_tokens", []) or []:
                         token_to_split[str(tok)] = "test"
-                    # Expose the folds structure in the shape self.cv and
-                    # self.fold() already speak.
                     if "folds" in doc:
                         cv_doc = {"folds": doc["folds"]}
-                    # Done — unified wins, no need to consult legacy files.
                     return token_to_split, ctfile_to_split, cv_doc
             except (OSError, ValueError, TypeError) as e:
                 import warnings as _w
@@ -292,7 +321,14 @@ class CTSpinoPelvic1K:
                 ds_splits = json.loads(data_splits_path.read_text())
                 for side in ("test", "val", "train"):
                     for ctfile in ds_splits.get(side, []) or []:
-                        ctfile_to_split[str(ctfile)] = side
+                        # Register both the full entry and its basename so
+                        # lookup works whether the manifest records
+                        # ct_file as 'ct/X.nii.gz' or just 'X.nii.gz'.
+                        s = str(ctfile)
+                        ctfile_to_split[s] = side
+                        bn = Path(s).name
+                        if bn and bn != s:
+                            ctfile_to_split[bn] = side
             except (OSError, ValueError):
                 pass
 
@@ -306,9 +342,6 @@ class CTSpinoPelvic1K:
                 "Re-run scripts/export_hf.py.")
         manifest = json.loads(manifest_path.read_text())
 
-        # manifest.json is written by export_hf.py as a flat list of records.
-        # Older/alternative exports may wrap it as {"records": [...]}.
-        # Accept both shapes.
         if isinstance(manifest, list):
             raw_records = manifest
         elif isinstance(manifest, dict):
@@ -318,9 +351,6 @@ class CTSpinoPelvic1K:
                 f"manifest.json has unexpected type {type(manifest).__name__}; "
                 "expected list or dict.")
 
-        # ── Split assignment ────────────────────────────────────────────
-        # Resolve splits from (in order): splits_5fold.json, legacy
-        # splits/test.json + splits/cv_5fold.json, then data_splits.json.
         token_to_split, ctfile_to_split, self.cv = self._resolve_splits()
 
         self.cases: List[Case] = []
@@ -328,11 +358,8 @@ class CTSpinoPelvic1K:
             token    = str(r.get("token", ""))
             cfg      = str(r.get("config", ""))
             ct_file  = r.get("ct_file", "") or ""
+            lbl_file = r.get("label_file", "") or ""
 
-            # Resolution order: explicit record 'split' -> splits_5fold.json /
-            # splits/test.json -> data_splits.json (by ct_file) -> "trainval".
-            # "train"/"val" from data_splits.json are both normalised to
-            # "trainval" since per-record train/val is a CV-fold concern.
             split = r.get("split")
             if not split:
                 split = token_to_split.get(token)
@@ -350,8 +377,8 @@ class CTSpinoPelvic1K:
                 token               = token,
                 config              = cfg,
                 match_type          = r.get("match_type", "") or "",
-                ct_path             = self.root / ct_file,
-                label_path          = self.root / (r.get("label_file", "") or ""),
+                ct_path             = _resolve_file(self.root, ct_file,  "ct"),
+                label_path          = _resolve_file(self.root, lbl_file, "labels"),
                 split               = split,
                 lstv_label          = r.get("lstv_label", "") or "",
                 lstv_pelvic         = r.get("lstv_pelvic", "") or "",
@@ -389,9 +416,9 @@ class CTSpinoPelvic1K:
             cache_dir = str(Path(os.path.expanduser(cache_dir))) if cache_dir else None,
             allow_patterns = [
                 "manifest.json",
-                "splits_5fold.json",   # unified splits (schema v3 preferred)
-                "splits/**",           # legacy splits/ directory
-                "data_splits.json",    # earliest-format fallback
+                "splits_5fold.json",
+                "splits/**",
+                "data_splits.json",
                 "splits_summary.json",
                 "README.md",
             ],
@@ -438,9 +465,6 @@ class CTSpinoPelvic1K:
         """Return (train_cases, val_cases) for fold i ∈ [0, n_folds).
 
         Raises RuntimeError if no CV splits are available in the dataset.
-        Each case appears via its patient token across ALL config records —
-        a patient with both spine_only + pelvic_native records will get both
-        records yielded together.
         """
         if self.cv is None:
             raise RuntimeError(
@@ -468,8 +492,7 @@ class CTSpinoPelvic1K:
 
         Returns (trainval_pool, [], test_set) — `train` is the full trainval
         pool and `val` is empty.  Callers that need real train/val should use
-        `fold(i)` instead; this method exists only so benchmarks that do
-        `_, _, test = ds.splits()` keep working.
+        `fold(i)` instead.
         """
         return self.trainval(), [], self.test_set()
 
@@ -496,7 +519,6 @@ class CTSpinoPelvic1K:
         n_sp_pct  = sum(1 for c in self.cases if c.spine_bone_pct  is not None)
         n_pv_pct  = sum(1 for c in self.cases if c.pelvic_bone_pct is not None)
 
-        # Annotations availability — counts per kind across the cohort.
         ann_keys = set()
         for c in self.cases:
             ann_keys.update(c.annotations.keys())
@@ -552,7 +574,6 @@ class CTSpinoPelvicDataset(Dataset):
         self.config = config
         self.transform = transform
 
-        # Resolve the case list
         if isinstance(split, tuple) and len(split) == 3 and split[0] == "fold":
             _, fold_i, side = split
             tr, va = self._ds.fold(int(fold_i))
@@ -566,7 +587,6 @@ class CTSpinoPelvicDataset(Dataset):
         else:
             raise ValueError(f"Unknown split spec: {split!r}")
 
-        # Apply config + existence filter
         if config:
             cases = [c for c in cases if c.config == config]
         self.cases: List[Case] = [c for c in cases if c.exists()]
