@@ -9,11 +9,41 @@ Reads placed_manifest.json (written by place_fused_masks.py) and for each case:
   4. Reorient CT + label to PIR canonical orientation
   5. Strip PHI from NIfTI headers
   6. Save to flat output:
-       ct/{token:04d}_{position}_ct.nii.gz
-       labels/{token:04d}_{position}_label.nii.gz
+       ct/{token:04d}_ct.nii.gz                       (fused)
+       ct/{token:04d}_spine_ct.nii.gz                 (spine-side crop, separate mode
+                                                       OR spine_only single-mask case)
+       ct/{token:04d}_pelvic_ct.nii.gz                (pelvic-side crop, separate mode
+                                                       OR pelvic_only single-mask case)
+       labels/{token:04d}_label.nii.gz                etc.
   7. Write manifest.json, manifest.csv, data_splits.json, splits/test.json,
      splits_summary.json
   8. Push to HuggingFace
+
+Filename schema (changed Apr 2026)
+----------------------------------
+The earlier convention baked `position` into every filename:
+    <token:04d>_<position>_[spine|pelvic]_ct.nii.gz
+That was misleading because `position` was almost always `unknown` (the
+prone/supine classifier in place_fused_masks.py rarely succeeds), and
+because `config` (fused / spine_only / pelvic_native) is what every
+downstream consumer actually filters on.
+
+The new convention is fully self-describing and position-free:
+    fused           ->  <token:04d>_ct.nii.gz
+    spine annotated ->  <token:04d>_spine_ct.nii.gz
+    pelvic annotated->  <token:04d>_pelvic_ct.nii.gz
+
+Bare `<token>_ct.nii.gz` therefore unambiguously means "fused" (both
+regions present in one mask). The `_spine` / `_pelvic` suffix is now
+applied uniformly to spine-side / pelvic-side files, regardless of
+whether the source case is `match_type="separate"` (paired but
+non-coregistered) or `match_type="spine_only" / "pelvic_only"` (only
+one side has annotation upstream). Earlier the spine_only / pelvic_only
+single-mask branches reused the bare `<token>` base, which collided
+visually with fused — now resolved.
+
+`position` still rides through `_export_one` and is persisted in the
+manifest as a metadata column. It is no longer in the filename.
 
 placed_manifest.json is the single source of truth. It now carries all LSTV
 fields directly (lstv_pelvic, lstv_vertebral, lstv_agreement, lstv_confusion_zone)
@@ -33,7 +63,7 @@ QC figures are sliced and displayed assuming PIR, so rows correspond to:
   Row 3 "Sagittal"  fix axis 2, show (P, I)  -- transposed for head-up
 
 Manifest path convention: ct_file / label_file / qc_file are stored as
-relative paths that INCLUDE the subdirectory prefix (e.g. 'ct/0017_supine_ct.nii.gz'),
+relative paths that INCLUDE the subdirectory prefix (e.g. 'ct/0017_ct.nii.gz'),
 so that `dataset_root / ct_file` resolves to the right file under both the
 local nested layout and the nested layout produced by HF upload_large_folder.
 Forward slashes are used unconditionally so the manifest is portable
@@ -481,6 +511,18 @@ def build_work(manifest_path: Path, nifti_dir: Path,
                spine_dir: Path, pelvic_dir: Path) -> List[dict]:
     """
     Build per-case export work from placed_manifest.json.
+
+    Filename schema (changed Apr 2026): `position` is no longer in the
+    filename. The crop suffix alone discriminates the three configs:
+
+      fused (whole region)            -> {token:04d}                base
+      separate spine-side crop        -> {token:04d}_spine
+      separate pelvic-side crop       -> {token:04d}_pelvic
+      spine_only single-mask case     -> {token:04d}_spine
+      pelvic_only single-mask case    -> {token:04d}_pelvic
+
+    `position` still rides through `_export_one` and is persisted in the
+    manifest as metadata.
     """
     data  = json.loads(manifest_path.read_text())
     cases = data.get("cases", [])
@@ -556,7 +598,8 @@ def build_work(manifest_path: Path, nifti_dir: Path,
         spine_ct  = nifti_dir / f"{spine_uid}.nii.gz"  if spine_uid  else None
         pelvic_ct = nifti_dir / f"{pelvic_uid}.nii.gz" if pelvic_uid else None
 
-        # Position resolution order:
+        # Position resolution order (still used as manifest metadata, just
+        # not as a filename component anymore):
         #   1. case-level c["position"]       (place_fused_masks.py >= v2.0)
         #   2. sp["position"] / pv["position"] (per-mask, also v2.0+)
         #   3. filename substring             (legacy placed_manifest.json)
@@ -566,7 +609,9 @@ def build_work(manifest_path: Path, nifti_dir: Path,
             pos   = "prone" if "prone" in fname else "supine" if "supine" in fname else "unknown"
 
         tok_int = int(tok) if tok.isdigit() else abs(hash(tok)) % 10000
-        base    = f"{tok_int:04d}_{pos}"
+
+        # New base: token only, no position.
+        token_base = f"{tok_int:04d}"
 
         lstv_kwargs = dict(
             lstv=lstv,
@@ -589,34 +634,38 @@ def build_work(manifest_path: Path, nifti_dir: Path,
                     token=tok, position=pos, config="fused", match_type=mt,
                     ct_path=str(spine_ct), spine_path=str(spine_placed),
                     pelvic_path=str(pelvic_placed) if pelvic_placed and pelvic_placed.exists() else None,
-                    fname_base=base, **lstv_kwargs, **prov_kwargs,
+                    fname_base=token_base, **lstv_kwargs, **prov_kwargs,
                 ))
         elif mt == "separate":
             if spine_placed and spine_placed.exists() and spine_ct and spine_ct.exists():
                 work.append(dict(
                     token=tok, position=pos, config="spine_only", match_type=mt,
                     ct_path=str(spine_ct), spine_path=str(spine_placed), pelvic_path=None,
-                    fname_base=f"{base}_spine", **lstv_kwargs, **prov_kwargs,
+                    fname_base=f"{token_base}_spine", **lstv_kwargs, **prov_kwargs,
                 ))
             if pelvic_placed and pelvic_placed.exists() and pelvic_ct and pelvic_ct.exists():
                 work.append(dict(
                     token=tok, position=pos, config="pelvic_native", match_type=mt,
                     ct_path=str(pelvic_ct), spine_path=None, pelvic_path=str(pelvic_placed),
-                    fname_base=f"{base}_pelvic", **lstv_kwargs, **prov_kwargs,
+                    fname_base=f"{token_base}_pelvic", **lstv_kwargs, **prov_kwargs,
                 ))
         elif mt == "spine_only":
+            # Single-mask case (no pelvic counterpart upstream). Now gets the
+            # _spine suffix so its filename is unambiguous from a fused case.
             if spine_placed and spine_placed.exists() and spine_ct and spine_ct.exists():
                 work.append(dict(
                     token=tok, position=pos, config="spine_only", match_type=mt,
                     ct_path=str(spine_ct), spine_path=str(spine_placed), pelvic_path=None,
-                    fname_base=base, **lstv_kwargs, **prov_kwargs,
+                    fname_base=f"{token_base}_spine", **lstv_kwargs, **prov_kwargs,
                 ))
         elif mt == "pelvic_only":
+            # Single-mask case (no spine counterpart upstream). Now gets the
+            # _pelvic suffix so its filename is unambiguous from a fused case.
             if pelvic_placed and pelvic_placed.exists() and pelvic_ct and pelvic_ct.exists():
                 work.append(dict(
                     token=tok, position=pos, config="pelvic_native", match_type=mt,
                     ct_path=str(pelvic_ct), spine_path=None, pelvic_path=str(pelvic_placed),
-                    fname_base=base, **lstv_kwargs, **prov_kwargs,
+                    fname_base=f"{token_base}_pelvic", **lstv_kwargs, **prov_kwargs,
                 ))
 
     return work

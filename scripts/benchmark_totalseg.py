@@ -11,11 +11,59 @@ Features:
 2. Per-vertebra columns in Table 5 (L1, L2, L3, L4, L5)
 3. Config-aware Dice scoring (only score classes the GT can have)
 4. Optional --config filter (all | fused | spine_only | pelvic_native)
-5. Optional --tokens subset for debugging
+5. Optional --tokens subset for sharding / debugging
 6. TS prediction cache key includes config
+7. kd-tree HD95 (50-100x faster than brute-force pairwise)
+8. ASSD + MSD surface metrics for surgical-planning relevance
+9. Streaming per-case JSONL log (resumable; no metric data loss on job timeout)
 
-NOTE: --fast mode is available but NOT the default.  For publication-quality
+Surface metrics (added Apr 2026)
+--------------------------------
+Three boundary-distance numbers, all computed from the same per-class
+surface-voxel point clouds via scipy cKDTree. Adding ASSD + MSD on top of
+HD95 is essentially free since they reuse the same trees + queries.
+
+  HD95  - 95th percentile of the union of nearest-neighbor distances.
+          Worst-case boundary error with 5% outlier tolerance. Sensitive
+          to spurious blobs of mislabeled voxels far from the true
+          surface. Reported in mm.
+
+  ASSD  - Average Symmetric Surface Distance. Mean of nearest-neighbor
+          distances symmetrically: from each pred-surface voxel to its
+          nearest GT-surface voxel, AND vice versa, then averaged
+          together. The headline metric for surgical-planning relevance:
+          ASSD < 1mm typically considered safe for screw-trajectory
+          planning of SI / iliosacral hardware, 1-2mm marginal,
+          >2mm unsafe.
+
+  MSD   - Mean Surface Distance, directional. Two values reported:
+            msd_pred_to_gt: average distance from predicted boundary to
+                            nearest GT boundary. High = pred has voxels
+                            far from any truth surface (over-segmentation
+                            into nearby tissue).
+            msd_gt_to_pred: average distance from GT boundary to nearest
+                            pred boundary. High = pred misses parts of
+                            the true surface (under-segmentation).
+          Diagnostic for asymmetric errors that ASSD averages away.
+
+NOTE: --fast mode is available but NOT the default. For publication-quality
 TotalSegmentator numbers, leave it off.
+
+Resumability
+------------
+Two layers of resumability:
+
+1. Predictions cached on disk under <pred_dir>/<token>_<config>/segmentation.nii.gz.
+   If a prediction file exists, TS inference is skipped on the next run.
+
+2. Per-case metric results are streamed to <out_dir>/per_case_partial.jsonl
+   immediately after each case completes (with fsync), so a wall-clock kill
+   only loses the in-flight case. On startup, this file is loaded and any
+   (token, config) pairs already present are skipped entirely (no re-Dice
+   computation).
+
+After all cases complete, the final aggregation pass produces
+benchmark_results.json + benchmark_summary.json + paper_tables.txt + CSV.
 """
 
 from __future__ import annotations
@@ -72,6 +120,14 @@ SCOREABLE_BY_CONFIG: Dict[str, List[int]] = {
     "pelvic_native": [7, 8, 9],
 }
 
+# Surface-distance fields persisted per case. Each is a {class_id: float|None}
+# dict matching the layout of the existing `dice` field.
+SURFACE_METRIC_FIELDS = ("hd95", "assd", "msd_pred_to_gt", "msd_gt_to_pred")
+
+
+# =============================================================================
+# Metrics
+# =============================================================================
 
 def dice(pred: np.ndarray, gt: np.ndarray, cls: int) -> float:
     p = pred == cls
@@ -84,25 +140,73 @@ def dice(pred: np.ndarray, gt: np.ndarray, cls: int) -> float:
     return float(2 * (p & g).sum() / denom)
 
 
-def hausdorff95(pred, gt, cls, vox_spacing=(1.0, 1.0, 1.0)) -> float:
+def _surface_points_mm(mask: np.ndarray,
+                        spacing: Tuple[float, float, float]) -> Optional[np.ndarray]:
+    """Return Nx3 surface-voxel coordinates in physical millimeters, or
+    None if the mask has no extractable surface."""
     from scipy.ndimage import binary_erosion
+    if not mask.any():
+        return None
+    surf = mask ^ binary_erosion(mask)
+    if not surf.any():
+        return None
+    sp = np.asarray(spacing, dtype=np.float32)
+    return np.argwhere(surf).astype(np.float32) * sp
+
+
+def surface_metrics(pred: np.ndarray, gt: np.ndarray, cls: int,
+                     vox_spacing: Tuple[float, float, float] = (1.0, 1.0, 1.0)
+                     ) -> Dict[str, float]:
+    """
+    Compute HD95, ASSD, and directional MSD between (pred==cls) and
+    (gt==cls), all in physical millimeter space.
+
+    Returns a dict with keys: hd95, assd, msd_pred_to_gt, msd_gt_to_pred.
+    Values are floats in mm, or NaN if either mask is empty / has no
+    extractable surface.
+
+    All four metrics share one pair of cKDTrees built from the per-mask
+    surface point clouds, so the cost is dominated by the tree
+    construction plus two batched nearest-neighbor queries, regardless
+    of how many metrics we ask for. Adding ASSD + MSD on top of HD95 is
+    essentially free.
+
+    Symmetric formulations:
+      HD95 = 95th percentile of the UNION of both directed distance sets.
+      ASSD = mean of the UNION of both directed distance sets.
+      MSD_X_to_Y = mean of distances from X-surface points to nearest
+                   Y-surface point (directional).
+    """
+    from scipy.spatial import cKDTree
+
+    nan_dict = {k: float("nan") for k in SURFACE_METRIC_FIELDS}
+
     p = (pred == cls).astype(bool)
     g = (gt   == cls).astype(bool)
-    if not p.any() or not g.any():
-        return float("nan")
-    p_surf = p ^ binary_erosion(p)
-    g_surf = g ^ binary_erosion(g)
-    p_pts = np.argwhere(p_surf).astype(np.float32) * np.array(vox_spacing)
-    g_pts = np.argwhere(g_surf).astype(np.float32) * np.array(vox_spacing)
+    p_pts = _surface_points_mm(p, vox_spacing)
+    g_pts = _surface_points_mm(g, vox_spacing)
+    if p_pts is None or g_pts is None:
+        return nan_dict
 
-    def _directed_hd95(src, tgt, chunk=2000):
-        dists = []
-        for i in range(0, len(src), chunk):
-            diff = src[i:i+chunk, None, :] - tgt[None, :, :]
-            dists.extend(np.sqrt((diff**2).sum(axis=2)).min(axis=1).tolist())
-        return np.percentile(dists, 95)
+    p_tree = cKDTree(p_pts)
+    g_tree = cKDTree(g_pts)
+    p_to_g, _ = g_tree.query(p_pts, k=1, workers=-1)
+    g_to_p, _ = p_tree.query(g_pts, k=1, workers=-1)
 
-    return float(max(_directed_hd95(p_pts, g_pts), _directed_hd95(g_pts, p_pts)))
+    union = np.concatenate([p_to_g, g_to_p])
+    return {
+        "hd95":            float(np.percentile(union, 95)),
+        "assd":            float(union.mean()),
+        "msd_pred_to_gt":  float(p_to_g.mean()),
+        "msd_gt_to_pred":  float(g_to_p.mean()),
+    }
+
+
+# Back-compat shim. Anything that imported hausdorff95 directly still works,
+# but internally now goes through the unified surface_metrics() path.
+def hausdorff95(pred: np.ndarray, gt: np.ndarray, cls: int,
+                 vox_spacing: Tuple[float, float, float] = (1.0, 1.0, 1.0)) -> float:
+    return surface_metrics(pred, gt, cls, vox_spacing)["hd95"]
 
 
 def junction_analysis(pred, gt, affine, window_mm=JUNCTION_WINDOW_MM) -> Dict:
@@ -167,6 +271,10 @@ def junction_analysis(pred, gt, affine, window_mm=JUNCTION_WINDOW_MM) -> Dict:
     }
 
 
+# =============================================================================
+# TotalSegmentator inference + label remapping
+# =============================================================================
+
 def run_totalseg(ct_path: Path, out_dir: Path, device="gpu",
                  fast=False, force=False) -> Optional[Path]:
     import nibabel as nib
@@ -226,9 +334,20 @@ def resample_and_remap(ts_path: Path, ref_path: Path) -> np.ndarray:
     return unified
 
 
+# =============================================================================
+# Per-case driver
+# =============================================================================
+
 def benchmark_one(token, ct_path, label_path, pred_dir, case_meta,
-                   device="gpu", fast=False, skip_hd95=False,
+                   device="gpu", fast=False, skip_surface=False,
                    force_ts=False, junction_window=JUNCTION_WINDOW_MM) -> Dict:
+    """
+    Run TS on this case, compute Dice + (optionally) HD95/ASSD/MSD
+    surface metrics + junction analysis, and return a single result
+    dict.
+
+    `skip_surface=True` skips ALL surface metrics (HD95, ASSD, MSD).
+    """
     import nibabel as nib
     config    = case_meta.get("config", "fused")
     scoreable = SCOREABLE_BY_CONFIG.get(config, FOREGROUND_CLASSES)
@@ -242,7 +361,9 @@ def benchmark_one(token, ct_path, label_path, pred_dir, case_meta,
         "lstv_confusion_zone": case_meta.get("lstv_confusion_zone"),
         "scoreable_classes": scoreable,
         "ok": False, "error": None,
-        "dice": {}, "hd95": {}, "junction": {},
+        "dice": {},
+        "hd95": {}, "assd": {}, "msd_pred_to_gt": {}, "msd_gt_to_pred": {},
+        "junction": {},
         "n_gt_classes": 0, "l6_gt_present": False, "l6_dice_meaningful": None,
     }
     try:
@@ -261,6 +382,9 @@ def benchmark_one(token, ct_path, label_path, pred_dir, case_meta,
         gt_classes = sorted({int(v) for v in np.unique(gt)} - {0})
         result["n_gt_classes"]  = len(gt_classes)
         result["l6_gt_present"] = bool(6 in gt_classes)
+
+        # Dice (incl. hips, classes 8 and 9 -- already in scoreable for
+        # fused + pelvic_native)
         for cls in FOREGROUND_CLASSES:
             if cls not in scoreable:
                 result["dice"][cls] = None
@@ -269,24 +393,38 @@ def benchmark_one(token, ct_path, label_path, pred_dir, case_meta,
             result["dice"][cls] = round(d, 4) if d == d else None
         if result["l6_gt_present"]:
             result["l6_dice_meaningful"] = 0.0
-        if not skip_hd95:
+
+        # Surface metrics: compute HD95 + ASSD + MSD all in one shot per
+        # class so we only build kd-trees once per (class, case). Fields
+        # `hd95`, `assd`, `msd_pred_to_gt`, `msd_gt_to_pred` are filled
+        # per scoreable TS-capable class.
+        if not skip_surface:
             for cls in TS_CAPABLE_CLASSES:
                 if cls not in scoreable:
-                    result["hd95"][cls] = None
+                    for f in SURFACE_METRIC_FIELDS:
+                        result[f][cls] = None
                     continue
-                h = hausdorff95(pred, gt, cls, vox_spacing=spacing)
-                result["hd95"][cls] = round(h, 4) if h == h else None
+                m = surface_metrics(pred, gt, cls, vox_spacing=spacing)
+                for f in SURFACE_METRIC_FIELDS:
+                    v = m[f]
+                    result[f][cls] = round(v, 4) if v == v else None
+
         if config == "fused":
             result["junction"] = junction_analysis(pred, gt, affine,
                                                     window_mm=junction_window)
         else:
             result["junction"] = {"error": f"junction_analysis_skipped_config_{config}"}
         result["ok"] = True
+
+        # Compact log line: Dice for spine + sacrum + both hips, plus
+        # the surgical-relevance number (sacrum ASSD).
         d_str = "  ".join(
             f"{CLASS_NAMES[c]}={(result['dice'].get(c) if result['dice'].get(c) is not None else float('nan')):.3f}"
-            for c in [1, 2, 3, 4, 5, 7])
-        log.info("  %-6s  cfg=%s  %s  lstv=%s",
-                 token, config, d_str, result["lstv_label"])
+            for c in [1, 2, 3, 4, 5, 7, 8, 9])
+        sacrum_assd = result["assd"].get(7) if not skip_surface else None
+        sac_str = f"sac_ASSD={sacrum_assd:.2f}mm" if sacrum_assd is not None else ""
+        log.info("  %-6s  cfg=%s  %s  %s  lstv=%s",
+                 token, config, d_str, sac_str, result["lstv_label"])
     except Exception:
         result["error"] = traceback.format_exc()
         log.error("  FAIL token=%s cfg=%s: %s", token, config,
@@ -294,7 +432,70 @@ def benchmark_one(token, ct_path, label_path, pred_dir, case_meta,
     return result
 
 
-# Aggregation helpers (simplified for brevity)
+# =============================================================================
+# Streaming JSONL log: load + append helpers
+# =============================================================================
+
+def load_completed_results(per_case_log: Path) -> Tuple[List[Dict], Set[str]]:
+    """
+    Read the streaming JSONL file from any prior run(s) and return:
+      - the list of result dicts (deduplicated; keeps the LATEST entry per
+        (token, config) so a re-run that recomputed metrics overwrites the
+        prior entry)
+      - a set of "{token}__{config}" keys we've already seen and don't need
+        to redo
+
+    Returns ([], set()) if the file doesn't exist.
+    """
+    if not per_case_log.exists():
+        return [], set()
+
+    by_key: Dict[str, Dict] = {}     # latest record per (token, config)
+    n_lines = n_bad = 0
+    with open(per_case_log, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            n_lines += 1
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                n_bad += 1
+                continue
+            tok = rec.get("token")
+            cfg = rec.get("config")
+            if not tok or not cfg:
+                n_bad += 1
+                continue
+            by_key[f"{tok}__{cfg}"] = rec   # later occurrences overwrite
+
+    results = list(by_key.values())
+    seen = set(by_key.keys())
+    log.info("Resumed from %s: %d lines, %d unique (token, config) entries (bad=%d)",
+             per_case_log, n_lines, len(seen), n_bad)
+    return results, seen
+
+
+def append_result_jsonl(per_case_log: Path, result: Dict) -> None:
+    """
+    Append one case's result as a JSON line, then fsync so it survives a
+    SIGKILL. The default=str fallback handles things like Path objects in
+    error tracebacks.
+    """
+    per_case_log.parent.mkdir(parents=True, exist_ok=True)
+    with open(per_case_log, "a") as f:
+        f.write(json.dumps(result, default=str) + "\n")
+        f.flush()
+        try:
+            os.fsync(f.fileno())
+        except OSError:
+            pass
+
+
+# =============================================================================
+# Aggregation
+# =============================================================================
 
 def _nanmean(vals):
     v = [x for x in vals if x is not None and x == x]
@@ -305,18 +506,40 @@ def _nanstd(vals):
     return round(float(np.std(v)), 4) if len(v) > 1 else None
 
 
+def _normalize_for_aggregation(r: Dict) -> Dict:
+    """
+    JSONL roundtrip turns int dict keys into strings. Convert them back
+    so class_stats() can index by int cls IDs. Idempotent — safe to call
+    on dicts that were never round-tripped. Handles Dice + all four
+    surface metrics.
+    """
+    for field in ("dice",) + SURFACE_METRIC_FIELDS:
+        d = r.get(field) or {}
+        new_d = {}
+        for k, v in d.items():
+            try:
+                new_d[int(k)] = v
+            except (ValueError, TypeError):
+                new_d[k] = v
+        r[field] = new_d
+    return r
+
+
 def class_stats(cases):
+    """Per-class summary: Dice + each surface metric, all with mean and std."""
     stats = {}
     for cls in FOREGROUND_CLASSES:
+        entry = {"n_cases": len(cases)}
+        # Dice
         dvals = [r["dice"].get(cls) for r in cases]
-        hvals = [r["hd95"].get(cls) for r in cases if r.get("hd95")]
-        stats[CLASS_NAMES[cls]] = {
-            "n_cases":   len(cases),
-            "dice_mean": _nanmean(dvals),
-            "dice_std":  _nanstd(dvals),
-            "hd95_mean": _nanmean(hvals),
-            "hd95_std":  _nanstd(hvals),
-        }
+        entry["dice_mean"] = _nanmean(dvals)
+        entry["dice_std"]  = _nanstd(dvals)
+        # Surface metrics — only aggregated if at least one case carries them
+        for f in SURFACE_METRIC_FIELDS:
+            vals = [r.get(f, {}).get(cls) for r in cases if r.get(f)]
+            entry[f"{f}_mean"] = _nanmean(vals)
+            entry[f"{f}_std"]  = _nanstd(vals)
+        stats[CLASS_NAMES[cls]] = entry
     return stats
 
 
@@ -334,7 +557,8 @@ def junction_stats(cases):
 
 
 def aggregate(results):
-    ok = [r for r in results if r["ok"]]
+    results = [_normalize_for_aggregation(r) for r in results]
+    ok = [r for r in results if r.get("ok")]
     def _sub(cases, label):
         if not cases:
             return {"n": 0, "label": label}
@@ -359,11 +583,7 @@ def aggregate(results):
 
 
 def format_table5(summary) -> str:
-    """Publication-ready per-vertebra Dice table.
-
-    Column layout (fixed widths, space-separated):
-      Subgroup (26) | n (3) | L1-L5 (5 ea) | L6 (5, always dash) | Sac/HipL/HipR (5 ea) | JxnDSC (7)
-    """
+    """Publication-ready per-vertebra Dice table."""
     def _f(v):
         return f"{v:>5.3f}" if v is not None and v == v else f"{'—':>5}"
 
@@ -389,10 +609,6 @@ def format_table5(summary) -> str:
         cls = sg.get("classes", {})
         jxn = sg.get("junction", {})
 
-        # Build the row piece-by-piece with consistent widths so columns
-        # align regardless of which values are "—". Previous version had
-        # a no-op str.replace() trying to normalize spacing that did
-        # nothing; this version uses format specifiers directly.
         lumbar_cells = "  ".join(
             _f(cls.get(n, {}).get("dice_mean"))
             for n in ("L1", "L2", "L3", "L4", "L5")
@@ -401,7 +617,7 @@ def format_table5(summary) -> str:
             _f(cls.get(n, {}).get("dice_mean"))
             for n in ("sacrum", "hip_left", "hip_right")
         )
-        l6_cell  = f"{'—':>5}"  # TS has no L6 by construction
+        l6_cell  = f"{'—':>5}"
         jxn_cell = f"{_f(jxn.get('mean_junction_dsc')):>7}"
 
         lines.append(
@@ -413,12 +629,74 @@ def format_table5(summary) -> str:
     return "\n".join(lines)
 
 
+def format_table_surface(summary) -> str:
+    """
+    Per-class surface-distance table — surgical-planning headline.
+
+    Rows: subgroup. Columns: ASSD and HD95 for sacrum + both hips
+    (the classes that matter for SI screw / iliosacral fixation
+    planning), plus a sacrum MSD asymmetry indicator
+    (msd_pred_to_gt - msd_gt_to_pred) — positive means TS over-segments
+    the sacrum on average, negative means it under-segments.
+    """
+    def _fmm(v):
+        return f"{v:>5.2f}" if v is not None and v == v else f"{'—':>5}"
+
+    lines = [
+        "",
+        "=" * 110,
+        "  TABLE 6  —  Surface-distance metrics (mm) for surgical-planning relevance",
+        "=" * 110,
+        "",
+        "  ASSD = Average Symmetric Surface Distance (lower better; <1mm typical safe threshold)",
+        "  HD95 = 95th-percentile Hausdorff distance (lower better; outlier-sensitive)",
+        "  MSD asymm = msd_pred_to_gt - msd_gt_to_pred for sacrum",
+        "              (positive = TS over-segments, negative = TS under-segments)",
+    ]
+    header = (
+        f"\n  {'Subgroup':<24}  {'n':>3}  "
+        f"{'Sac ASSD':>9}  {'Sac HD95':>9}  {'HipL ASSD':>10}  {'HipL HD95':>10}  "
+        f"{'HipR ASSD':>10}  {'HipR HD95':>10}  {'Sac MSD asymm':>14}"
+    )
+    lines.append(header)
+    lines.append("  " + "-" * 106)
+
+    for key in ["all", "fused_only", "spine_only", "pelvic_native",
+                "normal", "any_lstv", "sacralization", "lumbarization"]:
+        sg = summary["subgroups"].get(key)
+        if not sg or sg.get("n", 0) == 0:
+            continue
+        cls = sg.get("classes", {})
+        sac = cls.get("sacrum", {})
+        lh  = cls.get("hip_left", {})
+        rh  = cls.get("hip_right", {})
+
+        msd_p2g = sac.get("msd_pred_to_gt_mean")
+        msd_g2p = sac.get("msd_gt_to_pred_mean")
+        if msd_p2g is not None and msd_g2p is not None:
+            asymm_str = f"{(msd_p2g - msd_g2p):+5.2f}"
+        else:
+            asymm_str = "    —"
+
+        lines.append(
+            f"  {sg['label']:<24}  {sg['n']:>3}  "
+            f"{_fmm(sac.get('assd_mean')):>9}  {_fmm(sac.get('hd95_mean')):>9}  "
+            f"{_fmm(lh.get('assd_mean')):>10}  {_fmm(lh.get('hd95_mean')):>10}  "
+            f"{_fmm(rh.get('assd_mean')):>10}  {_fmm(rh.get('hd95_mean')):>10}  "
+            f"{asymm_str:>14}"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
 def write_csv(results: List[Dict], path: Path) -> None:
+    """Per-case CSV. Includes Dice + all four surface metrics per class."""
     import csv
     rows = []
     for r in results:
-        if not r["ok"]:
+        if not r.get("ok"):
             continue
+        r = _normalize_for_aggregation(r)
         row = {"token": r["token"], "config": r["config"],
                "match_type": r["match_type"], "lstv_label": r["lstv_label"],
                "position": r["position"], "has_l6": r["has_l6"],
@@ -426,7 +704,8 @@ def write_csv(results: List[Dict], path: Path) -> None:
         for cls in FOREGROUND_CLASSES:
             name = CLASS_NAMES[cls]
             row[f"dice_{name}"] = r["dice"].get(cls, "")
-            row[f"hd95_{name}"] = r["hd95"].get(cls, "") if r.get("hd95") else ""
+            for f in SURFACE_METRIC_FIELDS:
+                row[f"{f}_{name}"] = (r.get(f, {}) or {}).get(cls, "")
         jxn = r.get("junction", {}) if isinstance(r.get("junction"), dict) else {}
         row["junction_dsc"] = jxn.get("mean_junction_dsc", "")
         rows.append(row)
@@ -439,11 +718,15 @@ def write_csv(results: List[Dict], path: Path) -> None:
     log.info("Per-case CSV → %s  (%d rows)", path, len(rows))
 
 
+# =============================================================================
+# Case selection
+# =============================================================================
+
 def select_cases(ds, args) -> List:
     """
-    Zero-shot benchmarking — no train/val/test filter.  We run TS on every
-    available case and stratify subgroups (config, LSTV class, match_type) only
-    at aggregation time.
+    Zero-shot benchmarking — no train/val/test filter. Run TS on every
+    available case and stratify subgroups (config, LSTV class, match_type)
+    only at aggregation time.
     """
     if args.config == "all":
         universe = ds.filter(present_only=True)
@@ -455,6 +738,10 @@ def select_cases(ds, args) -> List:
     return universe
 
 
+# =============================================================================
+# Main
+# =============================================================================
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -463,24 +750,37 @@ def main():
     ap.add_argument("--hf_token",    default=None)
     ap.add_argument("--config",     default="all",
                     choices=["all", "fused", "spine_only", "pelvic_native"],
-                    help="Which dataset config to benchmark. Zero-shot evaluation "
-                         "runs on the WHOLE dataset by default — splits are "
-                         "irrelevant at inference time.")
+                    help="Which dataset config to benchmark.")
     ap.add_argument("--tokens",      default="", type=str,
-                    help="Optional comma-separated token subset (debugging).")
+                    help="Optional comma-separated token subset (debugging / sharding).")
     ap.add_argument("--device",    default="gpu", choices=["gpu", "cpu"])
     ap.add_argument("--fast",      action="store_true",
                     help="TS --fast mode (NOT recommended for publication)")
     ap.add_argument("--force_ts",  action="store_true")
-    ap.add_argument("--skip_hd95", action="store_true")
+    ap.add_argument("--force_recompute_metrics", action="store_true",
+                    help="Ignore per_case_partial.jsonl and recompute Dice + "
+                         "surface metrics for every case (predictions still cached).")
+    # Canonical flag (covers HD95, ASSD, MSD).
+    ap.add_argument("--skip_surface", action="store_true",
+                    help="Skip ALL surface metrics (HD95, ASSD, MSD).")
+    # Legacy alias for old SLURM scripts that still pass --skip_hd95.
+    ap.add_argument("--skip_hd95", action="store_true",
+                    help=argparse.SUPPRESS)
     ap.add_argument("--window_mm", default=JUNCTION_WINDOW_MM, type=float)
     ap.add_argument("--out_dir",  required=True, type=Path)
     ap.add_argument("--pred_dir", default=None,  type=Path)
     args = ap.parse_args()
 
+    skip_surface = bool(args.skip_surface or args.skip_hd95)
+
     args.out_dir.mkdir(parents=True, exist_ok=True)
     pred_dir = args.pred_dir or (args.out_dir / "ts_preds")
     pred_dir.mkdir(parents=True, exist_ok=True)
+
+    # Streaming per-case JSONL log lives under out_dir, not pred_dir, so
+    # different shards / different runs each get their own metrics log
+    # while sharing the prediction cache.
+    per_case_log = args.out_dir / "per_case_partial.jsonl"
 
     sys.path.insert(0, str(Path(__file__).parent))
     from dataset_interface import CTSpinoPelvic1K
@@ -502,15 +802,32 @@ def main():
 
     from collections import Counter
     cfg_counts = Counter(c.config for c in cases)
-    log.info("Benchmarking %d cases  config=%s  per-config=%s  device=%s  fast=%s",
-             len(cases), args.config, dict(cfg_counts), args.device, args.fast)
+    log.info("Benchmarking %d cases  config=%s  per-config=%s  device=%s  fast=%s  "
+             "skip_surface=%s",
+             len(cases), args.config, dict(cfg_counts), args.device, args.fast,
+             skip_surface)
 
-    # If using HF and files aren't local, snapshot-download CT + labels for selected cases
-    if not args.dataset_dir:
+    # ── Resume: read prior streamed results, build skip set ─────────────────
+    if args.force_recompute_metrics:
+        log.info("--force_recompute_metrics: ignoring %s", per_case_log)
+        results: List[Dict] = []
+        already_done: Set[str] = set()
+    else:
+        results, already_done = load_completed_results(per_case_log)
+
+    cases_to_run = [c for c in cases
+                    if f"{c.token}__{c.config}" not in already_done]
+    n_skip = len(cases) - len(cases_to_run)
+    if n_skip:
+        log.info("Skipping %d already-completed (token, config) pairs from %s",
+                 n_skip, per_case_log.name)
+
+    # ── HF download (if needed) for cases we still have to do ──────────────
+    if not args.dataset_dir and cases_to_run:
         try:
             from huggingface_hub import hf_hub_download
             hf_token = args.hf_token or os.environ.get("HF_TOKEN")
-            for i, case in enumerate(cases, 1):
+            for case in cases_to_run:
                 for rel in (f"ct/{case.ct_path.name}",
                             f"labels/{case.label_path.name}"):
                     target = ds.root / rel
@@ -523,11 +840,11 @@ def main():
         except Exception as e:
             log.warning("HF download: %s", e)
 
-    results = []
+    # ── Main loop with streaming write ─────────────────────────────────────
     t0 = time.time()
-    for i, case in enumerate(cases, 1):
+    for i, case in enumerate(cases_to_run, 1):
         log.info("[%d/%d]  token=%-6s  config=%-14s  lstv=%s",
-                 i, len(cases), case.token, case.config, case.lstv_label)
+                 i, len(cases_to_run), case.token, case.config, case.lstv_label)
         case_meta = {
             "config":              case.config,
             "match_type":          case.match_type,
@@ -545,18 +862,26 @@ def main():
             case_meta       = case_meta,
             device          = args.device,
             fast            = args.fast,
-            skip_hd95       = args.skip_hd95,
+            skip_surface    = skip_surface,
             force_ts        = args.force_ts,
             junction_window = args.window_mm,
         )
         results.append(r)
-        elapsed = time.time() - t0
-        log.info("  progress %d/%d  elapsed=%.0fs", i, len(cases), elapsed)
+        # Stream this case's result to disk before moving to the next case.
+        # If the job is killed at this point, we lose at most one in-flight
+        # case's metrics (the prediction itself is still cached).
+        append_result_jsonl(per_case_log, r)
 
+        elapsed = time.time() - t0
+        log.info("  progress %d/%d  elapsed=%.0fs", i, len(cases_to_run), elapsed)
+
+    # ── Final aggregation pass ─────────────────────────────────────────────
     summary = aggregate(results)
     t5 = format_table5(summary)
+    t6 = format_table_surface(summary)
     print(t5)
-    (args.out_dir / "paper_tables.txt").write_text(t5)
+    print(t6)
+    (args.out_dir / "paper_tables.txt").write_text(t5 + "\n" + t6)
     (args.out_dir / "benchmark_results.json").write_text(
         json.dumps({"config": vars(args), "summary": summary, "per_case": results},
                    indent=2, default=str))
@@ -564,8 +889,8 @@ def main():
         json.dumps(summary, indent=2, default=str))
     write_csv(results, args.out_dir / "benchmark_per_case.csv")
 
-    log.info("DONE  ok=%d  fail=%d  total_time=%.0fs",
-             summary["n_ok"], summary["n_fail"], time.time() - t0)
+    log.info("DONE  ok=%d  fail=%d  total_time=%.0fs  per_case_log=%s",
+             summary["n_ok"], summary["n_fail"], time.time() - t0, per_case_log)
 
 
 if __name__ == "__main__":

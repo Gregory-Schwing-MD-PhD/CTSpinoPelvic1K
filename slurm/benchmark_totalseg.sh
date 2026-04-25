@@ -1,127 +1,168 @@
-#!/usr/bin/env bash
-#SBATCH --job-name=ctspinopelvic1k_ts_bench
-#SBATCH -q gpu
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=128G
-#SBATCH --gres=gpu:nvidia_h200:1
-#SBATCH --time=12:00:00
-#SBATCH --output=logs/ts_bench_%j.out
-#SBATCH --error=logs/ts_bench_%j.err
-#SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=go2432@wayne.edu
+#!/bin/bash
 # =============================================================================
-# Stage 4 — TotalSegmentator zero-shot benchmark on CTSpinoPelvic1K
-#
-# Runs benchmark_totalseg.py across the ENTIRE dataset — zero-shot inference
-# doesn't care about train/val/test splits. Subgroup analysis (LSTV class,
-# match_type, config) is applied at aggregation time.
-#
-# NO --fast flag. Full TS precision for publication-quality numbers.
-#
-# Container-writability note
-# --------------------------
-# TotalSegmentator writes a config file at startup (/opt/totalseg/config.json
-# or similar) to cache license state, GPU flags, and nnU-Net paths. Inside a
-# SIF, /opt is read-only and the write raises [Errno 30] Read-only file
-# system, killing inference on the first case.
-#
-# Two independent mitigations are applied; either one alone would suffice,
-# but layering them protects against TS version drift inside the SIF:
-#
-#   1.  --writable-tmpfs: gives the container a per-session tmpfs overlay,
-#       so any write inside the container succeeds.  Discarded on exit.
-#   2.  TOTALSEG_CONFIG_DIR + TOTALSEG_HOME_DIR + HOME env vars pointing at
-#       a host-writable path that is bind-mounted into the container. Newer
-#       TS versions honor these; older versions fall back to $HOME, which
-#       also resolves to the writable location.
+# slurm/benchmark_totalseg.sh — Sharded TotalSegmentator benchmark
 # =============================================================================
+#
+# Submits a SLURM job array. Each task in the array runs benchmark_totalseg.py
+# on a subset of tokens (round-robin assignment by token index modulo
+# N_SHARDS). Predictions are shared across all shards via a single
+# ts_preds_shared/ directory; per-case metric logs are per-shard.
+#
+# Usage
+# -----
+# Default: 8 shards
+#   sbatch slurm/benchmark_totalseg.sh
+#
+# Smoke test on shard 0 only:
+#   sbatch --array=0-0 slurm/benchmark_totalseg.sh
+#
+# More parallelism (16 shards) — note this requires 16 free GPUs:
+#   sbatch --array=0-15 slurm/benchmark_totalseg.sh
+#
+# Retry just shard 3 after it timed out / crashed (cache + per-shard JSONL
+# both make this resumable; surface metrics for already-done cases are
+# read straight from per_case_partial.jsonl):
+#   sbatch --array=3-3 slurm/benchmark_totalseg.sh
+#
+# Override paths via environment:
+#   DATASET_DIR=/scratch/myhf  sbatch slurm/benchmark_totalseg.sh
+#   RESULTS_BASE=$HOME/CTSpinoPelvic1K/results/ts_v2  sbatch slurm/benchmark_totalseg.sh
+#
+# Watching progress across all shards (run from login node):
+#   for d in $HOME/CTSpinoPelvic1K/results/totalseg_bench/shard_*/; do
+#       n=$(wc -l < "$d/per_case_partial.jsonl" 2>/dev/null || echo 0)
+#       printf "%-60s %5d cases done\n" "$(basename $d)" "$n"
+#   done
+#
+# After all shards finish:
+#   sbatch slurm/merge_benchmark_shards.sh
+#
+# =============================================================================
+
+#SBATCH --job-name=ts_bench
+#SBATCH --array=0-7%8                          # 8 shards, all concurrent (use %N to throttle)
+#SBATCH --partition=gpu                        # adjust for your cluster
+#SBATCH --gres=gpu:1                           # 1 GPU per shard
+#SBATCH --cpus-per-task=8                      # for kd-tree query workers + dataloading
+#SBATCH --mem=64G
+#SBATCH --time=24:00:00
+#SBATCH --output=logs/ts_bench_%A_%a.out
+#SBATCH --error=logs/ts_bench_%A_%a.err
+
 set -euo pipefail
 
-PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$(pwd)}"
-DATASET_DIR="${DATASET_DIR:-${PROJECT_ROOT}/data/hf_export}"
-SIF_PATH="${SIF_PATH:-${PROJECT_ROOT}/containers/ctspinopelvic1k-ts.sif}"
-OUT_DIR="${OUT_DIR:-${PROJECT_ROOT}/results/totalseg_bench_${SLURM_JOB_ID:-local}}"
-TOTALSEG_WEIGHTS="${TOTALSEG_WEIGHTS:-${HOME}/totalseg_weights}"
+# ── Configurable knobs ───────────────────────────────────────────────────────
+# Shard identity. SLURM_ARRAY_TASK_ID + SLURM_ARRAY_TASK_COUNT are set
+# automatically when this script is launched via `sbatch --array=...`.
+# When running this script directly outside SLURM (rare), default to a
+# single non-sharded run.
+SHARD_ID="${SLURM_ARRAY_TASK_ID:-0}"
+N_SHARDS="${SLURM_ARRAY_TASK_COUNT:-1}"
 
-# TS config / cache location: host-writable, bind-mounted into the container
-# so any TS version writing to $HOME, TOTALSEG_CONFIG_DIR, or
-# TOTALSEG_HOME_DIR will land here and persist across jobs.
-TOTALSEG_CONFIG_DIR="${TOTALSEG_CONFIG_DIR:-${HOME}/.totalseg}"
+# Repo + data layout
+REPO_ROOT="${REPO_ROOT:-$HOME/CTSpinoPelvic1K}"
+DATASET_DIR="${DATASET_DIR:-$REPO_ROOT/data/hf_export}"
+RESULTS_BASE="${RESULTS_BASE:-$REPO_ROOT/results/totalseg_bench}"
 
-# ── Singularity runtime dirs ─────────────────────────────────────────────────
-export SINGULARITY_TMPDIR="/tmp/${USER}_job_${SLURM_JOB_ID:-$$}"
-export XDG_RUNTIME_DIR="${SINGULARITY_TMPDIR}/runtime"
-mkdir -p "${SINGULARITY_TMPDIR}" "${XDG_RUNTIME_DIR}"
-export NXF_SINGULARITY_CACHEDIR="${HOME}/singularity_cache"
-mkdir -p "${SINGULARITY_TMPDIR}" "${XDG_RUNTIME_DIR}" "${NXF_SINGULARITY_CACHEDIR}"
-trap 'rm -rf "${SINGULARITY_TMPDIR}"' EXIT
+# Shared TS prediction cache. All shards read/write this directory --
+# whoever computes a prediction first deposits it here, and any later
+# shard hitting the same (token, config) reuses it.
+SHARED_PRED_DIR="${SHARED_PRED_DIR:-${RESULTS_BASE}_shared/ts_preds}"
 
-export CONDA_PREFIX="${HOME}/mambaforge/envs/nextflow"
-export PATH="${CONDA_PREFIX}/bin:${PATH}"
-unset JAVA_HOME; which singularity
-export NXF_SINGULARITY_HOME_MOUNT=true
-unset LD_LIBRARY_PATH PYTHONPATH R_LIBS R_LIBS_USER R_LIBS_SITE
+# Per-shard output directory. Each shard's per_case_partial.jsonl lives
+# here, isolated so writes never contend.
+SHARD_OUT_DIR="${RESULTS_BASE}/shard_${SHARD_ID}_of_${N_SHARDS}"
 
-export TOTALSEG_WEIGHTS_PATH="${TOTALSEG_WEIGHTS}"
-mkdir -p logs "${OUT_DIR}" "${TOTALSEG_WEIGHTS}" "${TOTALSEG_CONFIG_DIR}"
+# Optional: limit which configs to benchmark (default: all three).
+TS_CONFIG="${TS_CONFIG:-all}"
 
-# Scrub host LD_LIBRARY_PATH etc. so the container's libs win
-unset JAVA_HOME LD_LIBRARY_PATH PYTHONPATH R_LIBS R_LIBS_USER R_LIBS_SITE
+# Surface metrics: leave on by default (HD95 + ASSD + MSD).
+# Pass SKIP_SURFACE=1 to skip them all (much faster, Dice + junction only).
+SKIP_SURFACE_FLAG=""
+if [[ "${SKIP_SURFACE:-0}" == "1" ]]; then
+    SKIP_SURFACE_FLAG="--skip_surface"
+fi
 
-BINDS="${PROJECT_ROOT}:/workspace,${OUT_DIR}:/results,${DATASET_DIR}:/dataset,${TOTALSEG_WEIGHTS}:${TOTALSEG_WEIGHTS},${TOTALSEG_CONFIG_DIR}:${TOTALSEG_CONFIG_DIR}"
-PPATH="/workspace/scripts:/workspace"
+# Force recomputation of metrics even for cases already in per_case_partial.jsonl
+# (predictions are still cached on disk).
+FORCE_FLAG=""
+if [[ "${FORCE_RECOMPUTE_METRICS:-0}" == "1" ]]; then
+    FORCE_FLAG="--force_recompute_metrics"
+fi
 
-# Comma-joined env list for --env. Keep on one logical line (bash doesn't mind
-# the concatenation-via-adjacent-strings pattern inside double quotes).
-CONTAINER_ENV="PYTHONPATH=${PPATH}"
-CONTAINER_ENV+=",TOTALSEG_WEIGHTS_PATH=${TOTALSEG_WEIGHTS}"
-CONTAINER_ENV+=",TOTALSEG_CONFIG_DIR=${TOTALSEG_CONFIG_DIR}"
-CONTAINER_ENV+=",TOTALSEG_HOME_DIR=${TOTALSEG_CONFIG_DIR}"
-CONTAINER_ENV+=",HOME=${TOTALSEG_CONFIG_DIR}"
+# ── Environment ──────────────────────────────────────────────────────────────
+mkdir -p "$SHARED_PRED_DIR" "$SHARD_OUT_DIR" "$REPO_ROOT/logs"
 
-_run() {
-    # --writable-tmpfs gives the container a per-session writable overlay, so
-    # TS's fallback write to /opt/totalseg/config.json (or wherever) succeeds
-    # even on TS versions that don't honor TOTALSEG_CONFIG_DIR.
-    singularity exec --nv --writable-tmpfs \
-        --env "${CONTAINER_ENV}" \
-        --bind "${BINDS}" \
-        --pwd /workspace \
-        "${SIF_PATH}" "$@"
-}
+# Activate conda env. Adjust 'spinesurg' to whatever your env is called.
+# shellcheck disable=SC1091
+source "$HOME/.bashrc"
+conda activate spinesurg
 
-echo "======================================================================"
-echo " benchmark_totalseg  [H200]"
-echo " Job       : ${SLURM_JOB_ID:-local}"
-echo " Node      : $(hostname)"
-echo " GPU       : $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo N/A)"
-echo " Dataset   : ${DATASET_DIR}"
-echo " SIF       : ${SIF_PATH}"
-echo " Output    : ${OUT_DIR}"
-echo " TS cfg    : ${TOTALSEG_CONFIG_DIR}"
-echo " TS wts    : ${TOTALSEG_WEIGHTS}"
-echo " Scope     : whole dataset (all configs — zero-shot, no split filter)"
-echo " Mode      : FULL precision (no --fast)"
-echo " Writable  : --writable-tmpfs (TS config dir also bind-mounted)"
-echo " Started   : $(date)"
-echo "======================================================================"
+cd "$REPO_ROOT"
 
-_run python scripts/benchmark_totalseg.py \
-    --dataset_dir /dataset \
-    --out_dir     /results \
-    --pred_dir    /results/ts_preds \
-    --config      all \
-    --window_mm   40.0 \
-    --device      gpu
+echo "================================================================"
+echo "  TS benchmark shard $SHARD_ID of $N_SHARDS"
+echo "  host=$(hostname)  gpu=${CUDA_VISIBLE_DEVICES:-?}  date=$(date -Iseconds)"
+echo "  DATASET_DIR     = $DATASET_DIR"
+echo "  SHARED_PRED_DIR = $SHARED_PRED_DIR"
+echo "  SHARD_OUT_DIR   = $SHARD_OUT_DIR"
+echo "  TS_CONFIG       = $TS_CONFIG"
+echo "  SKIP_SURFACE    = ${SKIP_SURFACE:-0}"
+echo "  FORCE_RECOMPUTE = ${FORCE_RECOMPUTE_METRICS:-0}"
+echo "================================================================"
 
-echo ""
-echo "======================================================================"
-echo " PAPER TABLES"
-echo "======================================================================"
-[[ -f "${OUT_DIR}/paper_tables.txt" ]] && cat "${OUT_DIR}/paper_tables.txt"
+# ── Compute this shard's token list ──────────────────────────────────────────
+# Round-robin assignment by token-string sort order. We use the manifest
+# as the token universe (rather than a directory listing) to skip cases
+# that failed export. Output is a comma-separated list passed to
+# benchmark_totalseg.py via --tokens.
+TOKENS=$(python - <<PY
+import json
+import sys
+from pathlib import Path
 
-echo ""
-echo " Output: ${OUT_DIR}"
-echo " Completed: $(date)"
+manifest_path = Path("$DATASET_DIR") / "manifest.json"
+manifest = json.loads(manifest_path.read_text())
+if isinstance(manifest, dict) and "records" in manifest:
+    manifest = manifest["records"]
+
+# Unique tokens, sorted for deterministic shard assignment
+all_tokens = sorted({str(r["token"]) for r in manifest if r.get("token") is not None})
+n_total = len(all_tokens)
+
+shard_id = int("$SHARD_ID")
+n_shards = int("$N_SHARDS")
+my_tokens = [t for i, t in enumerate(all_tokens) if i % n_shards == shard_id]
+
+print(",".join(my_tokens), end="")
+print(f"  // {len(my_tokens)} of {n_total} tokens", file=sys.stderr)
+PY
+)
+
+# Strip the trailing comment that the python script wrote to stderr (it's
+# already on stderr; the stdout capture above is just the comma list).
+NUM_TOKENS=$(echo -n "$TOKENS" | tr ',' '\n' | grep -c .)
+
+if [[ "$NUM_TOKENS" -eq 0 ]]; then
+    echo "Shard $SHARD_ID/$N_SHARDS has no tokens. Exiting cleanly."
+    exit 0
+fi
+
+echo "Shard $SHARD_ID/$N_SHARDS will benchmark $NUM_TOKENS tokens."
+
+# ── Run the benchmark ────────────────────────────────────────────────────────
+# Note: --pred_dir is the SHARED cache, --out_dir is THIS shard's output.
+# All shards reading/writing the same prediction cache is safe: TS
+# inference writes to its (token, config) subdir, and the patched
+# benchmark only WRITES if the file isn't already there.
+python scripts/benchmark_totalseg.py \
+    --dataset_dir "$DATASET_DIR" \
+    --config      "$TS_CONFIG" \
+    --tokens      "$TOKENS" \
+    --device      gpu \
+    --out_dir     "$SHARD_OUT_DIR" \
+    --pred_dir    "$SHARED_PRED_DIR" \
+    $SKIP_SURFACE_FLAG \
+    $FORCE_FLAG
+
+echo "Shard $SHARD_ID/$N_SHARDS complete."
