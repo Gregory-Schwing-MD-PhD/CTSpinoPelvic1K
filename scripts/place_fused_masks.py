@@ -22,19 +22,36 @@ step is now unnecessary:
     lstv_confusion_zone, lstv_class) are derived directly from the per-mask
     `lstv_label` fields in patient_db.json.  No cross-check JSON is needed.
 
-SCHEMA VERSION 2.1
+SCHEMA VERSION 2.2
 ==================
-Each case now carries `orientation_check = {"status": "unreviewed", ...}` by
-default. `apply_manual_flips.py` overwrites this when a token is reviewed.
+2.2 (Apr 2026): removed the buggy hardcoded `if orig_mask_aff[0,0] < 0`
+left/right label swap in `_place_pelvic_best_series`. That branch was
+relabeling pelvic mask classes 2 (left_hip) and 3 (right_hip) on every
+case where the source CTPelvic1K mask happened to be stored with a
+negative aff[0,0]. It produced anatomically inverted hips on roughly half
+of the COLONOG cases. Diagnosed via TS-vs-GT hip Dice audit: TS-left
+matched GT-right with Dice ~0.93 on flipped tokens, while sacrum and
+lumbar spine matched cleanly (the bug was a label permutation, not a
+spatial flip — the CT and mask voxels remained correctly co-located in
+patient space, only the label values 2/3 were swapped on the affected
+tokens). CTPelvic1K's label convention is storage-orientation-independent:
+label 2 voxels are at patient-left and label 3 voxels are at patient-right
+regardless of the file's affine sign. apply_orientation() already brings
+the mask array into the reference CT's voxel-axis order without changing
+patient-space positions, so the labels do not need additional swapping.
+
+2.1: each case carries `orientation_check = {"status": "unreviewed", ...}`
+by default. apply_manual_flips.py overwrites this when a token is reviewed.
 Downstream code (visualize_qc.py, export_hf.py, generate_5fold_splits.py)
 can therefore rely on `orientation_check` always existing instead of
 testing for its presence.
 
-Each case also carries `annotations = {"core": true, "spinous": false,
-"discs": false, "tp": false}` to support future expansion to new mask types
-(spinous process, transverse process, disc height, etc.) without a schema
-break. Adding a new annotation source later is a matter of flipping one
-bool and shipping new files under a parallel `placed/spinous/` directory.
+2.1: each case carries `annotations = {"core": true, "spinous": false,
+"discs": false, "tp": false}` to support future expansion to new mask
+types (spinous process, transverse process, disc height, etc.) without a
+schema break. Adding a new annotation source later is a matter of
+flipping one bool and shipping new files under a parallel
+`placed/spinous/` directory.
 
 ARCHITECTURE
 ============
@@ -114,7 +131,10 @@ log = logging.getLogger("spinesurg.place_masks")
 # needs to know about.
 #   2.0 = LSTV fields native + per-case position.
 #   2.1 = default orientation_check + annotations expandability field.
-PLACED_MANIFEST_SCHEMA = "2.1"
+#   2.2 = removed buggy hardcoded L/R label swap (no manifest schema change,
+#         but bumped so consumers can detect "this dataset was placed with
+#         the swap-fix version").
+PLACED_MANIFEST_SCHEMA = "2.2"
 
 BONE_HU             = 200.0
 MIN_VOXELS          = 50
@@ -1276,11 +1296,46 @@ def _place_pelvic_best_series(args):
             if score <= 0:
                 z_off = max(0, ref_nz - mask_nz)
 
+            # ─────────────────────────────────────────────────────────────
+            # NOTE (Apr 2026 — schema 2.2): the previous version had a
+            # hardcoded conditional L/R label swap here:
+            #
+            #     md = mask_data.copy()
+            #     if orig_mask_aff[0, 0] < 0:
+            #         tmp       = (md == 2).copy()
+            #         md[md == 3] = 2
+            #         md[tmp]    = 3
+            #
+            # That branch fired based on the storage-orientation sign of the
+            # source CTPelvic1K mask file (sign of aff[0,0]) and relabeled
+            # left_hip <-> right_hip on roughly half the COLONOG cases —
+            # specifically, every case with mask_aff[0,0] < 0. The result
+            # was anatomically inverted hips on those cases, while spine
+            # and sacrum labels were untouched.
+            #
+            # CTPelvic1K's label convention is storage-orientation-
+            # independent: label 2 voxels are at patient-left and label 3
+            # voxels are at patient-right regardless of the file's affine
+            # sign. apply_orientation() above already brings the mask
+            # array into the reference CT's voxel-axis order without
+            # changing patient-space positions, so labels do NOT need
+            # additional swapping. The labels ride along with the voxels
+            # correctly.
+            #
+            # Diagnosed via TS-vs-GT hip Dice audit: TS-left matched
+            # GT-right with Dice ~0.93 on flipped tokens, while sacrum
+            # and lumbar spine matched cleanly. Joint affine-sign analysis
+            # confirmed: the FLIPPED set was perfectly predicted by
+            # mask_aff[0,0] < 0 (5/5 audited tokens), with no spatial flip
+            # on those cases — a pure label permutation.
+            #
+            # A small residual (~1/11 in the audit, e.g. token 103) shows
+            # FLIPPED with mask_aff[0,0] > 0 and apply_orientation x-flip
+            # active. Those are upstream CTPelvic1K data inconsistencies,
+            # not pipeline bugs; they are detected post-export by the
+            # audit script and either remapped or excluded from training.
+            # ─────────────────────────────────────────────────────────────
             md = mask_data.copy()
-            if orig_mask_aff[0, 0] < 0:
-                tmp       = (md == 2).copy()
-                md[md == 3] = 2
-                md[tmp]    = 3
 
             z_end = min(ref_nz, z_off + mask_nz)
             if z_end > z_off:

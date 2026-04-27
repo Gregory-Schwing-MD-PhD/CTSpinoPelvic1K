@@ -15,52 +15,54 @@ Features:
 6. TS prediction cache key includes config
 7. kd-tree HD95 (50-100x faster than brute-force pairwise)
 8. ASSD + MSD surface metrics for surgical-planning relevance
-9. Streaming per-case JSONL log (resumable; no metric data loss on job timeout)
+9. Streaming per-case JSONL log (resumable; failures auto-retry)
 
-Surface metrics (added Apr 2026)
---------------------------------
+Surface metrics
+---------------
 Three boundary-distance numbers, all computed from the same per-class
-surface-voxel point clouds via scipy cKDTree. Adding ASSD + MSD on top of
-HD95 is essentially free since they reuse the same trees + queries.
+surface-voxel point clouds via scipy cKDTree.
 
   HD95  - 95th percentile of the union of nearest-neighbor distances.
-          Worst-case boundary error with 5% outlier tolerance. Sensitive
-          to spurious blobs of mislabeled voxels far from the true
-          surface. Reported in mm.
+          Worst-case boundary error with 5% outlier tolerance.
 
   ASSD  - Average Symmetric Surface Distance. Mean of nearest-neighbor
-          distances symmetrically: from each pred-surface voxel to its
-          nearest GT-surface voxel, AND vice versa, then averaged
-          together. The headline metric for surgical-planning relevance:
-          ASSD < 1mm typically considered safe for screw-trajectory
-          planning of SI / iliosacral hardware, 1-2mm marginal,
-          >2mm unsafe.
+          distances symmetrically. The headline metric for
+          surgical-planning relevance: ASSD < 1mm typically considered
+          safe for screw-trajectory planning of SI / iliosacral hardware,
+          1-2mm marginal, >2mm unsafe.
 
-  MSD   - Mean Surface Distance, directional. Two values reported:
-            msd_pred_to_gt: average distance from predicted boundary to
-                            nearest GT boundary. High = pred has voxels
-                            far from any truth surface (over-segmentation
-                            into nearby tissue).
-            msd_gt_to_pred: average distance from GT boundary to nearest
-                            pred boundary. High = pred misses parts of
-                            the true surface (under-segmentation).
-          Diagnostic for asymmetric errors that ASSD averages away.
+  MSD   - Mean Surface Distance, directional.
+            msd_pred_to_gt: high = pred over-segments
+            msd_gt_to_pred: high = pred under-segments
 
 NOTE: --fast mode is available but NOT the default. For publication-quality
 TotalSegmentator numbers, leave it off.
 
-Resumability
-------------
+Resumability (changed Apr 2026)
+-------------------------------
 Two layers of resumability:
 
 1. Predictions cached on disk under <pred_dir>/<token>_<config>/segmentation.nii.gz.
    If a prediction file exists, TS inference is skipped on the next run.
 
 2. Per-case metric results are streamed to <out_dir>/per_case_partial.jsonl
-   immediately after each case completes (with fsync), so a wall-clock kill
-   only loses the in-flight case. On startup, this file is loaded and any
-   (token, config) pairs already present are skipped entirely (no re-Dice
-   computation).
+   immediately after each case completes (with fsync).
+
+Failure-handling on resume:
+  - SUCCESS records (ok=true) seed both the results list AND the skip set.
+    These cases will not be re-attempted; their metrics are kept as-is.
+  - FAILURE records (ok=false) are NOT added to the skip set, so the
+    case will be retried automatically. The new (ok=true) record will
+    overwrite the old failure in the next aggregation pass via
+    dedupe-by-(token, config) in load_completed_results.
+
+This means you can simply resubmit the SLURM job after fixing whatever
+caused the failures (env, container, /tmp bind, etc.) — successful
+cases are reused, failed cases auto-retry. No JSONL surgery required.
+
+Pass --force_recompute_metrics to ignore the JSONL entirely and
+recompute Dice + surface metrics for every case (predictions still
+cached on disk).
 
 After all cases complete, the final aggregation pass produces
 benchmark_results.json + benchmark_summary.json + paper_tables.txt + CSV.
@@ -120,8 +122,7 @@ SCOREABLE_BY_CONFIG: Dict[str, List[int]] = {
     "pelvic_native": [7, 8, 9],
 }
 
-# Surface-distance fields persisted per case. Each is a {class_id: float|None}
-# dict matching the layout of the existing `dice` field.
+# Surface-distance fields persisted per case.
 SURFACE_METRIC_FIELDS = ("hd95", "assd", "msd_pred_to_gt", "msd_gt_to_pred")
 
 
@@ -142,8 +143,6 @@ def dice(pred: np.ndarray, gt: np.ndarray, cls: int) -> float:
 
 def _surface_points_mm(mask: np.ndarray,
                         spacing: Tuple[float, float, float]) -> Optional[np.ndarray]:
-    """Return Nx3 surface-voxel coordinates in physical millimeters, or
-    None if the mask has no extractable surface."""
     from scipy.ndimage import binary_erosion
     if not mask.any():
         return None
@@ -157,26 +156,7 @@ def _surface_points_mm(mask: np.ndarray,
 def surface_metrics(pred: np.ndarray, gt: np.ndarray, cls: int,
                      vox_spacing: Tuple[float, float, float] = (1.0, 1.0, 1.0)
                      ) -> Dict[str, float]:
-    """
-    Compute HD95, ASSD, and directional MSD between (pred==cls) and
-    (gt==cls), all in physical millimeter space.
-
-    Returns a dict with keys: hd95, assd, msd_pred_to_gt, msd_gt_to_pred.
-    Values are floats in mm, or NaN if either mask is empty / has no
-    extractable surface.
-
-    All four metrics share one pair of cKDTrees built from the per-mask
-    surface point clouds, so the cost is dominated by the tree
-    construction plus two batched nearest-neighbor queries, regardless
-    of how many metrics we ask for. Adding ASSD + MSD on top of HD95 is
-    essentially free.
-
-    Symmetric formulations:
-      HD95 = 95th percentile of the UNION of both directed distance sets.
-      ASSD = mean of the UNION of both directed distance sets.
-      MSD_X_to_Y = mean of distances from X-surface points to nearest
-                   Y-surface point (directional).
-    """
+    """Compute HD95 + ASSD + MSD per class. See module docstring."""
     from scipy.spatial import cKDTree
 
     nan_dict = {k: float("nan") for k in SURFACE_METRIC_FIELDS}
@@ -202,10 +182,9 @@ def surface_metrics(pred: np.ndarray, gt: np.ndarray, cls: int,
     }
 
 
-# Back-compat shim. Anything that imported hausdorff95 directly still works,
-# but internally now goes through the unified surface_metrics() path.
 def hausdorff95(pred: np.ndarray, gt: np.ndarray, cls: int,
                  vox_spacing: Tuple[float, float, float] = (1.0, 1.0, 1.0)) -> float:
+    """Back-compat shim."""
     return surface_metrics(pred, gt, cls, vox_spacing)["hd95"]
 
 
@@ -341,13 +320,7 @@ def resample_and_remap(ts_path: Path, ref_path: Path) -> np.ndarray:
 def benchmark_one(token, ct_path, label_path, pred_dir, case_meta,
                    device="gpu", fast=False, skip_surface=False,
                    force_ts=False, junction_window=JUNCTION_WINDOW_MM) -> Dict:
-    """
-    Run TS on this case, compute Dice + (optionally) HD95/ASSD/MSD
-    surface metrics + junction analysis, and return a single result
-    dict.
-
-    `skip_surface=True` skips ALL surface metrics (HD95, ASSD, MSD).
-    """
+    """Run TS, compute metrics, return per-case dict (with ok=True or False)."""
     import nibabel as nib
     config    = case_meta.get("config", "fused")
     scoreable = SCOREABLE_BY_CONFIG.get(config, FOREGROUND_CLASSES)
@@ -383,8 +356,6 @@ def benchmark_one(token, ct_path, label_path, pred_dir, case_meta,
         result["n_gt_classes"]  = len(gt_classes)
         result["l6_gt_present"] = bool(6 in gt_classes)
 
-        # Dice (incl. hips, classes 8 and 9 -- already in scoreable for
-        # fused + pelvic_native)
         for cls in FOREGROUND_CLASSES:
             if cls not in scoreable:
                 result["dice"][cls] = None
@@ -394,10 +365,6 @@ def benchmark_one(token, ct_path, label_path, pred_dir, case_meta,
         if result["l6_gt_present"]:
             result["l6_dice_meaningful"] = 0.0
 
-        # Surface metrics: compute HD95 + ASSD + MSD all in one shot per
-        # class so we only build kd-trees once per (class, case). Fields
-        # `hd95`, `assd`, `msd_pred_to_gt`, `msd_gt_to_pred` are filled
-        # per scoreable TS-capable class.
         if not skip_surface:
             for cls in TS_CAPABLE_CLASSES:
                 if cls not in scoreable:
@@ -416,8 +383,6 @@ def benchmark_one(token, ct_path, label_path, pred_dir, case_meta,
             result["junction"] = {"error": f"junction_analysis_skipped_config_{config}"}
         result["ok"] = True
 
-        # Compact log line: Dice for spine + sacrum + both hips, plus
-        # the surgical-relevance number (sacrum ASSD).
         d_str = "  ".join(
             f"{CLASS_NAMES[c]}={(result['dice'].get(c) if result['dice'].get(c) is not None else float('nan')):.3f}"
             for c in [1, 2, 3, 4, 5, 7, 8, 9])
@@ -436,21 +401,29 @@ def benchmark_one(token, ct_path, label_path, pred_dir, case_meta,
 # Streaming JSONL log: load + append helpers
 # =============================================================================
 
-def load_completed_results(per_case_log: Path) -> Tuple[List[Dict], Set[str]]:
+def load_completed_results(per_case_log: Path
+                            ) -> Tuple[List[Dict], Set[str], int, int]:
     """
     Read the streaming JSONL file from any prior run(s) and return:
-      - the list of result dicts (deduplicated; keeps the LATEST entry per
-        (token, config) so a re-run that recomputed metrics overwrites the
-        prior entry)
-      - a set of "{token}__{config}" keys we've already seen and don't need
-        to redo
+      - results:       list of result dicts to seed the in-memory results list
+                       (only ok=True records are seeded; failures are dropped
+                       and will be re-attempted)
+      - already_done:  set of "{token}__{config}" keys to SKIP this run
+                       (only ok=True records contribute; failures are NOT
+                       in this set, so they get retried)
+      - n_skipped_ok:  count of successful records re-used from the log
+      - n_failed_dropped: count of failed records that will be retried
 
-    Returns ([], set()) if the file doesn't exist.
+    Returns ([], set(), 0, 0) if the file doesn't exist.
+
+    Records are deduplicated by (token, config) keeping the LATEST entry
+    seen, so a later success overrides an earlier failure within the same
+    log even before this function gets called.
     """
     if not per_case_log.exists():
-        return [], set()
+        return [], set(), 0, 0
 
-    by_key: Dict[str, Dict] = {}     # latest record per (token, config)
+    by_key: Dict[str, Dict] = {}
     n_lines = n_bad = 0
     with open(per_case_log, "r") as f:
         for line in f:
@@ -468,21 +441,38 @@ def load_completed_results(per_case_log: Path) -> Tuple[List[Dict], Set[str]]:
             if not tok or not cfg:
                 n_bad += 1
                 continue
-            by_key[f"{tok}__{cfg}"] = rec   # later occurrences overwrite
+            by_key[f"{tok}__{cfg}"] = rec   # dedupe: latest wins
 
-    results = list(by_key.values())
-    seen = set(by_key.keys())
-    log.info("Resumed from %s: %d lines, %d unique (token, config) entries (bad=%d)",
-             per_case_log, n_lines, len(seen), n_bad)
-    return results, seen
+    # Partition by ok-ness AFTER the dedupe — this matters because a
+    # token+config that failed early then succeeded later will be marked
+    # as a success in by_key (dedupe keeps the latest), so it correctly
+    # ends up in the skip set.
+    seeded_results: List[Dict] = []
+    already_done:   Set[str]   = set()
+    n_skipped_ok = 0
+    n_failed_drop = 0
+    for key, rec in by_key.items():
+        if rec.get("ok"):
+            seeded_results.append(rec)
+            already_done.add(key)
+            n_skipped_ok += 1
+        else:
+            # Failed record: drop from the seeded results AND don't add
+            # to the skip set, so this case will be retried in the main
+            # loop. The retry's new record will append to the JSONL,
+            # and dedupe-by-key in subsequent loads will surface the
+            # success.
+            n_failed_drop += 1
+
+    log.info("Resumed from %s: %d lines, %d unique entries (bad=%d, "
+             "ok=%d will reuse, fail=%d will retry)",
+             per_case_log, n_lines, len(by_key), n_bad,
+             n_skipped_ok, n_failed_drop)
+    return seeded_results, already_done, n_skipped_ok, n_failed_drop
 
 
 def append_result_jsonl(per_case_log: Path, result: Dict) -> None:
-    """
-    Append one case's result as a JSON line, then fsync so it survives a
-    SIGKILL. The default=str fallback handles things like Path objects in
-    error tracebacks.
-    """
+    """Append one result, fsync so it survives SIGKILL."""
     per_case_log.parent.mkdir(parents=True, exist_ok=True)
     with open(per_case_log, "a") as f:
         f.write(json.dumps(result, default=str) + "\n")
@@ -507,12 +497,7 @@ def _nanstd(vals):
 
 
 def _normalize_for_aggregation(r: Dict) -> Dict:
-    """
-    JSONL roundtrip turns int dict keys into strings. Convert them back
-    so class_stats() can index by int cls IDs. Idempotent — safe to call
-    on dicts that were never round-tripped. Handles Dice + all four
-    surface metrics.
-    """
+    """Coerce JSONL-roundtripped str keys back to int keys."""
     for field in ("dice",) + SURFACE_METRIC_FIELDS:
         d = r.get(field) or {}
         new_d = {}
@@ -526,15 +511,12 @@ def _normalize_for_aggregation(r: Dict) -> Dict:
 
 
 def class_stats(cases):
-    """Per-class summary: Dice + each surface metric, all with mean and std."""
     stats = {}
     for cls in FOREGROUND_CLASSES:
         entry = {"n_cases": len(cases)}
-        # Dice
         dvals = [r["dice"].get(cls) for r in cases]
         entry["dice_mean"] = _nanmean(dvals)
         entry["dice_std"]  = _nanstd(dvals)
-        # Surface metrics — only aggregated if at least one case carries them
         for f in SURFACE_METRIC_FIELDS:
             vals = [r.get(f, {}).get(cls) for r in cases if r.get(f)]
             entry[f"{f}_mean"] = _nanmean(vals)
@@ -583,7 +565,6 @@ def aggregate(results):
 
 
 def format_table5(summary) -> str:
-    """Publication-ready per-vertebra Dice table."""
     def _f(v):
         return f"{v:>5.3f}" if v is not None and v == v else f"{'—':>5}"
 
@@ -608,18 +589,12 @@ def format_table5(summary) -> str:
             continue
         cls = sg.get("classes", {})
         jxn = sg.get("junction", {})
-
-        lumbar_cells = "  ".join(
-            _f(cls.get(n, {}).get("dice_mean"))
-            for n in ("L1", "L2", "L3", "L4", "L5")
-        )
-        pelvic_cells = "  ".join(
-            _f(cls.get(n, {}).get("dice_mean"))
-            for n in ("sacrum", "hip_left", "hip_right")
-        )
+        lumbar_cells = "  ".join(_f(cls.get(n, {}).get("dice_mean"))
+                                  for n in ("L1", "L2", "L3", "L4", "L5"))
+        pelvic_cells = "  ".join(_f(cls.get(n, {}).get("dice_mean"))
+                                  for n in ("sacrum", "hip_left", "hip_right"))
         l6_cell  = f"{'—':>5}"
         jxn_cell = f"{_f(jxn.get('mean_junction_dsc')):>7}"
-
         lines.append(
             f"  {sg['label']:<26}  {sg['n']:>3}  "
             f"{lumbar_cells}  {l6_cell}  {pelvic_cells}  {jxn_cell}"
@@ -630,15 +605,7 @@ def format_table5(summary) -> str:
 
 
 def format_table_surface(summary) -> str:
-    """
-    Per-class surface-distance table — surgical-planning headline.
-
-    Rows: subgroup. Columns: ASSD and HD95 for sacrum + both hips
-    (the classes that matter for SI screw / iliosacral fixation
-    planning), plus a sacrum MSD asymmetry indicator
-    (msd_pred_to_gt - msd_gt_to_pred) — positive means TS over-segments
-    the sacrum on average, negative means it under-segments.
-    """
+    """Surface-distance table (ASSD + HD95) for surgical-planning relevance."""
     def _fmm(v):
         return f"{v:>5.2f}" if v is not None and v == v else f"{'—':>5}"
 
@@ -690,7 +657,6 @@ def format_table_surface(summary) -> str:
 
 
 def write_csv(results: List[Dict], path: Path) -> None:
-    """Per-case CSV. Includes Dice + all four surface metrics per class."""
     import csv
     rows = []
     for r in results:
@@ -723,11 +689,6 @@ def write_csv(results: List[Dict], path: Path) -> None:
 # =============================================================================
 
 def select_cases(ds, args) -> List:
-    """
-    Zero-shot benchmarking — no train/val/test filter. Run TS on every
-    available case and stratify subgroups (config, LSTV class, match_type)
-    only at aggregation time.
-    """
     if args.config == "all":
         universe = ds.filter(present_only=True)
     else:
@@ -758,14 +719,17 @@ def main():
                     help="TS --fast mode (NOT recommended for publication)")
     ap.add_argument("--force_ts",  action="store_true")
     ap.add_argument("--force_recompute_metrics", action="store_true",
-                    help="Ignore per_case_partial.jsonl and recompute Dice + "
-                         "surface metrics for every case (predictions still cached).")
-    # Canonical flag (covers HD95, ASSD, MSD).
+                    help="Ignore per_case_partial.jsonl and recompute everything "
+                         "(predictions still cached on disk, so cheap).")
+    ap.add_argument("--retry_failed", action="store_true", default=True,
+                    help="On resume, retry cases that previously failed. "
+                         "Default ON — pass --no-retry-failed to disable.")
+    ap.add_argument("--no-retry-failed", dest="retry_failed", action="store_false",
+                    help="Treat failed records as final; do not retry on resume.")
     ap.add_argument("--skip_surface", action="store_true",
                     help="Skip ALL surface metrics (HD95, ASSD, MSD).")
-    # Legacy alias for old SLURM scripts that still pass --skip_hd95.
-    ap.add_argument("--skip_hd95", action="store_true",
-                    help=argparse.SUPPRESS)
+    # Legacy alias
+    ap.add_argument("--skip_hd95", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--window_mm", default=JUNCTION_WINDOW_MM, type=float)
     ap.add_argument("--out_dir",  required=True, type=Path)
     ap.add_argument("--pred_dir", default=None,  type=Path)
@@ -777,9 +741,6 @@ def main():
     pred_dir = args.pred_dir or (args.out_dir / "ts_preds")
     pred_dir.mkdir(parents=True, exist_ok=True)
 
-    # Streaming per-case JSONL log lives under out_dir, not pred_dir, so
-    # different shards / different runs each get their own metrics log
-    # while sharing the prediction cache.
     per_case_log = args.out_dir / "per_case_partial.jsonl"
 
     sys.path.insert(0, str(Path(__file__).parent))
@@ -803,26 +764,38 @@ def main():
     from collections import Counter
     cfg_counts = Counter(c.config for c in cases)
     log.info("Benchmarking %d cases  config=%s  per-config=%s  device=%s  fast=%s  "
-             "skip_surface=%s",
+             "skip_surface=%s  retry_failed=%s",
              len(cases), args.config, dict(cfg_counts), args.device, args.fast,
-             skip_surface)
+             skip_surface, args.retry_failed)
 
-    # ── Resume: read prior streamed results, build skip set ─────────────────
+    # ── Resume: load prior state ────────────────────────────────────────────
     if args.force_recompute_metrics:
         log.info("--force_recompute_metrics: ignoring %s", per_case_log)
         results: List[Dict] = []
         already_done: Set[str] = set()
     else:
-        results, already_done = load_completed_results(per_case_log)
+        if args.retry_failed:
+            # Default path: only ok=true records contribute to skip set.
+            # Failed records are dropped and will be retried automatically.
+            results, already_done, n_ok, n_fail = load_completed_results(per_case_log)
+            if n_fail:
+                log.info("AUTO-RETRY: %d failed records from prior run will be re-attempted.",
+                         n_fail)
+        else:
+            # Legacy behavior: any prior record (ok or fail) blocks the case.
+            # Load the JSONL, build skip set from ALL keys, seed results
+            # only with ok=true records (failures still get aggregated as
+            # n_fail in the final summary).
+            results, already_done = _load_completed_legacy(per_case_log)
 
     cases_to_run = [c for c in cases
                     if f"{c.token}__{c.config}" not in already_done]
     n_skip = len(cases) - len(cases_to_run)
     if n_skip:
-        log.info("Skipping %d already-completed (token, config) pairs from %s",
-                 n_skip, per_case_log.name)
+        log.info("Skipping %d already-successful (token, config) pairs", n_skip)
+    log.info("Will attempt %d cases this run", len(cases_to_run))
 
-    # ── HF download (if needed) for cases we still have to do ──────────────
+    # ── HF download (if needed) ─────────────────────────────────────────────
     if not args.dataset_dir and cases_to_run:
         try:
             from huggingface_hub import hf_hub_download
@@ -840,7 +813,7 @@ def main():
         except Exception as e:
             log.warning("HF download: %s", e)
 
-    # ── Main loop with streaming write ─────────────────────────────────────
+    # ── Main loop ───────────────────────────────────────────────────────────
     t0 = time.time()
     for i, case in enumerate(cases_to_run, 1):
         log.info("[%d/%d]  token=%-6s  config=%-14s  lstv=%s",
@@ -867,15 +840,18 @@ def main():
             junction_window = args.window_mm,
         )
         results.append(r)
-        # Stream this case's result to disk before moving to the next case.
-        # If the job is killed at this point, we lose at most one in-flight
-        # case's metrics (the prediction itself is still cached).
+        # Stream every result (success OR failure) to JSONL. The next
+        # resume's load_completed_results will dedupe by (token, config),
+        # latest wins, so a successful retry overwrites the prior failure.
         append_result_jsonl(per_case_log, r)
 
         elapsed = time.time() - t0
         log.info("  progress %d/%d  elapsed=%.0fs", i, len(cases_to_run), elapsed)
 
-    # ── Final aggregation pass ─────────────────────────────────────────────
+    # ── Final aggregation ───────────────────────────────────────────────────
+    # `results` may include failed records from this run (retries that
+    # failed again) as well as the seeded successes. aggregate() filters
+    # to ok-only for subgroup stats but reports n_total / n_ok / n_fail.
     summary = aggregate(results)
     t5 = format_table5(summary)
     t6 = format_table_surface(summary)
@@ -891,6 +867,36 @@ def main():
 
     log.info("DONE  ok=%d  fail=%d  total_time=%.0fs  per_case_log=%s",
              summary["n_ok"], summary["n_fail"], time.time() - t0, per_case_log)
+
+
+def _load_completed_legacy(per_case_log: Path) -> Tuple[List[Dict], Set[str]]:
+    """
+    Legacy resume behavior (pre-Apr-2026): every (token, config) in the
+    log blocks the case from being retried, regardless of ok/fail. Used
+    only when --no-retry-failed is passed.
+    """
+    if not per_case_log.exists():
+        return [], set()
+    by_key: Dict[str, Dict] = {}
+    with open(per_case_log, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            tok = rec.get("token")
+            cfg = rec.get("config")
+            if not tok or not cfg:
+                continue
+            by_key[f"{tok}__{cfg}"] = rec
+    results = list(by_key.values())
+    seen = set(by_key.keys())
+    log.info("Resumed (legacy/no-retry mode): %d entries blocked from retry",
+             len(seen))
+    return results, seen
 
 
 if __name__ == "__main__":

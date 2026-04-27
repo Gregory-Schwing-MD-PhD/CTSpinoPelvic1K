@@ -1,26 +1,53 @@
 {
-  "_schema_version": "3",
-  "_description": "Reviewer-curated manifest-level overrides. Two mechanisms:\n  1. 'flips' — tokens whose CT + masks need AP-flipping. Flipped across the CT's world-Y bounding-box center via full 3D resampling; all affected files for the case mirror about the SAME external plane to preserve mask-on-CT alignment. Optional 'sides' field controls which side flips on separate cases.\n  2. 'exclusions' — tokens to drop entirely from the output manifest because the mask/series pairing is wrong (mis-assigned series, placement failure beyond AP orientation, etc.). Flipping won't fix these; they must be removed or re-placed manually before they can rejoin the dataset.\nTokens not listed in either section pass through unchanged.",
+  "_schema_version": "4",
+  "_description": "Reviewer-curated manifest-level overrides. Three independent mechanisms:\n  1. 'flips' — tokens whose CT + masks need spatial AP-flipping for visual consistency (e.g., normalizing all cases to a prone display orientation). Reflected across CT's world-Y bbox center via 3D resampling.\n  2. 'label_swaps' — tokens whose mask file has anatomically inverted label VALUES from upstream source (e.g., CTPelvic1K had hip labels 2/3 placed on the wrong anatomical sides for these specific files). Voxels stay where they are; only label values get remapped (8↔9 for hips after export-time class remap).\n  3. 'exclusions' — tokens to drop entirely from the output manifest because the mask/series pairing is fundamentally wrong.\nA single token can appear in BOTH flips AND label_swaps; the spatial flip applies first, then the label remap. Tokens not listed in any section pass through unchanged.",
   "_reviewer_instructions": [
-    "1. Run Stage 2 once without any flips/exclusions (empty lists).",
-    "2. Inspect data/qc_figures/ -- identify cases needing flips vs exclusions.",
+    "1. Run Stage 2 once with empty flips / label_swaps / exclusions lists.",
+    "2. Inspect data/qc_figures/ to identify cases needing flips vs exclusions.",
     "3. Add flip entries for AP-inverted-but-correctly-paired cases.",
-    "4. Add exclusion entries for cases where the mask and CT don't belong together.",
-    "5. Re-run Stage 2; Step C picks up both lists.",
-    "6. Inspect data/qc_figures_orifix/ to confirm.",
-    "7. Excluded tokens appear in the Stage 2 log but not in the output manifest."
+    "4. Add exclusion entries for cases with mismatched mask/CT pairings.",
+    "5. Re-run Stage 2; Step C picks up flips and exclusions.",
+    "6. Inspect data/qc_figures_orifix/ to confirm orientation.",
+    "7. Run Stage 3 (export) and Stage 4 (TS benchmark + L/R audit).",
+    "8. For tokens flagged FLIPPED by the L/R audit (no-swap Dice ≈ 0,",
+    "   swap Dice ≈ 0.93), confirm via axial QC images that the labels",
+    "   are anatomically inverted in the CT. If yes, add to label_swaps",
+    "   with appropriate swap pairs (typically [[8, 9]] for hip labels).",
+    "9. Re-run Stage 2; Step C applies the label remap on the same",
+    "   _orientation_fixed files.",
+    "10. Re-run Stage 3 + audit to confirm 0 FLIPPED."
   ],
   "_sides_field": [
-    "Optional 'sides' list on flip entries controls WHICH files get flipped:",
+    "Optional 'sides' list on FLIP entries controls which files get flipped:",
     "  omitted (default)  : all applicable files for the case's match_type",
     "                       fused       -> CT + spine mask + pelvic mask",
     "                       pelvic_only -> pelvic CT + pelvic mask",
     "                       spine_only  -> spine CT + spine mask",
     "                       separate    -> pelvic CT + pelvic mask (conservative)",
-    "  ['spine']          : flip ONLY the spine CT + spine mask (separate cases)",
-    "  ['pelvic']         : flip ONLY the pelvic CT + pelvic mask (separate cases)",
+    "  ['spine']          : flip ONLY the spine CT + spine mask",
+    "  ['pelvic']         : flip ONLY the pelvic CT + pelvic mask",
     "  ['spine','pelvic'] : flip both sides on a separate case (rare)",
     "For fused / spine_only / pelvic_only, 'sides' is ignored."
+  ],
+  "_label_swap_field": [
+    "Each label_swap entry has these fields:",
+    "  token    : patient_token to apply to (must match manifest)",
+    "  swap     : list of [a, b] pairs to swap. Each pair is bidirectional",
+    "             (a -> b AND b -> a). Multiple pairs apply in parallel",
+    "             (no chaining). Example: [[8, 9]] swaps left/right hip.",
+    "             Use UNIFIED label values (post-export class remap):",
+    "               1=L1, 2=L2, 3=L3, 4=L4, 5=L5, 6=L6, 7=sacrum,",
+    "               8=hip_left, 9=hip_right",
+    "  target   : optional. 'pelvic' (default), 'spine', or 'both'.",
+    "             Determines which placed mask file gets the swap.",
+    "             For hip labels 8/9 the target should be 'pelvic'.",
+    "             Note: swap operates on placed mask values (CTPelvic1K",
+    "             uses 1=sacrum, 2=left_hip, 3=right_hip, 4=lumbar). The",
+    "             swap entry should reference unified post-export values",
+    "             so the swap composes cleanly with the export remap.",
+    "             (Implementation in apply_manual_flips.py operates on",
+    "             whatever values are in the placed mask file; for hip",
+    "             swaps in CTPelvic1K-derived files, use [[2, 3]].)"
   ],
   "exclusions": [
     {
@@ -29,7 +56,7 @@
       "date": "2026-04-21",
       "reason": "series_mismatch",
       "side_affected": "spine",
-      "notes": "Spine mask is totally misaligned with bone on the CT. This is not AP inversion — flipping will not fix it. Likely cause: place_fused_masks.py picked a wrong-series candidate as the best spine match for this patient, OR the CTSpine1K annotation references a scan that was never reliably paired. Excluding from dataset pending manual re-investigation (inspect placed_manifest entry for 680; consider pulling alternative candidate series UIDs from patient_db.json and re-running placement with a forced UID override)."
+      "notes": "Spine mask is totally misaligned with bone on the CT. This is not AP inversion — flipping will not fix it. Likely cause: place_fused_masks.py picked a wrong-series candidate as the best spine match for this patient, OR the CTSpine1K annotation references a scan that was never reliably paired. Excluding from dataset pending manual re-investigation."
     }
   ],
   "flips": [
@@ -38,7 +65,7 @@
       "reviewer": "Greg Schwing",
       "date": "2026-04-21",
       "match_type": "fused",
-      "notes": "Fused; visually inverted. CT + spine + pelvic flip together."
+      "notes": "Fused; visually inverted (post-PIR appearance was supine, normalizing to prone-style display). CT + spine + pelvic flip together."
     },
     {
       "token": "75",
@@ -46,7 +73,7 @@
       "date": "2026-04-21",
       "match_type": "separate",
       "sides": ["spine"],
-      "notes": "Separate. Spine side inverted; pelvic side is correctly oriented. Flip spine CT + spine mask only."
+      "notes": "Separate. Spine side inverted; pelvic side correctly oriented. Flip spine CT + spine mask only."
     },
     {
       "token": "460",
@@ -90,7 +117,7 @@
       "reviewer": "Greg Schwing",
       "date": "2026-04-21",
       "match_type": "pelvic_only",
-      "notes": "Pelvic-only; inverted. Flip pelvic CT + pelvic mask (only side applicable)."
+      "notes": "Pelvic-only; inverted. Flip pelvic CT + pelvic mask."
     },
     {
       "token": "704",
@@ -99,6 +126,40 @@
       "match_type": "separate",
       "sides": ["pelvic"],
       "notes": "Separate. Pelvic side inverted; spine side correct. Flip pelvic CT + pelvic mask only."
+    }
+  ],
+  "label_swaps": [
+    {
+      "token": "3",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-26",
+      "target": "pelvic",
+      "swap": [[2, 3]],
+      "notes": "Source CTPelvic1K mask had hip labels 2 and 3 placed on anatomically inverted sides (label 2 was on patient-RIGHT hip, label 3 on patient-LEFT). Verified via TS-vs-GT hip Dice audit (no-swap=0.000, swap=0.94) and confirmed via axial visual QC. The CT data is correct; only mask label values are remapped. Composes with the AP flip listed above for this token — the flip applies first to the placed pelvic mask, then this swap relabels values 2 <-> 3 on the flipped output."
+    },
+    {
+      "token": "460",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-26",
+      "target": "pelvic",
+      "swap": [[2, 3]],
+      "notes": "Source CTPelvic1K mask had hip labels 2 and 3 placed on anatomically inverted sides. Verified via TS-vs-GT hip Dice audit (no-swap=0.000, swap=0.92) and axial visual QC."
+    },
+    {
+      "token": "480",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-26",
+      "target": "pelvic",
+      "swap": [[2, 3]],
+      "notes": "Source CTPelvic1K mask had hip labels 2 and 3 placed on anatomically inverted sides. Verified via TS-vs-GT hip Dice audit (no-swap=0.000, swap=0.93) and axial visual QC. Independently verified by checking world-X centroids of TS hip predictions (TS hip_left at world-X=-56.9) against placed mask label centroids."
+    },
+    {
+      "token": "616",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-26",
+      "target": "pelvic",
+      "swap": [[2, 3]],
+      "notes": "Source CTPelvic1K mask had hip labels 2 and 3 placed on anatomically inverted sides. Verified via TS-vs-GT hip Dice audit (no-swap=0.000, swap=0.91) and axial visual QC."
     }
   ]
 }

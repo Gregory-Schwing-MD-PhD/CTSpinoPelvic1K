@@ -49,6 +49,26 @@ placed_manifest.json is the single source of truth. It now carries all LSTV
 fields directly (lstv_pelvic, lstv_vertebral, lstv_agreement, lstv_confusion_zone)
 populated by place_fused_masks.py. No secondary manifest file is needed.
 
+CT/mask frame-mismatch fix (Apr 2026)
+-------------------------------------
+Earlier the CT->mask resample gate in `_export_one` was:
+    if ct_img.shape[:3] != ref_shape:
+        ... resample CT into mask grid ...
+This missed cases where CT and placed mask shared the same shape but had
+different affines (e.g., raw RPS-stored dcm2niix CT vs PIR-reoriented
+placed mask). For those cases the resample was skipped and the CT data
+array was wrapped with the mask's affine without being reoriented to
+match — producing a saved CT whose data axes were scrambled relative to
+its own affine. This affected ~9 of ~800 tokens (those where the placed
+mask happened to be exactly 512^3 like the raw CT). Symptoms: TS
+predictions landed nowhere near the GT mask in the audit; visualize_qc
+showed CTs in non-axial slabs; HU under hip-mask voxels was air.
+
+Fix: gate now requires BOTH shape AND affine equality before skipping
+the resample. A post-write HU-at-hip-mask sanity check is also added
+so any future regression is caught at export time, not 200 audit-emails
+later.
+
 Label scheme:
   0=bg  1=L1  2=L2  3=L3  4=L4  5=L5  6=L6(LSTV)  7=sacrum  8=left_hip  9=right_hip
 
@@ -117,7 +137,14 @@ MIN_VALID_SHAPE = 10
 
 # Optional numeric fields — written as `null` (not "") in manifest.json so
 # Parquet sees a clean nullable-float column rather than mixed str/float.
-_OPTIONAL_NUMERIC_FIELDS = frozenset({"spine_bone_pct", "pelvic_bone_pct"})
+_OPTIONAL_NUMERIC_FIELDS = frozenset({
+    "spine_bone_pct", "pelvic_bone_pct", "postwrite_hip_bone_pct",
+})
+
+# Sanity: how much bone HU we expect under the hip-label voxels of the
+# saved CT/label pair. Lower than this fires a warning at export time.
+_POSTWRITE_HIP_BONE_PCT_WARN = 30.0
+_POSTWRITE_MIN_HIP_VOXELS    = 1000
 
 # -- Label maps ---------------------------------------------------------------
 
@@ -432,6 +459,10 @@ def _export_one(args: dict) -> dict:
         pelvic_series_uid=args.get("pelvic_series_uid"),
         spine_bone_pct=args.get("spine_bone_pct"),
         pelvic_bone_pct=args.get("pelvic_bone_pct"),
+        # Whether the CT had to be resampled into the mask grid (for debug)
+        ct_resampled_to_mask=False,
+        # Post-write HU sanity at hip-mask voxels (None when not enough hip vox)
+        postwrite_hip_bone_pct=None,
     )
 
     try:
@@ -453,12 +484,26 @@ def _export_one(args: dict) -> dict:
         _validate_shape(ct_img.shape,   label=f"token={token} ct")
 
         ct_data = np.asarray(ct_img.dataobj, dtype=np.float32)
-        if ct_img.shape[:3] != ref_shape:
+
+        # ── Resample CT into the mask's grid IF EITHER shape OR affine
+        # differs.  Earlier this gate was `if ct_img.shape[:3] != ref_shape:`
+        # — that missed cases where the raw CT and the placed mask happened
+        # to share the same shape (e.g., both 512^3) but lived in different
+        # orientations.  Skipping the resample in that case wrapped the CT
+        # data array with the mask's affine without reorienting the data,
+        # producing a saved CT whose data axes were scrambled relative to
+        # its own affine.  Failure mode: TS predictions land nowhere near
+        # the GT mask in the audit; QC shows non-axial slabs; HU at hip
+        # voxels is air.
+        shapes_equal  = (ct_img.shape[:3] == ref_shape)
+        affines_equal = np.allclose(ct_img.affine, ref_affine, atol=1e-4)
+        if not (shapes_equal and affines_equal):
             from scipy.ndimage import affine_transform as _at
             M       = np.linalg.inv(ct_img.affine) @ ref_affine
-            ct_data = _at(ct_data, M[:3,:3], offset=M[:3,3],
+            ct_data = _at(ct_data, M[:3, :3], offset=M[:3, 3],
                           output_shape=ref_shape, order=1,
                           mode="constant", cval=-1024.0)
+            result["ct_resampled_to_mask"] = True
 
         lbl_data = merge_labels(spine_path, pelvic_path, ref_shape)
 
@@ -482,8 +527,35 @@ def _export_one(args: dict) -> dict:
 
         ct_r  = nib.load(str(out_ct))
         lbl_r = nib.load(str(out_lbl))
-        result["alignment_ok"] = (ct_r.shape[:3] == lbl_r.shape[:3] and
-                                   np.allclose(ct_r.affine, lbl_r.affine, atol=1e-4))
+        result["alignment_ok"] = (
+            ct_r.shape[:3] == lbl_r.shape[:3]
+            and np.allclose(ct_r.affine, lbl_r.affine, atol=1e-4)
+        )
+
+        # ── Post-write CT-vs-label HU sanity:
+        # Sample HU values in the saved CT at the voxel positions where the
+        # saved label says hip is.  Hips are dense bone; if the bone% under
+        # those voxels is too low, the CT data is misaligned with its
+        # affine even though `alignment_ok` (which only compares affines)
+        # passed.  This catches frame-mismatch bugs at export time.
+        try:
+            ct_arr_chk  = np.asarray(ct_r.dataobj, dtype=np.float32)
+            lbl_arr_chk = np.asarray(lbl_r.dataobj, dtype=np.int16)
+            hip_mask    = (lbl_arr_chk == 8) | (lbl_arr_chk == 9)
+            n_hip       = int(hip_mask.sum())
+            if n_hip >= _POSTWRITE_MIN_HIP_VOXELS:
+                hu_at_hip = ct_arr_chk[hip_mask]
+                bone_pct  = float((hu_at_hip > 200).sum()) / n_hip * 100.0
+                result["postwrite_hip_bone_pct"] = round(bone_pct, 1)
+                if bone_pct < _POSTWRITE_HIP_BONE_PCT_WARN:
+                    log.warning(
+                        "[token=%s config=%s] post-write HU sanity FAIL: "
+                        "hip-mask voxels are %.1f%% bone (expected >%.0f). "
+                        "CT data may be misaligned with label.",
+                        token, config, bone_pct, _POSTWRITE_HIP_BONE_PCT_WARN,
+                    )
+        except Exception as _exc:
+            log.debug("[token=%s] post-write sanity skipped: %s", token, _exc)
 
         lbl_arr = np.asarray(lbl_r.dataobj, dtype=np.int16)
         uniq    = {int(v) for v in np.unique(lbl_arr) if v > 0}
@@ -802,7 +874,8 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
     HF Arrow/Parquet compatibility:
     - 'ok' and 'error' stripped
     - None -> "" for string fields
-    - None left as null for optional numeric fields (spine/pelvic_bone_pct)
+    - None left as null for optional numeric fields (spine/pelvic_bone_pct,
+      postwrite_hip_bone_pct)
     """
     _drop = {"ok", "error"}
     ok: List[dict] = []
@@ -833,12 +906,25 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
     n_pv_uid    = sum(1 for r in ok if r.get("pelvic_series_uid"))
     n_sp_pct    = sum(1 for r in ok if r.get("spine_bone_pct")  is not None)
     n_pv_pct    = sum(1 for r in ok if r.get("pelvic_bone_pct") is not None)
+    n_resampled = sum(1 for r in ok if r.get("ct_resampled_to_mask"))
+    n_hu_low    = sum(1 for r in ok
+                      if r.get("postwrite_hip_bone_pct") is not None
+                      and r["postwrite_hip_bone_pct"] < _POSTWRITE_HIP_BONE_PCT_WARN)
     log.info("Manifest  %d cases  confusion_zone=%d  agreed_lstv=%d -> manifest.json",
              len(ok), n_confusion, n_agreed)
     log.info("  provenance:  spine_uid=%d/%d  pelvic_uid=%d/%d  "
              "spine_bone_pct=%d/%d  pelvic_bone_pct=%d/%d",
              n_sp_uid, len(ok), n_pv_uid, len(ok),
              n_sp_pct, len(ok), n_pv_pct, len(ok))
+    log.info("  CT-vs-mask:  resampled=%d/%d  hu_at_hip_low=%d/%d "
+             "(threshold=%.0f%% bone)",
+             n_resampled, len(ok), n_hu_low, len(ok),
+             _POSTWRITE_HIP_BONE_PCT_WARN)
+    if n_hu_low:
+        bad = [r["token"] for r in ok
+               if r.get("postwrite_hip_bone_pct") is not None
+               and r["postwrite_hip_bone_pct"] < _POSTWRITE_HIP_BONE_PCT_WARN]
+        log.warning("  TOKENS WITH LOW HU AT HIPS: %s", bad)
 
     # Sanity: every ct_file / label_file should be a relative path
     # including its subdirectory prefix.  If any come back as a bare
@@ -856,6 +942,7 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
         "lstv_label", "lstv_class",
         "lstv_pelvic", "lstv_vertebral", "lstv_agreement", "lstv_confusion_zone",
         "has_l6", "n_lumbar_labels", "alignment_ok",
+        "ct_resampled_to_mask", "postwrite_hip_bone_pct",
         "spine_series_uid", "pelvic_series_uid",
         "spine_bone_pct", "pelvic_bone_pct",
         "ct_file", "label_file", "qc_file",
