@@ -160,6 +160,22 @@
       "target": "pelvic",
       "swap": [[2, 3]],
       "notes": "Source CTPelvic1K mask had hip labels 2 and 3 placed on anatomically inverted sides. Verified via TS-vs-GT hip Dice audit (no-swap=0.000, swap=0.91) and axial visual QC."
+    },
+    {
+      "token": "703",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-27",
+      "target": "pelvic",
+      "swap": [[2, 3]],
+      "notes": "Source CTPelvic1K mask had hip labels 2 and 3 placed on anatomically inverted sides. Surfaced by full L/R audit AFTER the export-bug fix resolved the original 9 MIXED tokens; pattern matches the original 4 fused FLIPPED tokens (no-swap Dice 0.000/0.000, swap Dice 0.919/0.921). Pelvic-only config; also has AP flip applied (see flips list)."
+    },
+    {
+      "token": "704",
+      "reviewer": "Greg Schwing",
+      "date": "2026-04-27",
+      "target": "pelvic",
+      "swap": [[2, 3]],
+      "notes": "Source CTPelvic1K mask had hip labels 2 and 3 placed on anatomically inverted sides. Surfaced by full L/R audit AFTER the export-bug fix resolved the original 9 MIXED tokens; pattern matches the original 4 fused FLIPPED tokens (no-swap Dice 0.000/0.000, swap Dice 0.929/0.925). Separate-config token (pelvic side only); also has AP flip applied (see flips list)."
     }
   ]
 }

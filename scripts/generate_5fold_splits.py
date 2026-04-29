@@ -1,3 +1,4 @@
+(base) [go2432@warrior spinesurg-ct-nnunet]$ cat ~/CTSpinoPelvic1K/scripts/generate_5fold_splits.py
 #!/usr/bin/env python3
 """
 generate_5fold_splits.py -- Stratified 5-fold CV splits at the patient-token level.
