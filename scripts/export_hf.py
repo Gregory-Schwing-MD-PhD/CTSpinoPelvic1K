@@ -69,6 +69,16 @@ the resample. A post-write HU-at-hip-mask sanity check is also added
 so any future regression is caught at export time, not 200 audit-emails
 later.
 
+Wipe-remote (Apr 2026)
+----------------------
+Earlier pushes left orphan files on the HF repo whenever a filename
+schema changed (e.g., the position-prefix removal). `upload_large_folder`
+is purely additive — it never deletes remote files that no longer exist
+locally. The new `--wipe_remote` flag does a full delete-and-recreate of
+the HF repo before pushing, giving a clean mirror of the local export.
+Requires `--force_wipe_remote` to skip the safety prompt (the flag is
+destructive and irreversible). Only valid alongside `--push_to_hub`.
+
 Label scheme:
   0=bg  1=L1  2=L2  3=L3  4=L4  5=L5  6=L6(LSTV)  7=sacrum  8=left_hip  9=right_hip
 
@@ -98,7 +108,8 @@ Usage (matches slurm/export_dataset.sh):
         --out_dir    data/hf_export \\
         --workers    32 \\
         [--skip_qc] [--no_pir] [--skip_export] \\
-        [--push_to_hub --hf_repo_id user/repo --hf_workers 8 [--hf_private]]
+        [--push_to_hub --hf_repo_id user/repo --hf_workers 8 [--hf_private]] \\
+        [--wipe_remote --force_wipe_remote]
 
     # Token via env var (keeps credentials out of shell history)
     HF_TOKEN=hf_xxx python export_hf.py ... --push_to_hub
@@ -112,6 +123,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
@@ -955,6 +967,74 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
 
 # -- HuggingFace push ---------------------------------------------------------
 
+def _wipe_remote_repo(api, repo_id: str, repo_type: str, token: str,
+                       force: bool = False) -> None:
+    """
+    Delete and recreate the HF repo to clear orphan files from earlier
+    pushes. This is destructive and irreversible at the HF level — git
+    history on the cloud side is also wiped. Local files are not touched.
+
+    Process:
+      1. Confirm with the user (interactive only; bypass with force=True)
+      2. delete_repo (atomic on HF side)
+      3. create_repo (fresh, empty)
+
+    Notes:
+      - Caller must reissue create_repo before upload because delete_repo
+        does not auto-recreate. We do that here so push_to_hub() doesn't
+        need to know whether the wipe happened.
+      - If delete_repo raises RepositoryNotFoundError it's fine — there
+        was nothing to wipe — just create.
+      - We DO NOT touch the user's local hf_export/ — that's the source
+        of truth for the re-upload.
+    """
+    from huggingface_hub import create_repo
+    from huggingface_hub.utils import (
+        RepositoryNotFoundError,
+        HfHubHTTPError,
+    )
+
+    # Safety: confirmation prompt unless forced.
+    if not force:
+        if not sys.stdin.isatty():
+            raise RuntimeError(
+                "wipe_remote requested without --force_wipe_remote on a "
+                "non-interactive shell. Refusing to wipe a HuggingFace repo "
+                "without explicit confirmation. Re-submit with "
+                "FORCE_WIPE_REMOTE=1 (env var) or --force_wipe_remote."
+            )
+        log.warning("=" * 60)
+        log.warning("ABOUT TO DELETE HF REPO: %s (type=%s)",
+                    repo_id, repo_type)
+        log.warning("This is IRREVERSIBLE. All files and git history on the")
+        log.warning("HF side will be lost. Local files are unaffected.")
+        log.warning("=" * 60)
+        ans = input(f"Type the repo name '{repo_id}' to confirm: ").strip()
+        if ans != repo_id:
+            raise RuntimeError(
+                f"wipe_remote aborted: typed '{ans}', expected '{repo_id}'")
+
+    log.info("Deleting HF repo %s ...", repo_id)
+    try:
+        api.delete_repo(repo_id=repo_id, repo_type=repo_type,
+                        token=token, missing_ok=True)
+        log.info("  delete_repo OK")
+    except RepositoryNotFoundError:
+        log.info("  repo did not exist — nothing to delete")
+    except HfHubHTTPError as exc:
+        # 404 from delete_repo (when missing_ok isn't honored on older
+        # huggingface_hub versions) — treat as "already gone".
+        if "404" in str(exc) or "Not Found" in str(exc):
+            log.info("  repo did not exist (404) — nothing to delete")
+        else:
+            raise
+
+    log.info("Recreating HF repo %s (empty) ...", repo_id)
+    create_repo(repo_id=repo_id, repo_type=repo_type,
+                private=False, exist_ok=True, token=token)
+    log.info("  create_repo OK — repo is now empty and ready for fresh upload")
+
+
 def push_to_hub(
     out_dir:          Path,
     repo_id:          str           = HF_REPO_ID,
@@ -963,6 +1043,8 @@ def push_to_hub(
     num_workers:      int           = 8,
     interface_script: Optional[Path] = None,
     readme_path:      Optional[Path] = None,
+    wipe_remote:      bool          = False,
+    force_wipe_remote: bool         = False,
 ) -> None:
     """
     Push ct/, labels/, manifest.json, manifest.csv, data_splits.json,
@@ -970,6 +1052,12 @@ def push_to_hub(
     HuggingFace using upload_large_folder.
 
     qc/ PNGs are excluded (large, derivative, regenerable).
+
+    If wipe_remote=True, the HF repo is deleted and recreated before the
+    upload. This is the only way to remove orphan files from prior
+    pushes — upload_large_folder is purely additive and never deletes
+    remote files. force_wipe_remote=True bypasses the interactive
+    confirmation prompt (required on non-interactive shells like SLURM).
     """
     try:
         from huggingface_hub import HfApi, create_repo
@@ -983,9 +1071,17 @@ def push_to_hub(
         )
 
     api = HfApi(token=token)
-    log.info("Ensuring repo: %s  (private=%s) ...", repo_id, private)
-    create_repo(repo_id=repo_id, repo_type=HF_REPO_TYPE,
-                private=private, exist_ok=True, token=token)
+
+    # Wipe FIRST so the recreation below is idempotent — the create_repo
+    # call after the wipe (and the one in the non-wipe path) both use
+    # exist_ok=True so it's safe either way.
+    if wipe_remote:
+        _wipe_remote_repo(api, repo_id=repo_id, repo_type=HF_REPO_TYPE,
+                          token=token, force=force_wipe_remote)
+    else:
+        log.info("Ensuring repo: %s  (private=%s) ...", repo_id, private)
+        create_repo(repo_id=repo_id, repo_type=HF_REPO_TYPE,
+                    private=private, exist_ok=True, token=token)
 
     if interface_script is None:
         for cand in [Path(__file__).parent / "dataset_interface.py",
@@ -1023,6 +1119,7 @@ def push_to_hub(
     log.info("  CTs=%d  Labels=%d  Workers=%d", n_ct, n_labels, num_workers)
     log.info("  Upload folder: %s", out_dir)
     log.info("  Excluding: qc/  (QC figures not pushed)")
+    log.info("  Mode: %s", "fresh push (wipe_remote)" if wipe_remote else "additive (existing files retained)")
     log.info("  Upload is resumable -- re-run if interrupted")
     log.info("=" * 60)
 
@@ -1056,7 +1153,33 @@ def main():
     ap.add_argument("--hf_workers",  default=8, type=int)
     ap.add_argument("--interface_script", default=None, type=Path)
     ap.add_argument("--readme_path",      default=None, type=Path)
+    # New: wipe orphan files on the remote before push
+    ap.add_argument("--wipe_remote", action="store_true",
+                    help="Delete and recreate the HF repo before pushing. "
+                         "Required when filename schemas change so that "
+                         "orphan files from earlier pushes don't linger. "
+                         "Implies a clean fresh push (no resume from prior). "
+                         "Only valid with --push_to_hub.")
+    ap.add_argument("--force_wipe_remote", action="store_true",
+                    help="Skip the interactive confirmation prompt for "
+                         "--wipe_remote. Required on non-interactive "
+                         "shells (SLURM jobs, CI). Setting the env var "
+                         "FORCE_WIPE_REMOTE=1 has the same effect.")
     args = ap.parse_args()
+
+    # Honor env-var form of force_wipe_remote so SLURM scripts can set it
+    # without sneaking it into argv.
+    if not args.force_wipe_remote and \
+       os.environ.get("FORCE_WIPE_REMOTE", "").strip().lower() in ("1", "true", "yes"):
+        args.force_wipe_remote = True
+
+    # Guard: --wipe_remote without --push_to_hub is a footgun. The user
+    # would delete their HF repo and then NOT repopulate it — leaving the
+    # dataset offline.
+    if args.wipe_remote and not args.push_to_hub:
+        log.error("--wipe_remote requires --push_to_hub. Refusing to "
+                  "delete the HF repo without re-pushing.")
+        sys.exit(2)
 
     if not args.skip_export:
         for d in [args.out_dir/"ct", args.out_dir/"labels", args.out_dir/"qc"]:
@@ -1118,6 +1241,8 @@ def main():
             num_workers=args.hf_workers,
             interface_script=args.interface_script,
             readme_path=args.readme_path,
+            wipe_remote=args.wipe_remote,
+            force_wipe_remote=args.force_wipe_remote,
         )
     else:
         log.info("HuggingFace push skipped. Add --push_to_hub to upload.")

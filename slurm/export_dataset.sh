@@ -36,6 +36,15 @@
 #   HF_TOKEN=hf_xxx PUSH=1 SKIP_EXPORT=1 sbatch slurm/export_dataset.sh
 #                                                               # push existing
 #
+# Wipe orphan files on HF (e.g., after a filename schema change):
+#   HF_TOKEN=hf_xxx PUSH=1 WIPE_REMOTE=1 sbatch slurm/export_dataset.sh
+#                                                               # wipe + re-push
+# WIPE_REMOTE deletes the HF repo and recreates it empty before push, so
+# files from prior schemas don't linger. Always paired with PUSH=1 (the
+# script enforces this). The non-interactive FORCE_WIPE_REMOTE=1 flag is
+# auto-set when WIPE_REMOTE=1 in a SLURM context — there's no terminal
+# for the confirmation prompt.
+#
 # Options:
 #   MANIFEST_FILE=placed_manifest.json   use un-fixed manifest (default: fixed)
 #   SKIP_QC=1        skip QC figure generation
@@ -43,6 +52,7 @@
 #   HF_PRIVATE=1     create HF repo as private
 #   HF_WORKERS=8     HF upload workers (default 8)
 #   SKIP_SPLITS=1    skip 5-fold splits generation
+#   WIPE_REMOTE=1    delete + recreate HF repo before push (DESTRUCTIVE)
 # =============================================================================
 
 set -euo pipefail
@@ -73,6 +83,15 @@ if [[ ! -f "${HOST_MANIFEST}" && "${MANIFEST_FILE}" == "placed_manifest_orientat
 fi
 
 SKIP_SPLITS="${SKIP_SPLITS:-0}"
+WIPE_REMOTE="${WIPE_REMOTE:-0}"
+
+# When wiping under SLURM there's no TTY for the interactive confirmation,
+# so we auto-force. The python-side guard still requires PUSH=1, and the
+# user must explicitly opt in via WIPE_REMOTE=1 — they can't hit this by
+# accident.
+if [[ "${WIPE_REMOTE}" == "1" ]]; then
+    export FORCE_WIPE_REMOTE=1
+fi
 
 mkdir -p "${LOGS_DIR}" "${HF_EXPORT_DIR}"
 
@@ -84,6 +103,7 @@ echo "   Manifest     : ${HOST_MANIFEST}"
 echo "   Export dir   : ${HF_EXPORT_DIR}"
 echo "   HF repo      : ${HF_REPO_ID}"
 echo "   PUSH         : ${PUSH}"
+echo "   WIPE_REMOTE  : ${WIPE_REMOTE}"
 echo "   SKIP_EXPORT  : ${SKIP_EXPORT}"
 echo "   SKIP_QC      : ${SKIP_QC}"
 echo "   SKIP_SPLITS  : ${SKIP_SPLITS}"
@@ -100,6 +120,22 @@ if [[ "${PUSH}" == "1" ]]; then
         exit 1
     fi
     echo "  HF_TOKEN : ${HF_TOKEN:0:8}***  (full token passed via env, redacted in logs)"
+fi
+
+# Wipe sanity: must be paired with PUSH. Catches the same footgun as the
+# python side, but earlier (before container spin-up).
+if [[ "${WIPE_REMOTE}" == "1" && "${PUSH}" != "1" ]]; then
+    echo "ERROR: WIPE_REMOTE=1 requires PUSH=1."
+    echo "       Wiping the HF repo without repushing would leave it offline."
+    exit 1
+fi
+
+if [[ "${WIPE_REMOTE}" == "1" ]]; then
+    echo ""
+    echo "  ⚠  WIPE_REMOTE=1: HF repo ${HF_REPO_ID} will be DELETED and recreated"
+    echo "     before push. All existing files and git history on HF will be lost."
+    echo "     Local files at ${HF_EXPORT_DIR} are unaffected."
+    echo ""
 fi
 
 if [[ ! -f "${SIF_PATH}" ]]; then
@@ -155,6 +191,9 @@ _run() {
     if [[ "${PUSH}" == "1" ]]; then
         # Pass token via env so it does not appear in `ps aux` or CLI args
         env_args="${env_args},HF_TOKEN=${HF_TOKEN}"
+        if [[ "${WIPE_REMOTE}" == "1" ]]; then
+            env_args="${env_args},FORCE_WIPE_REMOTE=1"
+        fi
     fi
     singularity exec \
         --env "${env_args}" \
@@ -194,6 +233,9 @@ if [[ "${PUSH}" == "1" ]]; then
     EXPORT_FLAGS="${EXPORT_FLAGS} --hf_repo_id ${HF_REPO_ID}"
     EXPORT_FLAGS="${EXPORT_FLAGS} --hf_workers ${HF_WORKERS}"
     [[ "${HF_PRIVATE}" == "1" ]] && EXPORT_FLAGS="${EXPORT_FLAGS} --hf_private"
+    if [[ "${WIPE_REMOTE}" == "1" ]]; then
+        EXPORT_FLAGS="${EXPORT_FLAGS} --wipe_remote --force_wipe_remote"
+    fi
     # Token is NOT passed as CLI arg — it comes in via HF_TOKEN env var
 fi
 
@@ -292,11 +334,19 @@ fi
 
 if [[ "${PUSH}" == "1" ]]; then
     echo ""
-    echo "  Pushed to: https://huggingface.co/datasets/${HF_REPO_ID}"
+    if [[ "${WIPE_REMOTE}" == "1" ]]; then
+        echo "  Pushed (wipe + repush) to: https://huggingface.co/datasets/${HF_REPO_ID}"
+    else
+        echo "  Pushed (additive) to: https://huggingface.co/datasets/${HF_REPO_ID}"
+    fi
 else
     echo ""
     echo "  To push when ready:"
     echo "    HF_TOKEN=hf_xxx make export-dataset PUSH=1 SKIP_EXPORT=1"
+    echo ""
+    echo "  To wipe orphan files on HF and re-push from scratch:"
+    echo "    HF_TOKEN=hf_xxx PUSH=1 WIPE_REMOTE=1 SKIP_EXPORT=1 \\"
+    echo "      sbatch slurm/export_dataset.sh"
 fi
 
 echo ""
