@@ -7,8 +7,8 @@
 # Typical workflow:
 #     make build-container         # once
 #     make download-raw            # Stage 1
-#     make create-dataset          # Stage 2
-#     HF_TOKEN=hf_xxx make export-dataset PUSH=1     # Stage 3
+#     make create-dataset          # Stage 2  (QC off by default)
+#     HF_TOKEN=hf_xxx make export-dataset PUSH=1     # Stage 3  (QC on by default)
 #
 # See `make help` for the full list of targets.
 # =============================================================================
@@ -44,14 +44,21 @@ DCM2NIIX_WORKERS ?= 16
 # ── Stage 2 control ──────────────────────────────────────────────────────────
 # DEBUG_N: limit to first N patients (0 = all)
 # DEBUG_TOKENS: comma-separated list of patient tokens; overrides DEBUG_N
-DEBUG_N      ?= 0
-DEBUG_TOKENS ?=
+# CREATE_SKIP_QC / CREATE_SKIP_QC_ORIFIX: QC OFF by default for create-dataset.
+#   QC figures are mostly useful for the export stage's curated set, not for
+#   the bulk Stage 2 run. Set to 0 to re-enable.
+DEBUG_N             ?= 0
+DEBUG_TOKENS        ?=
+CREATE_SKIP_QC        ?= 1
+CREATE_SKIP_QC_ORIFIX ?= 1
 
 # ── Stage 3 control ──────────────────────────────────────────────────────────
 # MANIFEST_FILE: which Stage 2 manifest Stage 3 consumes.  Default is the
 # orientation-fixed manifest so AP-inverted cases (e.g., token 480) are
 # exported with flipped CT + masks.  Override with MANIFEST_FILE=placed_manifest.json
 # to export from the un-fixed manifest.
+# SKIP_QC: 0 by default for export-dataset (QC images ARE generated here, since
+#   they accompany the published HF dataset).
 MANIFEST_FILE ?= placed_manifest_orientation_fixed.json
 SKIP_QC       ?= 0
 NO_PIR        ?= 0
@@ -98,6 +105,12 @@ help:  ## Show this help
 	@echo "                  default: placed_manifest_orientation_fixed.json"
 	@echo "                  override: MANIFEST_FILE=placed_manifest.json"
 	@echo ""
+	@echo "QC image generation (defaults shown):"
+	@echo "  CREATE_SKIP_QC=1         create-dataset Step D off (original-manifest QC)"
+	@echo "  CREATE_SKIP_QC_ORIFIX=1  create-dataset Step E off (post-flip QC)"
+	@echo "    -> set either to 0 to re-enable QC during create-dataset"
+	@echo "  SKIP_QC=0                export-dataset QC ON (default; QC ships with HF dataset)"
+	@echo ""
 
 
 # =============================================================================
@@ -137,11 +150,17 @@ download-raw: check-container  ## Stage 1 — download TCIA + CTSpine1K + CTPelv
 # =============================================================================
 # Stage 2 — create dataset
 # =============================================================================
+# QC images are OFF by default here. They're only useful for spotting
+# AP-inverted cases for the manual flip list, which is a one-time review.
+# The export stage generates a curated QC set that ships with the dataset.
+# Re-enable with CREATE_SKIP_QC=0 (and/or CREATE_SKIP_QC_ORIFIX=0).
 .PHONY: create-dataset
-create-dataset: check-container  ## Stage 2 — build PatientDB + place masks
+create-dataset: check-container  ## Stage 2 — build PatientDB + place masks (QC off by default)
 	@mkdir -p $(LOGS_DIR)
 	@echo "Submitting Stage 2: create-dataset ..."
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),DEBUG_N=$(DEBUG_N),DEBUG_TOKENS=$(DEBUG_TOKENS),WORKERS=$(WORKERS),DCM2NIIX_WORKERS=$(DCM2NIIX_WORKERS) \
+	@echo "  CREATE_SKIP_QC        = $(CREATE_SKIP_QC)   (Step D, original-manifest QC)"
+	@echo "  CREATE_SKIP_QC_ORIFIX = $(CREATE_SKIP_QC_ORIFIX)   (Step E, post-flip QC)"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),DEBUG_N=$(DEBUG_N),DEBUG_TOKENS=$(DEBUG_TOKENS),WORKERS=$(WORKERS),DCM2NIIX_WORKERS=$(DCM2NIIX_WORKERS),SKIP_QC=$(CREATE_SKIP_QC),SKIP_QC_ORIFIX=$(CREATE_SKIP_QC_ORIFIX) \
 	       slurm/create_dataset.sh
 
 
@@ -164,6 +183,7 @@ export-dataset: check-container  ## Stage 3 — split, export, optionally push t
 	@echo "Submitting Stage 3: export-dataset"
 	@echo "  MANIFEST_FILE = $(MANIFEST_FILE)"
 	@echo "  PUSH          = $(PUSH)"
+	@echo "  SKIP_QC       = $(SKIP_QC)   (0 = QC images generated for HF dataset)"
 	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),PUSH=$(PUSH),HF_REPO_ID=$(HF_REPO_ID),HF_WORKERS=$(HF_WORKERS),HF_PRIVATE=$(HF_PRIVATE),SKIP_QC=$(SKIP_QC),NO_PIR=$(NO_PIR),SKIP_EXPORT=$(SKIP_EXPORT),MANIFEST_FILE=$(MANIFEST_FILE) \
 	       slurm/export_dataset.sh
 
