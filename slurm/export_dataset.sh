@@ -53,6 +53,14 @@
 #   HF_WORKERS=8     HF upload workers (default 8)
 #   SKIP_SPLITS=1    skip 5-fold splits generation
 #   WIPE_REMOTE=1    delete + recreate HF repo before push (DESTRUCTIVE)
+#
+# CHANGE LOG (relevant)
+# ---------------------
+# May 2026: generate_5fold_splits.py CLI was changed to take --hf_dir
+#   instead of --placed_manifest, and --test_fraction was dropped.
+#   Updated this script's Step 2 invocation to match. Earlier runs of
+#   this script crashed at the splits step with "the following arguments
+#   are required: --hf_dir" while the export+push had already succeeded.
 # =============================================================================
 
 set -euo pipefail
@@ -63,17 +71,9 @@ cd "${PROJECT_ROOT}"
 source configs/default.env
 
 # ── Manifest selection ───────────────────────────────────────────────────────
-# Default to the orientation-fixed manifest. Its schema (v6_manual_flips_with_exclusions)
-# is a strict superset of the original placed_manifest.json — same top-level
-# keys plus additional orientation_check / orientation_fixed fields per case
-# plus patched series_uid for flipped cases. export_hf.py reads series_uid to
-# locate CT files, so using this manifest automatically picks up the flipped
-# CT NIfTIs.
 MANIFEST_FILE="${MANIFEST_FILE:-placed_manifest_orientation_fixed.json}"
 HOST_MANIFEST="${PLACED_DIR}/${MANIFEST_FILE}"
 
-# Fallback: if the orientation-fixed manifest doesn't exist (e.g. Stage 2 ran
-# without Step C), fall back to the original with a loud warning.
 if [[ ! -f "${HOST_MANIFEST}" && "${MANIFEST_FILE}" == "placed_manifest_orientation_fixed.json" ]]; then
     echo "WARNING: ${HOST_MANIFEST} not found."
     echo "         Falling back to placed_manifest.json (no manual-flip review applied)."
@@ -85,10 +85,6 @@ fi
 SKIP_SPLITS="${SKIP_SPLITS:-0}"
 WIPE_REMOTE="${WIPE_REMOTE:-0}"
 
-# When wiping under SLURM there's no TTY for the interactive confirmation,
-# so we auto-force. The python-side guard still requires PUSH=1, and the
-# user must explicitly opt in via WIPE_REMOTE=1 — they can't hit this by
-# accident.
 if [[ "${WIPE_REMOTE}" == "1" ]]; then
     export FORCE_WIPE_REMOTE=1
 fi
@@ -122,8 +118,6 @@ if [[ "${PUSH}" == "1" ]]; then
     echo "  HF_TOKEN : ${HF_TOKEN:0:8}***  (full token passed via env, redacted in logs)"
 fi
 
-# Wipe sanity: must be paired with PUSH. Catches the same footgun as the
-# python side, but earlier (before container spin-up).
 if [[ "${WIPE_REMOTE}" == "1" && "${PUSH}" != "1" ]]; then
     echo "ERROR: WIPE_REMOTE=1 requires PUSH=1."
     echo "       Wiping the HF repo without repushing would leave it offline."
@@ -159,7 +153,6 @@ print(f"  Input manifest: {m.get('n_cases','?')} cases "
       f"(fused={m.get('n_fused','?')}  separate={m.get('n_separate','?')}  "
       f"spine_only={m.get('n_spine_only','?')}  pelvic_only={m.get('n_pelvic_only','?')})")
 
-# Surface v6 manual-flip review fields when present (orientation-fixed manifest)
 if "n_manually_flipped" in m:
     print(f"  Manual flips  : flipped={m.get('n_manually_flipped','?')}  "
           f"requested={m.get('n_flip_requested','?')}  "
@@ -189,7 +182,6 @@ PPATH="/workspace/scripts:/workspace/src:/workspace"
 _run() {
     local env_args="PYTHONPATH=${PPATH}"
     if [[ "${PUSH}" == "1" ]]; then
-        # Pass token via env so it does not appear in `ps aux` or CLI args
         env_args="${env_args},HF_TOKEN=${HF_TOKEN}"
         if [[ "${WIPE_REMOTE}" == "1" ]]; then
             env_args="${env_args},FORCE_WIPE_REMOTE=1"
@@ -211,7 +203,6 @@ C_HF_EXPORT="/data/hf_export"
 
 # ── Stage the dataset card and interface script ─────────────────────────────
 if [[ "${SKIP_EXPORT}" != "1" ]]; then
-    # Copy dataset card to export dir so export_hf.py's push picks it up
     if [[ -f "${PROJECT_ROOT}/docs/dataset_card.md" ]]; then
         cp "${PROJECT_ROOT}/docs/dataset_card.md" "${HF_EXPORT_DIR}/README.md"
         echo "  Staged dataset card → ${HF_EXPORT_DIR}/README.md"
@@ -236,7 +227,6 @@ if [[ "${PUSH}" == "1" ]]; then
     if [[ "${WIPE_REMOTE}" == "1" ]]; then
         EXPORT_FLAGS="${EXPORT_FLAGS} --wipe_remote --force_wipe_remote"
     fi
-    # Token is NOT passed as CLI arg — it comes in via HF_TOKEN env var
 fi
 
 # =============================================================================
@@ -258,6 +248,15 @@ _run python3 /workspace/scripts/export_hf.py \
 
 # =============================================================================
 # Generate 5-fold CV splits (from the HF manifest we just produced)
+#
+# CLI (May 2026): --hf_dir replaces --placed_manifest, and --test_fraction
+# was removed (the 15% test split is now derived inside the script from
+# the manifest's existing train/validation/test partition). Earlier
+# versions of this script passed the old args and crashed here while the
+# export and HF push had already succeeded. If you see a missing-arg
+# crash again, diff this invocation against
+#   python3 /workspace/scripts/generate_5fold_splits.py --help
+# and update accordingly.
 # =============================================================================
 if [[ "${SKIP_EXPORT}" != "1" && "${SKIP_SPLITS}" != "1" ]]; then
     if [[ -f "${HF_EXPORT_DIR}/manifest.json" ]]; then
@@ -267,11 +266,10 @@ if [[ "${SKIP_EXPORT}" != "1" && "${SKIP_SPLITS}" != "1" ]]; then
         echo "======================================================================"
 
         _run python3 /workspace/scripts/generate_5fold_splits.py \
-            --placed_manifest "${C_MANIFEST}" \
-            --out             "${C_HF_EXPORT}/splits_5fold.json" \
-            --n_folds         5 \
-            --test_fraction   0.15 \
-            --seed            42
+            --hf_dir  "${C_HF_EXPORT}" \
+            --out     "${C_HF_EXPORT}/splits_5fold.json" \
+            --n_folds 5 \
+            --seed    42
 
         if [[ -f "${HF_EXPORT_DIR}/splits_5fold.json" ]]; then
             echo "  Splits file: ${HF_EXPORT_DIR}/splits_5fold.json"
@@ -307,14 +305,15 @@ if [[ -f "${HF_EXPORT_DIR}/manifest.json" ]]; then
 import json, sys
 from collections import Counter
 m = json.load(open(sys.argv[1]))
-# manifest.json may be a flat list OR {"records": [...]}
 recs = m if isinstance(m, list) else m.get("records", [])
 cfg = Counter(r["config"] for r in recs)
 lbl = Counter(r.get("lstv_label", "") for r in recs)
 bad = sum(1 for r in recs if not r.get("alignment_ok", True))
+n_partial = sum(1 for r in recs if r.get("partial_annotation"))
 print(f"  Configs      : {dict(cfg)}")
 print(f"  LSTV         : {dict(lbl)}")
 print(f"  Align fails  : {bad}")
+print(f"  Partial annots (ignore=10): {n_partial}/{len(recs)}")
 PYEOF
 fi
 
@@ -322,13 +321,14 @@ if [[ -f "${HF_EXPORT_DIR}/splits_5fold.json" ]]; then
     python3 - "${HF_EXPORT_DIR}/splits_5fold.json" << 'PYEOF'
 import json, sys
 s = json.load(open(sys.argv[1]))
-print(f"  Splits       : schema v{s.get('schema_version','?')}  "
-      f"strata={s.get('strata_scheme','?')}")
-print(f"    total     = {s.get('n_tokens_total','?')}")
-print(f"    test      = {s.get('n_tokens_test','?')}")
-print(f"    trainval  = {s.get('n_tokens_trainval','?')}")
-print(f"    n_folds   = {s.get('n_folds','?')}")
-print(f"    validated = {s.get('invariants_validated', False)}")
+print(f"  Splits       : schema v{s.get('schema_version','?')}")
+print(f"  n_patients   : {s.get('n_patients','?')}")
+print(f"  n_folds      : {s.get('n_folds','?')}")
+counts = s.get('subtype_counts')
+if counts:
+    print(f"  Subtype counts:")
+    for st, n in counts.items():
+        print(f"    {st:<22} {n}")
 PYEOF
 fi
 

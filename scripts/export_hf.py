@@ -5,7 +5,9 @@ then push directly to the Hub using upload_large_folder.
 Reads placed_manifest.json (written by place_fused_masks.py) and for each case:
   1. Load CT NIfTI (from tcia_nifti/{series_uid}.nii.gz)
   2. Remap spine labels (VerSe -> 10-class) + pelvic labels (4-class -> 10-class)
-  3. Merge into single 10-class label map
+  3. Merge into single 10-class label map (or partial-annotation 11-value
+     map with IGNORE_LABEL=10 for separate-mode cases — see PARTIAL ANNOTATION
+     CONTRACT below)
   4. Reorient CT + label to PIR canonical orientation
   5. Strip PHI from NIfTI headers
   6. Save to flat output:
@@ -49,6 +51,42 @@ placed_manifest.json is the single source of truth. It now carries all LSTV
 fields directly (lstv_pelvic, lstv_vertebral, lstv_agreement, lstv_confusion_zone)
 populated by place_fused_masks.py. No secondary manifest file is needed.
 
+PARTIAL ANNOTATION CONTRACT (May 2026)
+======================================
+The earlier merge_labels initialized `result` to all-zeros (background)
+and then filled in non-zero classes from whichever masks were present.
+For separate-mode patients (spine_only or pelvic_native exports), this
+silently asserted "background everywhere the present mask doesn't speak"
+— which was wrong. A spine-only export's pelvic region was getting a
+hard "no sacrum, no hips" label even though the pelvic annotator hadn't
+traced that scan. The model dutifully learned to suppress those classes
+on those cases. Across 689 separate-mode records (out of 979 training
+cases) this was systematically poisoning the loss for L6, sacrum, and
+hips.
+
+The fix: separate-mode label files now use `IGNORE_LABEL = 10` for
+voxels that fall outside the present annotator's domain. nnU-Net v2's
+`DC_and_CE_loss` honors `ignore_label` and produces zero gradient at
+those voxels — so the network gets exactly the supervision the
+annotator intended, no more.
+
+Required downstream:
+  - `dataset.json` MUST have `"ignore": 10` in its `labels` dict (already
+    set in convert_hf_to_nnunet.py:LABEL_NAMES).
+  - The trainer's `_IGNORE_LABEL` constant must equal 10 (already set in
+    nnunet_wandb_variant.py).
+
+Per-mode label-array contents:
+  fused (both masks present):
+    voxel values ∈ {0..9}.       0 = true background.
+  spine-only (pelvic_path is None):
+    voxel values ∈ {1..6, 7, 10}. No 0s. 7 only where the spine VerSe
+    mask had id 26 (sacrum from spine annotator). 10 = ignore everywhere
+    else (the spine annotator did not trace those regions).
+  pelvic-only (spine_path is None):
+    voxel values ∈ {7..9, 10}. No 0s. 10 everywhere outside the pelvic
+    annotator's traced sacrum/hips.
+
 CT/mask frame-mismatch fix (Apr 2026)
 -------------------------------------
 Earlier the CT->mask resample gate in `_export_one` was:
@@ -81,6 +119,7 @@ destructive and irreversible). Only valid alongside `--push_to_hub`.
 
 Label scheme:
   0=bg  1=L1  2=L2  3=L3  4=L4  5=L5  6=L6(LSTV)  7=sacrum  8=left_hip  9=right_hip
+  10=IGNORE (partial-annotation only; never present in fused exports)
 
 Output orientation: every CT + label pair is written in PIR canonical:
   axis 0 = Posterior  (A->P as idx++)
@@ -160,6 +199,12 @@ _POSTWRITE_MIN_HIP_VOXELS    = 1000
 
 # -- Label maps ---------------------------------------------------------------
 
+# Ignore label for partial-annotation cases. Voxels with this value are
+# masked out of both CE and Dice loss by nnU-Net's DC_and_CE_loss when
+# ignore_label is configured (see trainer's _maybe_apply_ce_reweighting
+# and the dataset.json's "ignore": 10 entry).
+IGNORE_LABEL = 10
+
 VERSE_TO_10CLASS: Dict[int, int] = {
     20: 1, 21: 2, 22: 3, 23: 4, 24: 5,
     25: 6,
@@ -206,12 +251,7 @@ def _to_optional_float(v):
 
 
 def _posix_rel(*parts: str) -> str:
-    """Join path parts with '/' always, regardless of OS.
-
-    Used for building manifest-relative paths like 'ct/foo.nii.gz'.
-    Pathlib's Path would emit '\\' on Windows, which breaks portable
-    manifest consumers.
-    """
+    """Join path parts with '/' always, regardless of OS."""
     return "/".join(p.strip("/\\") for p in parts if p)
 
 
@@ -223,12 +263,6 @@ def _load_nii(path):
 
 
 def _validate_affine(affine, label: str = "") -> None:
-    """
-    Raise ValueError early if the affine is degenerate before nibabel's
-    io_orientation crashes.  Catches NaN/Inf columns and zero-norm columns
-    from degenerate dcm2niix outputs (localizer/scout series with missing
-    geometry tags).
-    """
     tag = f"[{label}] " if label else ""
     if affine is None or getattr(affine, "shape", None) != (4, 4):
         raise ValueError(f"{tag}affine is not 4x4: shape={getattr(affine,'shape',None)}")
@@ -245,11 +279,6 @@ def _validate_affine(affine, label: str = "") -> None:
 
 def _validate_shape(shape, label: str = "",
                     min_axis: int = MIN_VALID_SHAPE) -> None:
-    """
-    Raise ValueError if the spatial shape is degenerate for segmentation
-    work (scout / localizer / 2-slice derivative).  Mirrors the
-    _valid_volume_shape filter in place_fused_masks.py.
-    """
     tag = f"[{label}] " if label else ""
     try:
         sh = tuple(int(s) for s in shape[:3])
@@ -285,26 +314,78 @@ def strip_phi(img):
 
 
 def merge_labels(spine_path, pelvic_path, ref_shape):
-    result = np.zeros(ref_shape, dtype=np.int16)
+    """Build the 10-class label volume from spine + pelvic placed masks.
 
-    if pelvic_path and Path(pelvic_path).exists():
+    Output value range:
+      Fused mode  (both masks present): voxels ∈ {0..9}
+      Partial mode (only one mask):     voxels ∈ {1..9, IGNORE_LABEL=10}
+
+    Partial-annotation contract:
+      In partial mode, the result array starts as IGNORE_LABEL everywhere.
+      The available mask then writes its annotated classes (1-6 for spine,
+      7-9 for pelvic, plus 7 for spine where VerSe id 26 was traced as
+      sacrum) into the result. Voxels that the available annotator did
+      not assign to any class — including voxels where the mask file's
+      value is 0 (annotated as not-of-interest) — REMAIN as IGNORE_LABEL.
+
+      The reasoning: a "0" voxel in a spine-only mask means the spine
+      annotator decided it isn't a vertebra. It does NOT mean it's
+      background — it could be sacrum, hip, or true bg. The pelvic
+      annotator wasn't consulted on this scan, so we don't know. nnU-Net's
+      DC_and_CE_loss with ignore_label=10 will zero out the gradient at
+      those voxels, giving the model "no information" rather than "this
+      is bg" (which would be a lie).
+
+      Conversely, in fused mode, both annotators traced the scan, so a
+      voxel that's 0 in BOTH masks really is true background and gets
+      labeled 0.
+
+    Sacrum-from-spine fallback:
+      VerSe id 26 maps to our sacrum class (7). When the spine annotator
+      traced sacrum and the pelvic annotator either didn't run (partial)
+      or didn't claim sacrum at this voxel (fused), we fill in sacrum
+      from the spine source. The fill mask is "result is 0 (truly bg from
+      pelvic) OR result is IGNORE_LABEL (not yet assigned)" — covering
+      both fused and partial modes.
+    """
+    has_spine  = bool(spine_path  and Path(spine_path).exists())
+    has_pelvic = bool(pelvic_path and Path(pelvic_path).exists())
+
+    if has_spine and has_pelvic:
+        # Fused mode: every voxel is supervised. Init to 0 = background.
+        result = np.zeros(ref_shape, dtype=np.int16)
+    else:
+        # Partial mode: voxels not assigned by the present mask are
+        # IGNORE, not background. nnU-Net will mask them out of loss.
+        result = np.full(ref_shape, IGNORE_LABEL, dtype=np.int16)
+
+    # ── Pelvic mask (sacrum + hips) ─────────────────────────────────────
+    if has_pelvic:
         pelv = np.asarray(_load_nii(pelvic_path).dataobj, dtype=np.int16)
         mn   = tuple(min(a, b) for a, b in zip(ref_shape, pelv.shape))
         sl   = tuple(slice(0, m) for m in mn)
         for pid, cls in PELVIC_TO_10CLASS.items():
             result[sl][pelv[sl] == pid] = cls
 
-    if spine_path and Path(spine_path).exists():
+    # ── Spine mask (lumbar + sacrum-from-VerSe-26) ──────────────────────
+    if has_spine:
         sp = np.asarray(_load_nii(spine_path).dataobj, dtype=np.int16)
         mn = tuple(min(a, b) for a, b in zip(ref_shape, sp.shape))
         sl = tuple(slice(0, m) for m in mn)
         for vid, cls in VERSE_TO_10CLASS.items():
             if cls in (1, 2, 3, 4, 5, 6):
+                # Lumbar L1-L6: spine annotator's word is authoritative.
                 result[sl][sp[sl] == vid] = cls
             elif cls == 7:
-                # Only fill sacrum from spine seg where pelvic didn't already
-                mask = (sp[sl] == vid) & (result[sl] == 0)
-                result[sl][mask] = cls
+                # Sacrum from VerSe id 26: only fill where pelvic didn't
+                # already claim it (fused mode -> result==0) or where
+                # the slot is still unassigned (partial mode -> result==IGNORE).
+                # Do NOT overwrite a pelvic-claimed sacrum, hip (7-9), or
+                # an already-placed lumbar vertebra (1-6).
+                fill_mask = (sp[sl] == vid) & (
+                    (result[sl] == 0) | (result[sl] == IGNORE_LABEL)
+                )
+                result[sl][fill_mask] = cls
 
     return result
 
@@ -316,18 +397,7 @@ def _window(arr, lo=-150, hi=700):
 
 
 def _display_slice(arr2d: np.ndarray, dim: int) -> np.ndarray:
-    """Orient a 2D slice for radiological display assuming PIR source.
-
-    PIR: axis 0 = P (A->P as idx++), axis 1 = I (S->I as idx++),
-         axis 2 = R (L->R as idx++).
-
-    dim=0 (coronal):  slice shape (I, R). Default imshow row-0-top puts
-                      superior at top. No transform needed.
-    dim=1 (axial):    slice shape (P, R). Row-0-top puts anterior at top,
-                      posterior (spine) at bottom. No transform needed.
-    dim=2 (sagittal): slice shape (P, I). We want row=I (head up),
-                      col=P. Transpose.
-    """
+    """Orient a 2D slice for radiological display assuming PIR source."""
     return arr2d.T if dim == 2 else arr2d
 
 
@@ -342,16 +412,17 @@ def _overlay(bg, labels):
 
 
 def _center_slice(ct, lbl):
-    nz = np.where(lbl > 0)
+    # Use only fg classes (1-9), not IGNORE (10) or bg (0), to find the
+    # spatial center for QC visualization.
+    fg_mask = (lbl >= 1) & (lbl <= 9)
+    nz = np.where(fg_mask)
     if not len(nz[0]):
         return ct.shape[0]//2, ct.shape[1]//2, ct.shape[2]//2
     return int(np.median(nz[0])), int(np.median(nz[1])), int(np.median(nz[2]))
 
 
 def make_qc_figure(ct, lbl, out_path, token, config, lstv, position):
-    """
-    Render a 3-row QC figure assuming PIR storage order.
-    """
+    """Render a 3-row QC figure assuming PIR storage order."""
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -360,12 +431,16 @@ def make_qc_figure(ct, lbl, out_path, token, config, lstv, position):
     except ImportError:
         return False
 
-    present    = {int(v) for v in np.unique(lbl) if v > 0}
+    # For QC display only: treat IGNORE as bg (don't render a class color).
+    # The actual saved label keeps IGNORE intact for the trainer.
+    lbl_disp = np.where(lbl == IGNORE_LABEL, 0, lbl).astype(np.int16)
+
+    present    = {int(v) for v in np.unique(lbl_disp) if v > 0}
     has_lumbar = bool(present & {1,2,3,4,5,6})
     has_pelvic = bool(present & {7,8,9})
 
-    sp_lbl = np.where(np.isin(lbl, [1,2,3,4,5,6]), lbl, 0).astype(np.int16)
-    pv_lbl = np.where(np.isin(lbl, [7,8,9]),        lbl, 0).astype(np.int16)
+    sp_lbl = np.where(np.isin(lbl_disp, [1,2,3,4,5,6]), lbl_disp, 0).astype(np.int16)
+    pv_lbl = np.where(np.isin(lbl_disp, [7,8,9]),        lbl_disp, 0).astype(np.int16)
 
     if has_lumbar and has_pelvic:
         cols   = ["CT (raw)", "CT + spine", "CT + pelvic", "CT + all"]
@@ -375,7 +450,7 @@ def make_qc_figure(ct, lbl, out_path, token, config, lstv, position):
         cols   = ["CT (raw)", f"CT + {name}", f"{name.capitalize()} only"]
         layout = "single"
 
-    i, j, k = _center_slice(ct, lbl)
+    i, j, k = _center_slice(ct, lbl_disp)
     planes = [(0, i, "Coronal"), (1, j, "Axial"), (2, k, "Sagittal")]
 
     fig, axes = plt.subplots(3, len(cols),
@@ -395,7 +470,7 @@ def make_qc_figure(ct, lbl, out_path, token, config, lstv, position):
         bg       = _display_slice(_window(ct[sl]),    dim)
         sp_slice = _display_slice(sp_lbl[sl],         dim)
         pv_slice = _display_slice(pv_lbl[sl],         dim)
-        full_slice = _display_slice(lbl[sl],          dim)
+        full_slice = _display_slice(lbl_disp[sl],     dim)
 
         axes[row, 0].imshow(np.stack([bg, bg, bg], axis=-1),
                             aspect="auto", interpolation="nearest")
@@ -446,11 +521,6 @@ def _export_one(args: dict) -> dict:
     lstv        = args.get("lstv", "unknown")
     match_type  = args.get("match_type", "unknown")
 
-    # Manifest-relative paths INCLUDING subdirectory.  Resolving them via
-    # `dataset_root / ct_file` is what every downstream consumer does
-    # (dataset_interface.Case.ct_path, data_splits.json, HF hf_hub_download),
-    # so recording the basename alone broke every one of them when the
-    # files actually live under ct/ and labels/.  Forward slashes only.
     rel_ct_file  = _posix_rel("ct",     out_ct.name)
     rel_lbl_file = _posix_rel("labels", out_lbl.name)
     rel_qc_file  = _posix_rel("qc",     out_qc.name)
@@ -460,21 +530,25 @@ def _export_one(args: dict) -> dict:
         match_type=match_type, lstv_label=lstv, ok=False, error=None,
         alignment_ok=False, has_l6=False, n_lumbar_labels=0,
         ct_file=rel_ct_file, label_file=rel_lbl_file, qc_file=rel_qc_file,
-        # LSTV fields -- passed through from placed_manifest.json
         lstv_pelvic=args.get("lstv_pelvic", ""),
         lstv_vertebral=args.get("lstv_vertebral", ""),
-        lstv_agreement=args.get("lstv_agreement"),          # bool | None
+        lstv_agreement=args.get("lstv_agreement"),
         lstv_confusion_zone=args.get("lstv_confusion_zone", False),
         lstv_class=args.get("lstv_class", 0),
-        # Provenance fields -- passed through from placed_manifest.json
         spine_series_uid=args.get("spine_series_uid"),
         pelvic_series_uid=args.get("pelvic_series_uid"),
         spine_bone_pct=args.get("spine_bone_pct"),
         pelvic_bone_pct=args.get("pelvic_bone_pct"),
-        # Whether the CT had to be resampled into the mask grid (for debug)
         ct_resampled_to_mask=False,
-        # Post-write HU sanity at hip-mask voxels (None when not enough hip vox)
         postwrite_hip_bone_pct=None,
+        # Partial-annotation status (NEW): True iff this case used
+        # IGNORE_LABEL fill because only one of {spine, pelvic} masks
+        # was present.
+        partial_annotation=False,
+        # Voxel-count breakdown so we can sanity-check downstream.
+        n_voxels_ignore=0,
+        n_voxels_fg=0,
+        n_voxels_bg=0,
     )
 
     try:
@@ -497,16 +571,6 @@ def _export_one(args: dict) -> dict:
 
         ct_data = np.asarray(ct_img.dataobj, dtype=np.float32)
 
-        # ── Resample CT into the mask's grid IF EITHER shape OR affine
-        # differs.  Earlier this gate was `if ct_img.shape[:3] != ref_shape:`
-        # — that missed cases where the raw CT and the placed mask happened
-        # to share the same shape (e.g., both 512^3) but lived in different
-        # orientations.  Skipping the resample in that case wrapped the CT
-        # data array with the mask's affine without reorienting the data,
-        # producing a saved CT whose data axes were scrambled relative to
-        # its own affine.  Failure mode: TS predictions land nowhere near
-        # the GT mask in the audit; QC shows non-axial slabs; HU at hip
-        # voxels is air.
         shapes_equal  = (ct_img.shape[:3] == ref_shape)
         affines_equal = np.allclose(ct_img.affine, ref_affine, atol=1e-4)
         if not (shapes_equal and affines_equal):
@@ -517,7 +581,10 @@ def _export_one(args: dict) -> dict:
                           mode="constant", cval=-1024.0)
             result["ct_resampled_to_mask"] = True
 
+        # Partial-annotation aware label merge — see merge_labels docstring.
         lbl_data = merge_labels(spine_path, pelvic_path, ref_shape)
+        # Determine partial mode by checking what merge_labels emitted.
+        result["partial_annotation"] = bool((lbl_data == IGNORE_LABEL).any())
 
         ct_out  = nib.Nifti1Image(ct_data,  ref_affine)
         lbl_out = nib.Nifti1Image(lbl_data, ref_affine)
@@ -544,17 +611,36 @@ def _export_one(args: dict) -> dict:
             and np.allclose(ct_r.affine, lbl_r.affine, atol=1e-4)
         )
 
-        # ── Post-write CT-vs-label HU sanity:
-        # Sample HU values in the saved CT at the voxel positions where the
-        # saved label says hip is.  Hips are dense bone; if the bone% under
-        # those voxels is too low, the CT data is misaligned with its
-        # affine even though `alignment_ok` (which only compares affines)
-        # passed.  This catches frame-mismatch bugs at export time.
+        # Post-write voxel count breakdown for the manifest. Helps catch
+        # regressions where partial mode silently turns off.
+        lbl_arr = np.asarray(lbl_r.dataobj, dtype=np.int16)
+        n_ignore = int((lbl_arr == IGNORE_LABEL).sum())
+        n_fg     = int(((lbl_arr >= 1) & (lbl_arr <= 9)).sum())
+        n_bg     = int((lbl_arr == 0).sum())
+        result["n_voxels_ignore"] = n_ignore
+        result["n_voxels_fg"]     = n_fg
+        result["n_voxels_bg"]     = n_bg
+
+        # Sanity invariants:
+        # - fused mode must have NO ignore voxels
+        # - partial mode must have NO bg voxels (everything outside fg is ignore)
+        if not result["partial_annotation"]:
+            if n_ignore != 0:
+                log.warning(
+                    "[token=%s config=%s] FUSED mode but ignore_count=%d. "
+                    "merge_labels logic regression?", token, config, n_ignore)
+        else:
+            if n_bg != 0:
+                log.warning(
+                    "[token=%s config=%s] PARTIAL mode but bg_count=%d "
+                    "(should be 0; partial mode initializes to IGNORE).",
+                    token, config, n_bg)
+
+        # ── Post-write CT-vs-label HU sanity at hip-mask voxels ─────────
         try:
-            ct_arr_chk  = np.asarray(ct_r.dataobj, dtype=np.float32)
-            lbl_arr_chk = np.asarray(lbl_r.dataobj, dtype=np.int16)
-            hip_mask    = (lbl_arr_chk == 8) | (lbl_arr_chk == 9)
-            n_hip       = int(hip_mask.sum())
+            ct_arr_chk = np.asarray(ct_r.dataobj, dtype=np.float32)
+            hip_mask   = (lbl_arr == 8) | (lbl_arr == 9)
+            n_hip      = int(hip_mask.sum())
             if n_hip >= _POSTWRITE_MIN_HIP_VOXELS:
                 hu_at_hip = ct_arr_chk[hip_mask]
                 bone_pct  = float((hu_at_hip > 200).sum()) / n_hip * 100.0
@@ -569,9 +655,8 @@ def _export_one(args: dict) -> dict:
         except Exception as _exc:
             log.debug("[token=%s] post-write sanity skipped: %s", token, _exc)
 
-        lbl_arr = np.asarray(lbl_r.dataobj, dtype=np.int16)
-        uniq    = {int(v) for v in np.unique(lbl_arr) if v > 0}
-        result["n_lumbar_labels"] = len({1,2,3,4,5,6} & uniq)
+        uniq = {int(v) for v in np.unique(lbl_arr) if 1 <= v <= 6}
+        result["n_lumbar_labels"] = len(uniq)
         result["has_l6"]          = 6 in uniq
 
         if not args.get("skip_qc"):
@@ -593,21 +678,7 @@ def _export_one(args: dict) -> dict:
 
 def build_work(manifest_path: Path, nifti_dir: Path,
                spine_dir: Path, pelvic_dir: Path) -> List[dict]:
-    """
-    Build per-case export work from placed_manifest.json.
-
-    Filename schema (changed Apr 2026): `position` is no longer in the
-    filename. The crop suffix alone discriminates the three configs:
-
-      fused (whole region)            -> {token:04d}                base
-      separate spine-side crop        -> {token:04d}_spine
-      separate pelvic-side crop       -> {token:04d}_pelvic
-      spine_only single-mask case     -> {token:04d}_spine
-      pelvic_only single-mask case    -> {token:04d}_pelvic
-
-    `position` still rides through `_export_one` and is persisted in the
-    manifest as metadata.
-    """
+    """Build per-case export work from placed_manifest.json."""
     data  = json.loads(manifest_path.read_text())
     cases = data.get("cases", [])
     if isinstance(cases, dict):
@@ -620,13 +691,11 @@ def build_work(manifest_path: Path, nifti_dir: Path,
         sp   = c.get("spine",  {}) or {}
         pv   = c.get("pelvic", {}) or {}
 
-        # LSTV fields -- now native to placed_manifest.json
         lstv_pelvic       = c.get("lstv_pelvic",        "") or ""
         lstv_vertebral    = c.get("lstv_vertebral",      "") or ""
-        lstv_agreement    = c.get("lstv_agreement")           # bool | None
+        lstv_agreement    = c.get("lstv_agreement")
         lstv_confusion    = c.get("lstv_confusion_zone", False)
 
-        # Resolve a single lstv label string for filename / QC figure.
         _cls_map = {0: "normal", 1: "LUMBARIZATION", 2: "SEMI_SACRALIZATION",
                     3: "SACRALIZATION", 4: "SACRALIZATION"}
         _cls = int(c.get("lstv_class", 0) or 0)
@@ -648,7 +717,6 @@ def build_work(manifest_path: Path, nifti_dir: Path,
                  "sacralization": 3, "hard": 4}
         lstv_class = _lmap.get(lstv.lower(), 0)
 
-        # Provenance: series UIDs + bone_pct from placed_manifest.json.
         spine_uid  = _first_not_none(sp.get("series_uid"),
                                      c.get("spine_series_uid"))
         pelvic_uid = _first_not_none(pv.get("series_uid"),
@@ -682,19 +750,12 @@ def build_work(manifest_path: Path, nifti_dir: Path,
         spine_ct  = nifti_dir / f"{spine_uid}.nii.gz"  if spine_uid  else None
         pelvic_ct = nifti_dir / f"{pelvic_uid}.nii.gz" if pelvic_uid else None
 
-        # Position resolution order (still used as manifest metadata, just
-        # not as a filename component anymore):
-        #   1. case-level c["position"]       (place_fused_masks.py >= v2.0)
-        #   2. sp["position"] / pv["position"] (per-mask, also v2.0+)
-        #   3. filename substring             (legacy placed_manifest.json)
         pos = (c.get("position") or sp.get("position") or pv.get("position") or "")
         if not pos or pos == "unknown":
             fname = (str(spine_placed or "") + str(pelvic_placed or "")).lower()
             pos   = "prone" if "prone" in fname else "supine" if "supine" in fname else "unknown"
 
         tok_int = int(tok) if tok.isdigit() else abs(hash(tok)) % 10000
-
-        # New base: token only, no position.
         token_base = f"{tok_int:04d}"
 
         lstv_kwargs = dict(
@@ -734,8 +795,6 @@ def build_work(manifest_path: Path, nifti_dir: Path,
                     fname_base=f"{token_base}_pelvic", **lstv_kwargs, **prov_kwargs,
                 ))
         elif mt == "spine_only":
-            # Single-mask case (no pelvic counterpart upstream). Now gets the
-            # _spine suffix so its filename is unambiguous from a fused case.
             if spine_placed and spine_placed.exists() and spine_ct and spine_ct.exists():
                 work.append(dict(
                     token=tok, position=pos, config="spine_only", match_type=mt,
@@ -743,8 +802,6 @@ def build_work(manifest_path: Path, nifti_dir: Path,
                     fname_base=f"{token_base}_spine", **lstv_kwargs, **prov_kwargs,
                 ))
         elif mt == "pelvic_only":
-            # Single-mask case (no spine counterpart upstream). Now gets the
-            # _pelvic suffix so its filename is unambiguous from a fused case.
             if pelvic_placed and pelvic_placed.exists() and pelvic_ct and pelvic_ct.exists():
                 work.append(dict(
                     token=tok, position=pos, config="pelvic_native", match_type=mt,
@@ -758,16 +815,6 @@ def build_work(manifest_path: Path, nifti_dir: Path,
 # -- Splits -------------------------------------------------------------------
 
 def write_splits(records: List[dict], out_dir: Path, seed: int = 42) -> None:
-    """
-    Write stratified train/val/test splits.
-
-    Outputs:
-      manifest_{train,validation,test}.json   per-record splits (legacy)
-      data_splits.json                         {"train":[...], "val":[...], "test":[...]}
-                                               of ct_file relative paths
-      splits/test.json                         flat list of unique test tokens
-      splits_summary.json                      aggregate split stats
-    """
     import random
 
     ok = [r for r in records if r.get("ok")]
@@ -851,8 +898,6 @@ def write_splits(records: List[dict], out_dir: Path, seed: int = 42) -> None:
     }, indent=2))
     log.info("  manifest_train / validation / test .json written")
 
-    # splits/test.json -- flat unique-token list for dataset_interface.py's
-    # preferred split-resolution path.
     splits_dir = out_dir / "splits"
     splits_dir.mkdir(exist_ok=True)
     test_tokens = sorted({str(r["token"]) for r in test_recs})
@@ -880,15 +925,6 @@ def write_splits(records: List[dict], out_dir: Path, seed: int = 42) -> None:
 # -- Manifest -----------------------------------------------------------------
 
 def write_manifest(records: List[dict], out_dir: Path) -> None:
-    """
-    Write manifest.json and manifest.csv.
-
-    HF Arrow/Parquet compatibility:
-    - 'ok' and 'error' stripped
-    - None -> "" for string fields
-    - None left as null for optional numeric fields (spine/pelvic_bone_pct,
-      postwrite_hip_bone_pct)
-    """
     _drop = {"ok", "error"}
     ok: List[dict] = []
     for r in records:
@@ -919,6 +955,7 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
     n_sp_pct    = sum(1 for r in ok if r.get("spine_bone_pct")  is not None)
     n_pv_pct    = sum(1 for r in ok if r.get("pelvic_bone_pct") is not None)
     n_resampled = sum(1 for r in ok if r.get("ct_resampled_to_mask"))
+    n_partial   = sum(1 for r in ok if r.get("partial_annotation"))
     n_hu_low    = sum(1 for r in ok
                       if r.get("postwrite_hip_bone_pct") is not None
                       and r["postwrite_hip_bone_pct"] < _POSTWRITE_HIP_BONE_PCT_WARN)
@@ -932,16 +969,15 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
              "(threshold=%.0f%% bone)",
              n_resampled, len(ok), n_hu_low, len(ok),
              _POSTWRITE_HIP_BONE_PCT_WARN)
+    log.info("  partial-annotation: %d/%d cases use IGNORE_LABEL=%d "
+             "(separate-mode spine-only / pelvic-only exports)",
+             n_partial, len(ok), IGNORE_LABEL)
     if n_hu_low:
         bad = [r["token"] for r in ok
                if r.get("postwrite_hip_bone_pct") is not None
                and r["postwrite_hip_bone_pct"] < _POSTWRITE_HIP_BONE_PCT_WARN]
         log.warning("  TOKENS WITH LOW HU AT HIPS: %s", bad)
 
-    # Sanity: every ct_file / label_file should be a relative path
-    # including its subdirectory prefix.  If any come back as a bare
-    # basename, something in _export_one regressed -- log loudly so the
-    # manifest never silently ships broken paths.
     n_bad_ct = sum(1 for r in ok if "/" not in str(r.get("ct_file", "")))
     n_bad_lb = sum(1 for r in ok if "/" not in str(r.get("label_file", "")))
     if n_bad_ct or n_bad_lb:
@@ -955,6 +991,7 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
         "lstv_pelvic", "lstv_vertebral", "lstv_agreement", "lstv_confusion_zone",
         "has_l6", "n_lumbar_labels", "alignment_ok",
         "ct_resampled_to_mask", "postwrite_hip_bone_pct",
+        "partial_annotation", "n_voxels_ignore", "n_voxels_fg", "n_voxels_bg",
         "spine_series_uid", "pelvic_series_uid",
         "spine_bone_pct", "pelvic_bone_pct",
         "ct_file", "label_file", "qc_file",
@@ -969,32 +1006,12 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
 
 def _wipe_remote_repo(api, repo_id: str, repo_type: str, token: str,
                        force: bool = False) -> None:
-    """
-    Delete and recreate the HF repo to clear orphan files from earlier
-    pushes. This is destructive and irreversible at the HF level — git
-    history on the cloud side is also wiped. Local files are not touched.
-
-    Process:
-      1. Confirm with the user (interactive only; bypass with force=True)
-      2. delete_repo (atomic on HF side)
-      3. create_repo (fresh, empty)
-
-    Notes:
-      - Caller must reissue create_repo before upload because delete_repo
-        does not auto-recreate. We do that here so push_to_hub() doesn't
-        need to know whether the wipe happened.
-      - If delete_repo raises RepositoryNotFoundError it's fine — there
-        was nothing to wipe — just create.
-      - We DO NOT touch the user's local hf_export/ — that's the source
-        of truth for the re-upload.
-    """
     from huggingface_hub import create_repo
     from huggingface_hub.utils import (
         RepositoryNotFoundError,
         HfHubHTTPError,
     )
 
-    # Safety: confirmation prompt unless forced.
     if not force:
         if not sys.stdin.isatty():
             raise RuntimeError(
@@ -1022,8 +1039,6 @@ def _wipe_remote_repo(api, repo_id: str, repo_type: str, token: str,
     except RepositoryNotFoundError:
         log.info("  repo did not exist — nothing to delete")
     except HfHubHTTPError as exc:
-        # 404 from delete_repo (when missing_ok isn't honored on older
-        # huggingface_hub versions) — treat as "already gone".
         if "404" in str(exc) or "Not Found" in str(exc):
             log.info("  repo did not exist (404) — nothing to delete")
         else:
@@ -1046,19 +1061,6 @@ def push_to_hub(
     wipe_remote:      bool          = False,
     force_wipe_remote: bool         = False,
 ) -> None:
-    """
-    Push ct/, labels/, manifest.json, manifest.csv, data_splits.json,
-    splits/, splits_summary.json, dataset_interface.py, and README.md to
-    HuggingFace using upload_large_folder.
-
-    qc/ PNGs are excluded (large, derivative, regenerable).
-
-    If wipe_remote=True, the HF repo is deleted and recreated before the
-    upload. This is the only way to remove orphan files from prior
-    pushes — upload_large_folder is purely additive and never deletes
-    remote files. force_wipe_remote=True bypasses the interactive
-    confirmation prompt (required on non-interactive shells like SLURM).
-    """
     try:
         from huggingface_hub import HfApi, create_repo
     except ImportError:
@@ -1072,9 +1074,6 @@ def push_to_hub(
 
     api = HfApi(token=token)
 
-    # Wipe FIRST so the recreation below is idempotent — the create_repo
-    # call after the wipe (and the one in the non-wipe path) both use
-    # exist_ok=True so it's safe either way.
     if wipe_remote:
         _wipe_remote_repo(api, repo_id=repo_id, repo_type=HF_REPO_TYPE,
                           token=token, force=force_wipe_remote)
@@ -1153,29 +1152,16 @@ def main():
     ap.add_argument("--hf_workers",  default=8, type=int)
     ap.add_argument("--interface_script", default=None, type=Path)
     ap.add_argument("--readme_path",      default=None, type=Path)
-    # New: wipe orphan files on the remote before push
     ap.add_argument("--wipe_remote", action="store_true",
-                    help="Delete and recreate the HF repo before pushing. "
-                         "Required when filename schemas change so that "
-                         "orphan files from earlier pushes don't linger. "
-                         "Implies a clean fresh push (no resume from prior). "
-                         "Only valid with --push_to_hub.")
+                    help="Delete and recreate the HF repo before pushing.")
     ap.add_argument("--force_wipe_remote", action="store_true",
-                    help="Skip the interactive confirmation prompt for "
-                         "--wipe_remote. Required on non-interactive "
-                         "shells (SLURM jobs, CI). Setting the env var "
-                         "FORCE_WIPE_REMOTE=1 has the same effect.")
+                    help="Skip interactive confirmation for --wipe_remote.")
     args = ap.parse_args()
 
-    # Honor env-var form of force_wipe_remote so SLURM scripts can set it
-    # without sneaking it into argv.
     if not args.force_wipe_remote and \
        os.environ.get("FORCE_WIPE_REMOTE", "").strip().lower() in ("1", "true", "yes"):
         args.force_wipe_remote = True
 
-    # Guard: --wipe_remote without --push_to_hub is a footgun. The user
-    # would delete their HF repo and then NOT repopulate it — leaving the
-    # dataset offline.
     if args.wipe_remote and not args.push_to_hub:
         log.error("--wipe_remote requires --push_to_hub. Refusing to "
                   "delete the HF repo without re-pushing.")
