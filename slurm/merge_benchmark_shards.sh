@@ -21,6 +21,13 @@
 # no Singularity container needed. The host conda env that already has
 # numpy is sufficient.
 #
+# Apr 2026 update — 4-way LSTV subgroup:
+#   The merge step now passes --splits_file to the Python merger, which
+#   joins each per-case record against splits_5fold.json:token_info to
+#   resolve the LSTV subgroup. This produces Tables 5 and 6 with the
+#   4-way breakdown (lumb / sacr / ambiguous / normal) instead of the
+#   legacy 3-way (lumb / sacr / normal).
+#
 # Usage
 # -----
 #   # Default: auto-detect most recent results/totalseg_bench_* directory
@@ -30,11 +37,24 @@
 #   RESULTS_BASE=$HOME/CTSpinoPelvic1K/results/totalseg_bench_35793471 \
 #       sbatch slurm/merge_benchmark_shards.sh
 #
+#   # Or write to a new output dir (e.g. to keep the legacy 3-way merge
+#   # for comparison while you re-merge with 4-way):
+#   OUT_DIR=$HOME/CTSpinoPelvic1K/results/totalseg_bench_35793471/_merged_4way \
+#       sbatch slurm/merge_benchmark_shards.sh
+#
+#   # Override the splits file (defaults to data/hf_export/splits_5fold.json):
+#   SPLITS_FILE=/path/to/some_other_splits.json \
+#       sbatch slurm/merge_benchmark_shards.sh
+#
+#   # Force legacy 3-way (no ambiguous row) by pointing at /dev/null:
+#   SPLITS_FILE=/dev/null sbatch slurm/merge_benchmark_shards.sh
+#
 # Outputs (under <OUT_DIR>, default <RESULTS_BASE>/_merged):
 #   paper_tables.txt           Table 5 (Dice) + Table 6 (surface metrics)
+#                              now includes Ambiguous (Castellvi II/III) row
 #   benchmark_summary.json     aggregated subgroup means/stds
 #   benchmark_results.json     summary + every per-case record
-#   benchmark_per_case.csv     per-case CSV with all metrics
+#   benchmark_per_case.csv     per-case CSV with `lstv_subgroup` column
 #   per_case_partial.jsonl     deduplicated combined log
 # =============================================================================
 set -euo pipefail
@@ -57,9 +77,17 @@ fi
 
 OUT_DIR="${OUT_DIR:-${RESULTS_BASE}/_merged}"
 
+# ── Splits file for 4-way LSTV subgroup binning ──────────────────────────────
+# splits_5fold.json (schema v5+) provides token_info[token].lstv_subtype
+# with values 'lumb' | 'sacr' | 'ambiguous' | 'normal'. The Python merger
+# uses this to group cases by LSTV subtype in the final tables.
+#
+# If the file doesn't exist, the merger falls back to the per-record
+# lstv_label string (legacy 3-way: lumb / sacr / normal). Set
+# SPLITS_FILE=/dev/null to force this fallback explicitly.
+SPLITS_FILE="${SPLITS_FILE:-${PROJECT_ROOT}/data/hf_export/splits_5fold.json}"
+
 # ── Environment setup (mirrors benchmark_totalseg.sh pattern) ────────────────
-# Same conda env as the benchmark, accessed via direct PATH manipulation
-# rather than `conda activate` (which would require sourcing conda's init).
 export CONDA_PREFIX="${HOME}/mambaforge/envs/nextflow"
 export PATH="${CONDA_PREFIX}/bin:${PATH}"
 
@@ -81,6 +109,12 @@ echo " Node         : $(hostname)"
 echo " Project root : ${PROJECT_ROOT}"
 echo " RESULTS_BASE : ${RESULTS_BASE}"
 echo " OUT_DIR      : ${OUT_DIR}"
+echo " SPLITS_FILE  : ${SPLITS_FILE}"
+if [[ -f "${SPLITS_FILE}" ]]; then
+    echo " (splits file present -> 4-way LSTV subgroup with 'ambiguous' row)"
+else
+    echo " (splits file MISSING -> legacy 3-way fallback, no ambiguous row)"
+fi
 echo " Python       : $(which python)"
 echo " Started      : $(date)"
 echo "======================================================================"
@@ -97,7 +131,8 @@ echo
 
 python scripts/merge_benchmark_shards.py \
     --results_base "${RESULTS_BASE}" \
-    --out_dir      "${OUT_DIR}"
+    --out_dir      "${OUT_DIR}" \
+    --splits_file  "${SPLITS_FILE}"
 
 echo
 echo "======================================================================"

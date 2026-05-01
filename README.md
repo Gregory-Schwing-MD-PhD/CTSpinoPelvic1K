@@ -1,4 +1,4 @@
-i---
+---
 license: cc-by-nc-4.0
 task_categories:
 - image-segmentation
@@ -25,7 +25,7 @@ crosswalk between three public sources:
 3. **CTPelvic1K dataset2** — sacrum + bilateral hip label masks
 
 Annotations are placed onto the TCIA CT volume with the highest bone
-coverage (HU > 200), separately per anatomy. For ~340 patients both
+coverage (HU > 200), separately per anatomy. For most patients both
 annotations land on the same series (**fused** cases); for the rest,
 spine and pelvic labels target different prone/supine acquisitions
 (**separate** cases, exported as two records per patient — one
@@ -56,6 +56,12 @@ All volumes are canonicalised to **PIR** (Posterior–Inferior–Right). The CT
 and its label map share exactly the same 4×4 affine; no resampling is needed
 before training. PHI fields (`descrip`, `aux_file`, `db_name`, `intent_name`)
 are stripped from every NIfTI header.
+
+A post-write HU sanity check is run at export time on each saved CT/label
+pair: HU values sampled at hip-mask voxels must be ≥30% bone (HU > 200),
+otherwise the case is flagged in the manifest as
+`postwrite_hip_bone_pct`. This catches frame-mismatches between CT data
+and its affine that earlier passed the simple `affine_equal` check.
 
 ## LSTV annotation
 
@@ -98,31 +104,62 @@ Use `match_type` to distinguish patient-level provenance:
 ## Splits
 
 Stratified patient-level 5-fold cross-validation with a held-out test set.
-Stratification is on `match_type × has_lstv` so every fold carries the rare
-sacralization and lumbarization classes.
+Stratification preserves the rare LSTV classes across every fold so that
+no fold is missing lumbarization or sacralization cases at validation time.
 
-- **`splits_5fold.json`** — unified splits document (schema v3). Carries the
+The current splits document (`splits_5fold.json`, schema **v4**) uses
+LSTV-first stratum ordering: each patient is binned by
+`<lstv_subtype>|<match_type>`, and rare buckets are coalesced by dropping
+the `match_type` qualifier first (preserving the LSTV signal). An invariant
+check at generation time enforces that every fold's validation split
+contains at least 3 lumbarization cases (configurable). This was tightened
+from schema v3, which sometimes dropped the LSTV tag during coalescing
+and produced folds with zero L6 vertebrae in their validation sets.
+
+The export ships several views of the same splits for backward
+compatibility:
+
+- **`splits_5fold.json`** — unified splits document (schema v4). Carries the
   test holdout and all five fold assignments in one file, with split
   invariants validated at generation time (patient-level disjointness,
-  fold coverage, no overlap between test and trainval).
+  fold coverage, no overlap between test and trainval, ≥3 lumbarization
+  per fold val).
 - **`splits/test.json`** — flat list of unique test-set patient tokens
   (legacy path; still shipped for backwards compatibility).
 - **`data_splits.json`** — earliest format, mapping `ct_file` entries to
   `train` / `val` / `test`. Consumed only as a last-resort fallback.
 - **`splits_summary.json`** — aggregate per-stratum / per-fold counts.
+- **`manifest_train.json`, `manifest_validation.json`, `manifest_test.json`** —
+  per-record splits derived from the above.
 
 ## File format
 
-Each case is a pair of gzipped NIfTI files under `ct/` and `labels/`:
+Each case is a pair of gzipped NIfTI files under `ct/` and `labels/`. The
+filename schema (revised Apr 2026) is fully self-describing:
 
 ```
-ct/<token:04d>_<position>_ct.nii.gz         # HU, float32 or int16
-labels/<token:04d>_<position>_label.nii.gz  # int16, values 0..9
+fused                      ct/<token:04d>_ct.nii.gz
+                           labels/<token:04d>_label.nii.gz
+
+spine-side (separate or
+spine_only single-mask)    ct/<token:04d>_spine_ct.nii.gz
+                           labels/<token:04d>_spine_label.nii.gz
+
+pelvic-side (separate or
+pelvic_only single-mask)   ct/<token:04d>_pelvic_ct.nii.gz
+                           labels/<token:04d>_pelvic_label.nii.gz
 ```
 
-`position` is `supine` or `prone` (the TCIA acquisition position). For
-separate-case patients, a `_spine` or `_pelvic` suffix disambiguates the
-two records.
+A bare `<token>_ct.nii.gz` therefore unambiguously means a `fused` case
+(both regions present in one mask). The `_spine` / `_pelvic` suffix is
+applied uniformly to spine-side and pelvic-side files regardless of
+whether the source case is `match_type="separate"` (paired but
+non-coregistered) or a `spine_only` / `pelvic_only` single-mask case.
+Earlier the position (`supine` / `prone`) appeared in every filename;
+that was misleading because the prone/supine classifier rarely succeeded,
+and `config` is what every downstream consumer actually filters on.
+`position` still rides through to the manifest as a metadata column —
+it is no longer in the filename.
 
 Per-case metadata lives in `manifest.json` (flat JSON list), with one record
 per NIfTI pair. Key fields:
@@ -130,15 +167,27 @@ per NIfTI pair. Key fields:
 ```
 token, config, match_type, position, ct_file, label_file, qc_file,
 lstv_label, lstv_class, lstv_pelvic, lstv_vertebral,
-lstv_agreement, lstv_confusion_zone, has_l6,
+lstv_agreement, lstv_confusion_zone, has_l6, n_lumbar_labels,
 spine_series_uid, pelvic_series_uid,
-spine_bone_pct,   pelvic_bone_pct,
-n_lumbar_labels, alignment_ok
+spine_bone_pct, pelvic_bone_pct,
+alignment_ok, ct_resampled_to_mask, postwrite_hip_bone_pct
 ```
 
 `ct_file` and `label_file` are relative paths with the subdirectory prefix
-included (e.g. `"ct/0017_supine_ct.nii.gz"`), so `dataset_root / ct_file`
-resolves directly.
+included (e.g. `"ct/0017_ct.nii.gz"`), so `dataset_root / ct_file` resolves
+directly. `manifest.csv` contains the same content for downstream tooling
+that prefers tabular ingest.
+
+The two CT-vs-mask diagnostics are worth flagging:
+
+- **`ct_resampled_to_mask`** is `True` when the source CT had to be
+  resampled into the placed mask's grid because shape and/or affine
+  differed. Most cases hit this; the few that don't are cases where the
+  raw CT and placed mask happened to share both shape and affine.
+- **`postwrite_hip_bone_pct`** is the percent of voxels under the saved
+  label's hip mask that have HU > 200 in the saved CT, computed at export
+  time. Values below ~30% indicate a CT/label frame mismatch and are
+  logged as warnings during export.
 
 ## Quickstart — NIfTI + nibabel
 

@@ -12,6 +12,48 @@ Format: {patient_uid}_seg.nii.gz
 PELVIC MASK FILENAMES
 ---------------------
 Format: dataset2_{patient_uid}_{series_number}_{nz}[_qualifiers]_mask_4label.nii.gz
+
+QUALIFIER PARSING (Apr 2026 fix)
+================================
+Pre-fix bug
+-----------
+_parse_pelvic_flags() did substring matching on the lowercased qualifier
+block:
+
+    if "sacralization" in rem:
+        lstv = LSTV.SACRALIZATION
+    else:
+        lstv = LSTV.NORMAL
+
+Because "sacralization" is a substring of "semisacralization", the 2 patients
+with `_semisacralization_` qualifier (tokens 22 and 120 in COLONOG) were
+silently labeled as SACRALIZATION instead of SEMI_SACRAL. The
+LSTV.SEMI_SACRAL enum value existed in patient_db.py but was never assigned.
+
+Fix
+---
+Tokenize the qualifier block by underscore, then do exact-token matching.
+Order of LSTV resolution:
+
+    1. "semisacralization" token  → LSTV.SEMI_SACRAL
+    2. "sacralization" token      → LSTV.SACRALIZATION
+    3. otherwise                  → LSTV.NORMAL
+
+The `hard_sacralization` qualifier (1 patient, token 123) decomposes into
+two tokens: ['hard', 'sacralization']. The parser treats it as SACRALIZATION
+(LSTV) AND sets flag_hard (image quality), not as a separate LSTV grade.
+"hard" / "veryhard" are CTPelvic1K's annotation-difficulty flags, orthogonal
+to anatomical LSTV classification.
+
+Quality / annotation-difficulty flags exposed via PelvicMaskRecord.lstv_flags:
+  - flag_hard, flag_veryhard       — annotator difficulty markers
+  - flag_lowdose, flag_metal       — scan quality
+  - flag_crop                      — cropped scan
+  - flag_dqjoint, flag_ydjoint     — annotator-specific markers
+  - flag_intestinal_calculus       — pathology
+  - flag_rl_flip                   — orientation marker
+  - flag_supine, flag_prone        — patient position
+  - flag_sacralization, flag_semisacralization  — also drive lstv_label
 """
 
 from __future__ import annotations
@@ -99,17 +141,25 @@ _PELVIC_MASK_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Per-token qualifier flags. Each entry maps a single underscore-delimited
+# token in the filename's qualifier block to a boolean flag column on
+# PelvicMaskRecord.lstv_flags. With token-based matching there is no
+# substring collision between 'sacralization' and 'semisacralization'.
 _PELVIC_QUALIFIER_FLAGS = [
+    # LSTV qualifiers (also drive lstv_label resolution)
     ("semisacralization", "flag_semisacralization"),
     ("sacralization",     "flag_sacralization"),
-    ("veryhard",          "flag_veryhard"),
+    # Annotation difficulty / scan quality (orthogonal to LSTV)
     ("hard",              "flag_hard"),
+    ("veryhard",          "flag_veryhard"),
     ("lowdose",           "flag_lowdose"),
     ("metal",             "flag_metal"),
+    ("crop",              "flag_crop"),
+    # Annotator markers
     ("dqjoint",           "flag_dqjoint"),
     ("ydjoint",           "flag_ydjoint"),
     ("intestinalcalculus","flag_intestinal_calculus"),
-    ("crop",              "flag_crop"),
+    # Position / orientation
     ("rl",                "flag_rl_flip"),
     ("supine",            "flag_supine"),
     ("prone",             "flag_prone"),
@@ -300,18 +350,52 @@ def parse_spine_masks(
 # ── Pelvic ───────────────────────────────────────────────────────────────────
 
 def _parse_pelvic_flags(qualifier_block: str) -> Tuple[Dict[str, bool], str, str]:
-    flags = {col: False for _, col in _PELVIC_QUALIFIER_FLAGS}
-    rem   = qualifier_block.lower().strip("_")
+    """
+    Parse the pelvic mask qualifier block into:
+      - flags dict: every entry in _PELVIC_QUALIFIER_FLAGS gets a bool
+      - lstv label: NORMAL / SEMI_SACRAL / SACRALIZATION
+      - position:   PRONE / SUPINE / UNKNOWN
 
+    Apr 2026 fix
+    ------------
+    Pre-fix did substring matching:
+
+        if "sacralization" in rem:
+            lstv = LSTV.SACRALIZATION
+
+    which fired on both 'sacralization' AND 'semisacralization' tokens
+    because the latter contains the former as a substring. Result: the
+    2 patients with `_semisacralization_` qualifier (tokens 22 and 120)
+    were misclassified as full sacralization instead of semi-sacralization.
+
+    Post-fix: split the qualifier block by underscore into individual
+    tokens, then check membership exactly. 'semisacralization' is checked
+    BEFORE 'sacralization' so that tokens like `hard_sacralization`
+    (which decomposes into ['hard', 'sacralization']) correctly resolve
+    to SACRALIZATION without spurious semi-matching.
+    """
+    # Initialize all flags to False
+    flags: Dict[str, bool] = {col: False for _, col in _PELVIC_QUALIFIER_FLAGS}
+
+    # Tokenize qualifier block. Empty block → no tokens, all flags False.
+    tokens = [t for t in qualifier_block.lower().strip("_").split("_") if t]
+    token_set = set(tokens)
+
+    # Set per-token boolean flags with EXACT match (no substring confusion).
     for key, col in _PELVIC_QUALIFIER_FLAGS:
-        if key in rem:
+        if key in token_set:
             flags[col] = True
 
-    if "sacralization" in rem:
+    # Resolve LSTV label. Order matters: semi BEFORE full.
+    if flags["flag_semisacralization"]:
+        lstv = LSTV.SEMI_SACRAL
+    elif flags["flag_sacralization"]:
         lstv = LSTV.SACRALIZATION
     else:
         lstv = LSTV.NORMAL
 
+    # Resolve position from per-token flags first; fall back to substring
+    # match on the original qualifier block for legacy uppercase tokens.
     if flags["flag_prone"]:
         position = "PRONE"
     elif flags["flag_supine"]:
@@ -453,8 +537,16 @@ def parse_pelvic_masks(
     from collections import Counter
     lstv_counts = Counter(r.lstv_label for r in records)
     pos_counts  = Counter(r.position_from_fname for r in records)
+    flag_counts = Counter()
+    for r in records:
+        for col, val in r.lstv_flags.items():
+            if val:
+                flag_counts[col] += 1
     log.info("  LSTV labels: %s", dict(lstv_counts))
     log.info("  Positions:   %s", dict(pos_counts))
+    if flag_counts:
+        log.info("  Active flags: %s", dict(sorted(flag_counts.items(),
+                                                    key=lambda x: -x[1])))
 
     if not debug_n:
         _save_cache(records, cache_path, "pelvic mask")

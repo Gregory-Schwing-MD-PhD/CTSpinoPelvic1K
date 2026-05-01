@@ -22,36 +22,35 @@ step is now unnecessary:
     lstv_confusion_zone, lstv_class) are derived directly from the per-mask
     `lstv_label` fields in patient_db.json.  No cross-check JSON is needed.
 
-SCHEMA VERSION 2.2
+SCHEMA VERSION 2.3
 ==================
+2.3 (Apr 2026): _lstv_derived_fields() correctly distinguishes SEMI_SACRAL
+(class 2) from SACRALIZATION (class 3) following the upstream mask_index.py
+parser fix. Pre-fix, the substring-match bug in _parse_pelvic_flags() caused
+all `_semisacralization_` filenames (tokens 22 and 120) to be silently
+labeled as full SACRALIZATION. Re-running place_fused_masks.py on the
+patient_db.json rebuilt with the fixed mask_index.py reclassifies those
+2 tokens from class=3 → class=2.
+
+LSTV class encoding:
+  0  NORMAL              No LSTV
+  1  LUMBARIZATION       Extra 6th lumbar (varies by labeling style)
+  2  SEMI_SACRAL         Semi-sacralization (filename qualifier)
+  3  SACRALIZATION       Sacralization (filename qualifier)
+  4  (reserved, unused)
+
 2.2 (Apr 2026): removed the buggy hardcoded `if orig_mask_aff[0,0] < 0`
 left/right label swap in `_place_pelvic_best_series`. That branch was
 relabeling pelvic mask classes 2 (left_hip) and 3 (right_hip) on every
 case where the source CTPelvic1K mask happened to be stored with a
 negative aff[0,0]. It produced anatomically inverted hips on roughly half
-of the COLONOG cases. Diagnosed via TS-vs-GT hip Dice audit: TS-left
-matched GT-right with Dice ~0.93 on flipped tokens, while sacrum and
-lumbar spine matched cleanly (the bug was a label permutation, not a
-spatial flip — the CT and mask voxels remained correctly co-located in
-patient space, only the label values 2/3 were swapped on the affected
-tokens). CTPelvic1K's label convention is storage-orientation-independent:
-label 2 voxels are at patient-left and label 3 voxels are at patient-right
-regardless of the file's affine sign. apply_orientation() already brings
-the mask array into the reference CT's voxel-axis order without changing
-patient-space positions, so the labels do not need additional swapping.
+of the COLONOG cases. (Unchanged in 2.3.)
 
 2.1: each case carries `orientation_check = {"status": "unreviewed", ...}`
-by default. apply_manual_flips.py overwrites this when a token is reviewed.
-Downstream code (visualize_qc.py, export_hf.py, generate_5fold_splits.py)
-can therefore rely on `orientation_check` always existing instead of
-testing for its presence.
+by default. (Unchanged in 2.3.)
 
-2.1: each case carries `annotations = {"core": true, "spinous": false,
-"discs": false, "tp": false}` to support future expansion to new mask
-types (spinous process, transverse process, disc height, etc.) without a
-schema break. Adding a new annotation source later is a matter of
-flipping one bool and shipping new files under a parallel
-`placed/spinous/` directory.
+2.1: each case carries `annotations = {"core": true, ...}` to support
+future expansion to new mask types. (Unchanged in 2.3.)
 
 ARCHITECTURE
 ============
@@ -131,10 +130,11 @@ log = logging.getLogger("spinesurg.place_masks")
 # needs to know about.
 #   2.0 = LSTV fields native + per-case position.
 #   2.1 = default orientation_check + annotations expandability field.
-#   2.2 = removed buggy hardcoded L/R label swap (no manifest schema change,
-#         but bumped so consumers can detect "this dataset was placed with
-#         the swap-fix version").
-PLACED_MANIFEST_SCHEMA = "2.2"
+#   2.2 = removed buggy hardcoded L/R label swap.
+#   2.3 = SEMI_SACRAL correctly distinguished from SACRALIZATION (Apr 2026
+#         parser bug fix in mask_index.py). Tokens that were class=3
+#         pre-fix may now be class=2.
+PLACED_MANIFEST_SCHEMA = "2.3"
 
 BONE_HU             = 200.0
 MIN_VOXELS          = 50
@@ -143,8 +143,7 @@ SPINE_BONE_WARN     = 40.0
 BONE_ACCEPT_THRESH  = 20.0
 
 # Any spatial axis smaller than this is treated as a scout / localizer /
-# degenerate volume and rejected at ingest.  Real CT volumes have hundreds
-# of voxels on every axis; 10 is well below any legitimate reconstruction.
+# degenerate volume and rejected at ingest.
 MIN_VALID_SHAPE     = 10
 
 
@@ -157,24 +156,6 @@ def _autocap_workers(requested: int, per_worker_gb: float = 3.5,
     """
     Cap `requested` by the SLURM cgroup memory ceiling so a pool with too
     many workers doesn't OOM the whole step.
-
-    Reads cgroup v2 (memory.max) then v1 (memory.limit_in_bytes), falling
-    back to psutil.virtual_memory().available if neither cgroup is readable
-    (non-SLURM dev runs, unprivileged containers).  Leaves a 10% headroom
-    for the parent process + OS page cache, then divides the usable budget
-    by `per_worker_gb`.
-
-    per_worker_gb default (3.5) is sized for the spine worker on COLONOG:
-    a typical patient has 4-10 candidate TCIA series, scored as float32 CTs
-    (~400MB each) plus int32 placed masks plus scoring intermediates.  With
-    the asarray fix below, only the CURRENT candidate's CT is in memory per
-    worker, so 3.5GB is comfortable. Override via env SPINESURG_PER_WORKER_GB
-    (e.g. set to 2.5 for pelvic-only runs, which are lighter).
-
-    Empirically: 128GB node, 32 requested workers
-      - cgroup_mem=128GB, headroom=0.9 -> 115GB usable
-      - 115/3.5 ~= 32, so no cap hit on a normally-configured node
-      - but on a 64GB node, cap kicks in at ~16 workers
     """
     override = os.environ.get("SPINESURG_PER_WORKER_GB")
     if override:
@@ -192,7 +173,6 @@ def _autocap_workers(requested: int, per_worker_gb: float = 3.5,
         try:
             with open(path) as f:
                 v = parse(f.read().strip())
-            # cgroup v1 uses ~2^63 as "unlimited"; ignore absurd values
             if v and v < (1 << 62):
                 avail = v
                 break
@@ -236,18 +216,6 @@ def _autocap_workers(requested: int, per_worker_gb: float = 3.5,
 # ===========================================================================
 
 def _derive_position_from_path(*paths) -> str:
-    """
-    Pull 'prone' / 'supine' / 'unknown' out of a filename.
-
-    CTSpine1K and CTPelvic1K both tag position in the mask filename (e.g.
-    ``..._prone_seg.nii.gz``, ``..._SUPINE_mask.nii.gz``); case-insensitive
-    substring match is sufficient.  Takes multiple paths so the caller can
-    hand in both the spine seg and pelvic mask — first hit wins.
-
-    Used by both worker functions so the per-case `position` is written
-    into placed_manifest.json alongside series_uid / bone_pct, eliminating
-    export_hf.py's need to re-parse filenames.
-    """
     for p in paths:
         if not p:
             continue
@@ -260,11 +228,6 @@ def _derive_position_from_path(*paths) -> str:
 
 
 def _default_orientation_check() -> Dict:
-    """Default orientation_check payload written into every case by
-    place_fused_masks.py. apply_manual_flips.py overwrites this when a
-    token is reviewed — see its _merge_case(). Having every case carry
-    the field lets downstream consumers (visualize_qc.py, QC dashboards,
-    schema validators) rely on it existing."""
     return {
         "status": "unreviewed",
         "source": "none",
@@ -272,24 +235,12 @@ def _default_orientation_check() -> Dict:
 
 
 def _default_annotations() -> Dict:
-    """Default annotations payload — signals what mask types are present
-    for this case. `core` is the 10-class CTSpine1K + CTPelvic1K fusion.
-    Future expansions (manual annotation passes for spinous process,
-    transverse process, disc height, facet joints, etc.) flip these to
-    true and ship files under parallel directories, without forcing a
-    manifest schema break.
-
-    Paired fields to add when a new annotation ships:
-      annotations.{key}: bool
-      annotations_{key}_dir: optional str (e.g. 'placed/spinous')
-      annotations_{key}_reviewer, _date, _n_reviewed: provenance
-    """
     return {
-        "core":    True,   # 10-class label map from CTSpine1K + CTPelvic1K
-        "spinous": False,  # spinous process segmentation (future)
-        "tp":      False,  # transverse process segmentation (future)
-        "discs":   False,  # disc height measurements (future; JSON sidecar)
-        "facets":  False,  # facet joint segmentation (future)
+        "core":    True,
+        "spinous": False,
+        "tp":      False,
+        "discs":   False,
+        "facets":  False,
     }
 
 
@@ -298,17 +249,6 @@ def _default_annotations() -> Dict:
 # ===========================================================================
 
 def _valid_affine(aff) -> bool:
-    """
-    True iff the 4x4 affine is usable for orientation / qform / PIR work:
-      * all entries finite (no NaN, no Inf)
-      * each spatial axis column has non-trivial norm (no degenerate axis,
-        which happens for 1-slice topograms / scouts in COLONOG)
-      * rotation 3x3 is non-singular (|det| > ~0)
-
-    Degenerate affines make io_orientation() return NaN and make qform SVD
-    fail to converge, which is what was crashing _to_pir() on some
-    pelvic candidates.
-    """
     import numpy as np
     if aff is None:
         return False
@@ -326,18 +266,6 @@ def _valid_affine(aff) -> bool:
 
 
 def _valid_volume_shape(shape, min_axis: int = MIN_VALID_SHAPE) -> bool:
-    """
-    True iff the 3D spatial shape is non-degenerate for segmentation work.
-
-    A scout / localizer has 1--3 slices along one axis; a true CT
-    reconstruction has tens to thousands on every axis.  This filter
-    catches:
-      * 1-2 slice topograms silently emitted by dcm2niix
-      * 2D masks from upstream label datasets
-      * NIfTIs with shape like (512, 512, 2) that crash io_orientation
-        downstream with 'index 2 is out of bounds for axis 2 with size 2'
-        or 'affine matrix has wrong number of rows'
-    """
     try:
         sh = tuple(int(s) for s in shape[:3])
     except (TypeError, ValueError):
@@ -348,20 +276,6 @@ def _valid_volume_shape(shape, min_axis: int = MIN_VALID_SHAPE) -> bool:
 
 
 def _compute_bone_pct_from_files(placed_path, ct_path, bone_hu=200):
-    """
-    Recompute bone fraction from a placed mask + CT NIfTI (legacy cache).
-
-    REFACTOR NOTE (PIR): the previous version had a 'partial-match' branch
-    that assumed axis 2 was the superior-inferior direction (it computed a
-    z-voxel offset from the world-space Z translation and indexed
-    ct_pir.dataobj[:, :, z0c:z1c]).  Under PIR, axis 2 is patient-RIGHT,
-    so that branch was slicing an L-R strip and computing bone% on the
-    wrong region.  Because placement and QC both save in PIR, the placed
-    mask's shape should always match the PIR-reoriented CT's shape
-    exactly.  If it doesn't, we return None rather than compute a
-    meaningless number -- the caller treats None as 'could not recompute'
-    and preserves whatever was in the manifest.
-    """
     try:
         import nibabel as _nib_bp
         import numpy  as _np_bp
@@ -474,65 +388,13 @@ def _log_header_diff(token, ref_img, sp_img, overlap):
 
 
 def _spine_placement_checks(spine_arr, ref_data, placed_labels, ref_aff, token):
-    """
-    Vertebral ordering check using data-anchored world-space centroids, with
-    per-label largest-CC extraction to reject spurious segmentation fragments.
-
-    DESIGN
-    ------
-    Replaces the prior PCA-principal-axis check. PCA eigenvectors are sign-
-    ambiguous (v and -v are identical principal components), and the old
-    `if axis[2] < 0: axis = -axis` tiebreak relied on world Z being roughly
-    aligned with patient SI. When the spine axis came out nearly orthogonal
-    to world Z -- which happens in decubitus scans, axial-prescribed studies,
-    or anything where the scanner's Z is not the patient's SI -- the Z-sign
-    tiebreak became effectively random and flipped the projection direction,
-    producing false-positive IS_ORDER_FAIL warnings at ~inter-vertebral
-    distance (~100-180 mm).
-
-    The SI direction is now taken directly from the labeled data: the most-
-    superior label (smallest VerSe id) and the most-inferior label (largest
-    id) define an oriented axis whose sign is fixed by label semantics. All
-    other labels are projected onto this axis and checked for monotonicity
-    in sorted-label order.
-
-    ROBUSTNESS FILTERS
-    ------------------
-    Raw `np.where(spine_arr == lbl).mean()` weights every voxel equally, so
-    a 10-voxel stray blob sitting 100mm from a 50,000-voxel real vertebra
-    pulls the label's centroid off anatomy. This showed up on real cases
-    as IS_ORDER_FAIL warnings of 100-180 mm (token 7: (14,17,145.9), token
-    606: (16,17,180.4), etc.) where the actual vertebrae were correctly
-    placed and only the trace fragments were misbehaving.
-
-    Two filters reject this:
-
-      1. MIN_LABEL_VOX: drop any label whose TOTAL voxel count in the
-         placed mask is below threshold. Real vertebrae are ~10k-100k
-         voxels; 500 is well below any legitimate vertebra.
-      2. Largest connected component: within a label, compute the CC
-         sizes and use only the largest CC's centroid. Disconnected
-         fragments -- whether from segmentation noise or from placement
-         cropping the scan edge -- are discarded.
-
-    VerSe convention: ascending label id <-> descending anatomical height
-    (1-7 cervical, 8-19 thoracic, 20-25 lumbar, 26 sacrum). After sorting
-    ascending by id, projections must monotonically INCREASE along the
-    lo->hi axis.
-
-    Limitation: this catches LOCAL order violations (one label misplaced
-    between neighbours). A globally inverted mask whose labels are
-    internally consistent with each other will still pass -- detecting
-    that requires external info (DICOM PatientPosition / body anatomy)
-    and is handled downstream by apply_manual_flips.py.
-    """
     import numpy as np
     from scipy.ndimage import label as _cc_label
 
     IS_ORDER_TOL_MM      = 8.0
-    MIN_LABEL_VOX        = 500   # min total voxels to treat a label as real
-    MIN_LARGEST_CC_VOX   = 500   # min largest-CC size to treat as real
-    MIN_LABELS_FOR_CHECK = 3     # need at least 3 valid labels
+    MIN_LABEL_VOX        = 500
+    MIN_LARGEST_CC_VOX   = 500
+    MIN_LABELS_FOR_CHECK = 3
 
     spine_bool = (spine_arr > 0)
     if not spine_bool.any():
@@ -557,11 +419,9 @@ def _spine_placement_checks(spine_arr, ref_data, placed_labels, ref_aff, token):
         log.info("  [spine_check] token=%-8s bone=%.0f%% hu=%.0f  OK",
                  token, bp, mhu)
 
-    # Per-label world-space centroid, using LARGEST CONNECTED COMPONENT only,
-    # and skipping labels whose total or largest-CC voxel count is trivial.
     label_world: dict = {}
     label_z:     dict = {}
-    label_info:  dict = {}  # for debug logging on violation
+    label_info:  dict = {}
     dropped:     list = []
 
     for lbl in placed_labels:
@@ -576,11 +436,10 @@ def _spine_placement_checks(spine_arr, ref_data, placed_labels, ref_aff, token):
         if n_cc == 0:
             continue
 
-        # bincount starts at 0 = background; skip it
         counts = np.bincount(cc_arr.ravel())
         if len(counts) < 2:
             continue
-        cc_sizes = counts[1:]  # sizes of CC 1..N
+        cc_sizes = counts[1:]
         largest_cc_idx = int(np.argmax(cc_sizes)) + 1
         largest_size   = int(cc_sizes[largest_cc_idx - 1])
 
@@ -612,7 +471,6 @@ def _spine_placement_checks(spine_arr, ref_data, placed_labels, ref_aff, token):
     violations: list = []
 
     if len(label_world) < MIN_LABELS_FOR_CHECK:
-        # Not enough reliable labels; don't flag.
         if dropped:
             log.info(
                 "  [spine_check] token=%-8s IS_ORDER skipped "
@@ -622,23 +480,18 @@ def _spine_placement_checks(spine_arr, ref_data, placed_labels, ref_aff, token):
         return dict(bone_pct=bp, mean_hu=mhu, is_ordered=True,
                     label_z_centroids=label_z)
 
-    # VerSe ascending label id == descending anatomical height.
     labels_sorted = sorted(label_world.keys())
-    lo_label = labels_sorted[0]   # smallest id -> most superior
-    hi_label = labels_sorted[-1]  # largest id  -> most inferior
+    lo_label = labels_sorted[0]
+    hi_label = labels_sorted[-1]
 
-    # Data-anchored SI axis. Sign is fixed by label semantics, so there
-    # is no tiebreak and no external-frame assumption.
     si_vec  = label_world[hi_label] - label_world[lo_label]
     si_norm = float(np.linalg.norm(si_vec))
 
     if si_norm < 1e-6:
-        # Labels all collapse to a single point -- nothing to order.
         return dict(bone_pct=bp, mean_hu=mhu, is_ordered=True,
                     label_z_centroids=label_z)
 
     si_axis = si_vec / si_norm
-    # Scalar projection from the most-superior centroid.
     projections = {
         lbl: float(np.dot(label_world[lbl] - label_world[lo_label], si_axis))
         for lbl in labels_sorted
@@ -646,7 +499,6 @@ def _spine_placement_checks(spine_arr, ref_data, placed_labels, ref_aff, token):
     proj_sorted = [projections[lbl] for lbl in labels_sorted]
 
     for i in range(len(proj_sorted) - 1):
-        # expect proj[i+1] > proj[i]  (next label more inferior)
         delta = proj_sorted[i + 1] - proj_sorted[i]
         if delta < -IS_ORDER_TOL_MM:
             violations.append(
@@ -692,13 +544,9 @@ def _sorted_candidates(seg_affine, seg_shape, candidate_uids, primary_uid, nifti
             continue
         try:
             img = nib.load(str(nii_path))
-            # Reject scouts / topograms / otherwise degenerate NIfTIs --
-            # they'd crash io_orientation() and qform SVD downstream.
             if not _valid_affine(img.affine):
                 n_skipped_degenerate += 1
                 continue
-            # Reject scout / localizer shapes (1-2 slice topograms still
-            # occasionally slip through with a non-singular affine).
             if not _valid_volume_shape(img.shape):
                 n_skipped_degenerate += 1
                 continue
@@ -731,9 +579,6 @@ def _phase_xcorr_with_flips(seg_data, seg_affine, refs_to_try, token):
 
     for uid_label, ref_img in refs_to_try:
         try:
-            # MEMORY: np.asarray(img.dataobj, ...) instead of get_fdata --
-            # get_fdata caches the float32 array on ref_img, so with N
-            # candidates we'd pin N * ~400MB until the loop exits.
             ref_data    = np.asarray(ref_img.dataobj, dtype=np.float32)
             ref_bone    = (ref_data > BONE_HU).astype(np.float32)
             ref_shape   = tuple(ref_img.shape[:3])
@@ -789,9 +634,6 @@ def _phase_xcorr_with_flips(seg_data, seg_affine, refs_to_try, token):
                                 f"shift={[round(float(s), 1) for s in shift_full]}  "
                                 f"bone={bone_pct:.0f}%  vox={n_vox}"
                             )
-            # Release per-candidate CT volume as soon as we finish scoring
-            # this candidate.  Without this, ref_data (~400MB) stays pinned
-            # until the next loop iteration overwrites it.
             del ref_data, ref_bone, ref_bone_ds
         except Exception:
             continue
@@ -922,9 +764,6 @@ def _place_spine_best_series(args):
      candidate_uids, nifti_dir, out_dir) = args
     out_dir = Path(out_dir)
 
-    # Position is a property of the upstream CTSpine1K mask, not of the
-    # chosen TCIA series, so it can be derived once before anything else
-    # and attached to every result path below (cache hit, fresh, sidecar).
     position = _derive_position_from_path(seg_path)
 
     import logging as _log
@@ -938,8 +777,6 @@ def _place_spine_best_series(args):
                 try:
                     _r = _json_c.loads(_sidecar.read_text())
                     _r["method"] = "cached"
-                    # Backfill position on cached records written by older
-                    # place_fused_masks.py versions that didn't include it.
                     if not _r.get("position"):
                         _r["position"] = position
                         try:
@@ -995,8 +832,6 @@ def _place_spine_best_series(args):
 
         seg_img  = nib.load(str(seg_path))
 
-        # Scout / degenerate input guard: if the source CTSpine1K mask is
-        # a 2-slice topogram derivative, the whole patient is unusable.
         if not _valid_volume_shape(seg_img.shape):
             return token, False, {
                 "error": f"seg_scout_shape={tuple(int(s) for s in seg_img.shape[:3])}",
@@ -1025,10 +860,6 @@ def _place_spine_best_series(args):
                 output_shape=tuple(ref_img.shape[:3]),
                 order=0, mode="constant", cval=0, prefilter=False,
             ).astype(np.int32)
-            # MEMORY: np.asarray(img.dataobj, ...) instead of get_fdata so
-            # the float32 CT volume (~400MB) is NOT cached on ref_img.
-            # Combined with `del rd` below, each candidate's volume is
-            # released at end-of-iteration instead of at end-of-worker.
             rd  = np.asarray(ref_img.dataobj, dtype=np.float32)
             bp  = _bone_pct_of_placed(cand, rd)
             vox = int((cand > 0).sum())
@@ -1070,9 +901,6 @@ def _place_spine_best_series(args):
                     order=0, mode="constant", cval=0, prefilter=False,
                 ).astype(np.int32)
                 if int((cand > 0).sum()) >= MIN_SPINE_VOXELS:
-                    # MEMORY: see note above. _fref may not have cached
-                    # data if the scoring loop used asarray, so this is
-                    # a fresh read either way.
                     rd  = np.asarray(_fref.dataobj, dtype=np.float32)
                     bp  = _bone_pct_of_placed(cand, rd)
                     log.warning(
@@ -1086,14 +914,11 @@ def _place_spine_best_series(args):
         if best_arr is None or best_ref is None:
             return token, False, {"error": "all_methods_failed", "token": token}
 
-        # Defensive: refuse to save with a degenerate affine (would crash _to_pir).
         if not _valid_affine(best_ref.affine):
             return token, False, {"error": "best_ref_affine_degenerate", "token": token}
 
         n_vox  = int((best_arr > 0).sum())
         labels = sorted(set(best_arr.ravel().tolist()) - {0})
-        # Single read of the winning candidate's CT for the IS-ordering /
-        # bone_pct checks. No candidate fan-out here, so get_fdata is fine.
         checks = _spine_placement_checks(
             best_arr, best_ref.get_fdata(dtype=np.float32),
             labels, best_ref.affine, token,
@@ -1105,7 +930,6 @@ def _place_spine_best_series(args):
         except Exception as exc:
             return token, False, {"error": f"to_pir_failed: {exc}", "token": token}
 
-        # Final shape sanity check: refuse to write a scout-shaped output.
         if not _valid_volume_shape(pir_data.shape):
             return token, False, {
                 "error": f"placed_scout_shape={tuple(int(s) for s in pir_data.shape[:3])}",
@@ -1149,9 +973,6 @@ def _place_pelvic_best_series(args):
     (token, mask_path, candidate_uids, nifti_dir, out_dir) = args
     out_dir = Path(out_dir)
 
-    # Same pattern as the spine worker: position is a property of the
-    # upstream CTPelvic1K mask filename, derived once so every return
-    # path carries it identically.
     position = _derive_position_from_path(mask_path)
 
     mask_stem = Path(mask_path).name.replace(".nii.gz", "").replace(".nii", "")
@@ -1165,8 +986,6 @@ def _place_pelvic_best_series(args):
             try:
                 _r = _json_pc.loads(_sidecar_p.read_text())
                 _r["method"] = "cached"
-                # Backfill position on cached records written by older
-                # place_fused_masks.py versions.
                 if not _r.get("position"):
                     _r["position"] = position
                     try:
@@ -1177,12 +996,6 @@ def _place_pelvic_best_series(args):
             except Exception:
                 pass
 
-        # Perf note: prior versions re-iterated every candidate UID and
-        # recomputed bone_pct for every re-run, even when the sidecar
-        # already had a valid series_uid. We now skip the rematch when
-        # the sidecar yielded a usable result (handled above via the
-        # try-return path); this fallback branch only runs when the
-        # sidecar is missing or malformed.
         result = {"token": token, "placed": str(existing_p),
                   "series_uid": None, "bone_pct": None,
                   "vox": None, "z_off": None, "method": "cached",
@@ -1218,16 +1031,12 @@ def _place_pelvic_best_series(args):
         mask_img      = nib.load(str(mask_path))
         orig_mask_aff = mask_img.affine
 
-        # Scout / degenerate input guard: if the source CTPelvic1K mask is
-        # a 2-slice topogram derivative, the whole patient is unusable.
         if not _valid_volume_shape(mask_img.shape):
             return token, False, {
                 "error": f"mask_scout_shape={tuple(int(s) for s in mask_img.shape[:3])}",
                 "token": token,
             }
 
-        # If the pelvic mask's own affine is bad, nothing we do downstream
-        # will be sane.  Bail early.
         if not _valid_affine(orig_mask_aff):
             return token, False, {"error": "mask_affine_degenerate", "token": token}
 
@@ -1245,8 +1054,6 @@ def _place_pelvic_best_series(args):
         for uid, ref_img in sorted_cands:
             ref_aff  = ref_img.affine
 
-            # Belt-and-suspenders: _sorted_candidates already filters, but
-            # make it absolutely impossible for a bad affine to reach _to_pir.
             if not _valid_affine(ref_aff):
                 log.warning(
                     "  [pelv]  token=%-8s  uid=...%s  ref_aff invalid -- skipping",
@@ -1254,9 +1061,6 @@ def _place_pelvic_best_series(args):
                 )
                 continue
 
-            # MEMORY: np.asarray(img.dataobj, ...) instead of get_fdata --
-            # prevents the CT volume from being cached on ref_img so that
-            # sorted_cands doesn't pin N * ~400MB across loop iterations.
             ref_data = np.asarray(ref_img.dataobj, dtype=np.float32)
             ref_ornt = io_orientation(ref_aff)
             ref_nz   = ref_data.shape[2]
@@ -1267,9 +1071,6 @@ def _place_pelvic_best_series(args):
                     np.array(mask_img.dataobj, dtype=np.float32).astype(np.int32), xfm,
                 ).astype(np.float32)
             except ValueError:
-                # Mask cannot be reoriented into this ref's frame.  The old
-                # behaviour was to silently continue in the wrong orientation,
-                # which produced garbage placements; skip this candidate instead.
                 log.warning(
                     "  [pelv]  token=%-8s  uid=...%s  ornt_transform NaN -- skipping candidate",
                     token, uid[-10:],
@@ -1296,45 +1097,6 @@ def _place_pelvic_best_series(args):
             if score <= 0:
                 z_off = max(0, ref_nz - mask_nz)
 
-            # ─────────────────────────────────────────────────────────────
-            # NOTE (Apr 2026 — schema 2.2): the previous version had a
-            # hardcoded conditional L/R label swap here:
-            #
-            #     md = mask_data.copy()
-            #     if orig_mask_aff[0, 0] < 0:
-            #         tmp       = (md == 2).copy()
-            #         md[md == 3] = 2
-            #         md[tmp]    = 3
-            #
-            # That branch fired based on the storage-orientation sign of the
-            # source CTPelvic1K mask file (sign of aff[0,0]) and relabeled
-            # left_hip <-> right_hip on roughly half the COLONOG cases —
-            # specifically, every case with mask_aff[0,0] < 0. The result
-            # was anatomically inverted hips on those cases, while spine
-            # and sacrum labels were untouched.
-            #
-            # CTPelvic1K's label convention is storage-orientation-
-            # independent: label 2 voxels are at patient-left and label 3
-            # voxels are at patient-right regardless of the file's affine
-            # sign. apply_orientation() above already brings the mask
-            # array into the reference CT's voxel-axis order without
-            # changing patient-space positions, so labels do NOT need
-            # additional swapping. The labels ride along with the voxels
-            # correctly.
-            #
-            # Diagnosed via TS-vs-GT hip Dice audit: TS-left matched
-            # GT-right with Dice ~0.93 on flipped tokens, while sacrum
-            # and lumbar spine matched cleanly. Joint affine-sign analysis
-            # confirmed: the FLIPPED set was perfectly predicted by
-            # mask_aff[0,0] < 0 (5/5 audited tokens), with no spatial flip
-            # on those cases — a pure label permutation.
-            #
-            # A small residual (~1/11 in the audit, e.g. token 103) shows
-            # FLIPPED with mask_aff[0,0] > 0 and apply_orientation x-flip
-            # active. Those are upstream CTPelvic1K data inconsistencies,
-            # not pipeline bugs; they are detected post-export by the
-            # audit script and either remapped or excluded from training.
-            # ─────────────────────────────────────────────────────────────
             md = mask_data.copy()
 
             z_end = min(ref_nz, z_off + mask_nz)
@@ -1357,9 +1119,6 @@ def _place_pelvic_best_series(args):
                 placed_aff = ref_aff.copy()
                 placed_aff[:3, 3] = ref_aff[:3, 3] + z_off * ref_aff[:3, 2]
 
-                # Final guard: placed_aff should be valid (it derives from a
-                # validated ref_aff) but guard the _to_pir call explicitly so
-                # one bad candidate can never take down a whole token.
                 try:
                     _pir, _pir_aff = _to_pir(md.astype(np.int32), placed_aff)
                 except (ValueError, np.linalg.LinAlgError) as exc:
@@ -1372,16 +1131,11 @@ def _place_pelvic_best_series(args):
                 best_pir, best_pir_aff = _pir, _pir_aff
                 best_uid, best_bp, best_z, best_score_val = uid, bp, z_off, score
 
-            # Release per-candidate volumes before the next iteration.
-            # ref_data (~400MB) and mask_data (~50MB) dominate; explicit
-            # del ensures Python reclaims them now rather than waiting
-            # for the next assignment to overwrite them.
             del ref_data, mask_data, ref_bone, mask_lbl, md
 
         if best_pir is None:
             return token, False, {"error": "all_candidates_zero_bone", "token": token}
 
-        # Final shape sanity check: refuse to write a scout-shaped output.
         if not _valid_volume_shape(best_pir.shape):
             return token, False, {
                 "error": f"placed_scout_shape={tuple(int(s) for s in best_pir.shape[:3])}",
@@ -1430,10 +1184,6 @@ def _run_parallel(work, worker_fn, workers, label):
     n_ok = n_fail = n_skip = 0
     t0        = time.time()
 
-    # Autocap workers from the SLURM cgroup memory limit. Small batches
-    # (<= 5 tasks, e.g. DEBUG_TOKENS runs) serialize to avoid pool overhead;
-    # larger runs go through _autocap_workers so we degrade gracefully on
-    # memory-constrained nodes instead of OOMing.
     if len(work) <= 5:
         effective = 1
     else:
@@ -1498,14 +1248,37 @@ def run_pelvic_placement(work, workers):
 
 
 # ===========================================================================
-# PatientDB -> registry (the refactored input layer)
+# PatientDB -> registry
 # ===========================================================================
 
 def _lstv_derived_fields(spine_label: str, pelvic_label: str) -> Dict:
     """
-    Cross-check spine (vertebral-counting) vs pelvic (filename) LSTV labels,
-    derive lstv_agreement and lstv_class.  Mirrors the old resolve_dataset.py
-    agreement logic so downstream consumers (export_hf.py) see the same fields.
+    Cross-check spine vs pelvic LSTV labels and derive lstv_agreement,
+    lstv_class, etc.
+
+    Apr 2026 fix
+    ------------
+    Pre-fix LSTV_CLS dict had SEMI_SACRAL → 2 in keys, but the upstream
+    mask_index.py parser was emitting LSTV.SACRALIZATION for all
+    semi-sacralization filenames (substring-collision bug). So in
+    practice no record ever resolved to class 2 — semi cases were all
+    silently classified as full sacralization.
+
+    Post-fix (this version + fixed mask_index.py): semi-sacralization
+    filenames now correctly emit LSTV.SEMI_SACRAL, which this dict maps
+    to class 2. Tokens 22 and 120 will reclassify from class=3 → class=2
+    on the next build_db.py + place_fused_masks.py rerun.
+
+    LSTV class encoding
+    -------------------
+      0  NORMAL              No LSTV
+      1  LUMBARIZATION       Extra 6th lumbar
+      2  SEMI_SACRAL         Semi-sacralization (filename qualifier)
+      3  SACRALIZATION       Sacralization (filename qualifier)
+      4  (reserved, unused)
+
+    Pelvic label takes priority over vertebral when both are non-trivial,
+    matching the place_fused_masks v1 convention.
     """
     LSTV_CLS = {
         "LUMBARIZATION":      1,
@@ -1520,17 +1293,13 @@ def _lstv_derived_fields(spine_label: str, pelvic_label: str) -> Dict:
 
     is_lstv = lambda s: s and s.upper() not in UNINFORMATIVE and s.upper() != "NORMAL"
 
-    # Agreement is None when either source is uninformative
     if (not sp or sp.upper() in UNINFORMATIVE) or (not pv or pv.upper() in UNINFORMATIVE):
         agreement = None
     else:
-        # Agreement is True when both say "normal" or both say some flavour of LSTV
         agreement = (sp.upper() == pv.upper()) or (is_lstv(sp) and is_lstv(pv))
 
-    # Confusion zone: sources disagree AND at least one calls it LSTV
     confusion = (agreement is False) and (is_lstv(sp) or is_lstv(pv))
 
-    # Pelvic label takes priority for integer class (matches place_fused_masks v1)
     lstv_class = LSTV_CLS.get(pv.upper(), 0) or LSTV_CLS.get(sp.upper(), 0)
 
     return {
@@ -1547,23 +1316,7 @@ def _build_registry_from_patient_db(
     token_filter:  Optional[Set[str]],
     debug_n:       int,
 ) -> Dict[str, dict]:
-    """
-    Build the placement registry from patient_db.json.
-
-    Registry schema (per-patient):
-      {
-        "segs":    [Path, ...]       spine seg files for this patient
-        "masks":   [Path, ...]       pelvic mask files for this patient
-        "sp_niis": [str, ...]        full-volume spine image NIfTIs (for nifti_anchor)
-        "uids":    set[str]          ALL TCIA series UIDs for this patient
-        "lstv_pelvic":    str
-        "lstv_vertebral": str
-        "lstv_agreement": bool | None
-        "lstv_confusion_zone": bool
-        "lstv_class": int
-      }
-    """
-    # Import locally so the container need not have patient_db.py in its default path.
+    """Build the placement registry from patient_db.json."""
     from patient_db import PatientDB
 
     db = PatientDB.from_json(db_path)
@@ -1588,7 +1341,6 @@ def _build_registry_from_patient_db(
 
         series_uids: Set[str] = set(s.series_uid for s in rec.tcia_series if s.series_uid)
 
-        # LSTV: use first mask of each type (patients typically have one of each)
         spine_lstv  = rec.spine_masks[0].lstv_label  if rec.spine_masks  else ""
         pelvic_lstv = rec.pelvic_masks[0].lstv_label if rec.pelvic_masks else ""
         lstv_fields = _lstv_derived_fields(spine_lstv, pelvic_lstv)
@@ -1601,7 +1353,6 @@ def _build_registry_from_patient_db(
             **lstv_fields,
         }
 
-    # Debug limit
     if debug_n > 0 and not token_filter:
         keep = sorted(
             patients.keys(),
@@ -1644,7 +1395,6 @@ def main():
         token_filter = {t.strip() for t in args.tokens.split(",") if t.strip()}
         log.info("Token filter: %d -> %s", len(token_filter), sorted(token_filter))
 
-    # -- Step 0: Build patient registry from patient_db.json ------------------
     if not args.patient_db.exists():
         log.error("patient_db.json not found: %s", args.patient_db)
         log.error("       Run build_db.py first (Stage 2 Step A).")
@@ -1661,7 +1411,6 @@ def main():
                                             if r["segs"] and r["masks"]))
     log.info("  total TCIA UIDs  : %d", sum(len(r["uids"]) for r in patients.values()))
 
-    # -- Build work items -----------------------------------------------------
     spine_work:  List[Tuple] = []
     pelvic_work: List[Tuple] = []
 
@@ -1706,7 +1455,6 @@ def main():
         log.info("  Token filter            : %s", sorted(token_filter))
     log.info("======================================================================")
 
-    # -- Step 1: dcm2niix -----------------------------------------------------
     if not args.skip_convert:
         if uid_dirs:
             convert_series(list(uid_dirs.items()), args.nifti_dir, args.dcm2niix_workers)
@@ -1717,7 +1465,6 @@ def main():
         log.info("--convert_only: done.")
         return
 
-    # -- Step 2: Spine placement ----------------------------------------------
     force = str(os.environ.get("FORCE_PLACEMENT", "0")).strip() == "1"
     if force:
         log.warning("FORCE_PLACEMENT=1: deleting cached spine + pelvic placements")
@@ -1737,7 +1484,6 @@ def main():
             if ok and isinstance(msg, dict):
                 spine_results[tok] = msg
 
-    # -- Step 3: Pelvic placement ---------------------------------------------
     pelvic_results: Dict[str, dict] = {}
     if pelvic_work:
         log.info("Step 3: Pelvic placement  %d cases  workers=%d",
@@ -1747,7 +1493,6 @@ def main():
             if ok and isinstance(msg, dict):
                 pelvic_results[tok] = msg
 
-    # -- Step 4: Merge results -> determine match type ------------------------
     all_tokens = sorted(set(spine_results) | set(pelvic_results),
                         key=lambda t: (0, int(t)) if t.isdigit() else (1, t))
     manifest_cases = []
@@ -1762,10 +1507,6 @@ def main():
         else:
             match_type = "pelvic_only"
 
-        # Case-level position: prefer spine, fall back to pelvic, then unknown.
-        # Both workers derive position from their respective mask filenames,
-        # so these should agree when both are present; if they don't (rare),
-        # spine wins by convention.
         case_position = "unknown"
         if sp and sp.get("position") and sp["position"] != "unknown":
             case_position = sp["position"]
@@ -1782,10 +1523,6 @@ def main():
             "lstv_agreement":      pdata.get("lstv_agreement"),
             "lstv_confusion_zone": pdata.get("lstv_confusion_zone", False),
             "lstv_class":          pdata.get("lstv_class", 0),
-            # Schema v2.1: every case carries these two fields by default so
-            # downstream consumers don't have to test for presence.
-            # apply_manual_flips.py overwrites orientation_check when the
-            # case has been manually reviewed.
             "orientation_check":   _default_orientation_check(),
             "annotations":         _default_annotations(),
         }
@@ -1795,7 +1532,6 @@ def main():
             case["pelvic"] = pv
         manifest_cases.append(case)
 
-    # -- Step 5: Write placed_manifest.json -----------------------------------
     manifest = {
         "schema_version": PLACED_MANIFEST_SCHEMA,
         "n_cases":       len(manifest_cases),
@@ -1808,7 +1544,6 @@ def main():
     manifest_path = args.out_dir / "placed_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, default=str))
 
-    # -- Summary --------------------------------------------------------------
     import numpy as np
     log.info("======================================================================")
     log.info("  Schema version:     %s", PLACED_MANIFEST_SCHEMA)
@@ -1819,10 +1554,11 @@ def main():
              manifest["n_cases"], manifest["n_fused"], manifest["n_separate"],
              manifest["n_spine_only"], manifest["n_pelvic_only"])
 
-    # Position distribution (cheap sanity check -- unknown should be rare)
     from collections import Counter
     pos_counts = Counter(c.get("position", "unknown") for c in manifest_cases)
+    lstv_counts = Counter(c.get("lstv_class", 0) for c in manifest_cases)
     log.info("  Position dist:      %s", dict(pos_counts))
+    log.info("  LSTV class dist:    %s", dict(sorted(lstv_counts.items())))
     log.info("======================================================================")
 
     spine_bps = [

@@ -17,11 +17,18 @@ Paths (CTSpinoPelvic1K convention)
   pelvic_mask   = placed/fused/{stem}_pelvic_placed.nii.gz     (fused)
                 = placed/pelvic_native/{stem}_pelvic_placed.nii.gz (pelvic_only / pelvic_native)
 
-LSTV
-----
+LSTV (Apr 2026 fix)
+-------------------
   lstv_class int via pelvic-priority resolution:
-    0 Normal  1 Lumbarization  2 Semi-sacralization  3 Sacralization
-    Pelvic filename label takes priority over vertebral count.
+    0 Normal
+    1 Lumbarization
+    2 Semi-sacralization (Apr 2026 fix: was unreachable pre-fix due to
+      substring-match bug in mask_index.py; tokens 22 and 120 now correctly
+      resolve to 2 instead of 3)
+    3 Sacralization
+  Pre-fix had a HARD_SACRAL → 4 mapping that was a misinterpretation;
+  "hard" / "veryhard" are CTPelvic1K's annotation-difficulty flags
+  (image quality), not Castellvi grades. Removed in this version.
 """
 from __future__ import annotations
 
@@ -42,14 +49,24 @@ logging.basicConfig(
 log = logging.getLogger("ctspinopelvic1k.build_manifest")
 
 
+# Apr 2026: removed "HARD_SACRAL": 4 (annotation-difficulty flag, not LSTV).
+# SEMI_SACRAL/SEMI_SACRALIZATION still map to 2; SACRALIZATION to 3.
 _LSTV_STR_TO_INT: Dict[str, int] = {
-    "NORMAL": 0, "LUMBARIZATION": 1, "SEMI_SACRAL": 2,
-    "SEMI_SACRALIZATION": 2, "SACRALIZATION": 3, "HARD_SACRAL": 4,
-    "UNKNOWN": 0, "AMBIGUOUS": 0, "INCOMPLETE_SCAN": 0, "EXCLUDED": 0,
+    "NORMAL": 0,
+    "LUMBARIZATION": 1,
+    "SEMI_SACRAL": 2,
+    "SEMI_SACRALIZATION": 2,
+    "SACRALIZATION": 3,
+    "UNKNOWN": 0,
+    "AMBIGUOUS": 0,
+    "INCOMPLETE_SCAN": 0,
+    "EXCLUDED": 0,
 }
 _LSTV_INT_TO_NAME = {
-    0: "Normal", 1: "Lumbarization", 2: "Semi-sacralization",
-    3: "Sacralization", 4: "Hard/Complex sacralization",
+    0: "Normal",
+    1: "Lumbarization",
+    2: "Semi-sacralization",
+    3: "Sacralization",
 }
 
 
@@ -114,23 +131,20 @@ def _placed_spine_path(
         p = placed_spine_dir / f"{sid}_seg_placed.nii.gz"
         if p.exists():
             return str(p)
-    # Fallback to whatever is in the manifest
     return (spine_info or {}).get("placed")
 
 
 def _placed_pelvic_path(
     pelvic_info: Dict,
-    placed_mask_dir: Optional[Path],           # fused case pelvic masks
-    placed_pelvic_native_dir: Optional[Path],  # pelvic-native case masks
+    placed_mask_dir: Optional[Path],
+    placed_pelvic_native_dir: Optional[Path],
     is_fused: bool,
 ) -> Optional[str]:
     if not pelvic_info:
         return None
-    # Canonical source
     placed = pelvic_info.get("placed")
     if placed and Path(placed).exists():
         return placed
-    # Derive stem from mask_file if we have a search dir
     mask_file = pelvic_info.get("mask_file", "")
     if mask_file:
         stem = _mask_stem(mask_file)
@@ -265,8 +279,6 @@ def _build_pelvic_only_entry(case: Dict, nifti_dir,
     }
 
 
-# ── Main ─────────────────────────────────────────────────────────────────────
-
 def build_manifest(
     placed_manifest_path:     Path,
     patient_db_path:          Optional[Path],
@@ -283,8 +295,6 @@ def build_manifest(
     cases  = placed.get("cases", [])
     log.info("placed_manifest: %d cases", len(cases))
 
-    # patient_db is optional — we don't actually need extra fields for the
-    # training manifest, but augment warnings/lstv if present and missing.
     patient_db = {}
     if patient_db_path and patient_db_path.exists():
         try:

@@ -15,56 +15,23 @@
 # =============================================================================
 # Stage 4 — TotalSegmentator zero-shot benchmark on CTSpinoPelvic1K (sharded)
 #
-# Runs benchmark_totalseg.py across the ENTIRE dataset — zero-shot inference
-# doesn't care about train/val/test splits. Subgroup analysis (LSTV class,
-# match_type, config) is applied at aggregation time.
+# SCRATCH POLICY (split for speed + safety)
+# -----------------------------------------
+#   Sandbox unpack  (~10 GB, read-mostly hot path)  → node-local /tmp
+#   Container /tmp  (nnU-Net runtime scratch)       → project NFS
+#   XDG runtime     (basically empty)               → project NFS
 #
-# NO --fast flag. Full TS precision for publication-quality numbers.
+# RESUME SEMANTICS
+# ----------------
+#   sbatch slurm/benchmark_totalseg.sh                         # full 8-way
+#   N_SHARDS_OVERRIDE=8 SHARED_BASE=<old_dir> \
+#     sbatch --array=4,5,6 slurm/benchmark_totalseg.sh         # retry subset
 #
-# Sharding (added Apr 2026)
-# -------------------------
-# This script is a SLURM job array. Each task in the array runs on one
-# H200 and benchmarks a round-robin slice of the patient tokens, with
-# the slice computed from manifest.json on the host (cheap, deterministic).
-# Per-shard metric logs live under shard_K_of_N/, isolated so writes
-# never contend. The TS prediction cache (ts_preds/) is SHARED across
-# shards: whichever shard runs a given (token, config) first deposits
-# the .nii.gz, and any other shard hitting the same key reuses it.
-#
-# Resubmit semantics:
-#   sbatch slurm/benchmark_totalseg.sh                 # all 8 shards
-#   sbatch --array=3-3 slurm/benchmark_totalseg.sh     # retry just shard 3
-#   sbatch --array=0-7%4 slurm/benchmark_totalseg.sh   # 8 shards, 4 at a time
-#
-# Resuming a partial run after a transient failure:
-#   SHARED_BASE=<old_array_jobid_dir> sbatch slurm/benchmark_totalseg.sh
-#   The benchmark python now AUTO-RETRIES failed cases (ok=false records
-#   in per_case_partial.jsonl don't block retry; only ok=true does).
-#
-# After all shards finish:
-#   sbatch slurm/merge_benchmark_shards.sh
-#
-# Container-writability note (revised Apr 2026)
-# ---------------------------------------------
-# TotalSegmentator + nnU-Net write per-process scratch directories under
-# /tmp/nnunet_tmp_*. These need to be visible across all processes inside
-# the container (parent + multiprocessing workers).
-#
-#   Old approach (BROKEN with multi-CPU jobs):
-#     --writable-tmpfs gave the container a per-PROCESS tmpfs overlay.
-#     Workers spawned via multiprocessing.spawn got their own fresh
-#     tmpfs that DIDN'T see the parent's /tmp writes, producing
-#     [Errno 2] No such file or directory on /tmp/nnunet_tmp_<rand>.
-#
-#   Current approach (works with multi-CPU jobs):
-#     Bind the host's per-job ${SINGULARITY_TMPDIR} into the container's
-#     /tmp. All processes inside share one real filesystem. The per-job
-#     directory is created with mkdir -p above and cleaned up by the
-#     trap on exit, so it's still job-isolated and ephemeral.
-#
-# TS config dir / HOME write is handled separately by mitigation #2:
-# TOTALSEG_CONFIG_DIR + TOTALSEG_HOME_DIR + HOME env vars all pointing at
-# a host-writable directory bind-mounted into the container.
+#   N_SHARDS_OVERRIDE is mandatory when resubmitting a subset because
+#   SLURM sets SLURM_ARRAY_TASK_COUNT to the count of CURRENTLY submitted
+#   tasks, not the original array size. Without the override, a partial
+#   resubmit writes to a different directory (shard_4_of_3 instead of
+#   shard_4_of_8) and resharding picks different tokens → resume breaks.
 # =============================================================================
 set -euo pipefail
 
@@ -72,55 +39,78 @@ PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$(pwd)}"
 DATASET_DIR="${DATASET_DIR:-${PROJECT_ROOT}/data/hf_export}"
 SIF_PATH="${SIF_PATH:-${PROJECT_ROOT}/containers/ctspinopelvic1k-ts.sif}"
 TOTALSEG_WEIGHTS="${TOTALSEG_WEIGHTS:-${HOME}/totalseg_weights}"
-
-# TS config / cache location: host-writable, bind-mounted into the container
-# so any TS version writing to $HOME, TOTALSEG_CONFIG_DIR, or
-# TOTALSEG_HOME_DIR will land here and persist across jobs.
 TOTALSEG_CONFIG_DIR="${TOTALSEG_CONFIG_DIR:-${HOME}/.totalseg}"
 
 # ── Shard identity ───────────────────────────────────────────────────────────
+# N_SHARDS_OVERRIDE pins the total shard count so partial resubmits land in
+# the SAME directory as the original full submission. Without this, a
+# partial resubmit (e.g. --array=4,5,6) would set N_SHARDS=3 from
+# SLURM_ARRAY_TASK_COUNT, breaking both the output path AND the token
+# sharding modulo.
 SHARD_ID="${SLURM_ARRAY_TASK_ID:-0}"
-N_SHARDS="${SLURM_ARRAY_TASK_COUNT:-1}"
+N_SHARDS="${N_SHARDS_OVERRIDE:-${SLURM_ARRAY_TASK_COUNT:-1}}"
 
-# Shared base for ALL shards in a given submission. Keyed off
-# SLURM_ARRAY_JOB_ID so every task in an array agrees on the base.
 SHARED_BASE="${SHARED_BASE:-${PROJECT_ROOT}/results/totalseg_bench_${SLURM_ARRAY_JOB_ID:-${SLURM_JOB_ID:-local}}}"
 OUT_DIR="${SHARED_BASE}/shard_${SHARD_ID}_of_${N_SHARDS}"
 PRED_DIR="${SHARED_BASE}/ts_preds"
 
-# ── Singularity runtime dirs ─────────────────────────────────────────────────
-# SINGULARITY_TMPDIR doubles as the host source for the container's /tmp
-# bind mount below.  Per-job (keyed by SLURM_JOB_ID, not array-job-id) so
-# concurrent shards each get their own isolated /tmp inside the container.
-export SINGULARITY_TMPDIR="/tmp/${USER}_job_${SLURM_JOB_ID:-$$}"
-export XDG_RUNTIME_DIR="${SINGULARITY_TMPDIR}/runtime"
-mkdir -p "${SINGULARITY_TMPDIR}" "${XDG_RUNTIME_DIR}"
-export NXF_SINGULARITY_CACHEDIR="${HOME}/singularity_cache"
-mkdir -p "${SINGULARITY_TMPDIR}" "${XDG_RUNTIME_DIR}" "${NXF_SINGULARITY_CACHEDIR}"
-trap 'rm -rf "${SINGULARITY_TMPDIR}"' EXIT
+# ── Split scratch: sandbox on node /tmp, runtime on NFS ──────────────────────
+NODE_SCRATCH="/tmp/${USER}_${SLURM_JOB_ID:-$$}"
+NFS_SCRATCH="${PROJECT_ROOT}/.scratch/${USER}_${SLURM_JOB_ID:-$$}"
+mkdir -p "${NODE_SCRATCH}" "${NFS_SCRATCH}"
 
+export SINGULARITY_TMPDIR="${NODE_SCRATCH}/singularity_unpack"
+HOST_CONTAINER_TMP="${NFS_SCRATCH}/container_tmp"
+export XDG_RUNTIME_DIR="${NFS_SCRATCH}/xdg_runtime"
+mkdir -p "${SINGULARITY_TMPDIR}" "${HOST_CONTAINER_TMP}" "${XDG_RUNTIME_DIR}"
+
+export NXF_SINGULARITY_CACHEDIR="${HOME}/singularity_cache"
+mkdir -p "${NXF_SINGULARITY_CACHEDIR}"
+
+trap 'rm -rf "${NODE_SCRATCH}" "${NFS_SCRATCH}" 2>/dev/null || true' EXIT TERM INT
+
+# ── Prechecks ────────────────────────────────────────────────────────────────
+_free_gib() {
+    local kb
+    kb=$(df -k --output=avail "$1" 2>/dev/null | tail -1 | tr -d ' ')
+    echo $(( ${kb:-0} / 1024 / 1024 ))
+}
+
+NODE_FREE_GIB=$(_free_gib "${NODE_SCRATCH}")
+NFS_FREE_GIB=$(_free_gib "${NFS_SCRATCH}")
+
+if [[ "${NODE_FREE_GIB}" -lt 15 ]]; then
+    echo "ERROR: node /tmp ${NODE_SCRATCH} has only ${NODE_FREE_GIB} GiB free." >&2
+    echo "       Need 15 GiB for the singularity sandbox unpack." >&2
+    echo "       Likely cause: too many concurrent jobs on $(hostname)." >&2
+    exit 1
+fi
+
+if [[ "${NFS_FREE_GIB}" -lt 30 ]]; then
+    echo "ERROR: project NFS ${NFS_SCRATCH} has only ${NFS_FREE_GIB} GiB free." >&2
+    echo "       Need 30 GiB. Free up space under ${PROJECT_ROOT}." >&2
+    exit 1
+fi
+
+# ── Conda / env setup ────────────────────────────────────────────────────────
 export CONDA_PREFIX="${HOME}/mambaforge/envs/nextflow"
 export PATH="${CONDA_PREFIX}/bin:${PATH}"
-unset JAVA_HOME; which singularity
+unset JAVA_HOME LD_LIBRARY_PATH PYTHONPATH R_LIBS R_LIBS_USER R_LIBS_SITE
+unset SINGULARITYENV_HOME
+which singularity
 export NXF_SINGULARITY_HOME_MOUNT=true
-unset LD_LIBRARY_PATH PYTHONPATH R_LIBS R_LIBS_USER R_LIBS_SITE
 
 export TOTALSEG_WEIGHTS_PATH="${TOTALSEG_WEIGHTS}"
 mkdir -p logs "${OUT_DIR}" "${PRED_DIR}" "${TOTALSEG_WEIGHTS}" "${TOTALSEG_CONFIG_DIR}"
 
-# Scrub host LD_LIBRARY_PATH etc. so the container's libs win
-unset JAVA_HOME LD_LIBRARY_PATH PYTHONPATH R_LIBS R_LIBS_USER R_LIBS_SITE
+BINDS="${PROJECT_ROOT}:/workspace"
+BINDS+=",${OUT_DIR}:/results"
+BINDS+=",${PRED_DIR}:/pred_cache"
+BINDS+=",${DATASET_DIR}:/dataset"
+BINDS+=",${HOST_CONTAINER_TMP}:/tmp"
+BINDS+=",${TOTALSEG_WEIGHTS}:${TOTALSEG_WEIGHTS}"
+BINDS+=",${TOTALSEG_CONFIG_DIR}:${TOTALSEG_CONFIG_DIR}"
 
-# Container binds:
-#   /workspace     <- project root
-#   /results       <- this shard's OUT_DIR (isolated per-shard JSONL log)
-#   /pred_cache    <- shared TS prediction cache across all shards
-#   /dataset       <- HF-export dataset
-#   /tmp           <- host-bound per-job tmpdir (so multiprocessing workers
-#                     see the same /tmp as the parent for nnU-Net scratch
-#                     files; replaces the broken --writable-tmpfs approach)
-#   TS weights and config dirs use their host paths inside the container too
-BINDS="${PROJECT_ROOT}:/workspace,${OUT_DIR}:/results,${PRED_DIR}:/pred_cache,${DATASET_DIR}:/dataset,${SINGULARITY_TMPDIR}:/tmp,${TOTALSEG_WEIGHTS}:${TOTALSEG_WEIGHTS},${TOTALSEG_CONFIG_DIR}:${TOTALSEG_CONFIG_DIR}"
 PPATH="/workspace/scripts:/workspace"
 
 CONTAINER_ENV="PYTHONPATH=${PPATH}"
@@ -128,16 +118,10 @@ CONTAINER_ENV+=",TOTALSEG_WEIGHTS_PATH=${TOTALSEG_WEIGHTS}"
 CONTAINER_ENV+=",TOTALSEG_CONFIG_DIR=${TOTALSEG_CONFIG_DIR}"
 CONTAINER_ENV+=",TOTALSEG_HOME_DIR=${TOTALSEG_CONFIG_DIR}"
 CONTAINER_ENV+=",HOME=${TOTALSEG_CONFIG_DIR}"
-# Quiet NumExpr's "detected 128 cores, enforcing safe limit of 16" notice
-# by setting an explicit ceiling matching --cpus-per-task.
 CONTAINER_ENV+=",NUMEXPR_MAX_THREADS=${SLURM_CPUS_PER_TASK:-8}"
 CONTAINER_ENV+=",OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-8}"
 
 _run() {
-    # NOTE: --writable-tmpfs is INTENTIONALLY OMITTED. See the header
-    # comment for why; replacing it with a host /tmp bind in the BINDS
-    # string above gives all processes inside the container a coherent
-    # /tmp filesystem, which nnU-Net's multiprocessing requires.
     singularity exec --nv \
         --env "${CONTAINER_ENV}" \
         --bind "${BINDS}" \
@@ -145,7 +129,7 @@ _run() {
         "${SIF_PATH}" "$@"
 }
 
-# ── Compute this shard's token list ──────────────────────────────────────────
+# ── Compute this shard's token list (uses pinned N_SHARDS) ───────────────────
 TOKENS=$(python3 - <<PY
 import json, sys
 from pathlib import Path
@@ -168,23 +152,40 @@ NUM_TOKENS=$(echo -n "$TOKENS" | tr ',' '\n' | grep -c .)
 
 echo "======================================================================"
 echo " benchmark_totalseg  [H200]  shard ${SHARD_ID} / ${N_SHARDS}"
-echo " Array Job : ${SLURM_ARRAY_JOB_ID:-?}  Task: ${SLURM_ARRAY_TASK_ID:-?}"
-echo " Node      : $(hostname)"
-echo " GPU       : $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo N/A)"
-echo " Dataset   : ${DATASET_DIR}"
-echo " SIF       : ${SIF_PATH}"
-echo " Shared    : ${SHARED_BASE}"
-echo " Output    : ${OUT_DIR}"
-echo " Pred cache: ${PRED_DIR}  (shared across all shards)"
-echo " Host /tmp : ${SINGULARITY_TMPDIR}  (bound to container's /tmp)"
-echo " TS cfg    : ${TOTALSEG_CONFIG_DIR}"
-echo " TS wts    : ${TOTALSEG_WEIGHTS}"
-echo " Tokens    : ${NUM_TOKENS} (this shard)"
-echo " Scope     : whole dataset (all configs — zero-shot, no split filter)"
-echo " Mode      : FULL precision (no --fast)"
-echo " Resume    : auto-retry of any prior ok=false records"
-echo " Started   : $(date)"
+echo " Array Job  : ${SLURM_ARRAY_JOB_ID:-?}  Task: ${SLURM_ARRAY_TASK_ID:-?}"
+echo " N_SHARDS   : ${N_SHARDS}  $([[ -n "${N_SHARDS_OVERRIDE:-}" ]] && echo '(pinned via N_SHARDS_OVERRIDE)' || echo '(from SLURM_ARRAY_TASK_COUNT)')"
+echo " Node       : $(hostname)"
+echo " GPU        : $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo N/A)"
+echo " Dataset    : ${DATASET_DIR}"
+echo " SIF        : ${SIF_PATH}"
+echo " Shared     : ${SHARED_BASE}"
+echo " Output     : ${OUT_DIR}"
+echo " Pred cache : ${PRED_DIR}  (shared across all shards)"
+echo " Sandbox    : ${SINGULARITY_TMPDIR}  (node /tmp, ${NODE_FREE_GIB} GiB free)"
+echo " Ctr /tmp   : ${HOST_CONTAINER_TMP}  (NFS, ${NFS_FREE_GIB} GiB free)"
+echo " TS cfg     : ${TOTALSEG_CONFIG_DIR}"
+echo " TS wts     : ${TOTALSEG_WEIGHTS}"
+echo " Tokens     : ${NUM_TOKENS} (this shard)"
+echo " Scope      : whole dataset (all configs — zero-shot, no split filter)"
+echo " Mode       : FULL precision (no --fast)"
+echo " Resume     : auto-retry of any prior ok=false records"
+echo " Started    : $(date)"
 echo "======================================================================"
+
+# ── Sanity: warn loudly if OUT_DIR has no JSONL but SHARED_BASE is set ───────
+# This is the symptom of the N_SHARDS mismatch bug. If the user explicitly
+# passed SHARED_BASE expecting to resume, but OUT_DIR is empty, something
+# is wrong — almost certainly N_SHARDS mismatch.
+if [[ -n "${SHARED_BASE_USER_SET:-}" || -n "${SHARED_BASE:-}" ]] && \
+   [[ ! -f "${OUT_DIR}/per_case_partial.jsonl" ]] && \
+   [[ "${SHARED_BASE}" != "${PROJECT_ROOT}/results/totalseg_bench_${SLURM_ARRAY_JOB_ID:-x}" ]]; then
+    echo " WARNING: SHARED_BASE points at an existing run but ${OUT_DIR}"
+    echo "          has no per_case_partial.jsonl. Either this shard is new"
+    echo "          to the run, or N_SHARDS doesn't match the original"
+    echo "          submission (set N_SHARDS_OVERRIDE=<original_count>)."
+    echo "          Other shard dirs in ${SHARED_BASE}:"
+    ls -d "${SHARED_BASE}"/shard_*_of_* 2>/dev/null | sed 's/^/            /'
+fi
 
 if [[ "${NUM_TOKENS}" -eq 0 ]]; then
     echo "Shard ${SHARD_ID}/${N_SHARDS} has no tokens to process. Exiting cleanly."
