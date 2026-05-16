@@ -22,8 +22,16 @@ step is now unnecessary:
     lstv_confusion_zone, lstv_class) are derived directly from the per-mask
     `lstv_label` fields in patient_db.json.  No cross-check JSON is needed.
 
-SCHEMA VERSION 2.5
+SCHEMA VERSION 2.6
 ==================
+2.6 (May 2026): each case carries per-source label provenance — `prov_spine`
+(vertebral L1-L6 labels) and `prov_pelvis` (sacrum + hip labels as a unit,
+shared source). Enum: manual | pseudo | pseudo_corrected | null. A placed
+result for that side -> "manual" (original source-dataset annotation);
+no result -> null (structure absent / not applicable). This build only
+emits manual/null; the gated pseudo-label + human-QA pipeline writes
+pseudo / pseudo_corrected later and must never overwrite a "manual".
+
 2.5 (May 2026): `position` is now read from the DICOM Patient Position tag
 (0018,5100) at dcm2niix conversion time and written to a per-series sidecar
 `tcia_nifti/{series_uid}.position.json`. At mask↔CT pairing, each side's
@@ -166,7 +174,10 @@ log = logging.getLogger("spinesurg.place_masks")
 #   2.5 = position read from DICOM Patient Position (0018,5100) via a
 #         per-series sidecar, resolved at pairing by matched series_uid
 #         (not filename). Missing -> JSON null; "unknown" sentinel removed.
-PLACED_MANIFEST_SCHEMA = "2.5"
+#   2.6 = per-source label provenance: prov_spine / prov_pelvis, enum
+#         manual|pseudo|pseudo_corrected|null. manual = source-dataset
+#         annotation present; null = structure absent.
+PLACED_MANIFEST_SCHEMA = "2.6"
 
 BONE_HU             = 200.0
 MIN_VOXELS          = 50
@@ -1642,11 +1653,24 @@ def main():
         else:  # pelvic_only
             case_position = pv_pos
 
+        # Per-source label provenance. prov_spine = vertebral L1-L6 labels;
+        # prov_pelvis = sacrum + hip labels as a unit. A placed result for
+        # that side means the original source-dataset annotation is present
+        # -> "manual"; no result -> null (structure absent / not
+        # applicable). Enum domain: manual | pseudo | pseudo_corrected |
+        # null. Only manual/null are produced here; the (gated) pseudo-label
+        # + human-QA pipeline writes pseudo / pseudo_corrected later and must
+        # never overwrite a "manual".
+        prov_spine  = "manual" if sp else None
+        prov_pelvis = "manual" if pv else None
+
         pdata = patients.get(tok, {})
         case = {
             "patient_token":       tok,
             "match_type":          match_type,
             "position":            case_position,
+            "prov_spine":          prov_spine,
+            "prov_pelvis":         prov_pelvis,
             "lstv_pelvic":         pdata.get("lstv_pelvic",    ""),
             "lstv_vertebral":      pdata.get("lstv_vertebral", ""),
             "lstv_agreement":      pdata.get("lstv_agreement"),

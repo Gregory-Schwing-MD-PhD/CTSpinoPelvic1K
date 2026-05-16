@@ -202,6 +202,14 @@ _MANIFEST_SCHEMA = [
     ("position",               str,   True),
     ("config",                 str,   False),
     ("match_type",             str,   False),
+    # Per-source label provenance. prov_spine = the vertebral L1-L6 labels;
+    # prov_pelvis = the sacrum + hip labels as a unit (shared source, pseudo-
+    # labeled together). Enum: manual | pseudo | pseudo_corrected | null
+    # (null = that structure is absent / not applicable for this record).
+    # Today only manual/null are produced; pseudo / pseudo_corrected become
+    # reachable when the (gated) pseudo-label + QA pipeline writes them.
+    ("prov_spine",             str,   True),
+    ("prov_pelvis",            str,   True),
     ("lstv_label",             str,   False),
     ("lstv_class",             int,   False),
     ("lstv_pelvic",            str,   True),
@@ -600,9 +608,19 @@ def _export_one(args: dict) -> dict:
     rel_lbl_file = _posix_rel("labels", out_lbl.name)
     rel_qc_file  = _posix_rel("qc",     out_qc.name)
 
+    # Label provenance, derived from which source mask is present for this
+    # export. A present source mask == manual (original source-dataset)
+    # annotation; an absent source == null (structure not applicable).
+    # pseudo / pseudo_corrected are NOT set here — they are written by the
+    # downstream pseudo-label + human-QA pipeline, which must never
+    # overwrite a "manual" provenance.
+    prov_spine  = "manual" if (spine_path  and Path(spine_path).exists())  else None
+    prov_pelvis = "manual" if (pelvic_path and Path(pelvic_path).exists()) else None
+
     result = dict(
         token=token, position=position, config=config,
         match_type=match_type, lstv_label=lstv, ok=False, error=None,
+        prov_spine=prov_spine, prov_pelvis=prov_pelvis,
         alignment_ok=False, has_l6=False, n_lumbar_labels=0,
         ct_file=rel_ct_file, label_file=rel_lbl_file, qc_file=rel_qc_file,
         lstv_pelvic=args.get("lstv_pelvic", ""),

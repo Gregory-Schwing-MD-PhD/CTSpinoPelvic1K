@@ -62,6 +62,8 @@ def _base(token: str, config: str, ct_file: str) -> dict:
         position="supine",          # position is a nullable str column
         config=config,
         match_type=config,
+        prov_spine="manual",        # nullable enum: manual|pseudo|
+        prov_pelvis="manual",       #   pseudo_corrected|null
         lstv_label="normal",
         lstv_class=0,
         lstv_pelvic="",
@@ -100,6 +102,7 @@ _SPINE_ONLY = _base("0002", "spine_only", "ct/0002_spine_ct.nii.gz")
 _SPINE_ONLY.update(
     partial_annotation=True, n_lumbar_labels=5,
     pelvic_series_uid=None, pelvic_bone_pct=None,
+    prov_spine="manual", prov_pelvis=None,   # no pelvic source
 )
 
 # (c) pelvic_native — sacrum/hips only, no lumbar labels
@@ -107,17 +110,20 @@ _PELVIC_NATIVE = _base("0003", "pelvic_native", "ct/0003_pelvic_ct.nii.gz")
 _PELVIC_NATIVE.update(
     partial_annotation=True, n_lumbar_labels=0, has_l6=False,
     spine_series_uid=None, spine_bone_pct=None,
+    prov_spine=None, prov_pelvis="manual",   # no spine source
 )
 
 # (d) separate-pair — two records, SAME token, one spine_only one pelvic
 _SEPARATE_SPINE = _base("0004", "spine_only", "ct/0004_spine_ct.nii.gz")
 _SEPARATE_SPINE.update(match_type="separate", partial_annotation=True,
                        n_lumbar_labels=5,
-                       pelvic_series_uid=None, pelvic_bone_pct=None)
+                       pelvic_series_uid=None, pelvic_bone_pct=None,
+                       prov_spine="manual", prov_pelvis=None)
 _SEPARATE_PELVIC = _base("0004", "pelvic_native", "ct/0004_pelvic_ct.nii.gz")
 _SEPARATE_PELVIC.update(match_type="separate", partial_annotation=True,
                         n_lumbar_labels=0,
-                        spine_series_uid=None, spine_bone_pct=None)
+                        spine_series_uid=None, spine_bone_pct=None,
+                        prov_spine=None, prov_pelvis="manual")
 
 # (e) record missing several schema keys entirely (keeps ok/token/ct_file)
 _MISSING_KEYS = {
@@ -160,6 +166,11 @@ _POS_NONE["position"] = None
 _POS_MISSING = _base("0010", "fused", "ct/0010_ct.nii.gz")
 del _POS_MISSING["position"]
 
+# (k) provenance non-manual enum values — locks the pseudo /
+#     pseudo_corrected domain through coercion (str column, unchanged).
+_PROV_PSEUDO = _base("0011", "fused", "ct/0011_ct.nii.gz")
+_PROV_PSEUDO.update(prov_spine="pseudo", prov_pelvis="pseudo_corrected")
+
 RAW_RECORDS = [
     _FUSED,
     _SPINE_ONLY,
@@ -172,6 +183,7 @@ RAW_RECORDS = [
     _ASSORTED_NONE,
     _POS_NONE,
     _POS_MISSING,
+    _PROV_PSEUDO,
 ]
 
 
@@ -292,6 +304,43 @@ def test_position_is_nullable_none_and_missing_serialize_as_json_null():
     # A valid position label is preserved verbatim.
     keep = _coerce_manifest_record(dict(_FUSED))
     assert keep["position"] == "supine"
+
+
+_PROV_DOMAIN = {"manual", "pseudo", "pseudo_corrected", None}
+
+
+def test_label_provenance_columns_are_nullable_enum_strings(coerced_records):
+    """prov_spine / prov_pelvis: flat nullable str columns, values confined
+    to manual | pseudo | pseudo_corrected | None. None/missing -> JSON null
+    (never "" and never an absent key); valid enum values pass through."""
+    for col in ("prov_spine", "prov_pelvis"):
+        assert col in _NULLABLE and col not in _NON_NULLABLE
+        assert _PYTYPE[col] is str
+
+    for r in coerced_records:
+        for col in ("prov_spine", "prov_pelvis"):
+            assert r[col] in _PROV_DOMAIN, (
+                f"token={r.get('token')!r} {col}={r[col]!r} outside "
+                f"{sorted(x for x in _PROV_DOMAIN if x)} | None"
+            )
+
+    # None, "", and a missing key all collapse to JSON null.
+    for col in ("prov_spine", "prov_pelvis"):
+        for raw in (None, ""):
+            rec = dict(_FUSED); rec[col] = raw
+            out = _coerce_manifest_record(rec)
+            assert out[col] is None
+            assert json.loads(json.dumps(out))[col] is None
+        rec = dict(_FUSED); rec.pop(col, None)
+        assert _coerce_manifest_record(rec)[col] is None
+
+    # Non-manual enum values survive coercion + JSON round-trip verbatim.
+    out = _coerce_manifest_record(dict(_PROV_PSEUDO))
+    assert out["prov_spine"] == "pseudo"
+    assert out["prov_pelvis"] == "pseudo_corrected"
+    reloaded = json.loads(json.dumps(out))
+    assert reloaded["prov_spine"] == "pseudo"
+    assert reloaded["prov_pelvis"] == "pseudo_corrected"
 
 
 def test_nullable_fields_serialize_as_json_null(coerced_records):
