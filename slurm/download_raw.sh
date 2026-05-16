@@ -173,7 +173,7 @@ if [[ "${RUN_SPINE}" == "1" ]]; then
     fi
 
     _run python3 - << 'PYEOF'
-import os, sys
+import os, sys, time
 from pathlib import Path
 from huggingface_hub import snapshot_download
 
@@ -181,10 +181,19 @@ dest  = Path("/data/ctspine1k")
 cache = Path("/data/hf_cache")
 token = os.environ.get("HF_TOKEN") or None
 
-print(f"Downloading alexanderdann/CTSpine1K -> {dest}", flush=True)
+# Minimum .nii.gz expected (~1568 = 784 img + 784 seg). Anything materially
+# below this means the snapshot is incomplete (almost always HF rate-limiting).
+EXPECTED_MIN = int(os.environ.get("CTSPINE1K_MIN_NII", "1500"))
+# Lower concurrency keeps us under HF's 1000-requests/5min API quota even
+# unauthenticated; authenticated tokens get a much higher limit.
+MAX_WORKERS  = int(os.environ.get("HF_MAX_WORKERS", "4"))
 
-# Retry up to 20 times with backoff for HF rate limits
-import time
+print(f"Downloading alexanderdann/CTSpine1K -> {dest}", flush=True)
+if not token:
+    print("WARNING: no HF_TOKEN — unauthenticated requests are throttled at "
+          "1000/5min and may not complete in one pass.", flush=True)
+
+last_err = None
 for attempt in range(1, 21):
     try:
         snapshot_download(
@@ -194,21 +203,31 @@ for attempt in range(1, 21):
             cache_dir  = str(cache),
             token      = token,
             ignore_patterns = ["*.arrow", "*.parquet", "data/*.arrow"],
+            max_workers = MAX_WORKERS,
         )
-        break
     except Exception as e:
-        print(f"[attempt {attempt}] failed: {e}", flush=True)
-        if attempt == 20:
-            print("  giving up after 20 attempts", flush=True)
-            sys.exit(1)
-        wait = min(600, 30 * attempt)
-        print(f"  sleeping {wait}s and retrying ...", flush=True)
-        time.sleep(wait)
+        last_err = e
+        print(f"[attempt {attempt}] download error: {e}", flush=True)
+    else:
+        # snapshot_download silently returns the (possibly stale/partial)
+        # local dir when the repo can't be reached — e.g. HTTP 429 — instead
+        # of raising. The only trustworthy completion signal is file count.
+        n = len(list(dest.rglob("*.nii.gz")))
+        if n >= EXPECTED_MIN:
+            print(f"Done.  .nii.gz files: {n}", flush=True)
+            sys.exit(0)
+        print(f"[attempt {attempt}] incomplete: {n} .nii.gz "
+              f"(< {EXPECTED_MIN}) — likely rate-limited; will retry", flush=True)
 
-n = len(list(dest.rglob("*.nii.gz")))
-print(f"Done.  .nii.gz files: {n}", flush=True)
-if n < 100:
-    print(f"WARNING: only {n} NIfTI files — expected ~1568 (784 img + 784 seg)", flush=True)
+    if attempt == 20:
+        print(f"  giving up after 20 attempts (last error: {last_err})", flush=True)
+        sys.exit(1)
+    # 429 quota is per-5-min, so back off long enough to clear the window.
+    wait = min(600, 60 * attempt)
+    print(f"  sleeping {wait}s and retrying (resumes from cache) ...", flush=True)
+    time.sleep(wait)
+
+sys.exit(1)
 PYEOF
 
     _mark_done "${CTSPINE1K_DIR}"
@@ -291,8 +310,11 @@ if [[ "${RUN_PELVIC}" == "1" ]]; then
     echo "  CTPelvic1K done."
     for DS in 1 2 3 4 5; do
         DIR="${CTPELVIC1K_DIR}/masks/CTPelvic1K_dataset${DS}_mask_mappingback"
-        printf "    dataset%-2s masks : %4d\n" "${DS}" \
-            "$(find ${DIR} -name '*.nii.gz' 2>/dev/null | wc -l || echo 0)"
+        count=0
+        if [[ -d "${DIR}" ]]; then
+            count=$(find "${DIR}" -name '*.nii.gz' 2>/dev/null | wc -l)
+        fi
+        printf "    dataset%-2s masks : %4d\n" "${DS}" "${count}"
     done
 fi
 
