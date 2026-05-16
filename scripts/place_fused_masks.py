@@ -22,8 +22,25 @@ step is now unnecessary:
     lstv_confusion_zone, lstv_class) are derived directly from the per-mask
     `lstv_label` fields in patient_db.json.  No cross-check JSON is needed.
 
-SCHEMA VERSION 2.6
+SCHEMA VERSION 2.7
 ==================
+2.7 (May 2026): DICOM header demographics, driven by an explicit, auditable
+PHI allowlist (`_METADATA_ALLOWLIST`) — the ONLY place header tags are read.
+The header is parsed once, headers-only, with `specific_tags` pinned to the
+allowlist, so no un-listed tag (PatientBirthDate, PatientName/ID,
+InstitutionName, dates, accession, physician fields, …) can ever be read or
+propagated. The per-series sidecar generalizes
+`{series_uid}.position.json` -> `{series_uid}.demographics.json`
+(source: "dicom_header"), carrying every allowlisted field as both a raw
+and a normalized value. Nine new case fields join `position`: patient-level
+`age` (DICOM age string -> capped int <=89; 90+ -> 89; binning deferred),
+`sex` (male|female|other|null), `patient_weight` (kg), `patient_size` (m);
+and per-acquisition `convolution_kernel`, `manufacturer`,
+`manufacturer_model`, `slice_thickness` (mm), `kvp`. Patient-level fields
+take whichever acquisition is present (a spine/pelvic disagreement is
+logged and resolved to the spine side); scanner fields follow the same
+per-acquisition policy as `position`. Absent tag -> explicit JSON null.
+
 2.6 (May 2026): each case carries per-source label provenance — `prov_spine`
 (vertebral L1-L6 labels) and `prov_pelvis` (sacrum + hip labels as a unit,
 shared source). Enum: manual | pseudo | pseudo_corrected | null. A placed
@@ -177,7 +194,17 @@ log = logging.getLogger("spinesurg.place_masks")
 #   2.6 = per-source label provenance: prov_spine / prov_pelvis, enum
 #         manual|pseudo|pseudo_corrected|null. manual = source-dataset
 #         annotation present; null = structure absent.
-PLACED_MANIFEST_SCHEMA = "2.6"
+#   2.7 = DICOM header demographics from an explicit PHI allowlist
+#         (_METADATA_ALLOWLIST). The position sidecar is generalized to
+#         {series_uid}.demographics.json (source: "dicom_header") and 9
+#         new case fields are added: patient-level age (capped int<=89) /
+#         sex / patient_weight / patient_size, and per-acquisition
+#         convolution_kernel / manufacturer / manufacturer_model /
+#         slice_thickness / kvp. Patient-level fields take whichever
+#         acquisition is present (spine wins a disagreement, logged);
+#         scanner fields follow the per-acquisition `position` policy.
+#         Absent header tag -> JSON null. ONLY allowlisted tags are read.
+PLACED_MANIFEST_SCHEMA = "2.7"
 
 BONE_HU             = 200.0
 MIN_VOXELS          = 50
@@ -258,45 +285,31 @@ def _autocap_workers(requested: int, per_worker_gb: float = 3.5,
 # Small helpers
 # ===========================================================================
 
-def _read_patient_position_tag(series_dir) -> Optional[str]:
-    """Raw DICOM Patient Position (0018,5100) for a series, or None.
+# ---------------------------------------------------------------------------
+# DICOM header metadata — EXPLICIT PHI ALLOWLIST
+#
+# `_METADATA_ALLOWLIST` is the single, auditable source of truth for which
+# header tags this codebase reads. The extractor parses headers ONLY
+# (stop_before_pixels=True) and passes `specific_tags=_DICOM_TAG_IDS`, so
+# pydicom materializes ONLY these tags — the full header is never swept and
+# no other tag can leak in. To add a field you MUST add a row here; nothing
+# else reads the DICOM header.
+#
+# HARD PHI RULE — never add any of these to the allowlist:
+#   PatientBirthDate (0010,0030), PatientName, PatientID,
+#   InstitutionName (0008,0080), StudyDate/SeriesDate, AccessionNumber,
+#   or any operator / referring- / performing-physician field.
+# `specific_tags=_DICOM_TAG_IDS` is the enforcement mechanism: a tag absent
+# from this list is never parsed, so it cannot be propagated.
+# ---------------------------------------------------------------------------
 
-    Reads headers only (stop_before_pixels) from the first DICOM in the
-    series that carries the tag. Returns the uppercased raw code
-    (e.g. "HFS", "FFP") or None if pydicom is unavailable, no DICOM is
-    readable, or the tag is absent/empty.
-    """
-    try:
-        import pydicom
-    except Exception:
-        return None
-    sd = Path(series_dir)
-    if not sd.is_dir():
-        return None
-    for f in sorted(sd.glob("*.dcm")):
-        try:
-            ds = pydicom.dcmread(
-                str(f), stop_before_pixels=True, specific_tags=[0x00185100],
-            )
-        except Exception:
-            continue
-        val = getattr(ds, "PatientPosition", None)
-        if val:
-            return str(val).strip().upper()
-    return None
-
-
-def _normalize_position(raw: Optional[str]) -> Optional[str]:
-    """Map a raw DICOM Patient Position code to a position label.
-
-    HFS/FFS -> supine, HFP/FFP -> prone, *DR -> decubitus_right,
-    *DL -> decubitus_left. Any other present-but-unrecognized code is
-    preserved lowercased (information is not discarded). Missing/empty
-    (raw is None) -> None (explicit null, never the "unknown" sentinel).
-    """
+def _norm_position(raw) -> Optional[str]:
+    """HFS/FFS -> supine, HFP/FFP -> prone, *DR -> decubitus_right,
+    *DL -> decubitus_left. Any other present code is preserved lowercased.
+    Missing/empty -> None (explicit null, never an "unknown" sentinel)."""
     if not raw:
         return None
-    r = raw.strip().upper()
+    r = str(raw).strip().upper()
     if r in ("HFS", "FFS"):
         return "supine"
     if r in ("HFP", "FFP"):
@@ -308,41 +321,160 @@ def _normalize_position(raw: Optional[str]) -> Optional[str]:
     return r.lower()
 
 
-def _position_sidecar_path(nifti_dir, series_uid) -> Path:
-    return Path(nifti_dir) / f"{series_uid}.position.json"
+def _norm_age(raw) -> Optional[int]:
+    """DICOM Age String (nnn[YMWD]) -> integer years.
+
+    Y -> n; M -> n // 12; W -> floor(n*7 / 365); D -> n // 365 (W/D thus
+    floor to 0 for typical neonatal values). A bare integer is read as
+    years. Result is capped at 89 (>=90 -> 89) for k-anonymity headroom;
+    age binning for public export is a deferred follow-up, not done here.
+    Unparseable / absent -> None.
+    """
+    if raw is None or raw == "":
+        return None
+    import re
+    m = re.fullmatch(r"\s*(\d+)\s*([YMWDymwd]?)\s*", str(raw))
+    if not m:
+        return None
+    n = int(m.group(1))
+    unit = (m.group(2) or "Y").upper()
+    if unit == "Y":
+        yrs = n
+    elif unit == "M":
+        yrs = n // 12
+    elif unit == "W":
+        yrs = (n * 7) // 365
+    else:  # "D"
+        yrs = n // 365
+    if yrs < 0:
+        return None
+    return 89 if yrs >= 90 else yrs
 
 
-def _write_position_sidecar(series_uid, series_dir, sidecar: Path) -> None:
-    """Capture Patient Position for a series and write its per-series
-    sidecar (keyed on series_uid, alongside the dcm2niix NIfTI)."""
-    raw = _read_patient_position_tag(series_dir)
-    doc = {
-        "series_uid":       series_uid,
-        "patient_position": raw,                       # raw 0018,5100 or null
-        "position":         _normalize_position(raw),  # label or null
-        "source":           "dicom_tag_0018_5100",
-    }
+def _norm_sex(raw) -> Optional[str]:
+    """M -> male, F -> female, O -> other; anything else / absent -> None."""
+    if raw is None:
+        return None
+    return {"M": "male", "F": "female", "O": "other"}.get(
+        str(raw).strip().upper())
+
+
+def _norm_float(raw) -> Optional[float]:
+    """DICOM DS/IS (or first element of a multi-valued one) -> float;
+    absent / unparseable -> None."""
+    if raw is None or raw == "":
+        return None
+    try:
+        if isinstance(raw, (list, tuple)) or raw.__class__.__name__ == "MultiValue":
+            raw = raw[0]
+        return float(raw)
+    except Exception:
+        return None
+
+
+def _norm_str(raw) -> Optional[str]:
+    """String passthrough. Multi-valued -> backslash-joined (DICOM
+    convention). Empty / absent -> None."""
+    if raw is None:
+        return None
+    if isinstance(raw, (list, tuple)) or raw.__class__.__name__ == "MultiValue":
+        raw = "\\".join(str(x) for x in raw)
+    s = str(raw).strip()
+    return s or None
+
+
+# (field_name, dicom_tag_id, pydicom_attr, normalizer). The sidecar stores,
+# per field, "<field>" (normalized) and "<field>_raw" (verbatim header
+# string). PHI rule above governs every addition to this list.
+_METADATA_ALLOWLIST = [
+    ("position",            0x00185100, "PatientPosition",       _norm_position),
+    ("age",                 0x00101010, "PatientAge",            _norm_age),
+    ("sex",                 0x00100040, "PatientSex",            _norm_sex),
+    ("patient_weight",      0x00101030, "PatientWeight",         _norm_float),
+    ("patient_size",        0x00101020, "PatientSize",           _norm_float),
+    ("convolution_kernel",  0x00181210, "ConvolutionKernel",     _norm_str),
+    ("manufacturer",        0x00080070, "Manufacturer",          _norm_str),
+    ("manufacturer_model",  0x00081090, "ManufacturerModelName", _norm_str),
+    ("slice_thickness",     0x00180050, "SliceThickness",        _norm_float),
+    ("kvp",                 0x00180060, "KVP",                   _norm_float),
+]
+_DICOM_TAG_IDS   = [tag for _, tag, _, _ in _METADATA_ALLOWLIST]
+_METADATA_FIELDS = [name for name, _, _, _ in _METADATA_ALLOWLIST]
+
+
+def _read_dicom_metadata(series_dir) -> Dict[str, object]:
+    """Read the allowlisted header tags ONCE, headers-only, for a series.
+
+    Returns a dict with, per allowlist field, "<field>" (normalized) and
+    "<field>_raw" (verbatim header string) — all None when pydicom is
+    unavailable / no DICOM is readable. Scans instances in name order,
+    filling each field from the first instance that carries it (a
+    field whose normalized value is legitimately None still counts as
+    filled once its raw value was seen). ONLY `_DICOM_TAG_IDS` are parsed.
+    """
+    out: Dict[str, object] = {}
+    for name in _METADATA_FIELDS:
+        out[name] = None
+        out[f"{name}_raw"] = None
+    try:
+        import pydicom
+    except Exception:
+        return out
+    sd = Path(series_dir)
+    if not sd.is_dir():
+        return out
+    for f in sorted(sd.glob("*.dcm")):
+        try:
+            ds = pydicom.dcmread(
+                str(f), stop_before_pixels=True,
+                specific_tags=list(_DICOM_TAG_IDS),
+            )
+        except Exception:
+            continue
+        for name, _tag, attr, norm in _METADATA_ALLOWLIST:
+            if out[f"{name}_raw"] is not None:
+                continue
+            val = getattr(ds, attr, None)
+            if val is None or val == "":
+                continue
+            out[f"{name}_raw"] = str(val).strip()
+            out[name] = norm(val)
+        if all(out[f"{n}_raw"] is not None for n in _METADATA_FIELDS):
+            break
+    return out
+
+
+def _metadata_sidecar_path(nifti_dir, series_uid) -> Path:
+    return Path(nifti_dir) / f"{series_uid}.demographics.json"
+
+
+def _write_metadata_sidecar(series_uid, series_dir, sidecar: Path) -> None:
+    """Capture the allowlisted DICOM header metadata for a series and write
+    its per-series sidecar (keyed on series_uid, alongside the NIfTI)."""
+    doc = {"series_uid": series_uid, "source": "dicom_header"}
+    doc.update(_read_dicom_metadata(series_dir))
     try:
         sidecar.write_text(json.dumps(doc, indent=2))
     except Exception:
         pass
 
 
-def _position_for_series(nifti_dir, series_uid) -> Optional[str]:
-    """Resolve position for a CT series from its per-series sidecar.
-
-    Keyed strictly on series_uid (the matched CT), never on a mask/file
-    name. Missing series_uid, missing sidecar, or unreadable sidecar ->
-    None (explicit null)."""
+def _metadata_for_series(nifti_dir, series_uid) -> Dict[str, object]:
+    """Resolve the normalized demographics dict for a CT series from its
+    per-series sidecar. Keyed strictly on series_uid (the matched CT),
+    never a mask/file name. Missing uid / sidecar / unreadable sidecar ->
+    every field None (explicit nulls)."""
+    empty = {n: None for n in _METADATA_FIELDS}
     if not series_uid:
-        return None
-    p = _position_sidecar_path(nifti_dir, series_uid)
+        return empty
+    p = _metadata_sidecar_path(nifti_dir, series_uid)
     if not p.exists():
-        return None
+        return empty
     try:
-        return json.loads(p.read_text()).get("position")
+        doc = json.loads(p.read_text())
+        return {n: doc.get(n) for n in _METADATA_FIELDS}
     except Exception:
-        return None
+        return empty
 
 
 def _default_orientation_check() -> Dict:
@@ -768,13 +900,13 @@ def _convert_one_series(args):
     out_path   = Path(nifti_dir) / f"{series_uid}.nii.gz"
     series_dir = Path(series_dir)
 
-    # Capture Patient Position (0018,5100) from the DICOM headers and write
-    # the per-series sidecar. Done before the skip check so already-converted
-    # series (NIfTI present, no sidecar yet) get backfilled on re-run, as
-    # long as the source DICOMs are still present.
-    sidecar = _position_sidecar_path(nifti_dir, series_uid)
+    # Capture the allowlisted DICOM header metadata and write the per-series
+    # sidecar. Done before the skip check so already-converted series (NIfTI
+    # present, no sidecar yet) get backfilled on re-run, as long as the
+    # source DICOMs are still present.
+    sidecar = _metadata_sidecar_path(nifti_dir, series_uid)
     if not sidecar.exists() and series_dir.is_dir() and any(series_dir.glob("*.dcm")):
-        _write_position_sidecar(series_uid, series_dir, sidecar)
+        _write_metadata_sidecar(series_uid, series_dir, sidecar)
 
     if out_path.exists():
         return series_uid, True, "skip"
@@ -902,9 +1034,10 @@ def _place_spine_best_series(args):
                 try:
                     _r = _json_c.loads(_sidecar.read_text())
                     _r["method"] = "cached"
-                    # Position is a property of the matched CT series; resolve
-                    # from that series' sidecar (keyed on _cuid), not the mask.
-                    _r["position"] = _position_for_series(nifti_dir, _cuid)
+                    # Demographics are a property of the matched CT series;
+                    # resolve from that series' sidecar (keyed on _cuid), not
+                    # the mask. Per-acquisition + patient-level fields alike.
+                    _r.update(_metadata_for_series(nifti_dir, _cuid))
                     try:
                         _sidecar.write_text(_json_c.dumps(_r, indent=2, default=str))
                     except Exception:
@@ -943,8 +1076,8 @@ def _place_spine_best_series(args):
                 "labels":     _labels,
                 "method":     "cached",
                 "IS_ok":      _is_ok,
-                "position":   _position_for_series(nifti_dir, _cuid),
             }
+            _result.update(_metadata_for_series(nifti_dir, _cuid))
             try:
                 _sidecar.write_text(_json_c.dumps(_result, indent=2, default=str))
             except Exception:
@@ -1064,7 +1197,8 @@ def _place_spine_best_series(args):
 
         nib.save(nib.Nifti1Image(pir_data, pir_aff), str(out_path))
 
-        position = _position_for_series(nifti_dir, best_uid)
+        meta = _metadata_for_series(nifti_dir, best_uid)
+        position = meta.get("position")
         result = {
             "token":      token,
             "series_uid": best_uid,
@@ -1074,8 +1208,8 @@ def _place_spine_best_series(args):
             "labels":     labels,
             "method":     method,
             "IS_ok":      checks["is_ordered"],
-            "position":   position,
         }
+        result.update(meta)
 
         sidecar_path = out_dir / f"{best_uid}_seg_placed.json"
         import json as _json_s
@@ -1111,9 +1245,9 @@ def _place_pelvic_best_series(args):
             try:
                 _r = _json_pc.loads(_sidecar_p.read_text())
                 _r["method"] = "cached"
-                # Per-acquisition position: from this pelvic mask's own
-                # matched CT series sidecar (keyed on its series_uid).
-                _r["position"] = _position_for_series(nifti_dir, _r.get("series_uid"))
+                # Demographics from this pelvic mask's own matched CT series
+                # sidecar (keyed on its series_uid).
+                _r.update(_metadata_for_series(nifti_dir, _r.get("series_uid")))
                 try:
                     _sidecar_p.write_text(_json_pc.dumps(_r, indent=2, default=str))
                 except Exception:
@@ -1124,8 +1258,7 @@ def _place_pelvic_best_series(args):
 
         result = {"token": token, "placed": str(existing_p),
                   "series_uid": None, "bone_pct": None,
-                  "vox": None, "z_off": None, "method": "cached",
-                  "position": None}
+                  "vox": None, "z_off": None, "method": "cached"}
 
         if result["series_uid"] is None:
             _best_uid_r = None
@@ -1143,7 +1276,7 @@ def _place_pelvic_best_series(args):
                 result["bone_pct"]   = _best_bp_r
                 result["method"]     = "cached_bone_rematch"
 
-        result["position"] = _position_for_series(nifti_dir, result["series_uid"])
+        result.update(_metadata_for_series(nifti_dir, result["series_uid"]))
 
         try:
             _sidecar_p.write_text(_json_pc.dumps(result, indent=2, default=str))
@@ -1279,7 +1412,8 @@ def _place_pelvic_best_series(args):
             out_path.unlink(missing_ok=True)
             return token, False, {"error": "placed_mask_empty", "token": token}
 
-        position = _position_for_series(nifti_dir, best_uid)
+        meta = _metadata_for_series(nifti_dir, best_uid)
+        position = meta.get("position")
         result = {
             "token":      token,
             "series_uid": best_uid,
@@ -1287,8 +1421,8 @@ def _place_pelvic_best_series(args):
             "bone_pct":   round(best_bp, 1),
             "vox":        n_nz,
             "z_off":      best_z,
-            "position":   position,
         }
+        result.update(meta)
 
         sidecar_path = Path(str(out_path).replace(".nii.gz", ".json"))
         import json as _json_p
@@ -1636,22 +1770,44 @@ def main():
         else:
             match_type = "pelvic_only"
 
-        # Per-acquisition positions live in case["spine"]/["pelvic"], each
-        # resolved from its own matched CT series. The case-level scalar is
-        # a convenience: for fused both sides are the same series; for
-        # separate it is only meaningful if both sides agree, else null
-        # (consumers must read the per-side position). Missing -> null,
-        # never the old "unknown" sentinel.
-        sp_pos = sp.get("position") if sp else None
-        pv_pos = pv.get("position") if pv else None
-        if match_type == "fused":
-            case_position = sp_pos if sp_pos is not None else pv_pos
-        elif match_type == "separate":
-            case_position = sp_pos if sp_pos == pv_pos else None
-        elif match_type == "spine_only":
-            case_position = sp_pos
-        else:  # pelvic_only
-            case_position = pv_pos
+        # DICOM header demographics resolve from each side's own matched CT
+        # series sidecar (already merged into sp/pv by the placement workers).
+        # The case-level scalars are conveniences; per-side values always
+        # live in case["spine"]/["pelvic"]. Two resolution policies:
+        #
+        #  _acq_scalar      — PER-ACQUISITION (position, scanner/protocol
+        #    fields). For fused both sides are the same series; for separate
+        #    the scalar is only meaningful if the two acquisitions agree,
+        #    else null (consumers must read the per-side value).
+        #  _patient_scalar  — PATIENT-LEVEL (age/sex/weight/size): the same
+        #    patient across both acquisitions. Take whichever side is
+        #    present; if both present and disagree, warn and trust spine.
+        #
+        # Missing -> null, never the old "unknown" sentinel.
+        def _acq_scalar(field):
+            a = sp.get(field) if sp else None
+            b = pv.get(field) if pv else None
+            if match_type == "fused":
+                return a if a is not None else b
+            if match_type == "separate":
+                return a if a == b else None
+            if match_type == "spine_only":
+                return a
+            return b  # pelvic_only
+
+        def _patient_scalar(field):
+            a = sp.get(field) if sp else None
+            b = pv.get(field) if pv else None
+            if a is not None and b is not None and a != b:
+                log.warning(
+                    "token=%s patient-level %s disagrees across acquisitions "
+                    "(spine=%r pelvic=%r) — taking spine side",
+                    tok, field, a, b,
+                )
+                return a
+            return a if a is not None else b
+
+        case_position = _acq_scalar("position")
 
         # Per-source label provenance. prov_spine = vertebral L1-L6 labels;
         # prov_pelvis = sacrum + hip labels as a unit. A placed result for
@@ -1669,6 +1825,17 @@ def main():
             "patient_token":       tok,
             "match_type":          match_type,
             "position":            case_position,
+            # Patient-level demographics (same patient both acquisitions).
+            "age":                 _patient_scalar("age"),
+            "sex":                 _patient_scalar("sex"),
+            "patient_weight":      _patient_scalar("patient_weight"),
+            "patient_size":        _patient_scalar("patient_size"),
+            # Per-acquisition scanner / protocol (like position).
+            "convolution_kernel":  _acq_scalar("convolution_kernel"),
+            "manufacturer":        _acq_scalar("manufacturer"),
+            "manufacturer_model":  _acq_scalar("manufacturer_model"),
+            "slice_thickness":     _acq_scalar("slice_thickness"),
+            "kvp":                 _acq_scalar("kvp"),
             "prov_spine":          prov_spine,
             "prov_pelvis":         prov_pelvis,
             "lstv_pelvic":         pdata.get("lstv_pelvic",    ""),

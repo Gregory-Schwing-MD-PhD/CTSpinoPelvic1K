@@ -60,6 +60,18 @@ def _base(token: str, config: str, ct_file: str) -> dict:
         error=None,
         token=token,
         position="supine",          # position is a nullable str column
+        # DICOM header demographics (schema >=2.7). age is the first
+        # nullable INT column; patient_weight/patient_size/slice_thickness/
+        # kvp the first nullable FLOAT columns. sex is a nullable enum str.
+        age=64,
+        sex="male",
+        patient_weight=70.5,
+        patient_size=1.75,
+        convolution_kernel="B30f",
+        manufacturer="SIEMENS",
+        manufacturer_model="Sensation 64",
+        slice_thickness=1.0,
+        kvp=120.0,
         config=config,
         match_type=config,
         prov_spine="manual",        # nullable enum: manual|pseudo|
@@ -171,6 +183,24 @@ del _POS_MISSING["position"]
 _PROV_PSEUDO = _base("0011", "fused", "ct/0011_ct.nii.gz")
 _PROV_PSEUDO.update(prov_spine="pseudo", prov_pelvis="pseudo_corrected")
 
+# (l) every DICOM-header demographic explicitly None — no header tag was
+#     available upstream. Each must serialize as JSON null, NEVER 0 (age),
+#     0.0 (weight/size/slice_thickness/kvp) or "" (sex/kernel/manufacturer).
+_DEMO_NONE = _base("0012", "fused", "ct/0012_ct.nii.gz")
+_DEMO_NONE.update(
+    age=None, sex=None, patient_weight=None, patient_size=None,
+    convolution_kernel=None, manufacturer=None, manufacturer_model=None,
+    slice_thickness=None, kvp=None,
+)
+
+# (m) every demographic key absent entirely — missing key must coerce to
+#     JSON null exactly like an explicit None (never a typed zero).
+_DEMO_MISSING = _base("0013", "fused", "ct/0013_ct.nii.gz")
+for _k in ("age", "sex", "patient_weight", "patient_size",
+           "convolution_kernel", "manufacturer", "manufacturer_model",
+           "slice_thickness", "kvp"):
+    del _DEMO_MISSING[_k]
+
 RAW_RECORDS = [
     _FUSED,
     _SPINE_ONLY,
@@ -184,6 +214,8 @@ RAW_RECORDS = [
     _POS_NONE,
     _POS_MISSING,
     _PROV_PSEUDO,
+    _DEMO_NONE,
+    _DEMO_MISSING,
 ]
 
 
@@ -304,6 +336,110 @@ def test_position_is_nullable_none_and_missing_serialize_as_json_null():
     # A valid position label is preserved verbatim.
     keep = _coerce_manifest_record(dict(_FUSED))
     assert keep["position"] == "supine"
+
+
+# --------------------------------------------------------------------------- #
+# DICOM header demographics (schema >=2.7) — the first nullable int / float
+# columns. The CastError-class bug here would be a None coercing to 0 / 0.0
+# instead of JSON null, silently corrupting an otherwise-nullable column.
+# --------------------------------------------------------------------------- #
+
+_DEMO_FLOAT_FIELDS = ("patient_weight", "patient_size",
+                      "slice_thickness", "kvp")
+_DEMO_STR_FIELDS   = ("sex", "convolution_kernel",
+                      "manufacturer", "manufacturer_model")
+_SEX_DOMAIN = {"male", "female", "other", None}
+
+
+def test_age_is_nullable_int_none_and_missing_serialize_as_json_null():
+    """age is the first nullable INT column. None / "" / absent must coerce
+    to JSON null — NEVER 0 (which the non-nullable int default would give and
+    which would read as a real 0-year-old patient)."""
+    assert "age" in _NULLABLE and "age" not in _NON_NULLABLE
+    assert _PYTYPE["age"] is int
+
+    for rec in (dict(_DEMO_NONE), dict(_DEMO_MISSING)):
+        out = _coerce_manifest_record(rec)
+        assert out["age"] is None, f"age coerced to {out['age']!r}, expected None"
+        assert out["age"] != 0
+        assert json.loads(json.dumps(out))["age"] is None
+
+    # explicit "" also collapses to null, not 0
+    rec = dict(_FUSED); rec["age"] = ""
+    assert _coerce_manifest_record(rec)["age"] is None
+
+    # a real age survives coercion + JSON round-trip as a plain int
+    out = _coerce_manifest_record(dict(_FUSED))
+    assert out["age"] == 64 and type(out["age"]) is int
+    assert json.loads(json.dumps(out))["age"] == 64
+
+
+@pytest.mark.parametrize("field", _DEMO_FLOAT_FIELDS)
+def test_demographic_float_fields_are_nullable_none_never_zero(field):
+    """Nullable FLOAT columns: None / "" / absent -> JSON null, NEVER 0.0
+    (a real measurement of 0.0 is meaningless; 0.0 here would be a silent
+    null-substitution that also pins the column dtype)."""
+    assert field in _NULLABLE and field not in _NON_NULLABLE
+    assert _PYTYPE[field] is float
+
+    for rec in (dict(_DEMO_NONE), dict(_DEMO_MISSING)):
+        out = _coerce_manifest_record(rec)
+        assert out[field] is None, f"{field}={out[field]!r}, expected None"
+        assert out[field] != 0.0
+        assert json.loads(json.dumps(out))[field] is None
+
+    rec = dict(_FUSED); rec[field] = ""
+    assert _coerce_manifest_record(rec)[field] is None
+
+    # a real value survives as a plain float
+    out = _coerce_manifest_record(dict(_FUSED))
+    assert type(out[field]) is float
+    assert json.loads(json.dumps(out))[field] == out[field]
+
+
+def test_sex_is_nullable_enum_in_domain(coerced_records):
+    """sex ∈ {male, female, other, null} across every coerced record;
+    None / "" / absent -> JSON null."""
+    assert "sex" in _NULLABLE and _PYTYPE["sex"] is str
+    for r in coerced_records:
+        assert r["sex"] in _SEX_DOMAIN, (
+            f"token={r.get('token')!r} sex={r['sex']!r} outside "
+            f"{sorted(x for x in _SEX_DOMAIN if x)} | None"
+        )
+    for raw in (None, ""):
+        rec = dict(_FUSED); rec["sex"] = raw
+        out = _coerce_manifest_record(rec)
+        assert out["sex"] is None
+        assert json.loads(json.dumps(out))["sex"] is None
+    rec = dict(_FUSED); rec.pop("sex", None)
+    assert _coerce_manifest_record(rec)["sex"] is None
+
+
+def test_roundtrip_single_type_per_column_with_nullable_int_and_float(
+        coerced_records):
+    """The HF-viewer CastError invariant, asserted explicitly for the new
+    nullable int (age) and float columns: across the WHOLE record list each
+    column is either a single non-null Python type or null — mixed
+    int+NoneType or float+NoneType is fine (nullable), int+str is not.
+    The fixture set includes records with these fields populated AND fully
+    None, so this exercises the actual mixed-presence condition."""
+    reloaded = json.loads(json.dumps(coerced_records))
+    for name in ("age",) + _DEMO_FLOAT_FIELDS + _DEMO_STR_FIELDS:
+        py_type = _PYTYPE[name]
+        non_null = {type(r[name]).__name__ for r in reloaded
+                    if r[name] is not None}
+        assert len(non_null) <= 1, (
+            f"column {name!r} has mixed non-null types: {non_null}"
+        )
+        if non_null:
+            expect = {int: "int", float: "float", str: "str"}[py_type]
+            assert non_null == {expect}, (
+                f"column {name!r} non-null type {non_null} != {{{expect}}}"
+            )
+        # at least one record exercises the null branch of this column
+        assert any(r[name] is None for r in reloaded), (
+            f"fixture set never exercises {name!r} as null"
+        )
 
 
 _PROV_DOMAIN = {"manual", "pseudo", "pseudo_corrected", None}

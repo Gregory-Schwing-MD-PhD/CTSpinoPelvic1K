@@ -200,6 +200,26 @@ MIN_VALID_SHAPE = 10
 _MANIFEST_SCHEMA = [
     ("token",                  str,   False),
     ("position",               str,   True),
+    # DICOM header demographics (placed_manifest schema >=2.7), passed
+    # through verbatim — NEVER re-derived here. All nullable: an absent
+    # header tag is an explicit JSON null (never 0 / 0.0 / "").
+    #   age   — patient-level, capped integer years (<=89; 90+ -> 89).
+    #           First nullable INT column: null/missing -> null, never 0.
+    #   sex   — patient-level enum: male | female | other | null.
+    # patient_weight (kg) / patient_size (m) — patient-level floats.
+    # convolution_kernel / manufacturer / manufacturer_model — per-
+    #   acquisition strings. slice_thickness (mm) / kvp — per-acquisition
+    #   floats. The float columns are the first nullable FLOATs: null ->
+    #   null, never 0.0 (would corrupt the column dtype in the HF viewer).
+    ("age",                    int,   True),
+    ("sex",                    str,   True),
+    ("patient_weight",         float, True),
+    ("patient_size",           float, True),
+    ("convolution_kernel",     str,   True),
+    ("manufacturer",           str,   True),
+    ("manufacturer_model",     str,   True),
+    ("slice_thickness",        float, True),
+    ("kvp",                    float, True),
     ("config",                 str,   False),
     ("match_type",             str,   False),
     # Per-source label provenance. prov_spine = the vertebral L1-L6 labels;
@@ -620,6 +640,18 @@ def _export_one(args: dict) -> dict:
     result = dict(
         token=token, position=position, config=config,
         match_type=match_type, lstv_label=lstv, ok=False, error=None,
+        # DICOM header demographics — pure pass-through (resolved upstream
+        # in the work-args build), never re-derived. Absent -> None ->
+        # JSON null via _coerce_manifest_record's nullable path.
+        age=args.get("age"),
+        sex=args.get("sex"),
+        patient_weight=args.get("patient_weight"),
+        patient_size=args.get("patient_size"),
+        convolution_kernel=args.get("convolution_kernel"),
+        manufacturer=args.get("manufacturer"),
+        manufacturer_model=args.get("manufacturer_model"),
+        slice_thickness=args.get("slice_thickness"),
+        kvp=args.get("kvp"),
         prov_spine=prov_spine, prov_pelvis=prov_pelvis,
         alignment_ok=False, has_l6=False, n_lumbar_labels=0,
         ct_file=rel_ct_file, label_file=rel_lbl_file, qc_file=rel_qc_file,
@@ -871,6 +903,16 @@ def build_work(manifest_path: Path, nifti_dir: Path,
             spine_bone_pct=spine_bone_pct,
             pelvic_bone_pct=pelvic_bone_pct,
         )
+        # DICOM header demographics: pure pass-through from placed_manifest
+        # (schema >=2.7), NEVER re-derived. case-level scalar first, then
+        # per-side. _first_not_none (not `or`) so a real 0.0 weight / 0 age
+        # is not skipped; absent stays None -> JSON null downstream.
+        demo_kwargs = {
+            f: _first_not_none(c.get(f), sp.get(f), pv.get(f))
+            for f in ("age", "sex", "patient_weight", "patient_size",
+                      "convolution_kernel", "manufacturer",
+                      "manufacturer_model", "slice_thickness", "kvp")
+        }
 
         if mt == "fused":
             if spine_placed and spine_placed.exists() and spine_ct and spine_ct.exists():
@@ -878,34 +920,34 @@ def build_work(manifest_path: Path, nifti_dir: Path,
                     token=tok, position=pos, config="fused", match_type=mt,
                     ct_path=str(spine_ct), spine_path=str(spine_placed),
                     pelvic_path=str(pelvic_placed) if pelvic_placed and pelvic_placed.exists() else None,
-                    fname_base=token_base, **lstv_kwargs, **prov_kwargs,
+                    fname_base=token_base, **lstv_kwargs, **prov_kwargs, **demo_kwargs,
                 ))
         elif mt == "separate":
             if spine_placed and spine_placed.exists() and spine_ct and spine_ct.exists():
                 work.append(dict(
                     token=tok, position=pos, config="spine_only", match_type=mt,
                     ct_path=str(spine_ct), spine_path=str(spine_placed), pelvic_path=None,
-                    fname_base=f"{token_base}_spine", **lstv_kwargs, **prov_kwargs,
+                    fname_base=f"{token_base}_spine", **lstv_kwargs, **prov_kwargs, **demo_kwargs,
                 ))
             if pelvic_placed and pelvic_placed.exists() and pelvic_ct and pelvic_ct.exists():
                 work.append(dict(
                     token=tok, position=pos, config="pelvic_native", match_type=mt,
                     ct_path=str(pelvic_ct), spine_path=None, pelvic_path=str(pelvic_placed),
-                    fname_base=f"{token_base}_pelvic", **lstv_kwargs, **prov_kwargs,
+                    fname_base=f"{token_base}_pelvic", **lstv_kwargs, **prov_kwargs, **demo_kwargs,
                 ))
         elif mt == "spine_only":
             if spine_placed and spine_placed.exists() and spine_ct and spine_ct.exists():
                 work.append(dict(
                     token=tok, position=pos, config="spine_only", match_type=mt,
                     ct_path=str(spine_ct), spine_path=str(spine_placed), pelvic_path=None,
-                    fname_base=f"{token_base}_spine", **lstv_kwargs, **prov_kwargs,
+                    fname_base=f"{token_base}_spine", **lstv_kwargs, **prov_kwargs, **demo_kwargs,
                 ))
         elif mt == "pelvic_only":
             if pelvic_placed and pelvic_placed.exists() and pelvic_ct and pelvic_ct.exists():
                 work.append(dict(
                     token=tok, position=pos, config="pelvic_native", match_type=mt,
                     ct_path=str(pelvic_ct), spine_path=None, pelvic_path=str(pelvic_placed),
-                    fname_base=f"{token_base}_pelvic", **lstv_kwargs, **prov_kwargs,
+                    fname_base=f"{token_base}_pelvic", **lstv_kwargs, **prov_kwargs, **demo_kwargs,
                 ))
 
     return work
