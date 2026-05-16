@@ -14,7 +14,7 @@ datasets>=2.20
 
 # TCIA
 tcia-utils>=2.8
-requests>=2.31
+requests>=2.31  # transitive dep of tcia-utils; pinned to floor the HTTP layer (cf. docker/Dockerfile)
 
 # Visualization / QC
 matplotlib>=3.8
