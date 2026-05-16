@@ -199,7 +199,7 @@ MIN_VALID_SHAPE = 10
 # (name, py_type, nullable)
 _MANIFEST_SCHEMA = [
     ("token",                  str,   False),
-    ("position",               str,   False),
+    ("position",               str,   True),
     ("config",                 str,   False),
     ("match_type",             str,   False),
     ("lstv_label",             str,   False),
@@ -825,10 +825,16 @@ def build_work(manifest_path: Path, nifti_dir: Path,
         spine_ct  = nifti_dir / f"{spine_uid}.nii.gz"  if spine_uid  else None
         pelvic_ct = nifti_dir / f"{pelvic_uid}.nii.gz" if pelvic_uid else None
 
-        pos = (c.get("position") or sp.get("position") or pv.get("position") or "")
+        # placed_manifest.json (schema >=2.5) emits position as an explicit
+        # null when DICOM Patient Position was unavailable. Resolve in the
+        # same case->spine->pelvic order as before, but a null/missing/empty
+        # (or the legacy "unknown" sentinel) passes through as None — never
+        # the string "unknown", which would reintroduce a sentinel string
+        # into the position column. Valid labels pass through unchanged.
+        pos = (c.get("position") or sp.get("position")
+               or pv.get("position") or None)
         if not pos or pos == "unknown":
-            fname = (str(spine_placed or "") + str(pelvic_placed or "")).lower()
-            pos   = "prone" if "prone" in fname else "supine" if "supine" in fname else "unknown"
+            pos = None
 
         tok_int = int(tok) if tok.isdigit() else abs(hash(tok)) % 10000
         token_base = f"{tok_int:04d}"

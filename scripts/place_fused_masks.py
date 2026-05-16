@@ -22,8 +22,20 @@ step is now unnecessary:
     lstv_confusion_zone, lstv_class) are derived directly from the per-mask
     `lstv_label` fields in patient_db.json.  No cross-check JSON is needed.
 
-SCHEMA VERSION 2.4
+SCHEMA VERSION 2.5
 ==================
+2.5 (May 2026): `position` is now read from the DICOM Patient Position tag
+(0018,5100) at dcm2niix conversion time and written to a per-series sidecar
+`tcia_nifti/{series_uid}.position.json`. At mask↔CT pairing, each side's
+position is resolved from its matched CT series' sidecar (keyed strictly on
+series_uid) — NOT from a "prone"/"supine" filename substring match, which
+made every record read "unknown". `_derive_position_from_path` is removed.
+Per-side positions live in case["spine"]/["pelvic"]; separate cases carry
+independent per-acquisition positions. Missing/absent tag is an explicit
+JSON null — the "unknown" string sentinel is gone (case-level position is
+also null when separate-mode sides disagree). Raw codes map HFS/FFS→supine,
+HFP/FFP→prone, *DR/*DL→decubitus_right/left.
+
 2.4 (May 2026): _lstv_derived_fields() agreement bug fixed. Pre-fix the
 agreement expression was `(sp == pv) or (is_lstv(sp) and is_lstv(pv))`. The
 second clause forced agreement=True whenever spine AND pelvic were *any*
@@ -151,7 +163,10 @@ log = logging.getLogger("spinesurg.place_masks")
 #         `is_lstv(sp) and is_lstv(pv)` clause that made contradictory
 #         LSTV subtypes agree. agreement now requires equal informative
 #         labels; disagreeing tokens flip to agreement=False / confusion=True.
-PLACED_MANIFEST_SCHEMA = "2.4"
+#   2.5 = position read from DICOM Patient Position (0018,5100) via a
+#         per-series sidecar, resolved at pairing by matched series_uid
+#         (not filename). Missing -> JSON null; "unknown" sentinel removed.
+PLACED_MANIFEST_SCHEMA = "2.5"
 
 BONE_HU             = 200.0
 MIN_VOXELS          = 50
@@ -232,16 +247,91 @@ def _autocap_workers(requested: int, per_worker_gb: float = 3.5,
 # Small helpers
 # ===========================================================================
 
-def _derive_position_from_path(*paths) -> str:
-    for p in paths:
-        if not p:
+def _read_patient_position_tag(series_dir) -> Optional[str]:
+    """Raw DICOM Patient Position (0018,5100) for a series, or None.
+
+    Reads headers only (stop_before_pixels) from the first DICOM in the
+    series that carries the tag. Returns the uppercased raw code
+    (e.g. "HFS", "FFP") or None if pydicom is unavailable, no DICOM is
+    readable, or the tag is absent/empty.
+    """
+    try:
+        import pydicom
+    except Exception:
+        return None
+    sd = Path(series_dir)
+    if not sd.is_dir():
+        return None
+    for f in sorted(sd.glob("*.dcm")):
+        try:
+            ds = pydicom.dcmread(
+                str(f), stop_before_pixels=True, specific_tags=[0x00185100],
+            )
+        except Exception:
             continue
-        s = str(p).lower()
-        if "prone" in s:
-            return "prone"
-        if "supine" in s:
-            return "supine"
-    return "unknown"
+        val = getattr(ds, "PatientPosition", None)
+        if val:
+            return str(val).strip().upper()
+    return None
+
+
+def _normalize_position(raw: Optional[str]) -> Optional[str]:
+    """Map a raw DICOM Patient Position code to a position label.
+
+    HFS/FFS -> supine, HFP/FFP -> prone, *DR -> decubitus_right,
+    *DL -> decubitus_left. Any other present-but-unrecognized code is
+    preserved lowercased (information is not discarded). Missing/empty
+    (raw is None) -> None (explicit null, never the "unknown" sentinel).
+    """
+    if not raw:
+        return None
+    r = raw.strip().upper()
+    if r in ("HFS", "FFS"):
+        return "supine"
+    if r in ("HFP", "FFP"):
+        return "prone"
+    if r.endswith("DR"):
+        return "decubitus_right"
+    if r.endswith("DL"):
+        return "decubitus_left"
+    return r.lower()
+
+
+def _position_sidecar_path(nifti_dir, series_uid) -> Path:
+    return Path(nifti_dir) / f"{series_uid}.position.json"
+
+
+def _write_position_sidecar(series_uid, series_dir, sidecar: Path) -> None:
+    """Capture Patient Position for a series and write its per-series
+    sidecar (keyed on series_uid, alongside the dcm2niix NIfTI)."""
+    raw = _read_patient_position_tag(series_dir)
+    doc = {
+        "series_uid":       series_uid,
+        "patient_position": raw,                       # raw 0018,5100 or null
+        "position":         _normalize_position(raw),  # label or null
+        "source":           "dicom_tag_0018_5100",
+    }
+    try:
+        sidecar.write_text(json.dumps(doc, indent=2))
+    except Exception:
+        pass
+
+
+def _position_for_series(nifti_dir, series_uid) -> Optional[str]:
+    """Resolve position for a CT series from its per-series sidecar.
+
+    Keyed strictly on series_uid (the matched CT), never on a mask/file
+    name. Missing series_uid, missing sidecar, or unreadable sidecar ->
+    None (explicit null)."""
+    if not series_uid:
+        return None
+    p = _position_sidecar_path(nifti_dir, series_uid)
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text()).get("position")
+    except Exception:
+        return None
 
 
 def _default_orientation_check() -> Dict:
@@ -665,9 +755,18 @@ def _phase_xcorr_with_flips(seg_data, seg_affine, refs_to_try, token):
 def _convert_one_series(args):
     series_uid, series_dir, nifti_dir = args
     out_path   = Path(nifti_dir) / f"{series_uid}.nii.gz"
+    series_dir = Path(series_dir)
+
+    # Capture Patient Position (0018,5100) from the DICOM headers and write
+    # the per-series sidecar. Done before the skip check so already-converted
+    # series (NIfTI present, no sidecar yet) get backfilled on re-run, as
+    # long as the source DICOMs are still present.
+    sidecar = _position_sidecar_path(nifti_dir, series_uid)
+    if not sidecar.exists() and series_dir.is_dir() and any(series_dir.glob("*.dcm")):
+        _write_position_sidecar(series_uid, series_dir, sidecar)
+
     if out_path.exists():
         return series_uid, True, "skip"
-    series_dir = Path(series_dir)
     if not series_dir.exists() or not list(series_dir.glob("*.dcm")):
         return series_uid, False, f"no_dcm:{series_dir}"
 
@@ -781,8 +880,6 @@ def _place_spine_best_series(args):
      candidate_uids, nifti_dir, out_dir) = args
     out_dir = Path(out_dir)
 
-    position = _derive_position_from_path(seg_path)
-
     import logging as _log
     import json as _json_c
     _spine_log = _log.getLogger("spinesurg.place_masks")
@@ -794,16 +891,17 @@ def _place_spine_best_series(args):
                 try:
                     _r = _json_c.loads(_sidecar.read_text())
                     _r["method"] = "cached"
-                    if not _r.get("position"):
-                        _r["position"] = position
-                        try:
-                            _sidecar.write_text(_json_c.dumps(_r, indent=2, default=str))
-                        except Exception:
-                            pass
+                    # Position is a property of the matched CT series; resolve
+                    # from that series' sidecar (keyed on _cuid), not the mask.
+                    _r["position"] = _position_for_series(nifti_dir, _cuid)
+                    try:
+                        _sidecar.write_text(_json_c.dumps(_r, indent=2, default=str))
+                    except Exception:
+                        pass
                     _spine_log.info(
                         "  [spine] token=%-8s  CACHED (sidecar) %s  bone=%.1f%%  pos=%s",
                         token, _cached_file.name, _r.get("bone_pct") or 0.0,
-                        _r.get("position", "unknown"),
+                        _r.get("position"),
                     )
                     return token, True, _r
                 except Exception:
@@ -834,7 +932,7 @@ def _place_spine_best_series(args):
                 "labels":     _labels,
                 "method":     "cached",
                 "IS_ok":      _is_ok,
-                "position":   position,
+                "position":   _position_for_series(nifti_dir, _cuid),
             }
             try:
                 _sidecar.write_text(_json_c.dumps(_result, indent=2, default=str))
@@ -955,6 +1053,7 @@ def _place_spine_best_series(args):
 
         nib.save(nib.Nifti1Image(pir_data, pir_aff), str(out_path))
 
+        position = _position_for_series(nifti_dir, best_uid)
         result = {
             "token":      token,
             "series_uid": best_uid,
@@ -990,8 +1089,6 @@ def _place_pelvic_best_series(args):
     (token, mask_path, candidate_uids, nifti_dir, out_dir) = args
     out_dir = Path(out_dir)
 
-    position = _derive_position_from_path(mask_path)
-
     mask_stem = Path(mask_path).name.replace(".nii.gz", "").replace(".nii", "")
     existing_p = out_dir / f"{mask_stem}_pelvic_placed.nii.gz"
     if existing_p.exists():
@@ -1003,12 +1100,13 @@ def _place_pelvic_best_series(args):
             try:
                 _r = _json_pc.loads(_sidecar_p.read_text())
                 _r["method"] = "cached"
-                if not _r.get("position"):
-                    _r["position"] = position
-                    try:
-                        _sidecar_p.write_text(_json_pc.dumps(_r, indent=2, default=str))
-                    except Exception:
-                        pass
+                # Per-acquisition position: from this pelvic mask's own
+                # matched CT series sidecar (keyed on its series_uid).
+                _r["position"] = _position_for_series(nifti_dir, _r.get("series_uid"))
+                try:
+                    _sidecar_p.write_text(_json_pc.dumps(_r, indent=2, default=str))
+                except Exception:
+                    pass
                 return token, True, _r
             except Exception:
                 pass
@@ -1016,7 +1114,7 @@ def _place_pelvic_best_series(args):
         result = {"token": token, "placed": str(existing_p),
                   "series_uid": None, "bone_pct": None,
                   "vox": None, "z_off": None, "method": "cached",
-                  "position": position}
+                  "position": None}
 
         if result["series_uid"] is None:
             _best_uid_r = None
@@ -1033,6 +1131,8 @@ def _place_pelvic_best_series(args):
                 result["series_uid"] = _best_uid_r
                 result["bone_pct"]   = _best_bp_r
                 result["method"]     = "cached_bone_rematch"
+
+        result["position"] = _position_for_series(nifti_dir, result["series_uid"])
 
         try:
             _sidecar_p.write_text(_json_pc.dumps(result, indent=2, default=str))
@@ -1168,6 +1268,7 @@ def _place_pelvic_best_series(args):
             out_path.unlink(missing_ok=True)
             return token, False, {"error": "placed_mask_empty", "token": token}
 
+        position = _position_for_series(nifti_dir, best_uid)
         result = {
             "token":      token,
             "series_uid": best_uid,
@@ -1524,11 +1625,22 @@ def main():
         else:
             match_type = "pelvic_only"
 
-        case_position = "unknown"
-        if sp and sp.get("position") and sp["position"] != "unknown":
-            case_position = sp["position"]
-        elif pv and pv.get("position") and pv["position"] != "unknown":
-            case_position = pv["position"]
+        # Per-acquisition positions live in case["spine"]/["pelvic"], each
+        # resolved from its own matched CT series. The case-level scalar is
+        # a convenience: for fused both sides are the same series; for
+        # separate it is only meaningful if both sides agree, else null
+        # (consumers must read the per-side position). Missing -> null,
+        # never the old "unknown" sentinel.
+        sp_pos = sp.get("position") if sp else None
+        pv_pos = pv.get("position") if pv else None
+        if match_type == "fused":
+            case_position = sp_pos if sp_pos is not None else pv_pos
+        elif match_type == "separate":
+            case_position = sp_pos if sp_pos == pv_pos else None
+        elif match_type == "spine_only":
+            case_position = sp_pos
+        else:  # pelvic_only
+            case_position = pv_pos
 
         pdata = patients.get(tok, {})
         case = {
@@ -1572,7 +1684,7 @@ def main():
              manifest["n_spine_only"], manifest["n_pelvic_only"])
 
     from collections import Counter
-    pos_counts = Counter(c.get("position", "unknown") for c in manifest_cases)
+    pos_counts = Counter(c.get("position") for c in manifest_cases)
     lstv_counts = Counter(c.get("lstv_class", 0) for c in manifest_cases)
     log.info("  Position dist:      %s", dict(pos_counts))
     log.info("  LSTV class dist:    %s", dict(sorted(lstv_counts.items())))

@@ -59,7 +59,7 @@ def _base(token: str, config: str, ct_file: str) -> dict:
         ok=True,
         error=None,
         token=token,
-        position="unknown",
+        position="supine",          # position is a nullable str column
         config=config,
         match_type=config,
         lstv_label="normal",
@@ -150,6 +150,16 @@ _ASSORTED_NONE.update(
     pelvic_series_uid=None, spine_bone_pct=None, pelvic_bone_pct=None,
 )
 
+# (i) position explicitly None — DICOM Patient Position unavailable upstream
+#     (placed_manifest.json schema >=2.5 emits null). Must stay JSON null.
+_POS_NONE = _base("0009", "fused", "ct/0009_ct.nii.gz")
+_POS_NONE["position"] = None
+
+# (j) position key absent entirely — must coerce to JSON null, never ""
+#     and never the legacy "unknown" sentinel.
+_POS_MISSING = _base("0010", "fused", "ct/0010_ct.nii.gz")
+del _POS_MISSING["position"]
+
 RAW_RECORDS = [
     _FUSED,
     _SPINE_ONLY,
@@ -160,6 +170,8 @@ RAW_RECORDS = [
     _EMPTY_AGREEMENT,
     _DISAGREE,
     _ASSORTED_NONE,
+    _POS_NONE,
+    _POS_MISSING,
 ]
 
 
@@ -260,6 +272,26 @@ def test_nullable_field_none_or_missing_becomes_null_never_empty_string(field):
     rec.pop(field, None)
     out = _coerce_manifest_record(rec)
     assert out[field] is None, f"{field}: missing key coerced to {out[field]!r}"
+
+
+def test_position_is_nullable_none_and_missing_serialize_as_json_null():
+    """position is now a nullable str column (placed_manifest schema >=2.5
+    emits null when DICOM Patient Position is unavailable). Both an explicit
+    None and an absent key must coerce to JSON null — never "" and never the
+    legacy "unknown" sentinel. Valid labels pass through unchanged."""
+    assert "position" in _NULLABLE and "position" not in _NON_NULLABLE
+
+    for rec in (dict(_POS_NONE), dict(_POS_MISSING)):
+        out = _coerce_manifest_record(rec)
+        assert out["position"] is None
+        assert out["position"] != ""
+        assert out["position"] != "unknown"
+        reloaded = json.loads(json.dumps(out))
+        assert reloaded["position"] is None
+
+    # A valid position label is preserved verbatim.
+    keep = _coerce_manifest_record(dict(_FUSED))
+    assert keep["position"] == "supine"
 
 
 def test_nullable_fields_serialize_as_json_null(coerced_records):
