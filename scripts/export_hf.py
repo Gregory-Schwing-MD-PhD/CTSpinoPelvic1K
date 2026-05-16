@@ -186,11 +186,86 @@ HF_REPO_TYPE = "dataset"
 # degenerate volume and rejected at ingest. Mirrors place_fused_masks.py.
 MIN_VALID_SHAPE = 10
 
-# Optional numeric fields — written as `null` (not "") in manifest.json so
-# Parquet sees a clean nullable-float column rather than mixed str/float.
-_OPTIONAL_NUMERIC_FIELDS = frozenset({
-    "spine_bone_pct", "pelvic_bone_pct", "postwrite_hip_bone_pct",
-})
+# Canonical manifest schema. This is the SINGLE source of truth for what a
+# manifest record looks like in manifest.json, manifest.csv, and the
+# per-split manifest_*.json files. Every emitted record carries EXACTLY
+# these keys, in this order, each holding either a value of its declared
+# type or JSON null (only where `nullable` is True).
+#
+# Inapplicable / missing values serialize as JSON null — never "" and never
+# an omitted key. A clean per-column type (with null for absent) is what the
+# HuggingFace dataset viewer / Parquet needs to avoid CastError.
+#
+# (name, py_type, nullable)
+_MANIFEST_SCHEMA = [
+    ("token",                  str,   False),
+    ("position",               str,   False),
+    ("config",                 str,   False),
+    ("match_type",             str,   False),
+    ("lstv_label",             str,   False),
+    ("lstv_class",             int,   False),
+    ("lstv_pelvic",            str,   True),
+    ("lstv_vertebral",         str,   True),
+    ("lstv_agreement",         bool,  True),   # true / false / null ONLY
+    ("lstv_confusion_zone",    bool,  False),
+    ("has_l6",                 bool,  False),
+    ("n_lumbar_labels",        int,   False),
+    ("alignment_ok",           bool,  False),
+    ("ct_resampled_to_mask",   bool,  False),
+    ("postwrite_hip_bone_pct", float, True),
+    ("partial_annotation",     bool,  False),
+    ("n_voxels_ignore",        int,   False),
+    ("n_voxels_fg",            int,   False),
+    ("n_voxels_bg",            int,   False),
+    ("spine_series_uid",       str,   True),
+    ("pelvic_series_uid",      str,   True),
+    ("spine_bone_pct",         float, True),
+    ("pelvic_bone_pct",        float, True),
+    ("ct_file",                str,   False),
+    ("label_file",             str,   False),
+    ("qc_file",                str,   False),
+]
+_MANIFEST_FIELDS = [name for name, _, _ in _MANIFEST_SCHEMA]
+
+
+def _coerce_manifest_record(rec: dict) -> dict:
+    """Project an arbitrary record onto the canonical manifest schema.
+
+    Guarantees the output dict has EXACTLY `_MANIFEST_FIELDS` as keys, in
+    schema order, each holding either a value of its declared type or JSON
+    null (only where the field is declared nullable). Missing keys, None,
+    and "" all collapse to null for nullable fields; for the (rare,
+    defensive) case of a missing non-nullable field, a typed zero value is
+    used so the column type never drifts.
+
+    This enforces presence and type ONLY — it does not recompute any value.
+    """
+    out: dict = {}
+    for name, py_type, nullable in _MANIFEST_SCHEMA:
+        v = rec.get(name, None)
+        if v == "":
+            v = None
+        if v is None:
+            if nullable:
+                out[name] = None
+            elif py_type is str:
+                out[name] = ""
+            elif py_type is bool:
+                out[name] = False
+            elif py_type is int:
+                out[name] = 0
+            else:  # float
+                out[name] = 0.0
+            continue
+        if py_type is bool:
+            out[name] = bool(v)
+        elif py_type is int:
+            out[name] = int(v)
+        elif py_type is float:
+            out[name] = float(v)
+        else:
+            out[name] = str(v)
+    return out
 
 # Sanity: how much bone HU we expect under the hip-label voxels of the
 # saved CT/label pair. Lower than this fires a warning at export time.
@@ -873,20 +948,11 @@ def write_splits(records: List[dict], out_dir: Path, seed: int = 42) -> None:
     log.info("Splits  train=%d  val=%d  test=%d",
              len(train_recs), len(val_recs), len(test_recs))
 
-    _drop = {"ok", "error"}
     def _clean(recs):
-        out = []
-        for r in recs:
-            rec = {}
-            for k, v in r.items():
-                if k in _drop:
-                    continue
-                if v is None:
-                    rec[k] = None if k in _OPTIONAL_NUMERIC_FIELDS else ""
-                else:
-                    rec[k] = v
-            out.append(rec)
-        return out
+        # Project every split record onto the canonical manifest schema so
+        # manifest_train/validation/test.json share the exact key set and
+        # per-column types as manifest.json (no CastError in the HF viewer).
+        return [_coerce_manifest_record(r) for r in recs]
 
     (out_dir / "manifest_train.json"     ).write_text(json.dumps(_clean(train_recs), indent=2))
     (out_dir / "manifest_validation.json").write_text(json.dumps(_clean(val_recs),   indent=2))
@@ -925,22 +991,9 @@ def write_splits(records: List[dict], out_dir: Path, seed: int = 42) -> None:
 # -- Manifest -----------------------------------------------------------------
 
 def write_manifest(records: List[dict], out_dir: Path) -> None:
-    _drop = {"ok", "error"}
-    ok: List[dict] = []
-    for r in records:
-        if not r.get("ok"):
-            continue
-        rec = {}
-        for k, v in r.items():
-            if k in _drop:
-                continue
-            if v is None:
-                rec[k] = None if k in _OPTIONAL_NUMERIC_FIELDS else ""
-            elif isinstance(v, bool):
-                rec[k] = v
-            else:
-                rec[k] = v
-        ok.append(rec)
+    ok: List[dict] = [
+        _coerce_manifest_record(r) for r in records if r.get("ok")
+    ]
 
     (out_dir / "manifest.json").write_text(json.dumps(ok, indent=2))
     if not ok:
@@ -985,19 +1038,9 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
                   "%d have bare-basename label_file. These will not resolve "
                   "under the nested dataset layout.", n_bad_ct, n_bad_lb)
 
-    keys = [
-        "token", "position", "config", "match_type",
-        "lstv_label", "lstv_class",
-        "lstv_pelvic", "lstv_vertebral", "lstv_agreement", "lstv_confusion_zone",
-        "has_l6", "n_lumbar_labels", "alignment_ok",
-        "ct_resampled_to_mask", "postwrite_hip_bone_pct",
-        "partial_annotation", "n_voxels_ignore", "n_voxels_fg", "n_voxels_bg",
-        "spine_series_uid", "pelvic_series_uid",
-        "spine_bone_pct", "pelvic_bone_pct",
-        "ct_file", "label_file", "qc_file",
-    ]
     with open(out_dir / "manifest.csv", "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore")
+        w = csv.DictWriter(f, fieldnames=_MANIFEST_FIELDS,
+                           extrasaction="ignore", restval="")
         w.writeheader(); w.writerows(ok)
     log.info("manifest.csv written (%d rows)", len(ok))
 
