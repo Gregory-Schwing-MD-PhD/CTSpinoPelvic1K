@@ -81,7 +81,7 @@ help:  ## Show this help
 	@echo ""
 	@echo "Setup:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-	  grep -E '^(build-container|hpc-pull|hpc-pull-now|docker-push|lint|check-syntax):' | \
+	  grep -E '^(build-container|hpc-pull|hpc-pull-now|docker-push|install-dev|test|lint|check-syntax):' | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m  %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Pipeline (in order):"
@@ -91,7 +91,7 @@ help:  ## Show this help
 	@echo ""
 	@echo "Inspection / utilities:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-	  grep -vE '^(build-container|hpc-pull|hpc-pull-now|docker-push|lint|check-syntax|download-raw|create-dataset|export-dataset|benchmark-totalseg|help):' | \
+	  grep -vE '^(build-container|hpc-pull|hpc-pull-now|docker-push|install-dev|test|lint|check-syntax|download-raw|create-dataset|export-dataset|benchmark-totalseg|help):' | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m  %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Common env overrides (set via VAR=value before the target):"
@@ -323,6 +323,15 @@ check-syntax:  ## Syntax-check all Python and Bash scripts
 
 .PHONY: lint
 lint: check-syntax  ## Alias for check-syntax
+
+.PHONY: install-dev
+install-dev:  ## Editable install incl. dev/test tooling (pytest, ruff)
+	python3 -m pip install -e ".[dev]"
+
+.PHONY: test
+test:  ## Run the pytest suite (auto-installs dev extras if pytest missing)
+	@python3 -c "import pytest" 2>/dev/null || $(MAKE) install-dev
+	python3 -m pytest
 
 .PHONY: clean
 clean: clean-logs  ## Remove logs and __pycache__

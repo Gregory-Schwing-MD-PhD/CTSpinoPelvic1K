@@ -22,8 +22,21 @@ step is now unnecessary:
     lstv_confusion_zone, lstv_class) are derived directly from the per-mask
     `lstv_label` fields in patient_db.json.  No cross-check JSON is needed.
 
-SCHEMA VERSION 2.3
+SCHEMA VERSION 2.4
 ==================
+2.4 (May 2026): _lstv_derived_fields() agreement bug fixed. Pre-fix the
+agreement expression was `(sp == pv) or (is_lstv(sp) and is_lstv(pv))`. The
+second clause forced agreement=True whenever spine AND pelvic were *any*
+LSTV subtype, even contradictory ones (e.g. spine=LUMBARIZATION,
+pelvic=SACRALIZATION wrongly agreed). That also suppressed
+lstv_confusion_zone, since confusion requires agreement is False. The
+clause is removed: agreement is now True only when both informative labels
+are equal (case-insensitive), False when both informative but unequal, and
+None when either side is uninformative (unchanged). lstv_class, the
+UNINFORMATIVE set, and is_lstv are unchanged. Re-running on the existing
+patient_db.json flips agreement False (and confusion True) for any token
+whose spine/pelvic LSTV calls disagree.
+
 2.3 (Apr 2026): _lstv_derived_fields() correctly distinguishes SEMI_SACRAL
 (class 2) from SACRALIZATION (class 3) following the upstream mask_index.py
 parser fix. Pre-fix, the substring-match bug in _parse_pelvic_flags() caused
@@ -134,7 +147,11 @@ log = logging.getLogger("spinesurg.place_masks")
 #   2.3 = SEMI_SACRAL correctly distinguished from SACRALIZATION (Apr 2026
 #         parser bug fix in mask_index.py). Tokens that were class=3
 #         pre-fix may now be class=2.
-PLACED_MANIFEST_SCHEMA = "2.3"
+#   2.4 = lstv_agreement bug fixed: dropped the spurious
+#         `is_lstv(sp) and is_lstv(pv)` clause that made contradictory
+#         LSTV subtypes agree. agreement now requires equal informative
+#         labels; disagreeing tokens flip to agreement=False / confusion=True.
+PLACED_MANIFEST_SCHEMA = "2.4"
 
 BONE_HU             = 200.0
 MIN_VOXELS          = 50
@@ -1296,7 +1313,7 @@ def _lstv_derived_fields(spine_label: str, pelvic_label: str) -> Dict:
     if (not sp or sp.upper() in UNINFORMATIVE) or (not pv or pv.upper() in UNINFORMATIVE):
         agreement = None
     else:
-        agreement = (sp.upper() == pv.upper()) or (is_lstv(sp) and is_lstv(pv))
+        agreement = (sp.upper() == pv.upper())
 
     confusion = (agreement is False) and (is_lstv(sp) or is_lstv(pv))
 
