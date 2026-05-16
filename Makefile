@@ -99,7 +99,7 @@ help:  ## Show this help
 	@echo "  PUSH=1          Push to HF during export-dataset"
 	@echo "  TCIA_SCOPE      all | filtered  (default: all)"
 	@echo "  DEBUG_N=5       Limit create-dataset to first 5 patients"
-	@echo "  DEBUG_TOKENS=\"145,184\"   Specific tokens only"
+	@echo "  DEBUG_TOKENS=\"145,184,205\"   Specific tokens only (comma- or space-separated)"
 	@echo "  WORKERS=16      Override CPU count"
 	@echo "  MANIFEST_FILE   Stage 2 manifest for Stage 3"
 	@echo "                  default: placed_manifest_orientation_fixed.json"
@@ -160,7 +160,8 @@ create-dataset: check-container  ## Stage 2 — build PatientDB + place masks (Q
 	@echo "Submitting Stage 2: create-dataset ..."
 	@echo "  CREATE_SKIP_QC        = $(CREATE_SKIP_QC)   (Step D, original-manifest QC)"
 	@echo "  CREATE_SKIP_QC_ORIFIX = $(CREATE_SKIP_QC_ORIFIX)   (Step E, post-flip QC)"
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),DEBUG_N=$(DEBUG_N),DEBUG_TOKENS=$(DEBUG_TOKENS),WORKERS=$(WORKERS),DCM2NIIX_WORKERS=$(DCM2NIIX_WORKERS),SKIP_QC=$(CREATE_SKIP_QC),SKIP_QC_ORIFIX=$(CREATE_SKIP_QC_ORIFIX) \
+	DEBUG_TOKENS='$(DEBUG_TOKENS)' \
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),DEBUG_N=$(DEBUG_N),WORKERS=$(WORKERS),DCM2NIIX_WORKERS=$(DCM2NIIX_WORKERS),SKIP_QC=$(CREATE_SKIP_QC),SKIP_QC_ORIFIX=$(CREATE_SKIP_QC_ORIFIX) \
 	       slurm/create_dataset.sh
 
 

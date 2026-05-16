@@ -38,7 +38,7 @@
 # Usage:
 #   make create-dataset                                           # full run
 #   DEBUG_N=5        make create-dataset                          # first 5 patients
-#   DEBUG_TOKENS="145,184,205"  make create-dataset               # specific tokens
+#   DEBUG_TOKENS="145,184,205"  make create-dataset               # specific tokens (comma- or space-separated; both work)
 #   SKIP_PLACE=1     make create-dataset                          # only build_db
 #   SKIP_MANUAL_FLIPS=1  make create-dataset                      # skip Step C
 #   SKIP_QC=1        make create-dataset                          # skip QC figures
