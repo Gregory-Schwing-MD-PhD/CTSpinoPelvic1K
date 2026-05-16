@@ -26,8 +26,21 @@
 #   SPINE_ONLY=1   sbatch slurm/download_raw.sh                 # CTSpine1K only
 #   PELVIC_ONLY=1  sbatch slurm/download_raw.sh                 # CTPelvic1K only
 #
+#   # Paste a HuggingFace token on the submit line to avoid throttling.
+#   # sbatch exports the submitter's env by default, so this just works:
+#   HF_TOKEN=hf_xxx sbatch slurm/download_raw.sh
+#
+# Resumability:
+#   Each stage writes a .download_complete marker on success and is skipped
+#   on resubmission (so a finished TCIA download is not re-scanned, and only
+#   the missing stages — e.g. the CTPelvic1K masks — actually run).  In
+#   addition, every individual download is itself idempotent.
+#   Force a stage to re-run with:  FORCE=1 sbatch slurm/download_raw.sh
+#
 # Env:
-#   HF_TOKEN    required for CTSpine1K (HuggingFace gated dataset)
+#   HF_TOKEN    required for CTSpine1K (HuggingFace gated dataset); pass it
+#               on the submit line (see above) to lift HF rate limits
+#   FORCE=1     ignore .download_complete markers and re-run every stage
 #
 # Next stage:
 #   make create-dataset
@@ -38,7 +51,16 @@ set -euo pipefail
 # ── Resolve project root ─────────────────────────────────────────────────────
 PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "${PROJECT_ROOT}"
+
+# Capture any HF_TOKEN passed on the submit command line *before* sourcing
+# default.env, so a command-line value always wins over a file default.
+_CLI_HF_TOKEN="${HF_TOKEN:-}"
 source configs/default.env
+HF_TOKEN="${_CLI_HF_TOKEN:-${HF_TOKEN:-}}"
+export HF_TOKEN
+
+# Honour markers from previous successful runs unless FORCE=1.
+FORCE="${FORCE:-0}"
 
 # ── Selective run flags ──────────────────────────────────────────────────────
 RUN_TCIA=1
@@ -61,8 +83,24 @@ echo "   Project     : ${PROJECT_ROOT}"
 echo "   Data root   : ${DATA_DIR}"
 echo "   Container   : ${SIF_PATH}"
 echo "   Run flags   : TCIA=${RUN_TCIA}  SPINE=${RUN_SPINE}  PELVIC=${RUN_PELVIC}"
+if [[ -n "${HF_TOKEN:-}" ]]; then
+    echo "   HF_TOKEN    : provided (${#HF_TOKEN} chars) — authenticated HF downloads"
+else
+    echo "   HF_TOKEN    : NOT set — CTSpine1K may be rate-limited or blocked"
+fi
+echo "   FORCE       : ${FORCE}  (1 = ignore .download_complete markers)"
 echo "   Started     : $(date)"
 echo "======================================================================"
+
+# ── Completion-marker helpers ────────────────────────────────────────────────
+# A stage that finished cleanly drops a .download_complete marker in its data
+# dir.  _stage_done short-circuits a stage on resubmission (unless FORCE=1).
+_stage_done() {  # $1 = stage data dir
+    [[ "${FORCE}" != "1" && -f "${1}/.download_complete" ]]
+}
+_mark_done() {   # $1 = stage data dir
+    touch "${1}/.download_complete"
+}
 
 # ── Container runtime ────────────────────────────────────────────────────────
 if [[ ! -f "${SIF_PATH}" ]]; then
@@ -94,6 +132,12 @@ _run() {
 # =============================================================================
 # 1/3: TCIA COLONOGRAPHY
 # =============================================================================
+if [[ "${RUN_TCIA}" == "1" ]] && _stage_done "${TCIA_DIR}"; then
+    echo ""
+    echo " 1/3  TCIA COLONOGRAPHY  —  already complete, skipping"
+    echo "      (FORCE=1 to re-download)"
+    RUN_TCIA=0
+fi
 if [[ "${RUN_TCIA}" == "1" ]]; then
     echo ""
     echo "======================================================================"
@@ -104,20 +148,28 @@ if [[ "${RUN_TCIA}" == "1" ]]; then
         --out_dir  /data/tcia \
         --workers  "${WORKERS}"
 
+    _mark_done "${TCIA_DIR}"
     echo "  TCIA done.  Series on disk: $(find ${TCIA_DIR} -maxdepth 1 -type d 2>/dev/null | wc -l)"
 fi
 
 # =============================================================================
 # 2/3: CTSpine1K (HuggingFace)
 # =============================================================================
+if [[ "${RUN_SPINE}" == "1" ]] && _stage_done "${CTSPINE1K_DIR}"; then
+    echo ""
+    echo " 2/3  CTSpine1K  —  already complete, skipping"
+    echo "      (FORCE=1 to re-download)"
+    RUN_SPINE=0
+fi
 if [[ "${RUN_SPINE}" == "1" ]]; then
     echo ""
     echo "======================================================================"
     echo " 2/3  CTSpine1K  →  ${CTSPINE1K_DIR}"
     echo "======================================================================"
 
-    if [[ -z "${HF_TOKEN}" ]]; then
+    if [[ -z "${HF_TOKEN:-}" ]]; then
         echo "WARNING: HF_TOKEN not set. CTSpine1K is gated; download may fail."
+        echo "         Re-submit with:  HF_TOKEN=hf_xxx sbatch slurm/download_raw.sh"
     fi
 
     _run python3 - << 'PYEOF'
@@ -159,12 +211,19 @@ if n < 100:
     print(f"WARNING: only {n} NIfTI files — expected ~1568 (784 img + 784 seg)", flush=True)
 PYEOF
 
+    _mark_done "${CTSPINE1K_DIR}"
     echo "  CTSpine1K done.  NIfTIs: $(find ${CTSPINE1K_DIR} -name '*.nii.gz' 2>/dev/null | wc -l)"
 fi
 
 # =============================================================================
 # 3/3: CTPelvic1K (Zenodo + HuggingFace metadata)
 # =============================================================================
+if [[ "${RUN_PELVIC}" == "1" ]] && _stage_done "${CTPELVIC1K_DIR}"; then
+    echo ""
+    echo " 3/3  CTPelvic1K  —  already complete, skipping"
+    echo "      (FORCE=1 to re-download)"
+    RUN_PELVIC=0
+fi
 if [[ "${RUN_PELVIC}" == "1" ]]; then
     echo ""
     echo "======================================================================"
@@ -228,6 +287,7 @@ if [[ "${RUN_PELVIC}" == "1" ]]; then
         fi
     done
 
+    _mark_done "${CTPELVIC1K_DIR}"
     echo "  CTPelvic1K done."
     for DS in 1 2 3 4 5; do
         DIR="${CTPELVIC1K_DIR}/masks/CTPelvic1K_dataset${DS}_mask_mappingback"
