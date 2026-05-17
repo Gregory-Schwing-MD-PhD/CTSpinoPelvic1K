@@ -33,6 +33,7 @@ import export_hf  # noqa: E402
 from export_hf import (  # noqa: E402
     _MANIFEST_FIELDS,
     _MANIFEST_SCHEMA,
+    _age_public,
     _coerce_manifest_record,
     write_manifest,
     write_splits,
@@ -63,7 +64,8 @@ def _base(token: str, config: str, ct_file: str) -> dict:
         # DICOM header demographics (schema >=2.7). age is the first
         # nullable INT column; patient_weight/patient_size/slice_thickness/
         # kvp the first nullable FLOAT columns. sex is a nullable enum str.
-        age=64,
+        age=60,                     # TCIA ages are decade-generalized
+        age_band="60-69",           # derived, decade band string
         sex="male",
         patient_weight=70.5,
         patient_size=1.75,
@@ -188,15 +190,15 @@ _PROV_PSEUDO.update(prov_spine="pseudo", prov_pelvis="pseudo_corrected")
 #     0.0 (weight/size/slice_thickness/kvp) or "" (sex/kernel/manufacturer).
 _DEMO_NONE = _base("0012", "fused", "ct/0012_ct.nii.gz")
 _DEMO_NONE.update(
-    age=None, sex=None, patient_weight=None, patient_size=None,
-    convolution_kernel=None, manufacturer=None, manufacturer_model=None,
-    slice_thickness=None, kvp=None,
+    age=None, age_band=None, sex=None, patient_weight=None,
+    patient_size=None, convolution_kernel=None, manufacturer=None,
+    manufacturer_model=None, slice_thickness=None, kvp=None,
 )
 
 # (m) every demographic key absent entirely — missing key must coerce to
 #     JSON null exactly like an explicit None (never a typed zero).
 _DEMO_MISSING = _base("0013", "fused", "ct/0013_ct.nii.gz")
-for _k in ("age", "sex", "patient_weight", "patient_size",
+for _k in ("age", "age_band", "sex", "patient_weight", "patient_size",
            "convolution_kernel", "manufacturer", "manufacturer_model",
            "slice_thickness", "kvp"):
     del _DEMO_MISSING[_k]
@@ -346,9 +348,11 @@ def test_position_is_nullable_none_and_missing_serialize_as_json_null():
 
 _DEMO_FLOAT_FIELDS = ("patient_weight", "patient_size",
                       "slice_thickness", "kvp")
-_DEMO_STR_FIELDS   = ("sex", "convolution_kernel",
+_DEMO_STR_FIELDS   = ("age_band", "sex", "convolution_kernel",
                       "manufacturer", "manufacturer_model")
 _SEX_DOMAIN = {"male", "female", "other", None}
+import re as _re
+_AGE_BAND_RE = _re.compile(r"^\d{2}-\d{2}$")
 
 
 def test_age_is_nullable_int_none_and_missing_serialize_as_json_null():
@@ -370,8 +374,57 @@ def test_age_is_nullable_int_none_and_missing_serialize_as_json_null():
 
     # a real age survives coercion + JSON round-trip as a plain int
     out = _coerce_manifest_record(dict(_FUSED))
-    assert out["age"] == 64 and type(out["age"]) is int
-    assert json.loads(json.dumps(out))["age"] == 64
+    assert out["age"] == 60 and type(out["age"]) is int
+    assert json.loads(json.dumps(out))["age"] == 60
+
+
+def test_age_public_policy_filter_and_decade_band():
+    """_age_public() is the single source of the public age policy:
+      * None / unparseable / <18 -> (None, None) — both columns null,
+        always consistent (never one populated and the other null).
+      * otherwise -> (age_verbatim, decade band). age is NOT re-floored
+        (TCIA already decade-generalized it); the band is the decade.
+      * 89 and any >=90 fold into "80-89" (upstream cap makes >=90
+        unreachable, but the fold is defensive + documented)."""
+    assert _age_public(None)  == (None, None)
+    assert _age_public("")    == (None, None)
+    assert _age_public("abc") == (None, None)
+    assert _age_public(0)     == (None, None)
+    assert _age_public(17)    == (None, None)   # sub-18 filter
+    assert _age_public(18)    == (18, "10-19")
+    assert _age_public(20)    == (20, "20-29")
+    assert _age_public(50)    == (50, "50-59")
+    assert _age_public(60)    == (60, "60-69")
+    assert _age_public(89)    == (89, "80-89")  # cap value
+    assert _age_public(95)    == (95, "80-89")  # >=90 folded (unreachable)
+
+
+def test_age_band_is_nullable_str_none_and_missing_serialize_as_json_null():
+    """age_band is a nullable STR column. None / "" / absent must coerce to
+    JSON null — never "". Populated values are decade-band strings; age and
+    age_band stay consistent (the <18 filter nulls BOTH)."""
+    assert "age_band" in _NULLABLE and "age_band" not in _NON_NULLABLE
+    assert _PYTYPE["age_band"] is str
+
+    for rec in (dict(_DEMO_NONE), dict(_DEMO_MISSING)):
+        out = _coerce_manifest_record(rec)
+        assert out["age_band"] is None, (
+            f"age_band coerced to {out['age_band']!r}, expected None"
+        )
+        assert out["age_band"] != ""
+        assert json.loads(json.dumps(out))["age_band"] is None
+
+    rec = dict(_FUSED); rec["age_band"] = ""
+    assert _coerce_manifest_record(rec)["age_band"] is None
+
+    out = _coerce_manifest_record(dict(_FUSED))
+    assert out["age_band"] == "60-69" and type(out["age_band"]) is str
+    assert _AGE_BAND_RE.match(out["age_band"])
+    assert json.loads(json.dumps(out))["age_band"] == "60-69"
+
+    # The public consistency contract: a sub-18 age nulls BOTH columns.
+    a, band = _age_public(10)
+    assert a is None and band is None
 
 
 @pytest.mark.parametrize("field", _DEMO_FLOAT_FIELDS)

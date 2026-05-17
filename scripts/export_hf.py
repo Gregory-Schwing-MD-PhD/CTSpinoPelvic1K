@@ -200,18 +200,30 @@ MIN_VALID_SHAPE = 10
 _MANIFEST_SCHEMA = [
     ("token",                  str,   False),
     ("position",               str,   True),
-    # DICOM header demographics (placed_manifest schema >=2.7), passed
-    # through verbatim — NEVER re-derived here. All nullable: an absent
-    # header tag is an explicit JSON null (never 0 / 0.0 / "").
-    #   age   — patient-level, capped integer years (<=89; 90+ -> 89).
-    #           First nullable INT column: null/missing -> null, never 0.
-    #   sex   — patient-level enum: male | female | other | null.
+    # DICOM header demographics (placed_manifest schema >=2.7). Mostly
+    # passed through verbatim from the internal manifest; the AGE columns
+    # are the one documented exception — a public-release policy is applied
+    # here via _age_public() (this is intentional, not a re-derivation of
+    # other fields). All nullable: an absent header tag is an explicit
+    # JSON null (never 0 / 0.0 / "").
+    #   age      — patient-level integer years. Already decade-generalized
+    #              and capped at 89 by TCIA de-identification (the source
+    #              PatientAge tag itself is decade-coarse, e.g. "060Y").
+    #              PUBLIC POLICY: age < 18 is filtered to null (implausible
+    #              for this adult screening cohort). Nullable INT: null/
+    #              missing/filtered -> null, never 0.
+    #   age_band — decade band string DERIVED from `age` ("50-59", "60-69",
+    #              ... "80-89"; 89 and any >=90 fold into "80-89"). age and
+    #              age_band are kept consistent: age < 18 -> BOTH null.
+    #              Honest public statement of the true decade granularity.
+    #   sex      — patient-level enum: male | female | other | null.
     # patient_weight (kg) / patient_size (m) — patient-level floats.
     # convolution_kernel / manufacturer / manufacturer_model — per-
     #   acquisition strings. slice_thickness (mm) / kvp — per-acquisition
     #   floats. The float columns are the first nullable FLOATs: null ->
     #   null, never 0.0 (would corrupt the column dtype in the HF viewer).
     ("age",                    int,   True),
+    ("age_band",               str,   True),
     ("sex",                    str,   True),
     ("patient_weight",         float, True),
     ("patient_size",           float, True),
@@ -341,6 +353,39 @@ def _first_not_none(*vals):
         if v is not None:
             return v
     return None
+
+
+def _age_public(age):
+    """Public-release age policy for the HF export (NOT applied to the
+    internal placed_manifest, which keeps the precise int).
+
+    Returns (age_int, age_band) where:
+      * age below 18 -> (None, None). The TCIA screening cohort is adult;
+        a sub-18 value is implausible de-identification noise, so it is
+        filtered to JSON null in BOTH public columns (they must never
+        disagree).
+      * otherwise -> (a, band). `a` is the value verbatim — it is already
+        decade-generalized + capped at 89 by TCIA de-identification /
+        upstream _norm_age, so it is NOT re-floored here. `band` is the
+        decade string "DD-DD" derived from it. Because the upstream cap is
+        89, the maximum real input is 89 -> "80-89"; any >=90 (unreachable
+        given the cap) is defensively folded into "80-89" too, since a
+        capped 90+ cannot be distinguished from a real 89.
+
+    None / unparseable -> (None, None).
+    """
+    if age is None:
+        return (None, None)
+    try:
+        a = int(age)
+    except (TypeError, ValueError):
+        return (None, None)
+    if a < 18:
+        return (None, None)
+    if a >= 90:
+        return (a, "80-89")
+    d = (a // 10) * 10
+    return (a, f"{d}-{d + 9}")
 
 
 def _to_optional_float(v):
@@ -640,10 +685,12 @@ def _export_one(args: dict) -> dict:
     result = dict(
         token=token, position=position, config=config,
         match_type=match_type, lstv_label=lstv, ok=False, error=None,
-        # DICOM header demographics — pure pass-through (resolved upstream
-        # in the work-args build), never re-derived. Absent -> None ->
-        # JSON null via _coerce_manifest_record's nullable path.
+        # DICOM header demographics — pass-through (resolved upstream in the
+        # work-args build). age/age_band already carry the public policy
+        # (<18 -> null, decade band) applied there; everything else verbatim.
+        # Absent -> None -> JSON null via _coerce_manifest_record.
         age=args.get("age"),
+        age_band=args.get("age_band"),
         sex=args.get("sex"),
         patient_weight=args.get("patient_weight"),
         patient_size=args.get("patient_size"),
@@ -903,16 +950,26 @@ def build_work(manifest_path: Path, nifti_dir: Path,
             spine_bone_pct=spine_bone_pct,
             pelvic_bone_pct=pelvic_bone_pct,
         )
-        # DICOM header demographics: pure pass-through from placed_manifest
-        # (schema >=2.7), NEVER re-derived. case-level scalar first, then
-        # per-side. _first_not_none (not `or`) so a real 0.0 weight / 0 age
-        # is not skipped; absent stays None -> JSON null downstream.
+        # DICOM header demographics from placed_manifest (schema >=2.7).
+        # case-level scalar first, then per-side. _first_not_none (not `or`)
+        # so a real 0.0 weight / 0 age is not skipped; absent stays None ->
+        # JSON null downstream. All non-age fields are pure pass-through.
         demo_kwargs = {
             f: _first_not_none(c.get(f), sp.get(f), pv.get(f))
-            for f in ("age", "sex", "patient_weight", "patient_size",
+            for f in ("sex", "patient_weight", "patient_size",
                       "convolution_kernel", "manufacturer",
                       "manufacturer_model", "slice_thickness", "kvp")
         }
+        # Age: resolve the propagated integer (key is "age" — NOT
+        # "patient_age"; the raw header string lives only in the sidecar's
+        # age_raw and is intentionally not surfaced), then apply the
+        # public-release policy: <18 -> null, decade band derived. age and
+        # age_band are emitted together and stay consistent.
+        _age, _age_band = _age_public(
+            _first_not_none(c.get("age"), sp.get("age"), pv.get("age"))
+        )
+        demo_kwargs["age"] = _age
+        demo_kwargs["age_band"] = _age_band
 
         if mt == "fused":
             if spine_placed and spine_placed.exists() and spine_ct and spine_ct.exists():
