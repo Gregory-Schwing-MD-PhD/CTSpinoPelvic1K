@@ -69,6 +69,9 @@ HF_WORKERS    ?= 8
 # WIPE_REMOTE is a flag on `make hf-push` ONLY (clears remote files before
 # the push; repo/URL/history preserved). Never honored by `make hf-stage`.
 WIPE_REMOTE   ?= 0
+# HF_REVISION: push to a branch instead of main (e.g. v2 for the pseudo-
+# labelled full release). Empty = main. hf-push only.
+HF_REVISION   ?=
 
 # ── Stage 4 control (TotalSegmentator benchmark) ─────────────────────────────
 TS_WINDOW_MM    ?= 40.0
@@ -209,8 +212,9 @@ hf-push: check-container  ## Stage 3b — push an already-staged data/hf_export/
 	fi
 	@echo "Submitting Stage 3b: hf-push  (push only — export is NOT re-run)"
 	@echo "  HF_REPO_ID  = $(HF_REPO_ID)"
+	@echo "  HF_REVISION = $(HF_REVISION)  (empty = main branch)"
 	@echo "  WIPE_REMOTE = $(WIPE_REMOTE)  (1 = clear all files first; repo/URL/history kept)"
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),PUSH=1,SKIP_EXPORT=1,HF_REPO_ID=$(HF_REPO_ID),HF_WORKERS=$(HF_WORKERS),HF_PRIVATE=$(HF_PRIVATE),WIPE_REMOTE=$(WIPE_REMOTE),MANIFEST_FILE=$(MANIFEST_FILE) \
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),PUSH=1,SKIP_EXPORT=1,HF_REPO_ID=$(HF_REPO_ID),HF_REVISION=$(HF_REVISION),HF_WORKERS=$(HF_WORKERS),HF_PRIVATE=$(HF_PRIVATE),WIPE_REMOTE=$(WIPE_REMOTE),MANIFEST_FILE=$(MANIFEST_FILE) \
 	       slurm/export_dataset.sh
 
 .PHONY: export-dataset

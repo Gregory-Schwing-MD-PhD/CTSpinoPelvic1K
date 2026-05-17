@@ -1,0 +1,55 @@
+{
+  "_README": [
+    "Externalized model bundle config for scripts/pseudolabel.py.",
+    "This file is the ONLY place the (unsettled) model identity + label",
+    "space lives, so re-training (e.g. normal-spine-only, or un-merging",
+    "L5/L6) needs NO code change — just edit this file.",
+    "",
+    "One entry per region model. pseudolabel.py fills the MISSING region of",
+    "spine_only / pelvic_native (separate-mode) records using the model whose",
+    "fills_region matches, and NEVER overwrites a manual voxel.",
+    "",
+    "label_remap: model-output integer class -> canonical 10-class id",
+    "  (background 0 and any class absent from the map are dropped). This is",
+    "  where you encode e.g. last_lumbar -> {5,6} decisions; if the model",
+    "  cannot separate L5/L6 you map its merged class to a single canonical",
+    "  id and accept that limitation (documented per-model in 'notes').",
+    "supplies_canonical: canonical ids this model is TRUSTED to write. A",
+    "  predicted class remapped outside this set is discarded (defensive).",
+    "set enabled=true only once the checkpoints for that model are final."
+  ],
+  "models": [
+    {
+      "name": "spine",
+      "enabled": false,
+      "fills_region": "spine",
+      "supplies_canonical": [1, 2, 3, 4, 5, 6],
+      "notes": "FILL ME. Current checkpoints were trained on LSTV cases with L5+L6 merged into one 'last_lumbar' class — decide the remap (or retrain on normal spines) before enabling.",
+      "nnunet": {
+        "dataset_id": "Dataset501_CTSpinoPelvic",
+        "trainer": "nnUNetTrainer",
+        "plans": "nnUNetPlans",
+        "configuration": "3d_fullres",
+        "folds": [0, 1, 2, 3, 4],
+        "checkpoint": "checkpoint_final.pth"
+      },
+      "label_remap": {"1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6}
+    },
+    {
+      "name": "pelvis",
+      "enabled": false,
+      "fills_region": "pelvis",
+      "supplies_canonical": [7, 8, 9],
+      "notes": "FILL ME. Only needed to complete spine_only scans (pelvis missing). If you have no pelvis model, leave disabled — those records are skipped, not fabricated.",
+      "nnunet": {
+        "dataset_id": "Dataset501_CTSpinoPelvic",
+        "trainer": "nnUNetTrainer",
+        "plans": "nnUNetPlans",
+        "configuration": "3d_fullres",
+        "folds": [0, 1, 2, 3, 4],
+        "checkpoint": "checkpoint_final.pth"
+      },
+      "label_remap": {"7": 7, "8": 8, "9": 9}
+    }
+  ]
+}

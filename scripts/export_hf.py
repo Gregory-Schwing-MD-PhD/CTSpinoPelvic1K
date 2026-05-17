@@ -1177,7 +1177,8 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
 # -- HuggingFace push ---------------------------------------------------------
 
 def _wipe_remote_repo(api, repo_id: str, repo_type: str, token: str,
-                       force: bool = False) -> None:
+                       force: bool = False,
+                       revision: Optional[str] = None) -> None:
     """Clear ALL files from the repo WITHOUT deleting the repo.
 
     delete_repo() is deliberately NOT used: it would destroy git history,
@@ -1216,7 +1217,7 @@ def _wipe_remote_repo(api, repo_id: str, repo_type: str, token: str,
                 private=False, exist_ok=True, token=token)
 
     all_files = api.list_repo_files(repo_id=repo_id, repo_type=repo_type,
-                                    token=token)
+                                    token=token, revision=revision)
     # Keep .gitattributes so the repo's LFS tracking rules survive the
     # re-push that follows.
     files = [f for f in all_files if f != ".gitattributes"]
@@ -1228,10 +1229,12 @@ def _wipe_remote_repo(api, repo_id: str, repo_type: str, token: str,
     # path list), so even this repo's ~1600+ files fit well within the
     # Hub's per-commit limits — no batching needed. Atomicity matters: the
     # repo never observes a partially-cleared state.
-    log.info("Clearing %d files from %s in one atomic delete commit ...",
-             len(files), repo_id)
+    log.info("Clearing %d files from %s%s in one atomic delete commit ...",
+             len(files), repo_id,
+             f" (revision: {revision})" if revision else "")
     api.create_commit(
         repo_id=repo_id, repo_type=repo_type, token=token,
+        revision=revision,
         commit_message="wipe: clear all files (repo/URL/history preserved)",
         operations=[CommitOperationDelete(path_in_repo=f) for f in files],
     )
@@ -1248,6 +1251,7 @@ def push_to_hub(
     readme_path:      Optional[Path] = None,
     wipe_remote:      bool          = False,
     force_wipe_remote: bool         = False,
+    revision:         Optional[str] = None,
 ) -> None:
     try:
         from huggingface_hub import HfApi, create_repo
@@ -1269,13 +1273,21 @@ def push_to_hub(
 
     api = HfApi(token=token)
 
+    log.info("Ensuring repo: %s  (private=%s) ...", repo_id, private)
+    create_repo(repo_id=repo_id, repo_type=HF_REPO_TYPE,
+                private=private, exist_ok=True, token=token)
+
+    # Push to a separate revision/branch (e.g. "v2" for the pseudo-labelled
+    # full release) so the reviewed main branch / URL is never disturbed.
+    if revision:
+        api.create_branch(repo_id=repo_id, repo_type=HF_REPO_TYPE,
+                          branch=revision, token=token, exist_ok=True)
+        log.info("Target revision/branch: %s", revision)
+
     if wipe_remote:
         _wipe_remote_repo(api, repo_id=repo_id, repo_type=HF_REPO_TYPE,
-                          token=token, force=force_wipe_remote)
-    else:
-        log.info("Ensuring repo: %s  (private=%s) ...", repo_id, private)
-        create_repo(repo_id=repo_id, repo_type=HF_REPO_TYPE,
-                    private=private, exist_ok=True, token=token)
+                          token=token, force=force_wipe_remote,
+                          revision=revision)
 
     if interface_script is None:
         for cand in [Path(__file__).parent / "dataset_interface.py",
@@ -1320,9 +1332,11 @@ def push_to_hub(
     api.upload_large_folder(
         repo_id=repo_id, repo_type=HF_REPO_TYPE,
         folder_path=str(out_dir), num_workers=num_workers,
+        revision=revision,
         ignore_patterns=["qc/*", "qc/**/*", ".hf_staging/*"],
     )
-    log.info("Push complete -> https://huggingface.co/datasets/%s", repo_id)
+    _where = f"{repo_id}" + (f"  (revision: {revision})" if revision else "")
+    log.info("Push complete -> https://huggingface.co/datasets/%s", _where)
 
 
 # -- Main ---------------------------------------------------------------------
@@ -1345,6 +1359,10 @@ def main():
                     help="Target HF repo (e.g. org/Name). REQUIRED with "
                          "--push_to_hub; there is no default repo.")
     ap.add_argument("--hf_token",    default=None)
+    ap.add_argument("--hf_revision", default=None,
+                    help="Push to this branch/revision instead of main "
+                         "(e.g. 'v2' for the pseudo-labelled full release). "
+                         "Created if absent; main/URL left untouched.")
     ap.add_argument("--hf_private",  action="store_true")
     ap.add_argument("--hf_workers",  default=8, type=int)
     ap.add_argument("--interface_script", default=None, type=Path)
@@ -1435,6 +1453,7 @@ def main():
             readme_path=args.readme_path,
             wipe_remote=args.wipe_remote,
             force_wipe_remote=args.force_wipe_remote,
+            revision=args.hf_revision,
         )
     else:
         log.info("HuggingFace push skipped. Add --push_to_hub to upload.")

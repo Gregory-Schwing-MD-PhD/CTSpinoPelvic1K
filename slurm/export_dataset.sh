@@ -248,6 +248,7 @@ EXPORT_FLAGS=""
 if [[ "${PUSH}" == "1" ]]; then
     EXPORT_FLAGS="${EXPORT_FLAGS} --push_to_hub"
     EXPORT_FLAGS="${EXPORT_FLAGS} --hf_repo_id ${HF_REPO_ID}"
+    [[ -n "${HF_REVISION:-}" ]] && EXPORT_FLAGS="${EXPORT_FLAGS} --hf_revision ${HF_REVISION}"
     EXPORT_FLAGS="${EXPORT_FLAGS} --hf_workers ${HF_WORKERS}"
     [[ "${HF_PRIVATE}" == "1" ]] && EXPORT_FLAGS="${EXPORT_FLAGS} --hf_private"
     if [[ "${WIPE_REMOTE}" == "1" ]]; then
@@ -268,6 +269,7 @@ if [[ "${PUSH}" == "1" ]]; then
     echo "######################################################################"
     echo "#  PUSH TARGET (verify before this proceeds):"
     echo "#    HF_REPO_ID  = ${HF_REPO_ID}"
+    echo "#    HF_REVISION = ${HF_REVISION:-<main>}  (separate branch; main/URL untouched)"
     echo "#    URL         = https://huggingface.co/datasets/${HF_REPO_ID}"
     echo "#    WIPE_REMOTE = ${WIPE_REMOTE}  (1 = clear all files first; repo/URL/history kept)"
     echo "#    HF_TOKEN    = ${HF_TOKEN:0:8}***  (redacted)"
