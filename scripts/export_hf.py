@@ -112,10 +112,12 @@ Wipe-remote (Apr 2026)
 Earlier pushes left orphan files on the HF repo whenever a filename
 schema changed (e.g., the position-prefix removal). `upload_large_folder`
 is purely additive — it never deletes remote files that no longer exist
-locally. The new `--wipe_remote` flag does a full delete-and-recreate of
-the HF repo before pushing, giving a clean mirror of the local export.
-Requires `--force_wipe_remote` to skip the safety prompt (the flag is
-destructive and irreversible). Only valid alongside `--push_to_hub`.
+locally. The `--wipe_remote` flag clears all files in the HF repo (one
+atomic delete commit) before pushing, giving a clean mirror of the local
+export. The repo itself — its URL, git history, stars and discussions —
+is PRESERVED (the repo is never deleted; the URL stays continuously live
+for anonymous review). Requires `--force_wipe_remote` to skip the safety
+prompt. Only valid alongside `--push_to_hub`.
 
 Label scheme:
   0=bg  1=L1  2=L2  3=L3  4=L4  5=L5  6=L6(LSTV)  7=sacrum  8=left_hip  9=right_hip
@@ -179,7 +181,11 @@ logging.basicConfig(
 
 # -- HuggingFace config -------------------------------------------------------
 
-HF_REPO_ID   = "anonymous-mlhc/CTSpinoPelvic1K"
+# No baked-in canonical repo: the same export is pushed to several
+# different HF repos (one per submission venue), so the target MUST be
+# supplied explicitly at invocation via --hf_repo_id. A None default forces
+# main() to fail loudly rather than silently push to a wrong/stale repo.
+HF_REPO_ID   = None
 HF_REPO_TYPE = "dataset"
 
 # Any spatial axis smaller than this is treated as a scout / localizer /
@@ -1172,53 +1178,69 @@ def write_manifest(records: List[dict], out_dir: Path) -> None:
 
 def _wipe_remote_repo(api, repo_id: str, repo_type: str, token: str,
                        force: bool = False) -> None:
-    from huggingface_hub import create_repo
-    from huggingface_hub.utils import (
-        RepositoryNotFoundError,
-        HfHubHTTPError,
-    )
+    """Clear ALL files from the repo WITHOUT deleting the repo.
+
+    delete_repo() is deliberately NOT used: it would destroy git history,
+    stars and discussions and briefly 404 the URL. The dataset URL is cited
+    in a paper under anonymous review and must stay continuously live, so
+    instead the repo is kept and its files are removed in one atomic
+    delete commit. The repo, URL, history and discussions are preserved.
+    `.gitattributes` is kept so the LFS tracking rules survive the re-push.
+    """
+    from huggingface_hub import create_repo, CommitOperationDelete
 
     if not force:
         if not sys.stdin.isatty():
             raise RuntimeError(
                 "wipe_remote requested without --force_wipe_remote on a "
-                "non-interactive shell. Refusing to wipe a HuggingFace repo "
+                "non-interactive shell. Refusing to clear a HuggingFace repo "
                 "without explicit confirmation. Re-submit with "
                 "FORCE_WIPE_REMOTE=1 (env var) or --force_wipe_remote."
             )
         log.warning("=" * 60)
-        log.warning("ABOUT TO DELETE HF REPO: %s (type=%s)",
+        log.warning("ABOUT TO CLEAR ALL FILES IN HF REPO: %s (type=%s)",
                     repo_id, repo_type)
-        log.warning("This is IRREVERSIBLE. All files and git history on the")
-        log.warning("HF side will be lost. Local files are unaffected.")
+        log.warning("The repo, its URL, git history, stars and discussions")
+        log.warning("are PRESERVED. Only the file contents are removed.")
+        log.warning("Local files are unaffected.")
         log.warning("=" * 60)
         ans = input(f"Type the repo name '{repo_id}' to confirm: ").strip()
         if ans != repo_id:
             raise RuntimeError(
                 f"wipe_remote aborted: typed '{ans}', expected '{repo_id}'")
 
-    log.info("Deleting HF repo %s ...", repo_id)
-    try:
-        api.delete_repo(repo_id=repo_id, repo_type=repo_type,
-                        token=token, missing_ok=True)
-        log.info("  delete_repo OK")
-    except RepositoryNotFoundError:
-        log.info("  repo did not exist — nothing to delete")
-    except HfHubHTTPError as exc:
-        if "404" in str(exc) or "Not Found" in str(exc):
-            log.info("  repo did not exist (404) — nothing to delete")
-        else:
-            raise
-
-    log.info("Recreating HF repo %s (empty) ...", repo_id)
+    # Ensure the repo exists and stays live (idempotent; never deletes).
+    log.info("Ensuring HF repo %s exists (will be cleared, not deleted) ...",
+             repo_id)
     create_repo(repo_id=repo_id, repo_type=repo_type,
                 private=False, exist_ok=True, token=token)
-    log.info("  create_repo OK — repo is now empty and ready for fresh upload")
+
+    all_files = api.list_repo_files(repo_id=repo_id, repo_type=repo_type,
+                                    token=token)
+    # Keep .gitattributes so the repo's LFS tracking rules survive the
+    # re-push that follows.
+    files = [f for f in all_files if f != ".gitattributes"]
+    if not files:
+        log.info("  repo already empty (only .gitattributes) — nothing to do")
+        return
+
+    # Single atomic commit. Delete operations carry no payload (just the
+    # path list), so even this repo's ~1600+ files fit well within the
+    # Hub's per-commit limits — no batching needed. Atomicity matters: the
+    # repo never observes a partially-cleared state.
+    log.info("Clearing %d files from %s in one atomic delete commit ...",
+             len(files), repo_id)
+    api.create_commit(
+        repo_id=repo_id, repo_type=repo_type, token=token,
+        commit_message="wipe: clear all files (repo/URL/history preserved)",
+        operations=[CommitOperationDelete(path_in_repo=f) for f in files],
+    )
+    log.info("  repo contents cleared; repo / URL / git history intact")
 
 
 def push_to_hub(
     out_dir:          Path,
-    repo_id:          str           = HF_REPO_ID,
+    repo_id:          Optional[str] = HF_REPO_ID,
     token:            Optional[str] = None,
     private:          bool          = False,
     num_workers:      int           = 8,
@@ -1231,6 +1253,13 @@ def push_to_hub(
         from huggingface_hub import HfApi, create_repo
     except ImportError:
         raise RuntimeError("pip install 'huggingface_hub[hf_transfer]'")
+
+    if not repo_id:
+        raise ValueError(
+            "No HuggingFace repo id. Pushing requires an explicit "
+            "--hf_repo_id (or HF_REPO_ID env) — there is no default repo "
+            "(the same export is pushed to multiple venue repos)."
+        )
 
     token = token or os.environ.get("HF_TOKEN")
     if not token:
@@ -1312,14 +1341,18 @@ def main():
     ap.add_argument("--debug_n",     default=0,      type=int)
     ap.add_argument("--skip_export", action="store_true")
     ap.add_argument("--push_to_hub", action="store_true")
-    ap.add_argument("--hf_repo_id",  default=HF_REPO_ID)
+    ap.add_argument("--hf_repo_id",  default=HF_REPO_ID,
+                    help="Target HF repo (e.g. org/Name). REQUIRED with "
+                         "--push_to_hub; there is no default repo.")
     ap.add_argument("--hf_token",    default=None)
     ap.add_argument("--hf_private",  action="store_true")
     ap.add_argument("--hf_workers",  default=8, type=int)
     ap.add_argument("--interface_script", default=None, type=Path)
     ap.add_argument("--readme_path",      default=None, type=Path)
     ap.add_argument("--wipe_remote", action="store_true",
-                    help="Delete and recreate the HF repo before pushing.")
+                    help="Clear all files in the HF repo before pushing "
+                         "(repo, URL, git history & discussions preserved; "
+                         "the repo is NOT deleted).")
     ap.add_argument("--force_wipe_remote", action="store_true",
                     help="Skip interactive confirmation for --wipe_remote.")
     args = ap.parse_args()
@@ -1328,9 +1361,16 @@ def main():
        os.environ.get("FORCE_WIPE_REMOTE", "").strip().lower() in ("1", "true", "yes"):
         args.force_wipe_remote = True
 
+    if args.push_to_hub and not args.hf_repo_id:
+        log.error("--push_to_hub requires an explicit --hf_repo_id "
+                  "(e.g. --hf_repo_id org/CTSpinoPelvic1K). There is no "
+                  "default repo: the same export is pushed to multiple "
+                  "venue repos, so a fallback would risk the wrong target.")
+        sys.exit(2)
+
     if args.wipe_remote and not args.push_to_hub:
         log.error("--wipe_remote requires --push_to_hub. Refusing to "
-                  "delete the HF repo without re-pushing.")
+                  "clear the HF repo without re-pushing.")
         sys.exit(2)
 
     if not args.skip_export:

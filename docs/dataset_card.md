@@ -98,7 +98,7 @@ from dataset_interface import CTSpinoPelvicDataset
 from torch.utils.data import DataLoader
 
 ds  = CTSpinoPelvicDataset(
-    root      = "anonymous-mlhc/CTSpinoPelvic1K",
+    root      = "anonymous-neurips-ED/CTSpinoPelvic1K",
     split     = "train",
     cache_dir = "~/.cache/ctspinopelvic1k",
 )
@@ -124,7 +124,7 @@ transforms = Compose([
     RandFlipd(keys=("ct","label"), prob=0.5, spatial_axis=(0,1,2)),
 ])
 
-ds = CTSpinoPelvicDataset(root="anonymous-mlhc/CTSpinoPelvic1K",
+ds = CTSpinoPelvicDataset(root="anonymous-neurips-ED/CTSpinoPelvic1K",
                           split="train", transform=transforms)
 ```
 

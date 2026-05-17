@@ -894,7 +894,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dataset_dir", default=None, type=Path)
-    ap.add_argument("--hf_repo_id", default="anonymous-mlhc/CTSpinoPelvic1K")
+    ap.add_argument("--hf_repo_id", default="anonymous-neurips-ED/CTSpinoPelvic1K")
     ap.add_argument("--hf_token", default=None)
     ap.add_argument("--config", default="all",
                      choices=["all", "fused", "spine_only", "pelvic_native"])

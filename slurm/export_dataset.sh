@@ -30,19 +30,36 @@
 #
 # Then optionally pushes to HuggingFace Hub via upload_large_folder.
 #
-# Usage:
+# Usage (HF_REPO_ID is REQUIRED for any push — there is no default repo):
 #   sbatch slurm/export_dataset.sh                              # export only
-#   HF_TOKEN=hf_xxx PUSH=1 sbatch slurm/export_dataset.sh       # export + push
-#   HF_TOKEN=hf_xxx PUSH=1 SKIP_EXPORT=1 sbatch slurm/export_dataset.sh
-#                                                               # push existing
+#   HF_TOKEN=hf_xxx HF_REPO_ID=org/Name PUSH=1 \
+#       sbatch slurm/export_dataset.sh                          # export + push
+#   HF_TOKEN=hf_xxx HF_REPO_ID=org/Name PUSH=1 SKIP_EXPORT=1 \
+#       sbatch slurm/export_dataset.sh                          # push existing
+#
+# Multi-repo push (e.g. one repo per conference submission). HF_REPO_ID and
+# HF_TOKEN are independent per-invocation env vars — export ONCE, then push
+# the same data/hf_export/ to each repo with its own repo id + token:
+#   # 1. export once (no push)
+#   sbatch slurm/export_dataset.sh
+#   # 2. push to repo A
+#   HF_TOKEN=hf_tokenA HF_REPO_ID=anonymous-neurips-ED/CTSpinoPelvic1K \
+#     PUSH=1 SKIP_EXPORT=1 sbatch slurm/export_dataset.sh
+#   # 3. push to repo B (different repo, different token)
+#   HF_TOKEN=hf_tokenB HF_REPO_ID=anonymous-other-venue/CTSpinoPelvic1K \
+#     PUSH=1 SKIP_EXPORT=1 sbatch slurm/export_dataset.sh
+# Nothing is hardcoded to a single repo; the resolved target is echoed
+# prominently right before the push so a mis-set HF_REPO_ID is caught.
 #
 # Wipe orphan files on HF (e.g., after a filename schema change):
-#   HF_TOKEN=hf_xxx PUSH=1 WIPE_REMOTE=1 sbatch slurm/export_dataset.sh
-#                                                               # wipe + re-push
-# WIPE_REMOTE deletes the HF repo and recreates it empty before push, so
-# files from prior schemas don't linger. Always paired with PUSH=1 (the
-# script enforces this). The non-interactive FORCE_WIPE_REMOTE=1 flag is
-# auto-set when WIPE_REMOTE=1 in a SLURM context — there's no terminal
+#   HF_TOKEN=hf_xxx HF_REPO_ID=org/Name PUSH=1 WIPE_REMOTE=1 \
+#       sbatch slurm/export_dataset.sh                          # wipe + re-push
+# WIPE_REMOTE clears ALL files in the HF repo before push (so files from
+# prior schemas don't linger) but PRESERVES the repo itself — its URL, git
+# history, stars and discussions stay intact (the URL is under anonymous
+# paper review and must stay continuously live). Always paired with PUSH=1
+# (the script enforces this). The non-interactive FORCE_WIPE_REMOTE=1 flag
+# is auto-set when WIPE_REMOTE=1 in a SLURM context — there's no terminal
 # for the confirmation prompt.
 #
 # Options:
@@ -52,7 +69,8 @@
 #   HF_PRIVATE=1     create HF repo as private
 #   HF_WORKERS=8     HF upload workers (default 8)
 #   SKIP_SPLITS=1    skip 5-fold splits generation
-#   WIPE_REMOTE=1    delete + recreate HF repo before push (DESTRUCTIVE)
+#   WIPE_REMOTE=1    clear all files in the HF repo before push; repo,
+#                    URL, git history & discussions preserved
 #
 # CHANGE LOG (relevant)
 # ---------------------
@@ -110,9 +128,16 @@ echo "======================================================================"
 
 # ── Token handling (with redaction for logs) ─────────────────────────────────
 if [[ "${PUSH}" == "1" ]]; then
+    if [[ -z "${HF_REPO_ID:-}" ]]; then
+        echo "ERROR: PUSH=1 requires HF_REPO_ID — there is no default repo."
+        echo "       The same export is pushed to multiple venue repos, so"
+        echo "       the target must be explicit. Submit via:"
+        echo "         HF_TOKEN=hf_xxx HF_REPO_ID=org/Name make export-dataset PUSH=1"
+        exit 1
+    fi
     if [[ -z "${HF_TOKEN:-}" ]]; then
         echo "ERROR: PUSH=1 requires HF_TOKEN."
-        echo "       Submit via:  HF_TOKEN=hf_xxx make export-dataset PUSH=1"
+        echo "       Submit via:  HF_TOKEN=hf_xxx HF_REPO_ID=org/Name make export-dataset PUSH=1"
         exit 1
     fi
     echo "  HF_TOKEN : ${HF_TOKEN:0:8}***  (full token passed via env, redacted in logs)"
@@ -126,8 +151,9 @@ fi
 
 if [[ "${WIPE_REMOTE}" == "1" ]]; then
     echo ""
-    echo "  ⚠  WIPE_REMOTE=1: HF repo ${HF_REPO_ID} will be DELETED and recreated"
-    echo "     before push. All existing files and git history on HF will be lost."
+    echo "  ⚠  WIPE_REMOTE=1: ALL files in HF repo ${HF_REPO_ID} will be"
+    echo "     cleared before push. The repo, its URL, git history, stars"
+    echo "     and discussions are PRESERVED (URL stays continuously live)."
     echo "     Local files at ${HF_EXPORT_DIR} are unaffected."
     echo ""
 fi
@@ -237,6 +263,18 @@ echo "======================================================================"
 echo " Running export_hf.py ..."
 echo "======================================================================"
 
+if [[ "${PUSH}" == "1" ]]; then
+    echo ""
+    echo "######################################################################"
+    echo "#  PUSH TARGET (verify before this proceeds):"
+    echo "#    HF_REPO_ID  = ${HF_REPO_ID}"
+    echo "#    URL         = https://huggingface.co/datasets/${HF_REPO_ID}"
+    echo "#    WIPE_REMOTE = ${WIPE_REMOTE}  (1 = clear all files first; repo/URL/history kept)"
+    echo "#    HF_TOKEN    = ${HF_TOKEN:0:8}***  (redacted)"
+    echo "######################################################################"
+    echo ""
+fi
+
 _run python3 /workspace/scripts/export_hf.py \
     --manifest   "${C_MANIFEST}" \
     --nifti_dir  "${C_NIFTI}" \
@@ -335,7 +373,7 @@ fi
 if [[ "${PUSH}" == "1" ]]; then
     echo ""
     if [[ "${WIPE_REMOTE}" == "1" ]]; then
-        echo "  Pushed (wipe + repush) to: https://huggingface.co/datasets/${HF_REPO_ID}"
+        echo "  Pushed (cleared files + repush, repo preserved) to: https://huggingface.co/datasets/${HF_REPO_ID}"
     else
         echo "  Pushed (additive) to: https://huggingface.co/datasets/${HF_REPO_ID}"
     fi

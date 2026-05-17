@@ -195,7 +195,7 @@ The two CT-vs-mask diagnostics are worth flagging:
 import json, nibabel as nib
 from pathlib import Path
 
-root = Path("anonymous-mlhc/CTSpinoPelvic1K")  # or local export dir
+root = Path("anonymous-neurips-ED/CTSpinoPelvic1K")  # or local export dir
 meta = json.loads((root / "manifest.json").read_text())
 
 rec = meta[0]
@@ -219,7 +219,7 @@ from dataset_interface import CTSpinoPelvicDataset
 from torch.utils.data import DataLoader
 
 ds = CTSpinoPelvicDataset(
-    root  = "anonymous-mlhc/CTSpinoPelvic1K",
+    root  = "anonymous-neurips-ED/CTSpinoPelvic1K",
     split = ("fold", 0, "train"),
 )
 dl = DataLoader(ds, batch_size=1, shuffle=True)
@@ -248,7 +248,7 @@ transforms = Compose([
     RandFlipd(keys=("ct","label"), prob=0.5, spatial_axis=(0,1,2)),
 ])
 
-ds = CTSpinoPelvicDataset(root="anonymous-mlhc/CTSpinoPelvic1K",
+ds = CTSpinoPelvicDataset(root="anonymous-neurips-ED/CTSpinoPelvic1K",
                           split=("fold", 0, "train"), transform=transforms)
 ```
 

@@ -11,7 +11,7 @@ url: "https://github.com/gschwing/ctspinopelvic1k"
 repository-code: "https://github.com/gschwing/ctspinopelvic1k"
 identifiers:
   - type: url
-    value: "https://huggingface.co/datasets/anonymous-mlhc/CTSpinoPelvic1K"
+    value: "https://huggingface.co/datasets/anonymous-neurips-ED/CTSpinoPelvic1K"
     description: "Constructed dataset on HuggingFace"
 license: Apache-2.0
 keywords:

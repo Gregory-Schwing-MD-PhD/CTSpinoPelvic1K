@@ -67,7 +67,7 @@ Quickstart (benchmarking / viz — no splits):
   >>> fused = ds.filter(config="fused", present_only=True)
 
 Quickstart (HF Hub — lazy NIfTI fetch on first access):
-  >>> ds = CTSpinoPelvic1K.from_hub(repo_id="anonymous-mlhc/CTSpinoPelvic1K")
+  >>> ds = CTSpinoPelvic1K.from_hub(repo_id="anonymous-neurips-ED/CTSpinoPelvic1K")
   >>> ct_arr, affine = ds.cases[0].load_ct()   # downloads on first call
   >>> # subsequent loads of the same case hit the local HF cache
 

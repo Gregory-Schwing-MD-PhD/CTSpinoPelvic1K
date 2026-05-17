@@ -55,7 +55,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/gschwing/ctspinopelvic1k"
-Dataset = "https://huggingface.co/datasets/anonymous-mlhc/CTSpinoPelvic1K"
+Dataset = "https://huggingface.co/datasets/anonymous-neurips-ED/CTSpinoPelvic1K"
 Issues = "https://github.com/gschwing/ctspinopelvic1k/issues"
 
 [tool.setuptools]

@@ -29,7 +29,8 @@ CONTAINER     ?= $(ROOT_DIR)/containers/ctspinopelvic1k.sif
 TS_CONTAINER  ?= $(ROOT_DIR)/containers/ctspinopelvic1k-ts.sif
 
 # ── HuggingFace ──────────────────────────────────────────────────────────────
-HF_REPO_ID ?= anonymous-mlhc/CTSpinoPelvic1K
+# No default repo — supply per invocation: make export-dataset HF_REPO_ID=org/Name
+HF_REPO_ID ?=
 HF_TOKEN   ?=
 PUSH       ?= 0
 
