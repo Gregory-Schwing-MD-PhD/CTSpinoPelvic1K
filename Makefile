@@ -66,6 +66,9 @@ NO_PIR        ?= 0
 SKIP_EXPORT   ?= 0
 HF_PRIVATE    ?= 0
 HF_WORKERS    ?= 8
+# WIPE_REMOTE is a flag on `make hf-push` ONLY (clears remote files before
+# the push; repo/URL/history preserved). Never honored by `make hf-stage`.
+WIPE_REMOTE   ?= 0
 
 # ── Stage 4 control (TotalSegmentator benchmark) ─────────────────────────────
 TS_WINDOW_MM    ?= 40.0
@@ -87,12 +90,12 @@ help:  ## Show this help
 	@echo ""
 	@echo "Pipeline (in order):"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-	  grep -E '^(download-raw|create-dataset|export-dataset|benchmark-totalseg):' | \
+	  grep -E '^(download-raw|create-dataset|hf-stage|hf-push|export-dataset|benchmark-totalseg):' | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m  %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Inspection / utilities:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-	  grep -vE '^(build-container|hpc-pull|hpc-pull-now|docker-push|install-dev|test|lint|check-syntax|download-raw|create-dataset|export-dataset|benchmark-totalseg|help):' | \
+	  grep -vE '^(build-container|hpc-pull|hpc-pull-now|docker-push|install-dev|test|lint|check-syntax|download-raw|create-dataset|hf-stage|hf-push|export-dataset|benchmark-totalseg|help):' | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m  %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Common env overrides (set via VAR=value before the target):"
@@ -169,25 +172,59 @@ create-dataset: check-container  ## Stage 2 — build PatientDB + place masks (Q
 # =============================================================================
 # Stage 3 — export + push
 # =============================================================================
-.PHONY: export-dataset
-export-dataset: check-container  ## Stage 3 — split, export, optionally push to HF
+.PHONY: hf-stage
+hf-stage: check-container  ## Stage 3a — build data/hf_export/ ONLY (no network, no push)
 	@mkdir -p $(LOGS_DIR)
-	@if [ "$(PUSH)" = "1" ] && [ -z "$(HF_TOKEN)" ]; then \
-	  echo "ERROR: PUSH=1 requires HF_TOKEN.  Prepend HF_TOKEN=hf_xxx to the command."; \
-	  exit 1; \
-	fi
 	@if [ ! -f $(DATA_DIR)/placed/$(MANIFEST_FILE) ]; then \
 	  echo "ERROR: manifest not found at $(DATA_DIR)/placed/$(MANIFEST_FILE)"; \
 	  echo "       Either run 'make create-dataset' first, or override with"; \
-	  echo "       MANIFEST_FILE=placed_manifest.json make export-dataset ..."; \
+	  echo "       MANIFEST_FILE=placed_manifest.json make hf-stage ..."; \
 	  exit 1; \
 	fi
-	@echo "Submitting Stage 3: export-dataset"
+	@echo "Submitting Stage 3a: hf-stage  (export only — NO push)"
 	@echo "  MANIFEST_FILE = $(MANIFEST_FILE)"
-	@echo "  PUSH          = $(PUSH)"
 	@echo "  SKIP_QC       = $(SKIP_QC)   (0 = QC images generated for HF dataset)"
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),PUSH=$(PUSH),HF_REPO_ID=$(HF_REPO_ID),HF_WORKERS=$(HF_WORKERS),HF_PRIVATE=$(HF_PRIVATE),SKIP_QC=$(SKIP_QC),NO_PIR=$(NO_PIR),SKIP_EXPORT=$(SKIP_EXPORT),MANIFEST_FILE=$(MANIFEST_FILE) \
+	@echo "  -> when staged, push separately with:  make hf-push HF_REPO_ID=org/Name"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),PUSH=0,SKIP_EXPORT=0,HF_REPO_ID=,HF_WORKERS=$(HF_WORKERS),HF_PRIVATE=$(HF_PRIVATE),SKIP_QC=$(SKIP_QC),NO_PIR=$(NO_PIR),MANIFEST_FILE=$(MANIFEST_FILE) \
 	       slurm/export_dataset.sh
+
+.PHONY: hf-push
+hf-push: check-container  ## Stage 3b — push an already-staged data/hf_export/ to HF (the ONLY target that touches the remote)
+	@mkdir -p $(LOGS_DIR)
+	@if [ -z "$(HF_REPO_ID)" ]; then \
+	  echo "ERROR: hf-push requires an explicit HF_REPO_ID — there is no default repo."; \
+	  echo "       The same export is pushed to multiple venue repos, so the"; \
+	  echo "       target must be explicit:"; \
+	  echo "         HF_TOKEN=hf_xxx HF_REPO_ID=org/Name make hf-push"; \
+	  exit 1; \
+	fi
+	@if [ -z "$(HF_TOKEN)" ]; then \
+	  echo "ERROR: hf-push requires HF_TOKEN.  Prepend HF_TOKEN=hf_xxx to the command."; \
+	  exit 1; \
+	fi
+	@if [ ! -f $(DATA_DIR)/hf_export/manifest.json ]; then \
+	  echo "ERROR: nothing staged at $(DATA_DIR)/hf_export/ (no manifest.json)."; \
+	  echo "       Run 'make hf-stage' first; hf-push never re-runs the export."; \
+	  exit 1; \
+	fi
+	@echo "Submitting Stage 3b: hf-push  (push only — export is NOT re-run)"
+	@echo "  HF_REPO_ID  = $(HF_REPO_ID)"
+	@echo "  WIPE_REMOTE = $(WIPE_REMOTE)  (1 = clear all files first; repo/URL/history kept)"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),PUSH=1,SKIP_EXPORT=1,HF_REPO_ID=$(HF_REPO_ID),HF_WORKERS=$(HF_WORKERS),HF_PRIVATE=$(HF_PRIVATE),WIPE_REMOTE=$(WIPE_REMOTE),MANIFEST_FILE=$(MANIFEST_FILE) \
+	       slurm/export_dataset.sh
+
+.PHONY: export-dataset
+export-dataset: check-container  ## DEPRECATED — split into 'make hf-stage' + 'make hf-push'
+	@if [ "$(PUSH)" = "1" ]; then \
+	  echo "ERROR: 'make export-dataset PUSH=1' is removed. Push is now a"; \
+	  echo "       separate, explicit step. Stage and push are decoupled:"; \
+	  echo "         make hf-stage"; \
+	  echo "         HF_TOKEN=hf_xxx HF_REPO_ID=org/Name make hf-push"; \
+	  exit 1; \
+	fi
+	@echo "NOTE: 'make export-dataset' is deprecated and now stages ONLY."
+	@echo "      It will NOT push. Run 'make hf-push' separately to push."
+	@$(MAKE) hf-stage
 
 
 # =============================================================================

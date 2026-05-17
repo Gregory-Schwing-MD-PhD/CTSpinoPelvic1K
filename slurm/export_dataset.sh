@@ -132,12 +132,12 @@ if [[ "${PUSH}" == "1" ]]; then
         echo "ERROR: PUSH=1 requires HF_REPO_ID — there is no default repo."
         echo "       The same export is pushed to multiple venue repos, so"
         echo "       the target must be explicit. Submit via:"
-        echo "         HF_TOKEN=hf_xxx HF_REPO_ID=org/Name make export-dataset PUSH=1"
+        echo "         HF_TOKEN=hf_xxx HF_REPO_ID=org/Name make hf-push"
         exit 1
     fi
     if [[ -z "${HF_TOKEN:-}" ]]; then
         echo "ERROR: PUSH=1 requires HF_TOKEN."
-        echo "       Submit via:  HF_TOKEN=hf_xxx HF_REPO_ID=org/Name make export-dataset PUSH=1"
+        echo "       Submit via:  HF_TOKEN=hf_xxx HF_REPO_ID=org/Name make hf-push"
         exit 1
     fi
     echo "  HF_TOKEN : ${HF_TOKEN:0:8}***  (full token passed via env, redacted in logs)"
@@ -379,12 +379,11 @@ if [[ "${PUSH}" == "1" ]]; then
     fi
 else
     echo ""
-    echo "  To push when ready:"
-    echo "    HF_TOKEN=hf_xxx make export-dataset PUSH=1 SKIP_EXPORT=1"
+    echo "  To push when ready (separate, explicit step):"
+    echo "    HF_TOKEN=hf_xxx HF_REPO_ID=org/Name make hf-push"
     echo ""
-    echo "  To wipe orphan files on HF and re-push from scratch:"
-    echo "    HF_TOKEN=hf_xxx PUSH=1 WIPE_REMOTE=1 SKIP_EXPORT=1 \\"
-    echo "      sbatch slurm/export_dataset.sh"
+    echo "  To clear remote files then re-push (repo/URL/history preserved):"
+    echo "    HF_TOKEN=hf_xxx HF_REPO_ID=org/Name WIPE_REMOTE=1 make hf-push"
 fi
 
 echo ""
