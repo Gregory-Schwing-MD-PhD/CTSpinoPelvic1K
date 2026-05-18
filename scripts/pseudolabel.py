@@ -181,28 +181,40 @@ def build_heldout_fold_map(splits: dict) -> Dict[str, int]:
 
 def download_checkpoints(ckpt_cfg: dict, nnunet_results: Path,
                          hf_token: Optional[str]) -> Path:
-    """snapshot_download the 5-fold model into the layout nnUNetv2_predict
-    expects: <nnunet_results>/<results_subdir>/. Idempotent (HF cache);
-    skipped automatically if fold dirs already present."""
-    dest = nnunet_results / ckpt_cfg["results_subdir"]
-    if any(dest.glob("*/fold_*/")):
-        log.info("Checkpoints already present at %s — skip download", dest)
-        return dest
+    """snapshot_download the 5-fold model so it lands at the layout
+    nnUNetv2_predict expects: <nnunet_results>/<results_subdir>/<trainer
+    __plans__config>/{dataset.json,plans.json,fold_*/}.
+
+    CRITICAL: the HF repo ALREADY contains `<results_subdir>/...` at its
+    root, so local_dir MUST be `nnunet_results` itself — NOT
+    `nnunet_results/<results_subdir>` (that double-nests it one level too
+    deep and nnU-Net can't find dataset.json). Idempotent; skipped if the
+    fold dirs are already correctly placed."""
+    model_root = nnunet_results / ckpt_cfg["results_subdir"]
+    if any(model_root.glob("*/fold_*/")):
+        log.info("Checkpoints already present at %s — skip download",
+                 model_root)
+        return model_root
     from huggingface_hub import snapshot_download
     # An empty/blank token (HF_TOKEN="" from default.env) makes
     # huggingface_hub emit an illegal `Authorization: Bearer ` header. The
     # checkpoints repo is public, so coerce blank -> None (anonymous).
     token = (hf_token or "").strip() or None
-    dest.mkdir(parents=True, exist_ok=True)
-    log.info("Downloading %s -> %s  (auth=%s)", ckpt_cfg["hf_repo_id"], dest,
-             "token" if token else "anonymous")
+    nnunet_results.mkdir(parents=True, exist_ok=True)
+    log.info("Downloading %s -> %s  (auth=%s)", ckpt_cfg["hf_repo_id"],
+             nnunet_results, "token" if token else "anonymous")
     snapshot_download(
         repo_id=ckpt_cfg["hf_repo_id"],
         repo_type=ckpt_cfg.get("hf_repo_type", "model"),
-        local_dir=str(dest),
+        local_dir=str(nnunet_results),     # repo already has <subdir>/ inside
         token=token,
     )
-    return dest
+    if not any(model_root.glob("*/fold_*/")):
+        log.error("Download finished but %s/<trainer>/fold_* not found — "
+                  "repo layout differs from configs/pseudolabel_models.json "
+                  "results_subdir=%r", model_root,
+                  ckpt_cfg["results_subdir"])
+    return model_root
 
 
 def run_nnunet_folder(nn: dict, in_dir: Path, out_dir: Path,
