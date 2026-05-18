@@ -73,6 +73,17 @@ WIPE_REMOTE   ?= 0
 # labelled full release). Empty = main. hf-push only.
 HF_REVISION   ?=
 
+# ── Pseudo-label (Stage 3.5 — build the full v2 tree) ────────────────────────
+# Empty values fall through to slurm/pseudolabel.sh's own defaults.
+NNUNET_SIF     ?=        # nnU-Net+CUDA container (REQUIRED unless DRY_RUN=1)
+NNUNET_RESULTS ?=        # checkpoint download dir (default: nnunet/results)
+HF_EXPORT_DIR  ?=        # v1 source tree   (default: data/hf_export)
+PSEUDO_OUT_DIR ?=        # v2 output tree   (default: data/hf_export_v2)
+MODELS_CONFIG  ?=        # default: configs/pseudolabel_models.json
+DRY_RUN        ?= 0
+SKIP_DOWNLOAD  ?= 0
+PSEUDO_LIMIT   ?= 0
+
 # ── Stage 4 control (TotalSegmentator benchmark) ─────────────────────────────
 TS_WINDOW_MM    ?= 40.0
 DOCKERHUB_USER  ?= gregoryschwingmdphd
@@ -93,12 +104,12 @@ help:  ## Show this help
 	@echo ""
 	@echo "Pipeline (in order):"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-	  grep -E '^(download-raw|create-dataset|hf-stage|hf-push|export-dataset|benchmark-totalseg):' | \
+	  grep -E '^(download-raw|create-dataset|hf-stage|hf-push|pseudolabel|export-dataset|benchmark-totalseg):' | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m  %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Inspection / utilities:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-	  grep -vE '^(build-container|hpc-pull|hpc-pull-now|docker-push|install-dev|test|lint|check-syntax|download-raw|create-dataset|hf-stage|hf-push|export-dataset|benchmark-totalseg|help):' | \
+	  grep -vE '^(build-container|hpc-pull|hpc-pull-now|docker-push|install-dev|test|lint|check-syntax|download-raw|create-dataset|hf-stage|hf-push|pseudolabel|export-dataset|benchmark-totalseg|help):' | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m  %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Common env overrides (set via VAR=value before the target):"
@@ -229,6 +240,29 @@ export-dataset: check-container  ## DEPRECATED — split into 'make hf-stage' + 
 	@echo "NOTE: 'make export-dataset' is deprecated and now stages ONLY."
 	@echo "      It will NOT push. Run 'make hf-push' separately to push."
 	@$(MAKE) hf-stage
+
+
+# =============================================================================
+# Stage 3.5 — pseudo-label completion (build the full v2 tree)
+# =============================================================================
+.PHONY: pseudolabel
+pseudolabel:  ## Stage 3.5 — complete partial cases via out-of-fold nnU-Net (DRY_RUN=1 to plan)
+	@mkdir -p $(LOGS_DIR)
+	@if [ "$(DRY_RUN)" != "1" ] && [ -z "$(NNUNET_SIF)" ]; then \
+	  echo "ERROR: pseudolabel needs NNUNET_SIF=/path/spinopelvic.sif"; \
+	  echo "       (the nnU-Net+CUDA container), or use DRY_RUN=1 to plan."; \
+	  echo "  DRY_RUN=1 make pseudolabel"; \
+	  echo "  NNUNET_SIF=/path/spinopelvic.sif make pseudolabel"; \
+	  exit 1; \
+	fi
+	@echo "Submitting Stage 3.5: pseudolabel  (DRY_RUN=$(DRY_RUN))"
+	@echo "  NNUNET_SIF     = $(NNUNET_SIF)"
+	@echo "  out-of-fold from staged splits_5fold.json (no train->label leak)"
+	@echo "  -> then publish v2 to a branch:"
+	@echo "     HF_TOKEN=hf_xxx HF_REPO_ID=org/Name HF_REVISION=v2 \\"
+	@echo "       HF_EXPORT_DIR=\$$(pwd)/data/hf_export_v2 make hf-push"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),NNUNET_SIF=$(NNUNET_SIF),NNUNET_RESULTS=$(NNUNET_RESULTS),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),MODELS_CONFIG=$(MODELS_CONFIG),DRY_RUN=$(DRY_RUN),SKIP_DOWNLOAD=$(SKIP_DOWNLOAD),PSEUDO_LIMIT=$(PSEUDO_LIMIT),HF_TOKEN=$(HF_TOKEN) \
+	       slurm/pseudolabel.sh
 
 
 # =============================================================================
