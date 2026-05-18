@@ -115,22 +115,30 @@ if [[ "${DRY_RUN}" != "1" ]]; then
     fi
 fi
 
+CENV="${CENV},PYTHONUNBUFFERED=1"
+
 _run() {
     # DRY_RUN needs no GPU/nnU-Net (only huggingface_hub/nibabel, which the
     # project .sif has): use the project container. A real run uses the
     # caller-supplied nnU-Net+CUDA container with --nv.
+    # stdbuf -oL -eL keeps logs streaming live through Singularity+SLURM.
     if [[ "${DRY_RUN}" == "1" ]]; then
-        singularity exec \
+        stdbuf -oL -eL singularity exec \
             --env "${CENV}" --bind "${BINDS}" --pwd /workspace \
             "${SIF_PATH}" "$@"
     else
-        singularity exec --nv \
+        stdbuf -oL -eL singularity exec --nv \
             --env "${CENV}" --bind "${BINDS}" --pwd /workspace \
             "${NNUNET_SIF}" "$@"
     fi
 }
 
-_run python3 /workspace/scripts/pseudolabel.py \
+echo ""
+echo "Entering container (first use converts the SIF to a sandbox — this"
+echo "can take a few minutes on NFS with NO output; it is NOT hung) ..."
+echo ""
+
+_run stdbuf -oL -eL python3 -u /workspace/scripts/pseudolabel.py \
     --hf_export      "/data/$(basename "${HF_EXPORT_DIR}")" \
     --out            "/data/$(basename "${PSEUDO_OUT_DIR}")" \
     --models_config  "/workspace/configs/$(basename "${MODELS_CONFIG}")" \

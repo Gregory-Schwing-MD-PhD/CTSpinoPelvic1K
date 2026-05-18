@@ -293,6 +293,15 @@ def main() -> int:
                          "held-out fold, run no download/inference.")
     args = ap.parse_args()
 
+    # Line-buffer stdout/stderr so logs stream live through Singularity /
+    # SLURM redirection instead of appearing only at exit.
+    for _s in (sys.stdout, sys.stderr):
+        try:
+            _s.reconfigure(line_buffering=True)
+        except Exception:
+            pass
+    log.info("pseudolabel starting (dry_run=%s) ...", bool(args.dry_run))
+
     import numpy as np
     import nibabel as nib
 
@@ -315,6 +324,40 @@ def main() -> int:
              len(heldout), all_folds)
 
     records = _load_manifest(man_path)
+    total = len(records)
+    in_scope = [r for r in records
+                if r.get("ok", True) and r.get("config") in SCOPE_CONFIGS
+                and r.get("ct_file") and r.get("label_file")]
+    log.info("manifest: %d records, %d in scope (%s)",
+             total, len(in_scope), "/".join(SCOPE_CONFIGS))
+
+    # DRY-RUN is plan-only: classify + log the per-case held-out fold with
+    # live [i/N] progress, copy NOTHING, write NO tree. (Copying the whole
+    # v1 tree just to "preview" is what made this look hung.)
+    if args.dry_run:
+        n_oof = n_ens = 0
+        for i, rec in enumerate(in_scope, 1):
+            tok = str(rec.get("token", ""))
+            region = MISSING_REGION[rec["config"]]
+            fold = heldout.get(tok)
+            if fold is None:
+                n_ens += 1; mode = "ensemble(NO held-out fold!)"
+            else:
+                n_oof += 1; mode = f"oof fold_{fold}"
+            log.info("[%d/%d] token=%s cfg=%s -> fill %s via %s",
+                     i, len(in_scope), tok, rec["config"], region, mode)
+        log.info("=" * 60)
+        log.info("DRY-RUN plan: %d would-fill (out-of-fold=%d  "
+                 "no-held-out-fold=%d), %d passthrough. Nothing written.",
+                 len(in_scope), n_oof, n_ens, total - len(in_scope))
+        if n_ens:
+            log.warning("%d scoped tokens have NO held-out fold — they are "
+                        "NOT in the training splits. If these are training "
+                        "cases, --splits is wrong (out-of-fold would leak).",
+                        n_ens)
+        log.info("=" * 60)
+        return 0
+
     for sub in ("ct", "labels"):
         (out / sub).mkdir(parents=True, exist_ok=True)
     for extra in ("splits_5fold.json", "splits_summary.json",
@@ -322,7 +365,7 @@ def main() -> int:
         if (src / extra).exists():
             shutil.copy2(str(src / extra), str(out / extra))
 
-    if not args.dry_run and not args.skip_download:
+    if not args.skip_download:
         download_checkpoints(cfg, args.nnunet_results, args.hf_token)
 
     n_fill = n_oof = n_ens = n_pass = n_fail = 0
@@ -335,7 +378,10 @@ def main() -> int:
                 if not (out / rel).exists():
                     shutil.copy2(str(src / rel), str(out / rel))
 
-    for rec in records:
+    for i, rec in enumerate(records, 1):
+        if i % 100 == 0 or i == total:
+            log.info("progress %d/%d  (filled=%d passthrough=%d fail=%d)",
+                     i, total, n_fill, n_pass, n_fail)
         cfg_v = rec.get("config")
         tok = str(rec.get("token", ""))
         ct_rel, lbl_rel = rec.get("ct_file"), rec.get("label_file")
@@ -354,12 +400,6 @@ def main() -> int:
         else:
             folds = [fold]             # the ONLY fold that held tok out
             mode = f"oof fold_{fold}"
-
-        if args.dry_run:
-            _passthrough(rec); new_records.append(rec); n_pass += 1
-            log.info("token=%s cfg=%s: DRY-RUN would fill %s via %s",
-                     tok, cfg_v, region, mode)
-            continue
 
         ct_src, lbl_src = src / ct_rel, src / lbl_rel
         if not ct_src.exists() or not lbl_src.exists():
@@ -405,6 +445,7 @@ def main() -> int:
                      args.limit)
             break
 
+    log.info("writing v2 manifest (%d records) ...", len(new_records))
     sys.path.insert(0, str(Path(__file__).parent))
     from export_hf import write_manifest
     write_manifest(new_records, out)
@@ -416,8 +457,6 @@ def main() -> int:
     log.info("  passthrough          : %d", n_pass)
     log.info("  failed (passthrough) : %d", n_fail)
     log.info("=" * 60)
-    if args.dry_run:
-        log.info("DRY-RUN: no download/inference; v2 tree mirrors v1.")
     return 0
 
 
