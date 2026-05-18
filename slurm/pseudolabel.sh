@@ -33,16 +33,25 @@
 #     and NNUNET_RESULTS at the trained nnUNet_results root.
 #
 # Usage:
-#   NNUNET_SIF=/path/nnunet.sif NNUNET_RESULTS=/path/nnUNet_results \
-#       sbatch slurm/pseudolabel.sh
-#   DRY_RUN=1 ... sbatch slurm/pseudolabel.sh      # plan only, no inference
+#   NNUNET_SIF=/path/spinopelvic.sif sbatch slurm/pseudolabel.sh
+#   DRY_RUN=1 sbatch slurm/pseudolabel.sh          # plan only, no inference
+#
+# The 5-fold Dataset803 checkpoints are DOWNLOADED automatically from
+# HuggingFace (configs/pseudolabel_models.json) into NNUNET_RESULTS. The
+# nnU-Net container is the spinopelvic-seg one (containers/spinopelvic.sif);
+# it ships nnunetv2 + huggingface_hub. Inference is OUT-OF-FOLD: each
+# training case is predicted only by the fold that held it out.
 #
 # Options (env overrides):
 #   HF_EXPORT_DIR   v1 source tree   (default: data/hf_export)
 #   PSEUDO_OUT_DIR  v2 output tree   (default: data/hf_export_v2)
 #   MODELS_CONFIG   (default: configs/pseudolabel_models.json)
+#   NNUNET_RESULTS  checkpoint download dir (default: <root>/nnunet/results)
+#   NNUNET_SIF      nnU-Net+CUDA container (required for a real run)
+#   SKIP_DOWNLOAD=1 reuse already-downloaded checkpoints
 #   PSEUDO_LIMIT=N  cap pseudo-filled records (debug)
-#   DRY_RUN=1       copy v1->v2 verbatim, log plan, run no inference
+#   DRY_RUN=1       copy v1->v2 verbatim, log per-case held-out fold,
+#                   run no download/inference
 # =============================================================================
 
 set -euo pipefail
@@ -54,11 +63,12 @@ source configs/default.env
 HF_EXPORT_DIR="${HF_EXPORT_DIR:-${DATA_DIR}/hf_export}"
 PSEUDO_OUT_DIR="${PSEUDO_OUT_DIR:-${DATA_DIR}/hf_export_v2}"
 MODELS_CONFIG="${MODELS_CONFIG:-${PROJECT_ROOT}/configs/pseudolabel_models.json}"
-NNUNET_RESULTS="${NNUNET_RESULTS:-${nnUNet_results:-}}"
+NNUNET_RESULTS="${NNUNET_RESULTS:-${nnUNet_results:-${PROJECT_ROOT}/nnunet/results}}"
 DRY_RUN="${DRY_RUN:-0}"
+SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
 PSEUDO_LIMIT="${PSEUDO_LIMIT:-0}"
 
-mkdir -p "${LOGS_DIR}" "${PSEUDO_OUT_DIR}"
+mkdir -p "${LOGS_DIR}" "${PSEUDO_OUT_DIR}" "${NNUNET_RESULTS}"
 
 echo "======================================================================"
 echo " Pseudo-label completion (v2 tree)"
@@ -85,37 +95,37 @@ if [[ "${DRY_RUN}" == "1" ]]; then
     EXTRA_ARGS="${EXTRA_ARGS} --dry_run"
     PSEUDO_DEVICE="cpu"
 fi
+[[ "${SKIP_DOWNLOAD}" == "1" ]] && EXTRA_ARGS="${EXTRA_ARGS} --skip_download"
 [[ "${PSEUDO_LIMIT}" != "0" ]] && EXTRA_ARGS="${EXTRA_ARGS} --limit ${PSEUDO_LIMIT}"
 
 PPATH="/workspace/scripts:/workspace/src:/workspace"
-BINDS="${PROJECT_ROOT}:/workspace,${DATA_DIR}:/data"
-[[ -n "${NNUNET_RESULTS}" ]] && BINDS="${BINDS},${NNUNET_RESULTS}:${NNUNET_RESULTS}"
+# nnUNet_results is bound at the SAME host path so the container writes
+# downloaded checkpoints back to NFS (persists across re-submits).
+BINDS="${PROJECT_ROOT}:/workspace,${DATA_DIR}:/data,${NNUNET_RESULTS}:${NNUNET_RESULTS}"
+CENV="PYTHONPATH=${PPATH},nnUNet_results=${NNUNET_RESULTS}"
+[[ -n "${HF_TOKEN:-}" ]] && CENV="${CENV},HF_TOKEN=${HF_TOKEN}"
 
 if [[ "${DRY_RUN}" != "1" ]]; then
-    if [[ -z "${NNUNET_SIF:-}" || ! -f "${NNUNET_SIF}" ]]; then
-        echo "ERROR: NNUNET_SIF not set / not found. A real run needs an"
-        echo "       nnU-Net v2 + CUDA container (the project .sif lacks it)."
-        echo "       Re-submit with NNUNET_SIF=/path/nnunet.sif, or DRY_RUN=1."
-        exit 1
-    fi
-    if [[ -z "${NNUNET_RESULTS}" ]]; then
-        echo "ERROR: NNUNET_RESULTS (or \$nnUNet_results) is required for a"
-        echo "       real run. Re-submit with NNUNET_RESULTS=/path, or DRY_RUN=1."
+    if [[ -z "${NNUNET_SIF:-}" || ! -f "${NNUNET_SIF:-}" ]]; then
+        echo "ERROR: NNUNET_SIF not set / not found. A real run needs the"
+        echo "       spinopelvic-seg nnU-Net+CUDA container (the project .sif"
+        echo "       lacks nnunetv2). Re-submit with"
+        echo "       NNUNET_SIF=/path/spinopelvic.sif, or DRY_RUN=1."
         exit 1
     fi
 fi
 
 _run() {
-    # DRY_RUN needs no GPU/nnU-Net: use the project container. A real run
-    # uses the caller-supplied nnU-Net+CUDA container with --nv.
+    # DRY_RUN needs no GPU/nnU-Net (only huggingface_hub/nibabel, which the
+    # project .sif has): use the project container. A real run uses the
+    # caller-supplied nnU-Net+CUDA container with --nv.
     if [[ "${DRY_RUN}" == "1" ]]; then
         singularity exec \
-            --env "PYTHONPATH=${PPATH}" --bind "${BINDS}" --pwd /workspace \
+            --env "${CENV}" --bind "${BINDS}" --pwd /workspace \
             "${SIF_PATH}" "$@"
     else
         singularity exec --nv \
-            --env "PYTHONPATH=${PPATH},nnUNet_results=${NNUNET_RESULTS}" \
-            --bind "${BINDS}" --pwd /workspace \
+            --env "${CENV}" --bind "${BINDS}" --pwd /workspace \
             "${NNUNET_SIF}" "$@"
     fi
 }
@@ -124,6 +134,7 @@ _run python3 /workspace/scripts/pseudolabel.py \
     --hf_export      "/data/$(basename "${HF_EXPORT_DIR}")" \
     --out            "/data/$(basename "${PSEUDO_OUT_DIR}")" \
     --models_config  "/workspace/configs/$(basename "${MODELS_CONFIG}")" \
+    --splits         "/data/$(basename "${HF_EXPORT_DIR}")/splits_5fold.json" \
     --nnunet_results "${NNUNET_RESULTS}" \
     --device         "${PSEUDO_DEVICE}" \
     ${EXTRA_ARGS}

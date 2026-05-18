@@ -23,6 +23,7 @@ if str(_SCRIPTS) not in sys.path:
 
 from pseudolabel import (  # noqa: E402
     IGNORE_LABEL,
+    build_heldout_fold_map,
     merge_pseudo_into_manual,
     remap_prediction,
     updated_record,
@@ -119,6 +120,55 @@ def test_updated_record_does_not_mutate_input():
     rec = _rec()
     updated_record(rec, "pelvis", np.array([7], dtype=np.int16))
     assert rec["prov_pelvis"] is None and rec["partial_annotation"] is True
+
+
+_SPLITS_V2 = {   # spinopelvic-seg schema: train_tokens / val_tokens + test
+    "test_tokens": ["900", "901"],
+    "folds": [
+        {"train_tokens": ["2", "3"], "val_tokens": ["10", "11"]},
+        {"train_tokens": ["10", "3"], "val_tokens": ["2"]},
+        {"train_tokens": ["10", "2"], "val_tokens": ["3"]},
+    ],
+}
+_SPLITS_V6 = {   # CTSpinoPelvic1K schema: fold/train/val
+    "folds": [
+        {"fold": 0, "train": ["2"], "val": ["10"]},
+        {"fold": 1, "train": ["10"], "val": ["2"]},
+    ],
+}
+
+
+def test_heldout_fold_map_v2_schema_token_to_validation_fold():
+    m = build_heldout_fold_map(_SPLITS_V2)
+    # a token's held-out fold = the fold whose val set holds it
+    assert m["10"] == 0 and m["11"] == 0
+    assert m["2"] == 1
+    assert m["3"] == 2
+    # test-only tokens are NOT in the map -> caller uses ensemble (they
+    # were never trained on, so no leakage either way)
+    assert "900" not in m and "901" not in m
+
+
+def test_heldout_fold_map_v6_schema_and_fold_index():
+    m = build_heldout_fold_map(_SPLITS_V6)
+    assert m == {"10": 0, "2": 1}
+
+
+def test_heldout_fold_never_returns_a_fold_that_trained_the_token():
+    # The whole point: for every mapped token, it must be ABSENT from that
+    # fold's train set (that fold's model never saw it).
+    m = build_heldout_fold_map(_SPLITS_V2)
+    for tok, fold in m.items():
+        train = _SPLITS_V2["folds"][fold].get("train_tokens", [])
+        assert tok not in train, (
+            f"token {tok} held-out fold {fold} also TRAINED on it — leak"
+        )
+
+
+def test_heldout_fold_map_tokens_are_strings():
+    m = build_heldout_fold_map({"folds": [{"fold": 0, "train": [],
+                                           "val": [10, 11]}]})
+    assert m == {"10": 0, "11": 0}   # int tokens normalized to str
 
 
 def test_residual_ignore_keeps_partial_flag_true():

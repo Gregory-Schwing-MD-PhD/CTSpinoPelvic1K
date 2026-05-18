@@ -1,55 +1,38 @@
 {
   "_README": [
-    "Externalized model bundle config for scripts/pseudolabel.py.",
-    "This file is the ONLY place the (unsettled) model identity + label",
-    "space lives, so re-training (e.g. normal-spine-only, or un-merging",
-    "L5/L6) needs NO code change — just edit this file.",
+    "Config for scripts/pseudolabel.py. ONE nnU-Net v2 model (Dataset803,",
+    "merged-label) downloaded from HuggingFace predicts BOTH spine and",
+    "pelvis (9 merged classes), so there are no separate region models.",
     "",
-    "One entry per region model. pseudolabel.py fills the MISSING region of",
-    "spine_only / pelvic_native (separate-mode) records using the model whose",
-    "fills_region matches, and NEVER overwrites a manual voxel.",
+    "OUT-OF-FOLD: pseudo-labelling reuses the SAME splits_5fold.json the",
+    "checkpoints were trained on. A token's held-out model is the fold whose",
+    "val set contains it (that fold never trained on it). pseudolabel.py runs",
+    "nnUNetv2_predict with ONLY that single fold. Tokens absent from every",
+    "val set (test-only / never trained) fall back to the 5-fold ensemble.",
     "",
-    "label_remap: model-output integer class -> canonical 10-class id",
-    "  (background 0 and any class absent from the map are dropped). This is",
-    "  where you encode e.g. last_lumbar -> {5,6} decisions; if the model",
-    "  cannot separate L5/L6 you map its merged class to a single canonical",
-    "  id and accept that limitation (documented per-model in 'notes').",
-    "supplies_canonical: canonical ids this model is TRUSTED to write. A",
-    "  predicted class remapped outside this set is discarded (defensive).",
-    "set enabled=true only once the checkpoints for that model are final."
+    "label_remap: model-output int -> canonical CTSpinoPelvic1K 10-class id.",
+    "Dataset803 scheme: 1-4=L1-L4, 5=last_lumbar(merged L5+L6), 6=sacrum,",
+    "7=left_hip, 8=right_hip. Canonical: 1-6=L1-L6, 7=sacrum, 8/9=hips.",
+    "5 -> 5 maps merged last_lumbar to L5; the L5/L6 split is a deferred",
+    "downstream refinement (count last_lumbar components sup->inf), NOT done",
+    "here. Change this mapping if you retrain with un-merged L5/L6."
   ],
-  "models": [
-    {
-      "name": "spine",
-      "enabled": false,
-      "fills_region": "spine",
-      "supplies_canonical": [1, 2, 3, 4, 5, 6],
-      "notes": "FILL ME. Current checkpoints were trained on LSTV cases with L5+L6 merged into one 'last_lumbar' class — decide the remap (or retrain on normal spines) before enabling.",
-      "nnunet": {
-        "dataset_id": "Dataset501_CTSpinoPelvic",
-        "trainer": "nnUNetTrainer",
-        "plans": "nnUNetPlans",
-        "configuration": "3d_fullres",
-        "folds": [0, 1, 2, 3, 4],
-        "checkpoint": "checkpoint_final.pth"
-      },
-      "label_remap": {"1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6}
+  "checkpoints": {
+    "hf_repo_id": "anonymous-neurips-ED/spinopelvic-seg-checkpoints",
+    "hf_repo_type": "model",
+    "results_subdir": "Dataset803_SpineSurgCTFullMerged",
+    "nnunet": {
+      "dataset_id": "803",
+      "trainer": "nnUNetTrainerWandB_500ep_LSTVOversample",
+      "plans": "nnUNetResEncUNetPlans_100G",
+      "configuration": "3d_fullres",
+      "checkpoint": "checkpoint_best.pth"
     },
-    {
-      "name": "pelvis",
-      "enabled": false,
-      "fills_region": "pelvis",
-      "supplies_canonical": [7, 8, 9],
-      "notes": "FILL ME. Only needed to complete spine_only scans (pelvis missing). If you have no pelvis model, leave disabled — those records are skipped, not fabricated.",
-      "nnunet": {
-        "dataset_id": "Dataset501_CTSpinoPelvic",
-        "trainer": "nnUNetTrainer",
-        "plans": "nnUNetPlans",
-        "configuration": "3d_fullres",
-        "folds": [0, 1, 2, 3, 4],
-        "checkpoint": "checkpoint_final.pth"
-      },
-      "label_remap": {"7": 7, "8": 8, "9": 9}
-    }
-  ]
+    "label_remap": {
+      "1": 1, "2": 2, "3": 3, "4": 4,
+      "5": 5,
+      "6": 7, "7": 8, "8": 9
+    },
+    "notes": "model class 5 = merged last_lumbar -> canonical 5 (L5); L5/L6 split deferred."
+  }
 }

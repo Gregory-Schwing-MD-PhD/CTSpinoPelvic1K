@@ -1,6 +1,6 @@
 """
-pseudolabel.py — complete the partially-annotated cases with model
-predictions, producing a FULL pseudo-labelled tree for a v2 HF release.
+pseudolabel.py — complete the partially-annotated cases with OUT-OF-FOLD
+model predictions, producing a FULL pseudo-labelled tree for a v2 release.
 
 WHAT THIS DOES (and deliberately does NOT)
 ==========================================
@@ -8,33 +8,42 @@ Operates ONLY on an already-staged HF export tree (`make hf-stage` →
 data/hf_export/: ct/, labels/, manifest.json, splits_5fold.json, ...). It
 NEVER re-runs the export and NEVER trains.
 
-Scope (per the design decision): only `spine_only` and `pelvic_native`
-records — i.e. the spine-only / pelvic-only / separate-mode scans that have
-ONE region manually annotated and the other absent. For each, the MISSING
-region is filled with a 5-fold nnU-Net ensemble prediction.
+Scope: `spine_only` and `pelvic_native` records — the partially-annotated
+scans with ONE region manually labelled and the other absent. The MISSING
+region is filled with a prediction from the spinopelvic-seg 5-fold model:
 
-  spine_only     manual L1-L6      → pseudo-fill sacrum+hips (7,8,9)
-  pelvic_native  manual sacrum+hip → pseudo-fill L1-L6       (1-6)
-
-Hard contract (mirrors place_fused_masks.py / export_hf.py): a manual voxel
-is NEVER overwritten. Pseudo only fills voxels the manual annotator left as
-background (0) or IGNORE_LABEL (10). prov_<region> for the filled side
-flips null→"pseudo"; the manual side keeps prov="manual".
+  spine_only     manual L1-L6      → pseudo-fill sacrum+hips
+  pelvic_native  manual sacrum+hip → pseudo-fill L1-L6
 
 `fused` records (both regions already manual) pass through UNCHANGED.
-Finding a better high-fidelity CT for fused cases and fully pseudo-labelling
-it is a separate, deferred follow-up (scouts / mixed kernels make CT
-selection non-trivial) — see TODO at end.
+Finding a better high-fidelity CT for fused cases is a deferred follow-up
+(see TODO at end).
 
-MODEL IDENTITY IS EXTERNALIZED
-==============================
-Every model-coupled fact (nnU-Net dataset id / trainer / plans / folds /
-checkpoint, AND the model-output→canonical-10-class `label_remap`) lives in
-configs/pseudolabel_models.json — NOT in this file. The training scheme is
-still in flux (LSTV-only, L5+L6 merged into last_lumbar, possible retrain on
-normal spines); editing the JSON is sufficient to track those decisions.
-A model with enabled=false (or no checkpoints) → its records are SKIPPED and
-left partial, never fabricated.
+OUT-OF-FOLD (no train→pseudo-label leakage)
+===========================================
+The scoped records WERE training data for the checkpoints. Pseudo-labelling
+a case with a model that trained on it would leak. So per case we use ONLY
+the single fold that HELD IT OUT: the fold whose `val` set contains the
+case's patient token (that fold's model never saw it). This is read from
+the SAME splits_5fold.json the model was trained on. A token absent from
+every val set (test-only / never trained) safely falls back to the full
+5-fold ensemble.
+
+  nnUNetv2_predict ... -f <held-out fold>      # single fold, never trained
+                                               #   on this token
+
+HARD CONTRACT (mirrors place_fused_masks.py / export_hf.py)
+A manual voxel is NEVER overwritten. Pseudo only fills voxels the manual
+annotator left as background (0) or IGNORE_LABEL (10). prov_<region> for the
+filled side flips null→"pseudo"; the manual side keeps prov="manual".
+
+MODEL
+=====
+nnU-Net v2, Dataset803 (merged-label), downloaded from HuggingFace
+(configs/pseudolabel_models.json → checkpoints.hf_repo_id). One model
+predicts both spine and pelvis (9 merged classes). The model-output →
+canonical-10-class mapping (incl. merged last_lumbar) is the externalized
+`label_remap` — edit the JSON, never this file, if you retrain.
 
 Usage
 -----
@@ -42,14 +51,13 @@ Usage
       --hf_export   data/hf_export \
       --out         data/hf_export_v2 \
       --models_config configs/pseudolabel_models.json \
-      --nnunet_results $nnUNet_results \
-      [--device cuda] [--limit N] [--dry_run]
+      --nnunet_results $PWD/nnunet/results \
+      [--splits data/hf_export/splits_5fold.json] \
+      [--device cuda] [--limit N] [--dry_run] [--skip_download]
 
-Then publish as a v2 branch (main / anonymous-review URL untouched):
-  make hf-stage   # if not already staged
-  python scripts/pseudolabel.py ... --out data/hf_export_v2
+Publish as a v2 BRANCH (main / anonymous-review URL untouched):
   HF_TOKEN=hf_xxx HF_REPO_ID=org/Name HF_REVISION=v2 \
-      make hf-push   # (point hf-push at data/hf_export_v2 via HF_EXPORT_DIR)
+      HF_EXPORT_DIR=$PWD/data/hf_export_v2 make hf-push
 """
 from __future__ import annotations
 
@@ -78,8 +86,8 @@ CANONICAL_SPINE  = frozenset({1, 2, 3, 4, 5, 6})
 CANONICAL_PELVIS = frozenset({7, 8, 9})
 REGION_CANONICAL = {"spine": CANONICAL_SPINE, "pelvis": CANONICAL_PELVIS}
 
-# Which region a scoped record is MISSING (and therefore which model fills
-# it). `config` is the exported field (export_hf.py build_work).
+# Which region a scoped record is MISSING (and therefore which canonical
+# classes we keep from the full prediction). `config` is the exported field.
 MISSING_REGION = {
     "spine_only":     "pelvis",   # manual spine, pelvis absent
     "pelvic_native":  "spine",    # manual pelvis, spine absent
@@ -98,7 +106,7 @@ def remap_prediction(pred, label_remap: Dict[str, int],
     `label_remap` keys are model-output ints (as JSON strings). Any value
     remapping outside `supplied_canonical` — or any source class not in the
     map (incl. background) — becomes 0. This is the defensive boundary that
-    keeps a mis-specified model from writing into the wrong region.
+    keeps the model from writing into the manually-annotated region.
     """
     import numpy as np
     supplied = set(int(c) for c in supplied_canonical)
@@ -114,18 +122,17 @@ def remap_prediction(pred, label_remap: Dict[str, int],
 def merge_pseudo_into_manual(manual, pred_canonical) -> "object":
     """Manual-preserving merge.
 
-    Returns a copy of `manual` where voxels that the manual annotator left
-    as background (0) or IGNORE_LABEL are replaced by `pred_canonical`
-    wherever the prediction is non-zero. Manual voxels with a real class
-    (1..9) are NEVER touched — the hard provenance contract.
+    Returns a copy of `manual` where voxels the annotator left as background
+    (0) or IGNORE_LABEL are replaced by `pred_canonical` wherever the
+    prediction is non-zero. Manual voxels with a real class (1..9) are NEVER
+    touched — the hard provenance contract. Remaining IGNORE collapses to
+    background (the record is no longer a partial-annotation case).
     """
     import numpy as np
     merged = np.array(manual, dtype=np.int16, copy=True)
     fillable = (merged == 0) | (merged == IGNORE_LABEL)
     take = fillable & (pred_canonical > 0)
     merged[take] = pred_canonical[take].astype(np.int16)
-    # Any IGNORE the model did not fill collapses to background: the record
-    # is no longer a partial-annotation case once a region is completed.
     merged[merged == IGNORE_LABEL] = 0
     return merged
 
@@ -149,71 +156,95 @@ def updated_record(record: dict, filled_region: str, merged) -> dict:
     return r
 
 
-# ===========================================================================
-# Parameterized inference  (nnU-Net native 5-fold ensemble)
-# ===========================================================================
+def build_heldout_fold_map(splits: dict) -> Dict[str, int]:
+    """token (str) -> the fold index that HELD IT OUT (token ∈ that fold's
+    validation set, so that fold's model never trained on it).
 
-def _find_model(models_cfg: dict, region: str) -> Optional[dict]:
-    for m in models_cfg.get("models", []):
-        if m.get("fills_region") == region and m.get("enabled"):
-            return m
-    return None
-
-
-def run_nnunet_ensemble(model: dict, ct_path: Path, work_root: Path,
-                        nnunet_results: Optional[str],
-                        device: str) -> Optional[Path]:
-    """Run `nnUNetv2_predict` with the model's 5 folds (native softmax
-    ensemble). Returns the predicted seg path, or None on failure.
-
-    Parameterized entirely from `model["nnunet"]`; nothing about the label
-    space or checkpoint identity is hardcoded here.
+    Tolerant of both splits_5fold.json schemas in play:
+      * spinopelvic-seg v2:  folds:[{train_tokens, val_tokens}], test_tokens
+      * CTSpinoPelvic1K v6:  folds:[{fold, train, val}]
+    Tokens only in test_tokens (or absent everywhere) are intentionally
+    NOT in the map → caller uses the full ensemble for those.
     """
-    nn = model["nnunet"]
-    in_dir  = work_root / "in"
-    out_dir = work_root / "out"
+    out: Dict[str, int] = {}
+    for idx, f in enumerate(splits.get("folds", []) or []):
+        fold_idx = int(f.get("fold", idx))
+        val = f.get("val_tokens", f.get("val", [])) or []
+        for tok in val:
+            out[str(tok)] = fold_idx
+    return out
+
+
+# ===========================================================================
+# Checkpoint download + parameterized nnU-Net inference
+# ===========================================================================
+
+def download_checkpoints(ckpt_cfg: dict, nnunet_results: Path,
+                         hf_token: Optional[str]) -> Path:
+    """snapshot_download the 5-fold model into the layout nnUNetv2_predict
+    expects: <nnunet_results>/<results_subdir>/. Idempotent (HF cache);
+    skipped automatically if fold dirs already present."""
+    dest = nnunet_results / ckpt_cfg["results_subdir"]
+    if any(dest.glob("*/fold_*/")):
+        log.info("Checkpoints already present at %s — skip download", dest)
+        return dest
+    from huggingface_hub import snapshot_download
+    dest.mkdir(parents=True, exist_ok=True)
+    log.info("Downloading %s -> %s", ckpt_cfg["hf_repo_id"], dest)
+    snapshot_download(
+        repo_id=ckpt_cfg["hf_repo_id"],
+        repo_type=ckpt_cfg.get("hf_repo_type", "model"),
+        local_dir=str(dest),
+        token=hf_token,
+    )
+    return dest
+
+
+def run_nnunet(nn: dict, ct_path: Path, work_root: Path,
+               folds: List[int], nnunet_results: str,
+               device: str) -> Optional[Path]:
+    """Run `nnUNetv2_predict` with an explicit fold list (single held-out
+    fold for training cases; all folds for never-trained cases). Returns
+    the predicted seg path, or None on failure. Nothing about the label
+    space / checkpoint identity is hardcoded — all from `nn`."""
+    in_dir, out_dir = work_root / "in", work_root / "out"
     in_dir.mkdir(parents=True, exist_ok=True)
     out_dir.mkdir(parents=True, exist_ok=True)
-    # nnU-Net v2 expects <caseid>_0000.nii.gz for a single-channel input.
-    case_in = in_dir / "case_0000.nii.gz"
-    shutil.copy2(str(ct_path), str(case_in))
+    shutil.copy2(str(ct_path), str(in_dir / "case_0000.nii.gz"))
 
-    folds = [str(f) for f in nn.get("folds", [0, 1, 2, 3, 4])]
     cmd = [
         "nnUNetv2_predict",
         "-i", str(in_dir), "-o", str(out_dir),
         "-d", str(nn["dataset_id"]),
-        "-tr", nn.get("trainer", "nnUNetTrainer"),
-        "-p", nn.get("plans", "nnUNetPlans"),
+        "-tr", nn["trainer"],
+        "-p", nn["plans"],
         "-c", nn["configuration"],
-        "-f", *folds,
-        "-chk", nn.get("checkpoint", "checkpoint_final.pth"),
+        "-f", *[str(f) for f in folds],
+        "-chk", nn.get("checkpoint", "checkpoint_best.pth"),
         "-device", device,
     ]
     env = dict(os.environ)
-    if nnunet_results:
-        env["nnUNet_results"] = nnunet_results
+    env["nnUNet_results"] = nnunet_results
     log.info("    nnUNetv2_predict d=%s folds=%s", nn["dataset_id"], folds)
     try:
         subprocess.run(cmd, check=True, env=env,
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     except FileNotFoundError:
-        log.error("    nnUNetv2_predict not on PATH — is the nnU-Net env active?")
+        log.error("    nnUNetv2_predict not on PATH — wrong container/env?")
         return None
     except subprocess.CalledProcessError as exc:
-        log.error("    nnUNetv2_predict failed (%s):\n%s",
-                  exc.returncode, (exc.output or b"").decode(errors="replace")[-2000:])
+        log.error("    nnUNetv2_predict failed (%s):\n%s", exc.returncode,
+                  (exc.output or b"").decode(errors="replace")[-2000:])
         return None
     pred = out_dir / "case.nii.gz"
     return pred if pred.exists() else None
 
 
 def _align_to(ref_img, pred_img):
-    """Nearest-neighbour resample pred onto ref's grid if they differ.
-    The exported CT and label share a grid, and we predict on the exported
-    CT, so this is normally a no-op; the resample is a safety net."""
+    """Nearest-neighbour resample pred onto ref's grid if they differ. The
+    exported CT and label share a grid and we predict on the exported CT, so
+    this is normally a no-op; the resample is a safety net."""
     import numpy as np
-    import nibabel as nib
     if (pred_img.shape[:3] == ref_img.shape[:3]
             and np.allclose(pred_img.affine, ref_img.affine, atol=1e-4)):
         return np.asarray(pred_img.dataobj).astype(np.int16)
@@ -241,20 +272,25 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--hf_export", required=True, type=Path,
-                    help="Staged v1 tree (from `make hf-stage`).")
-    ap.add_argument("--out", required=True, type=Path,
-                    help="v2 tree to create (e.g. data/hf_export_v2).")
+    ap.add_argument("--hf_export", required=True, type=Path)
+    ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--models_config", type=Path,
                     default=Path("configs/pseudolabel_models.json"))
-    ap.add_argument("--nnunet_results", default=os.environ.get("nnUNet_results"),
-                    help="nnU-Net results root (default: $nnUNet_results).")
+    ap.add_argument("--splits", type=Path, default=None,
+                    help="splits_5fold.json the model was trained on "
+                         "(default: <hf_export>/splits_5fold.json). MUST be "
+                         "the training splits, or out-of-fold is wrong.")
+    ap.add_argument("--nnunet_results", type=Path,
+                    default=Path(os.environ.get("nnUNet_results",
+                                                "nnunet/results")),
+                    help="Where checkpoints are downloaded to / found.")
+    ap.add_argument("--hf_token", default=os.environ.get("HF_TOKEN"))
     ap.add_argument("--device", default="cuda")
-    ap.add_argument("--limit", type=int, default=0,
-                    help="Process at most N scoped records (debug).")
+    ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--skip_download", action="store_true")
     ap.add_argument("--dry_run", action="store_true",
-                    help="Plan only: copy v1→v2 verbatim, log what WOULD be "
-                         "pseudo-filled, run no inference.")
+                    help="Plan only: copy v1→v2 verbatim, log the per-case "
+                         "held-out fold, run no download/inference.")
     args = ap.parse_args()
 
     import numpy as np
@@ -265,120 +301,130 @@ def main() -> int:
     if not man_path.exists():
         log.error("No manifest.json in %s — run `make hf-stage` first.", src)
         return 1
-    models_cfg = json.loads(args.models_config.read_text())
-    records = _load_manifest(man_path)
+    cfg = json.loads(args.models_config.read_text())["checkpoints"]
+    nn = cfg["nnunet"]
 
+    splits_path = args.splits or (src / "splits_5fold.json")
+    if not splits_path.exists():
+        log.error("splits file not found: %s (needed for out-of-fold).",
+                  splits_path)
+        return 1
+    heldout = build_heldout_fold_map(json.loads(splits_path.read_text()))
+    all_folds = sorted(set(heldout.values())) or [0, 1, 2, 3, 4]
+    log.info("Out-of-fold map: %d tokens across folds %s",
+             len(heldout), all_folds)
+
+    records = _load_manifest(man_path)
     for sub in ("ct", "labels"):
         (out / sub).mkdir(parents=True, exist_ok=True)
-    # Passthrough non-CT/label artifacts so the v2 tree is self-contained.
     for extra in ("splits_5fold.json", "splits_summary.json",
                   "dataset_interface.py", "README.md"):
-        s = src / extra
-        if s.exists():
-            shutil.copy2(str(s), str(out / extra))
+        if (src / extra).exists():
+            shutil.copy2(str(src / extra), str(out / extra))
 
-    n_fill = n_skip_nomodel = n_passthrough = n_fail = 0
+    if not args.dry_run and not args.skip_download:
+        download_checkpoints(cfg, args.nnunet_results, args.hf_token)
+
+    n_fill = n_oof = n_ens = n_pass = n_fail = 0
     new_records: List[dict] = []
 
+    def _passthrough(r):
+        for rel in (r.get("ct_file"), r.get("label_file")):
+            if rel and (src / rel).exists():
+                (out / rel).parent.mkdir(parents=True, exist_ok=True)
+                if not (out / rel).exists():
+                    shutil.copy2(str(src / rel), str(out / rel))
+
     for rec in records:
-        cfg = rec.get("config")
+        cfg_v = rec.get("config")
+        tok = str(rec.get("token", ""))
         ct_rel, lbl_rel = rec.get("ct_file"), rec.get("label_file")
 
-        def _passthrough(r):
-            for rel in (r.get("ct_file"), r.get("label_file")):
-                if rel and (src / rel).exists():
-                    (out / rel).parent.mkdir(parents=True, exist_ok=True)
-                    if not (out / rel).exists():
-                        shutil.copy2(str(src / rel), str(out / rel))
-
-        if not rec.get("ok", True) or cfg not in SCOPE_CONFIGS \
+        if not rec.get("ok", True) or cfg_v not in SCOPE_CONFIGS \
                 or not ct_rel or not lbl_rel:
-            _passthrough(rec)
-            new_records.append(rec)
-            n_passthrough += 1
+            _passthrough(rec); new_records.append(rec); n_pass += 1
             continue
 
-        region = MISSING_REGION[cfg]
-        model = _find_model(models_cfg, region)
-        tok = rec.get("token", "?")
+        region = MISSING_REGION[cfg_v]
+        supplied = REGION_CANONICAL[region]
+        fold = heldout.get(tok)
+        if fold is None:
+            folds = all_folds          # never trained on tok → ensemble ok
+            mode = "ensemble(no-train)"
+        else:
+            folds = [fold]             # the ONLY fold that held tok out
+            mode = f"oof fold_{fold}"
 
-        if model is None or args.dry_run:
-            _passthrough(rec)
-            new_records.append(rec)
-            if model is None:
-                n_skip_nomodel += 1
-                log.info("token=%s cfg=%s: no enabled '%s' model — left "
-                         "partial (not fabricated)", tok, cfg, region)
-            else:
-                n_passthrough += 1
-                log.info("token=%s cfg=%s: DRY-RUN would pseudo-fill %s via "
-                         "model '%s'", tok, cfg, region, model["name"])
+        if args.dry_run:
+            _passthrough(rec); new_records.append(rec); n_pass += 1
+            log.info("token=%s cfg=%s: DRY-RUN would fill %s via %s",
+                     tok, cfg_v, region, mode)
             continue
 
         ct_src, lbl_src = src / ct_rel, src / lbl_rel
         if not ct_src.exists() or not lbl_src.exists():
             _passthrough(rec); new_records.append(rec); n_fail += 1
-            log.warning("token=%s: missing ct/label on disk — passthrough", tok)
+            log.warning("token=%s: ct/label missing on disk — passthrough", tok)
             continue
 
         try:
             with tempfile.TemporaryDirectory(prefix="psl_") as td:
-                pred_path = run_nnunet_ensemble(
-                    model, ct_src, Path(td), args.nnunet_results, args.device)
+                pred_path = run_nnunet(
+                    nn, ct_src, Path(td), folds,
+                    str(args.nnunet_results), args.device)
                 if pred_path is None:
                     raise RuntimeError("inference produced no output")
                 ref = nib.load(str(lbl_src))
                 pred_arr = _align_to(ref, nib.load(str(pred_path)))
                 pred_canon = remap_prediction(
-                    pred_arr, model["label_remap"],
-                    model["supplies_canonical"])
+                    pred_arr, cfg["label_remap"], supplied)
                 manual = np.asarray(ref.dataobj).astype(np.int16)
                 merged = merge_pseudo_into_manual(manual, pred_canon)
 
-            _passthrough(rec)  # copies the CT (label overwritten below)
+            _passthrough(rec)  # copies the CT; label overwritten below
             nib.save(nib.Nifti1Image(merged, ref.affine, ref.header),
                      str(out / lbl_rel))
             new_records.append(updated_record(rec, region, merged))
             n_fill += 1
-            log.info("token=%s cfg=%s: filled %s (model '%s', %d vox)",
-                     tok, cfg, region, model["name"],
-                     int((merged > 0).sum()))
+            n_oof += int(fold is not None)
+            n_ens += int(fold is None)
+            log.info("token=%s cfg=%s: filled %s via %s (%d fg vox)",
+                     tok, cfg_v, region, mode,
+                     int(((merged > 0) & (merged != IGNORE_LABEL)).sum()))
         except Exception as exc:
             _passthrough(rec); new_records.append(rec); n_fail += 1
             log.warning("token=%s: pseudo-fill failed (%s) — passthrough",
                         tok, exc)
 
         if args.limit and n_fill >= args.limit:
-            log.info("--limit %d reached; passing remaining through",
-                     args.limit)
             done = {id(r) for r in new_records}
             for r in records:
-                if id(r) not in done and r not in new_records:
-                    _passthrough(r); new_records.append(r); n_passthrough += 1
+                if id(r) not in done:
+                    _passthrough(r); new_records.append(r); n_pass += 1
+            log.info("--limit %d reached; remaining passed through",
+                     args.limit)
             break
 
-    # Reuse export_hf's canonical-schema writer so v2 manifest is identical
-    # in shape/typing to v1 (no HF-viewer CastError).
     sys.path.insert(0, str(Path(__file__).parent))
     from export_hf import write_manifest
     write_manifest(new_records, out)
 
     log.info("=" * 60)
     log.info("pseudolabel v2 tree -> %s", out)
-    log.info("  pseudo-filled : %d", n_fill)
-    log.info("  passthrough   : %d", n_passthrough)
-    log.info("  skipped (no model, left partial): %d", n_skip_nomodel)
-    log.info("  failed (passthrough): %d", n_fail)
+    log.info("  pseudo-filled        : %d  (out-of-fold=%d  ensemble=%d)",
+             n_fill, n_oof, n_ens)
+    log.info("  passthrough          : %d", n_pass)
+    log.info("  failed (passthrough) : %d", n_fail)
     log.info("=" * 60)
     if args.dry_run:
-        log.info("DRY-RUN: no inference ran; v2 tree mirrors v1.")
+        log.info("DRY-RUN: no download/inference; v2 tree mirrors v1.")
     return 0
 
 
 # TODO(deferred): fused-case completion. For `fused` records, locate the
 # other high-fidelity diagnostic CT in the same TCIA study (filtering out
-# scouts/localizers and reconciling differing convolution kernels) and
-# fully pseudo-label that volume. Non-trivial series selection — tracked
+# scouts/localizers, reconciling differing convolution kernels) and fully
+# pseudo-label that volume. Non-trivial series selection — tracked
 # separately, intentionally NOT attempted here.
 
 if __name__ == "__main__":
