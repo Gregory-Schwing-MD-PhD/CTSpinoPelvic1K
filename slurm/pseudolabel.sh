@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --gres=gpu:nvidia_h200:1
-#SBATCH --time=24:00:00
+#SBATCH --time=48:00:00
 #SBATCH --output=logs/pseudolabel_%j.out
 #SBATCH --error=logs/pseudolabel_%j.err
 #SBATCH --mail-type=END,FAIL

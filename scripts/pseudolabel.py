@@ -68,7 +68,7 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
+from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -189,29 +189,35 @@ def download_checkpoints(ckpt_cfg: dict, nnunet_results: Path,
         log.info("Checkpoints already present at %s — skip download", dest)
         return dest
     from huggingface_hub import snapshot_download
+    # An empty/blank token (HF_TOKEN="" from default.env) makes
+    # huggingface_hub emit an illegal `Authorization: Bearer ` header. The
+    # checkpoints repo is public, so coerce blank -> None (anonymous).
+    token = (hf_token or "").strip() or None
     dest.mkdir(parents=True, exist_ok=True)
-    log.info("Downloading %s -> %s", ckpt_cfg["hf_repo_id"], dest)
+    log.info("Downloading %s -> %s  (auth=%s)", ckpt_cfg["hf_repo_id"], dest,
+             "token" if token else "anonymous")
     snapshot_download(
         repo_id=ckpt_cfg["hf_repo_id"],
         repo_type=ckpt_cfg.get("hf_repo_type", "model"),
         local_dir=str(dest),
-        token=hf_token,
+        token=token,
     )
     return dest
 
 
-def run_nnunet(nn: dict, ct_path: Path, work_root: Path,
-               folds: List[int], nnunet_results: str,
-               device: str) -> Optional[Path]:
-    """Run `nnUNetv2_predict` with an explicit fold list (single held-out
-    fold for training cases; all folds for never-trained cases). Returns
-    the predicted seg path, or None on failure. Nothing about the label
-    space / checkpoint identity is hardcoded — all from `nn`."""
-    in_dir, out_dir = work_root / "in", work_root / "out"
+def run_nnunet_folder(nn: dict, in_dir: Path, out_dir: Path,
+                      folds: List[int], nnunet_results: str, device: str,
+                      npp: int, nps: int) -> bool:
+    """Run ONE `nnUNetv2_predict` over a whole input folder (model loaded
+    once for the entire fold group — the dominant cost N model-loads -> 1
+    per group). `--continue_prediction` skips cases already written, so a
+    walltime timeout resumes instead of restarting. Returns False on a
+    hard launch failure (caller then marks that group's cases failed)."""
     in_dir.mkdir(parents=True, exist_ok=True)
     out_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(str(ct_path), str(in_dir / "case_0000.nii.gz"))
-
+    n_in = len(list(in_dir.glob("*_0000.nii.gz")))
+    if n_in == 0:
+        return True  # nothing to do for this group
     cmd = [
         "nnUNetv2_predict",
         "-i", str(in_dir), "-o", str(out_dir),
@@ -222,22 +228,27 @@ def run_nnunet(nn: dict, ct_path: Path, work_root: Path,
         "-f", *[str(f) for f in folds],
         "-chk", nn.get("checkpoint", "checkpoint_best.pth"),
         "-device", device,
+        "-npp", str(npp), "-nps", str(nps),
+        "--continue_prediction",
     ]
     env = dict(os.environ)
     env["nnUNet_results"] = nnunet_results
-    log.info("    nnUNetv2_predict d=%s folds=%s", nn["dataset_id"], folds)
+    log.info("  nnUNetv2_predict folds=%s  cases=%d  (model loaded once)",
+             folds, n_in)
     try:
-        subprocess.run(cmd, check=True, env=env,
-                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        # Stream nnU-Net's own progress straight through (no PIPE capture,
+        # so its tqdm/ETA is visible live in the SLURM log).
+        subprocess.run(cmd, check=True, env=env)
     except FileNotFoundError:
-        log.error("    nnUNetv2_predict not on PATH — wrong container/env?")
-        return None
+        log.error("  nnUNetv2_predict not on PATH — wrong container/env?")
+        return False
     except subprocess.CalledProcessError as exc:
-        log.error("    nnUNetv2_predict failed (%s):\n%s", exc.returncode,
-                  (exc.output or b"").decode(errors="replace")[-2000:])
-        return None
-    pred = out_dir / "case.nii.gz"
-    return pred if pred.exists() else None
+        # nnU-Net v2 has a known cosmetic post-completion shutdown crash;
+        # validate by filesystem (caller checks per-case output presence)
+        # rather than trusting the exit code.
+        log.warning("  nnUNetv2_predict exit=%s — validating by filesystem",
+                    exc.returncode)
+    return True
 
 
 def _align_to(ref_img, pred_img):
@@ -287,6 +298,14 @@ def main() -> int:
     ap.add_argument("--hf_token", default=os.environ.get("HF_TOKEN"))
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--work_dir", type=Path, default=None,
+                    help="Scratch for staged inputs / raw predictions / "
+                         "resume markers (default: <out>_work). Kept OUT of "
+                         "the v2 tree so it is never uploaded.")
+    ap.add_argument("--npp", type=int, default=4,
+                    help="nnU-Net preprocessing workers (-npp).")
+    ap.add_argument("--nps", type=int, default=4,
+                    help="nnU-Net segmentation-export workers (-nps).")
     ap.add_argument("--skip_download", action="store_true")
     ap.add_argument("--dry_run", action="store_true",
                     help="Plan only: copy v1→v2 verbatim, log the per-case "
@@ -358,6 +377,11 @@ def main() -> int:
         log.info("=" * 60)
         return 0
 
+    work = args.work_dir or (out.parent / (out.name + "_work"))
+    in_root, pred_root, done_dir = (work / "inputs", work / "preds",
+                                    work / "done")
+    for d in (in_root, pred_root, done_dir):
+        d.mkdir(parents=True, exist_ok=True)
     for sub in ("ct", "labels"):
         (out / sub).mkdir(parents=True, exist_ok=True)
     for extra in ("splits_5fold.json", "splits_summary.json",
@@ -368,82 +392,123 @@ def main() -> int:
     if not args.skip_download:
         download_checkpoints(cfg, args.nnunet_results, args.hf_token)
 
-    n_fill = n_oof = n_ens = n_pass = n_fail = 0
-    new_records: List[dict] = []
+    def _case_id(r) -> str:                       # unique per record
+        return Path(r["ct_file"]).name[:-len(".nii.gz")]
+
+    def _copy_into_v2(rel):
+        if rel and (src / rel).exists():
+            (out / rel).parent.mkdir(parents=True, exist_ok=True)
+            if not (out / rel).exists():
+                shutil.copy2(str(src / rel), str(out / rel))
 
     def _passthrough(r):
-        for rel in (r.get("ct_file"), r.get("label_file")):
-            if rel and (src / rel).exists():
-                (out / rel).parent.mkdir(parents=True, exist_ok=True)
-                if not (out / rel).exists():
-                    shutil.copy2(str(src / rel), str(out / rel))
+        _copy_into_v2(r.get("ct_file"))
+        _copy_into_v2(r.get("label_file"))
 
-    for i, rec in enumerate(records, 1):
-        if i % 100 == 0 or i == total:
-            log.info("progress %d/%d  (filled=%d passthrough=%d fail=%d)",
-                     i, total, n_fill, n_pass, n_fail)
+    # Resume: completed cases left a marker holding their updated record.
+    done: Dict[str, dict] = {}
+    for m in done_dir.glob("*.json"):
+        try:
+            done[m.stem] = json.loads(m.read_text())
+        except Exception:
+            pass
+    if done:
+        log.info("resume: %d cases already completed (markers)", len(done))
+
+    n_fill = n_oof = n_ens = n_pass = n_fail = n_resume = 0
+    new_records: List[dict] = []
+    scoped: List[tuple] = []   # (cid, rec, region, supplied, fold)
+
+    for rec in records:
         cfg_v = rec.get("config")
-        tok = str(rec.get("token", ""))
         ct_rel, lbl_rel = rec.get("ct_file"), rec.get("label_file")
-
         if not rec.get("ok", True) or cfg_v not in SCOPE_CONFIGS \
                 or not ct_rel or not lbl_rel:
             _passthrough(rec); new_records.append(rec); n_pass += 1
             continue
-
-        region = MISSING_REGION[cfg_v]
-        supplied = REGION_CANONICAL[region]
-        fold = heldout.get(tok)
-        if fold is None:
-            folds = all_folds          # never trained on tok → ensemble ok
-            mode = "ensemble(no-train)"
-        else:
-            folds = [fold]             # the ONLY fold that held tok out
-            mode = f"oof fold_{fold}"
-
-        ct_src, lbl_src = src / ct_rel, src / lbl_rel
-        if not ct_src.exists() or not lbl_src.exists():
-            _passthrough(rec); new_records.append(rec); n_fail += 1
-            log.warning("token=%s: ct/label missing on disk — passthrough", tok)
+        cid = _case_id(rec)
+        if cid in done:                       # already merged previously
+            _copy_into_v2(ct_rel)             # ensure CT present (idempotent)
+            new_records.append(done[cid]); n_resume += 1
             continue
+        region = MISSING_REGION[cfg_v]
+        fold = heldout.get(str(rec.get("token", "")))
+        scoped.append((cid, rec, region, REGION_CANONICAL[region], fold))
 
-        try:
-            with tempfile.TemporaryDirectory(prefix="psl_") as td:
-                pred_path = run_nnunet(
-                    nn, ct_src, Path(td), folds,
-                    str(args.nnunet_results), args.device)
-                if pred_path is None:
-                    raise RuntimeError("inference produced no output")
-                ref = nib.load(str(lbl_src))
-                pred_arr = _align_to(ref, nib.load(str(pred_path)))
+    if args.limit and len(scoped) > args.limit:
+        for (_c, r, *_x) in scoped[args.limit:]:
+            _passthrough(r); new_records.append(r); n_pass += 1
+        scoped = scoped[:args.limit]
+        log.info("--limit %d: capping this run to %d scoped cases",
+                 args.limit, len(scoped))
+
+    # Group scoped cases by held-out fold → ONE predict per group (model
+    # loaded once per group instead of once per case).
+    groups: Dict[str, list] = defaultdict(list)
+    for item in scoped:
+        fold = item[4]
+        groups["ensemble" if fold is None else f"fold_{fold}"].append(item)
+    log.info("scoped=%d to fill across %d group(s): %s",
+             len(scoped), len(groups),
+             {k: len(v) for k, v in sorted(groups.items())})
+
+    for key, items in sorted(groups.items()):
+        folds = (all_folds if key == "ensemble"
+                 else [int(key.split("_")[1])])
+        in_dir, pred_dir = in_root / key, pred_root / key
+        in_dir.mkdir(parents=True, exist_ok=True)
+        staged = 0
+        for (cid, rec, *_r) in items:
+            dst = in_dir / f"{cid}_0000.nii.gz"
+            if dst.exists():
+                continue
+            sct = src / rec["ct_file"]
+            if not sct.exists():
+                continue
+            try:
+                os.symlink(os.path.abspath(sct), dst)   # avoid GB copies
+            except Exception:
+                shutil.copy2(str(sct), str(dst))
+            staged += 1
+        log.info("group %s: %d cases  folds=%s  (staged +%d)",
+                 key, len(items), folds, staged)
+
+        launched = run_nnunet_folder(
+            nn, in_dir, pred_dir, folds, str(args.nnunet_results),
+            args.device, args.npp, args.nps)
+
+        for (cid, rec, region, supplied, fold) in items:
+            tok = rec.get("token", "?")
+            pred_p = pred_dir / f"{cid}.nii.gz"
+            if not launched or not pred_p.exists():
+                _passthrough(rec); new_records.append(rec); n_fail += 1
+                log.warning("token=%s cid=%s: no prediction — passthrough",
+                            tok, cid)
+                continue
+            try:
+                ref = nib.load(str(src / rec["label_file"]))
+                pred_arr = _align_to(ref, nib.load(str(pred_p)))
                 pred_canon = remap_prediction(
                     pred_arr, cfg["label_remap"], supplied)
                 manual = np.asarray(ref.dataobj).astype(np.int16)
                 merged = merge_pseudo_into_manual(manual, pred_canon)
-
-            _passthrough(rec)  # copies the CT; label overwritten below
-            nib.save(nib.Nifti1Image(merged, ref.affine, ref.header),
-                     str(out / lbl_rel))
-            new_records.append(updated_record(rec, region, merged))
-            n_fill += 1
-            n_oof += int(fold is not None)
-            n_ens += int(fold is None)
-            log.info("token=%s cfg=%s: filled %s via %s (%d fg vox)",
-                     tok, cfg_v, region, mode,
-                     int(((merged > 0) & (merged != IGNORE_LABEL)).sum()))
-        except Exception as exc:
-            _passthrough(rec); new_records.append(rec); n_fail += 1
-            log.warning("token=%s: pseudo-fill failed (%s) — passthrough",
-                        tok, exc)
-
-        if args.limit and n_fill >= args.limit:
-            done = {id(r) for r in new_records}
-            for r in records:
-                if id(r) not in done:
-                    _passthrough(r); new_records.append(r); n_pass += 1
-            log.info("--limit %d reached; remaining passed through",
-                     args.limit)
-            break
+                _copy_into_v2(rec["ct_file"])             # CT into v2
+                nib.save(nib.Nifti1Image(merged, ref.affine, ref.header),
+                         str(out / rec["label_file"]))    # merged label
+                urec = updated_record(rec, region, merged)
+                (done_dir / f"{cid}.json").write_text(json.dumps(urec))
+                new_records.append(urec)
+                n_fill += 1
+                n_oof += int(fold is not None)
+                n_ens += int(fold is None)
+                log.info("token=%s cid=%s: filled %s (%d fg vox)  "
+                         "[group %s done %d/%d]", tok, cid, region,
+                         int(((merged > 0) & (merged != IGNORE_LABEL)).sum()),
+                         key, n_fill, len(scoped))
+            except Exception as exc:
+                _passthrough(rec); new_records.append(rec); n_fail += 1
+                log.warning("token=%s cid=%s: merge failed (%s) — "
+                            "passthrough", tok, cid, exc)
 
     log.info("writing v2 manifest (%d records) ...", len(new_records))
     sys.path.insert(0, str(Path(__file__).parent))
@@ -452,8 +517,9 @@ def main() -> int:
 
     log.info("=" * 60)
     log.info("pseudolabel v2 tree -> %s", out)
-    log.info("  pseudo-filled        : %d  (out-of-fold=%d  ensemble=%d)",
+    log.info("  pseudo-filled (new)  : %d  (out-of-fold=%d  ensemble=%d)",
              n_fill, n_oof, n_ens)
+    log.info("  resumed (prior run)  : %d", n_resume)
     log.info("  passthrough          : %d", n_pass)
     log.info("  failed (passthrough) : %d", n_fail)
     log.info("=" * 60)
