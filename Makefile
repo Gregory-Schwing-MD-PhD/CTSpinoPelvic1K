@@ -83,6 +83,10 @@ MODELS_CONFIG  ?=        # default: configs/pseudolabel_models.json
 DRY_RUN        ?= 0
 SKIP_DOWNLOAD  ?= 0
 PSEUDO_LIMIT   ?= 0
+# Effective tree hf-push validates AND uploads: HF_EXPORT_DIR if set
+# (e.g. the v2 tree), else the default v1 staged tree. Keeps the
+# preflight guard honest for the v2 push instead of always checking v1.
+HF_PUSH_DIR    := $(if $(strip $(HF_EXPORT_DIR)),$(HF_EXPORT_DIR),$(DATA_DIR)/hf_export)
 
 # ── Stage 4 control (TotalSegmentator benchmark) ─────────────────────────────
 TS_WINDOW_MM    ?= 40.0
@@ -216,16 +220,20 @@ hf-push: check-container  ## Stage 3b — push an already-staged data/hf_export/
 	  echo "ERROR: hf-push requires HF_TOKEN.  Prepend HF_TOKEN=hf_xxx to the command."; \
 	  exit 1; \
 	fi
-	@if [ ! -f $(DATA_DIR)/hf_export/manifest.json ]; then \
-	  echo "ERROR: nothing staged at $(DATA_DIR)/hf_export/ (no manifest.json)."; \
-	  echo "       Run 'make hf-stage' first; hf-push never re-runs the export."; \
+	@if [ ! -f "$(HF_PUSH_DIR)/manifest.json" ]; then \
+	  echo "ERROR: nothing staged at $(HF_PUSH_DIR)/ (no manifest.json)."; \
+	  echo "       For the v1 partial: run 'make hf-stage' first."; \
+	  echo "       For v2: run 'make pseudolabel' first, then re-run with"; \
+	  echo "       HF_EXPORT_DIR=\$$(pwd)/data/hf_export_v2 HF_REVISION=v2 ..."; \
+	  echo "       hf-push never re-runs the export."; \
 	  exit 1; \
 	fi
 	@echo "Submitting Stage 3b: hf-push  (push only — export is NOT re-run)"
-	@echo "  HF_REPO_ID  = $(HF_REPO_ID)"
-	@echo "  HF_REVISION = $(HF_REVISION)  (empty = main branch)"
-	@echo "  WIPE_REMOTE = $(WIPE_REMOTE)  (1 = clear all files first; repo/URL/history kept)"
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),PUSH=1,SKIP_EXPORT=1,HF_REPO_ID=$(HF_REPO_ID),HF_REVISION=$(HF_REVISION),HF_WORKERS=$(HF_WORKERS),HF_PRIVATE=$(HF_PRIVATE),WIPE_REMOTE=$(WIPE_REMOTE),MANIFEST_FILE=$(MANIFEST_FILE) \
+	@echo "  HF_EXPORT_DIR = $(HF_PUSH_DIR)"
+	@echo "  HF_REPO_ID    = $(HF_REPO_ID)"
+	@echo "  HF_REVISION   = $(HF_REVISION)  (empty = main branch)"
+	@echo "  WIPE_REMOTE   = $(WIPE_REMOTE)  (1 = clear all files first; repo/URL/history kept)"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),PUSH=1,SKIP_EXPORT=1,HF_REPO_ID=$(HF_REPO_ID),HF_REVISION=$(HF_REVISION),HF_EXPORT_DIR=$(HF_PUSH_DIR),HF_WORKERS=$(HF_WORKERS),HF_PRIVATE=$(HF_PRIVATE),WIPE_REMOTE=$(WIPE_REMOTE),MANIFEST_FILE=$(MANIFEST_FILE) \
 	       slurm/export_dataset.sh
 
 .PHONY: export-dataset
