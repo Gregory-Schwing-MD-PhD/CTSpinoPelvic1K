@@ -188,13 +188,37 @@ def download_checkpoints(ckpt_cfg: dict, nnunet_results: Path,
     CRITICAL: the HF repo ALREADY contains `<results_subdir>/...` at its
     root, so local_dir MUST be `nnunet_results` itself — NOT
     `nnunet_results/<results_subdir>` (that double-nests it one level too
-    deep and nnU-Net can't find dataset.json). Idempotent; skipped if the
-    fold dirs are already correctly placed."""
+    deep and nnU-Net can't find dataset.json).
+
+    Idempotent, and SELF-HEALING: the skip-download guard requires the
+    FULL set nnUNetv2_predict needs — dataset.json, plans.json, and at
+    least one fold_*/<checkpoint> — not merely a fold dir. A stale/partial
+    local tree (e.g. fold_* present but plans.json missing, the failure
+    that originally cost hours) therefore re-downloads instead of being
+    skipped and dying at predict."""
+    nn = ckpt_cfg["nnunet"]
     model_root = nnunet_results / ckpt_cfg["results_subdir"]
-    if any(model_root.glob("*/fold_*/")):
-        log.info("Checkpoints already present at %s — skip download",
-                 model_root)
+    model_dir = model_root / (
+        f'{nn["trainer"]}__{nn["plans"]}__{nn["configuration"]}')
+    ckpt_name = nn.get("checkpoint", "checkpoint_best.pth")
+
+    def _missing(d: Path) -> List[str]:
+        miss = []
+        if not (d / "dataset.json").is_file():
+            miss.append("dataset.json")
+        if not (d / "plans.json").is_file():
+            miss.append("plans.json")
+        if not any((f / ckpt_name).is_file() for f in d.glob("fold_*")):
+            miss.append(f"fold_*/{ckpt_name}")
+        return miss
+
+    miss = _missing(model_dir)
+    if not miss:
+        log.info("Checkpoints complete at %s — skip download", model_dir)
         return model_root
+    log.info("Model dir incomplete (missing: %s) — (re)downloading",
+             ", ".join(miss))
+
     from huggingface_hub import snapshot_download
     # An empty/blank token (HF_TOKEN="" from default.env) makes
     # huggingface_hub emit an illegal `Authorization: Bearer ` header. The
@@ -209,11 +233,14 @@ def download_checkpoints(ckpt_cfg: dict, nnunet_results: Path,
         local_dir=str(nnunet_results),     # repo already has <subdir>/ inside
         token=token,
     )
-    if not any(model_root.glob("*/fold_*/")):
-        log.error("Download finished but %s/<trainer>/fold_* not found — "
-                  "repo layout differs from configs/pseudolabel_models.json "
-                  "results_subdir=%r", model_root,
-                  ckpt_cfg["results_subdir"])
+    miss = _missing(model_dir)
+    if miss:
+        log.error("Download finished but %s still missing %s — the HF repo "
+                  "%r is incomplete at that path (upload dataset.json/"
+                  "plans.json next to fold_*), or results_subdir/trainer/"
+                  "plans/configuration in configs/pseudolabel_models.json "
+                  "don't match the repo layout.", model_dir,
+                  ", ".join(miss), ckpt_cfg["hf_repo_id"])
     return model_root
 
 
