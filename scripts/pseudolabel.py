@@ -552,7 +552,12 @@ def main() -> int:
     log.info("writing v2 manifest (%d records) ...", len(new_records))
     sys.path.insert(0, str(Path(__file__).parent))
     from export_hf import write_manifest
-    write_manifest(new_records, out)
+    # write_manifest keeps only records with a truthy `ok`, but our records
+    # were read back from the v1 manifest where _coerce_manifest_record has
+    # already STRIPPED `ok` — so without re-adding it every record is
+    # filtered out and manifest.json lands empty. All v2 records are valid
+    # (failed/rejected cases aren't produced here), so mark them ok.
+    write_manifest([{**r, "ok": True} for r in new_records], out)
 
     log.info("=" * 60)
     log.info("pseudolabel v2 tree -> %s", out)
