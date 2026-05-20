@@ -234,9 +234,12 @@ def derive_status(case: dict, agree: Optional[bool] = None) -> str:
     claimed = any(k in slots for k in PRIMARY_SLOTS)
 
     if done >= N_PRIMARY:
-        if agree is True:
+        # `agree` may be passed explicitly, else read the persisted IRR
+        # outcome the service stored on the case at evaluation time.
+        a = agree if agree is not None else case.get("agree")
+        if a is True:
             return "finalized"
-        if agree is False:
+        if a is False:
             return "needs_adjudication"
         return "in_review"          # both in, IRR not yet evaluated
     return "in_review" if claimed else "unassigned"
