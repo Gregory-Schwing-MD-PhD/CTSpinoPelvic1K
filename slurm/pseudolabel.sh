@@ -64,6 +64,15 @@ HF_EXPORT_DIR="${HF_EXPORT_DIR:-${DATA_DIR}/hf_export}"
 PSEUDO_OUT_DIR="${PSEUDO_OUT_DIR:-${DATA_DIR}/hf_export_v2}"
 MODELS_CONFIG="${MODELS_CONFIG:-${PROJECT_ROOT}/configs/pseudolabel_models.json}"
 NNUNET_RESULTS="${NNUNET_RESULTS:-${nnUNet_results:-${PROJECT_ROOT}/nnunet/results}}"
+# The checkpoints were trained with a CUSTOM trainer class defined in the
+# training repo (spinesurg-ct-nnunet/tools/nnunet_wandb_variant.py). At
+# predict time nnU-Net imports the class by name (`nnUNetTrainerWandB_…`),
+# so we MUST bind-mount that file into the container's variants dir —
+# exactly what spine_predict_803_best.sh does. Default assumes
+# NNUNET_SIF lives at <repo>/containers/*.sif → trainer next to it.
+TRAINER_SRC="${TRAINER_SRC:-$([ -n "${NNUNET_SIF:-}" ] && \
+    echo "$(dirname "$(dirname "${NNUNET_SIF}")")/tools/nnunet_wandb_variant.py" || echo "")}"
+TRAINER_DST="/opt/conda/lib/python3.11/site-packages/nnunetv2/training/nnUNetTrainer/variants/nnunet_wandb_variant.py"
 DRY_RUN="${DRY_RUN:-0}"
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
 PSEUDO_LIMIT="${PSEUDO_LIMIT:-0}"
@@ -79,6 +88,7 @@ echo "   v1 source     : ${HF_EXPORT_DIR}"
 echo "   v2 out        : ${PSEUDO_OUT_DIR}"
 echo "   Models config : ${MODELS_CONFIG}"
 echo "   nnUNet_results: ${NNUNET_RESULTS:-<unset>}"
+echo "   Trainer src   : ${TRAINER_SRC:-<unset>}"
 echo "   DRY_RUN       : ${DRY_RUN}"
 echo "   Started       : $(date)"
 echo "======================================================================"
@@ -113,6 +123,16 @@ if [[ "${DRY_RUN}" != "1" ]]; then
         echo "       NNUNET_SIF=/path/spinopelvic.sif, or DRY_RUN=1."
         exit 1
     fi
+    if [[ -z "${TRAINER_SRC:-}" || ! -f "${TRAINER_SRC:-}" ]]; then
+        echo "ERROR: TRAINER_SRC not set / not found. The checkpoints use a"
+        echo "       custom trainer class (nnUNetTrainerWandB_500ep_LSTVOversample);"
+        echo "       nnUNetv2_predict needs its .py bind-mounted into the"
+        echo "       container, or it fails with 'Unable to locate trainer"
+        echo "       class …'. Re-submit with"
+        echo "       TRAINER_SRC=/path/spinesurg-ct-nnunet/tools/nnunet_wandb_variant.py"
+        echo "       (default assumes NNUNET_SIF lives at <repo>/containers/*.sif)."
+        exit 1
+    fi
 fi
 
 CENV="${CENV},PYTHONUNBUFFERED=1"
@@ -128,7 +148,10 @@ _run() {
             "${SIF_PATH}" "$@"
     else
         stdbuf -oL -eL singularity exec --nv \
-            --env "${CENV}" --bind "${BINDS}" --pwd /workspace \
+            --env "${CENV}" \
+            --bind "${BINDS}" \
+            --bind "${TRAINER_SRC}:${TRAINER_DST}" \
+            --pwd /workspace \
             "${NNUNET_SIF}" "$@"
     fi
 }
