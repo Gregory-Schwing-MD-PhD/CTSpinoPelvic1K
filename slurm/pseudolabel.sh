@@ -83,7 +83,7 @@ echo "======================================================================"
 echo " Pseudo-label completion (v2 tree)"
 echo "   Job ID        : ${SLURM_JOB_ID:-local}"
 echo "   Node          : $(hostname)"
-echo "   GPU           : $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo N/A)"
+echo "   GPU           : $(nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free --format=csv,noheader 2>/dev/null || echo N/A)"
 echo "   v1 source     : ${HF_EXPORT_DIR}"
 echo "   v2 out        : ${PSEUDO_OUT_DIR}"
 echo "   Models config : ${MODELS_CONFIG}"
@@ -91,6 +91,14 @@ echo "   nnUNet_results: ${NNUNET_RESULTS:-<unset>}"
 echo "   Trainer src   : ${TRAINER_SRC:-<unset>}"
 echo "   DRY_RUN       : ${DRY_RUN}"
 echo "   Started       : $(date)"
+echo "======================================================================"
+
+# Snapshot the GPU BEFORE any inference. If memory.used is already large or
+# foreign PIDs appear here, the GPU was handed to us already occupied — i.e.
+# an OOM later is contention, not this job's footprint (single-fold predict
+# on this model needs ~10 GB of a 140 GB H200).
+echo " GPU state at job start (should be ~empty if we own it exclusively):"
+nvidia-smi 2>/dev/null | sed 's/^/   /' || echo "   nvidia-smi unavailable"
 echo "======================================================================"
 
 if [[ ! -f "${HF_EXPORT_DIR}/manifest.json" ]]; then
