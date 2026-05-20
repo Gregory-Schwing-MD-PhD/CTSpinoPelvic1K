@@ -1338,6 +1338,20 @@ def push_to_hub(
     n_ct     = sum(1 for _ in (out_dir / "ct"    ).glob("*.nii.gz")) if (out_dir / "ct"    ).exists() else 0
     n_labels = sum(1 for _ in (out_dir / "labels").glob("*.nii.gz")) if (out_dir / "labels").exists() else 0
 
+    # upload_large_folder keeps per-file progress under out_dir/.cache and is
+    # NOT repo-aware: re-using the same folder for a DIFFERENT repo/revision
+    # makes it think every file is already uploaded -> the new target lands
+    # EMPTY (it commits nothing). We push one export to several venue repos
+    # + v2/v3 branches, so track the last target and wipe the cache when it
+    # changes, forcing a real re-hash + re-upload.
+    target = f"{repo_id}@{revision or 'main'}"
+    marker = out_dir / ".cache" / ".hf_push_target"
+    prev = marker.read_text().strip() if marker.exists() else None
+    if prev and prev != target:
+        shutil.rmtree(out_dir / ".cache", ignore_errors=True)
+        log.info("Upload cache was for %s; cleared it for new target %s",
+                 prev, target)
+
     log.info("=" * 60)
     log.info("Pushing to HuggingFace: %s", repo_id)
     log.info("  CTs=%d  Labels=%d  Workers=%d", n_ct, n_labels, num_workers)
@@ -1353,6 +1367,8 @@ def push_to_hub(
         revision=revision,
         ignore_patterns=["qc/*", "qc/**/*", ".hf_staging/*"],
     )
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(target)        # remember what this cache now represents
     _where = f"{repo_id}" + (f"  (revision: {revision})" if revision else "")
     log.info("Push complete -> https://huggingface.co/datasets/%s", _where)
 
