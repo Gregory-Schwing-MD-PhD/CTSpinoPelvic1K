@@ -338,6 +338,25 @@ CLASS_NAMES = {
     6: "L6", 7: "sacrum", 8: "left_hip", 9: "right_hip",
 }
 
+
+def _fname_base(tok) -> str:
+    """Deterministic, collision-free filename stem for a patient token.
+
+    Numeric tokens -> zero-padded NNNN (unchanged, so existing numeric
+    filenames are stable). Non-numeric tokens (e.g. TCIA 'CTC-1234567890')
+    -> the sanitized token verbatim, which (a) is deterministic — unlike
+    the old abs(hash(tok)) % 10000, which was salted by PYTHONHASHSEED and
+    changed every run — and (b) cannot collide with the numeric NNNN space
+    or with another distinct token. The old scheme silently mapped
+    CTC-2936751320 -> '0020', overwriting numeric token 20's files.
+    """
+    import re
+    s = str(tok)
+    if s.isdigit():
+        return f"{int(s):04d}"
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", s).strip("_")
+    return safe or "unknown"
+
 _SEG_COLORS = {
     1: (0.15, 0.40, 0.80, 0.55), 2: (0.25, 0.55, 0.85, 0.55),
     3: (0.35, 0.65, 0.90, 0.55), 4: (0.45, 0.75, 0.92, 0.55),
@@ -939,8 +958,7 @@ def build_work(manifest_path: Path, nifti_dir: Path,
         if not pos or pos == "unknown":
             pos = None
 
-        tok_int = int(tok) if tok.isdigit() else abs(hash(tok)) % 10000
-        token_base = f"{tok_int:04d}"
+        token_base = _fname_base(tok)
 
         lstv_kwargs = dict(
             lstv=lstv,
