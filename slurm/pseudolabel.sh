@@ -136,6 +136,11 @@ if [[ "${DRY_RUN}" != "1" ]]; then
 fi
 
 CENV="${CENV},PYTHONUNBUFFERED=1"
+# Reduce CUDA fragmentation (nnU-Net's own OOM hint). NOTE: this only helps
+# on an otherwise-free GPU — it cannot rescue a GPU already occupied by
+# another process. If you OOM with most of the 140 GB held by a foreign
+# PID, the GPU is shared/leaked; get a clean one (see job 36115436 logs).
+CENV="${CENV},PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
 
 _run() {
     # DRY_RUN needs no GPU/nnU-Net (only huggingface_hub/nibabel, which the
