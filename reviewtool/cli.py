@@ -65,14 +65,17 @@ def _api():
     return s, cfg["service_url"].rstrip("/")
 
 
-def _download(url: str, dest: Path) -> Path:
-    import requests
+def _fetch(job: dict, filename: str, dest: Path) -> Path:
+    """Download a dataset file via huggingface_hub so it works for public,
+    gated, OR private v2 repos — using the reviewer's `huggingface-cli
+    login` token (or HF_TOKEN env). No dataset write access needed."""
+    import shutil
+    from huggingface_hub import hf_hub_download
+    cached = hf_hub_download(
+        repo_id=job["v2_repo"], repo_type="dataset",
+        filename=filename, revision=job.get("source_revision"))
     dest.parent.mkdir(parents=True, exist_ok=True)
-    with requests.get(url, stream=True, timeout=120) as r:
-        r.raise_for_status()
-        with open(dest, "wb") as f:
-            for chunk in r.iter_content(1 << 20):
-                f.write(chunk)
+    shutil.copy2(cached, dest)
     return dest
 
 
@@ -126,8 +129,8 @@ def cmd_next(a):
         return
     work = Path(a.workdir) / job["case_id"]
     work.mkdir(parents=True, exist_ok=True)
-    ct = _download(job["ct_url"], work / "ct.nii.gz")
-    pseudo = _download(job["pseudo_label_url"], work / "pseudo.nii.gz")
+    ct = _fetch(job, job["ct_file"], work / "ct.nii.gz")
+    pseudo = _fetch(job, job["label_file"], work / "pseudo.nii.gz")
     seg = work / "seg.nii.gz"
     seg.write_bytes(pseudo.read_bytes())                # edit a copy
     labels = work / "labels.txt"
@@ -156,8 +159,8 @@ def cmd_adjudicate(a):
         return
     work = Path(a.workdir) / (job["case_id"] + "__adj")
     work.mkdir(parents=True, exist_ok=True)
-    ct = _download(job["ct_url"], work / "ct.nii.gz")
-    pseudo = _download(job["pseudo_label_url"], work / "pseudo.nii.gz")
+    ct = _fetch(job, job["ct_file"], work / "ct.nii.gz")
+    pseudo = _fetch(job, job["label_file"], work / "pseudo.nii.gz")
     seg = work / "seg.nii.gz"
     seg.write_bytes(pseudo.read_bytes())
     labels = work / "labels.txt"

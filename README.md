@@ -31,6 +31,11 @@ spine and pelvic labels target different prone/supine acquisitions
 (**separate** cases, exported as two records per patient — one
 `spine_only`, one `pelvic_native`).
 
+> **Reviewing segmentations?** If you were asked to help correct the AI-drafted
+> labels, see **[docs/REVIEW.md](docs/REVIEW.md)** — account/token setup,
+> install, and how to connect to the distributed review system (and, for the
+> project maintainer, how to stand up the HuggingFace Space backend).
+
 ## Labels (10-class)
 
 | ID | Name        | Source                                         |

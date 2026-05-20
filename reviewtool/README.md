@@ -1,9 +1,15 @@
 # reviewtool (Phase 3)
 
+> **Reviewers:** the full step-by-step onboarding (HF account + token,
+> installing ITK-SNAP, connecting, doing reviews) is in
+> **[docs/REVIEW.md](../docs/REVIEW.md)**. This file is the terse reference.
+
 Local CLI an annotator runs to review v2 pseudo labels in ITK-SNAP. All HF
-download/upload is hidden — CT + pseudo come from the **public v2** repo,
-and the corrected label is uploaded **through the review Space** (which
-holds the HF token). The annotator only ever uses their **reviewer API key**.
+download/upload is hidden — CT + pseudo come from the v2 repo (via
+`huggingface_hub`, so gated/private also work with `huggingface-cli login`),
+and the corrected label is uploaded **through the review Space** (which holds
+the dataset write token). The annotator only ever uses their **reviewer API
+key**.
 
 ## Install
 ```bash
