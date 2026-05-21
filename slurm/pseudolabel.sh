@@ -10,6 +10,10 @@
 #SBATCH --output=logs/pseudolabel_%j.out
 #SBATCH --error=logs/pseudolabel_%j.err
 #SBATCH --mail-type=END,FAIL
+# msa1's tmpdir hangs the SIF->sandbox conversion (job 36124058 sat 12h with
+# no output before Python ever started). Keep off it; the conversion below is
+# also redirected to node-local /tmp, but exclude the node that has stalled.
+#SBATCH --exclude=msa1
 
 # =============================================================================
 # Pseudo-label completion — builds a FULL v2 tree from a staged v1 export.
@@ -78,6 +82,17 @@ SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
 PSEUDO_LIMIT="${PSEUDO_LIMIT:-0}"
 
 mkdir -p "${LOGS_DIR}" "${PSEUDO_OUT_DIR}" "${NNUNET_RESULTS}"
+
+# The first `singularity exec` on a read-only SIF with a bind onto a path that
+# does NOT exist inside the image (our trainer .py -> .../variants/) forces a
+# writable-sandbox conversion of the multi-GB CUDA image. That conversion is
+# written to SINGULARITY_TMPDIR; if that defaults to NFS it can hang for hours
+# with zero output (job 36124058). Pin it to node-local /tmp — exactly what
+# the proven spine_eval_ensemble.sh does — and clean it up on exit.
+export SINGULARITY_TMPDIR="/tmp/${USER}_job_${SLURM_JOB_ID:-local}_singularity"
+export XDG_RUNTIME_DIR="${SINGULARITY_TMPDIR}/runtime"
+mkdir -p "${SINGULARITY_TMPDIR}" "${XDG_RUNTIME_DIR}"
+trap 'rm -rf "${SINGULARITY_TMPDIR}"' EXIT
 
 echo "======================================================================"
 echo " Pseudo-label completion (v2 tree)"
@@ -170,8 +185,9 @@ _run() {
 }
 
 echo ""
-echo "Entering container (first use converts the SIF to a sandbox — this"
-echo "can take a few minutes on NFS with NO output; it is NOT hung) ..."
+echo "Entering container (first use converts the SIF to a sandbox in"
+echo "${SINGULARITY_TMPDIR} — node-local, a few minutes with NO output;"
+echo "it is NOT hung) ..."
 echo ""
 
 _run stdbuf -oL -eL python3 -u /workspace/scripts/pseudolabel.py \
