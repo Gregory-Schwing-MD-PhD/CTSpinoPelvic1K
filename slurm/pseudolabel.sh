@@ -153,15 +153,20 @@ nvidia-smi 2>/dev/null | sed 's/^/   /' || echo "   nvidia-smi unavailable"
 echo "======================================================================"
 
 # GPU-occupancy preflight (job 36155337): SLURM can hand us a GPU that a
-# NON-SLURM process is already squatting — a foreign VLLM worker held 128/140
-# GiB on msa3, so we OOM'd mid-fold AFTER a full sandbox unpack + model load.
-# Single-fold predict needs ~10-15 GiB; bail in seconds if the assigned GPU
-# lacks headroom rather than crashing 20 min in. These nodes have one H200
-# each, so the first nvidia-smi row is our GPU. Override with MIN_GPU_FREE_MIB.
+# process it didn't schedule is already squatting — a foreign VLLM worker held
+# ~128/140 GiB on the H200 we were assigned, so we OOM'd mid-fold AFTER a full
+# sandbox unpack + model load. These nodes have 4x H200, but cgroup device
+# isolation fences us to the allocated GPU(s): the job-start nvidia-smi above
+# shows ONLY what we were given (one row, not four), so the MIN free across
+# visible GPUs is the headroom on the GPU(s) we'll actually run on. Single-fold
+# predict needs ~10-15 GiB; bail in seconds if below MIN_GPU_FREE_MIB rather
+# than crashing 20 min in.
 if [[ "${DRY_RUN}" != "1" ]]; then
     MIN_GPU_FREE_MIB="${MIN_GPU_FREE_MIB:-20000}"
+    # MIN free across every GPU visible to this job (= our allocation, since
+    # the cgroup hides the rest). sort -n | head -1 picks the tightest one.
     GPU_FREE_MIB=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits \
-        2>/dev/null | head -1 | tr -d ' ')
+        2>/dev/null | tr -d ' ' | sort -n | head -1)
     if [[ "${GPU_FREE_MIB}" =~ ^[0-9]+$ ]] && (( GPU_FREE_MIB < MIN_GPU_FREE_MIB )); then
         echo "ERROR: assigned GPU has only ${GPU_FREE_MIB} MiB free (need >= ${MIN_GPU_FREE_MIB})."
         echo "       It is already occupied — almost certainly a process SLURM did"
