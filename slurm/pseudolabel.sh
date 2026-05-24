@@ -152,6 +152,31 @@ echo " GPU state at job start (should be ~empty if we own it exclusively):"
 nvidia-smi 2>/dev/null | sed 's/^/   /' || echo "   nvidia-smi unavailable"
 echo "======================================================================"
 
+# GPU-occupancy preflight (job 36155337): SLURM can hand us a GPU that a
+# NON-SLURM process is already squatting — a foreign VLLM worker held 128/140
+# GiB on msa3, so we OOM'd mid-fold AFTER a full sandbox unpack + model load.
+# Single-fold predict needs ~10-15 GiB; bail in seconds if the assigned GPU
+# lacks headroom rather than crashing 20 min in. These nodes have one H200
+# each, so the first nvidia-smi row is our GPU. Override with MIN_GPU_FREE_MIB.
+if [[ "${DRY_RUN}" != "1" ]]; then
+    MIN_GPU_FREE_MIB="${MIN_GPU_FREE_MIB:-20000}"
+    GPU_FREE_MIB=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits \
+        2>/dev/null | head -1 | tr -d ' ')
+    if [[ "${GPU_FREE_MIB}" =~ ^[0-9]+$ ]] && (( GPU_FREE_MIB < MIN_GPU_FREE_MIB )); then
+        echo "ERROR: assigned GPU has only ${GPU_FREE_MIB} MiB free (need >= ${MIN_GPU_FREE_MIB})."
+        echo "       It is already occupied — almost certainly a process SLURM did"
+        echo "       not schedule. Offending compute apps on $(hostname):"
+        nvidia-smi --query-compute-apps=pid,process_name,used_memory \
+            --format=csv,noheader 2>/dev/null | sed 's/^/         /'
+        echo "       Resubmit (lands on a clean node) or exclude this one:"
+        echo "         sbatch --exclude=$(hostname) slurm/pseudolabel.sh"
+        echo "       (override the floor with MIN_GPU_FREE_MIB=<MiB> if intended)."
+        exit 1
+    fi
+    echo " GPU preflight OK: ${GPU_FREE_MIB:-?} MiB free (>= ${MIN_GPU_FREE_MIB} MiB)."
+    echo "======================================================================"
+fi
+
 if [[ ! -f "${HF_EXPORT_DIR}/manifest.json" ]]; then
     echo "ERROR: no manifest.json in ${HF_EXPORT_DIR}."
     echo "       Run 'make hf-stage' first — pseudolabel never re-exports."
