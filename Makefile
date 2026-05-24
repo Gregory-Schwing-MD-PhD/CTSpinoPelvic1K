@@ -257,10 +257,10 @@ export-dataset: check-container  ## DEPRECATED — split into 'make hf-stage' + 
 pseudolabel:  ## Stage 3.5 — complete partial cases via out-of-fold nnU-Net (DRY_RUN=1 to plan)
 	@mkdir -p $(LOGS_DIR)
 	@if [ "$(DRY_RUN)" != "1" ] && [ -z "$(NNUNET_SIF)" ]; then \
-	  echo "ERROR: pseudolabel needs NNUNET_SIF=/path/spinopelvic.sif"; \
-	  echo "       (the nnU-Net+CUDA container), or use DRY_RUN=1 to plan."; \
+	  echo "ERROR: pseudolabel needs NNUNET_SIF=<nnU-Net+CUDA container>"; \
+	  echo "       (ctspinopelvic1k-ts.sif ships nnunetv2), or DRY_RUN=1 to plan."; \
 	  echo "  DRY_RUN=1 make pseudolabel"; \
-	  echo "  NNUNET_SIF=/path/spinopelvic.sif make pseudolabel"; \
+	  echo "  NNUNET_SIF=$(TS_CONTAINER) make pseudolabel"; \
 	  exit 1; \
 	fi
 	@echo "Submitting Stage 3.5: pseudolabel  (DRY_RUN=$(DRY_RUN))"

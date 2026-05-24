@@ -37,13 +37,14 @@
 #     and NNUNET_RESULTS at the trained nnUNet_results root.
 #
 # Usage:
-#   NNUNET_SIF=/path/spinopelvic.sif sbatch slurm/pseudolabel.sh
+#   NNUNET_SIF=$(pwd)/containers/ctspinopelvic1k-ts.sif sbatch slurm/pseudolabel.sh
 #   DRY_RUN=1 sbatch slurm/pseudolabel.sh          # plan only, no inference
 #
 # The 5-fold Dataset803 checkpoints are DOWNLOADED automatically from
 # HuggingFace (configs/pseudolabel_models.json) into NNUNET_RESULTS. The
-# nnU-Net container is the spinopelvic-seg one (containers/spinopelvic.sif);
-# it ships nnunetv2 + huggingface_hub. Inference is OUT-OF-FOLD: each
+# nnU-Net+CUDA container is containers/ctspinopelvic1k-ts.sif (TotalSegmentator,
+# which ships nnunetv2 + huggingface_hub); the lean containers/ctspinopelvic1k.sif
+# has NO nnU-Net. Inference is OUT-OF-FOLD: each
 # training case is predicted only by the fold that held it out.
 #
 # Options (env overrides):
@@ -72,10 +73,29 @@ NNUNET_RESULTS="${NNUNET_RESULTS:-${nnUNet_results:-${PROJECT_ROOT}/nnunet/resul
 # training repo (spinesurg-ct-nnunet/tools/nnunet_wandb_variant.py). At
 # predict time nnU-Net imports the class by name (`nnUNetTrainerWandB_…`),
 # so we MUST bind-mount that file into the container's variants dir —
-# exactly what spine_predict_803_best.sh does. Default assumes
-# NNUNET_SIF lives at <repo>/containers/*.sif → trainer next to it.
-TRAINER_SRC="${TRAINER_SRC:-$([ -n "${NNUNET_SIF:-}" ] && \
-    echo "$(dirname "$(dirname "${NNUNET_SIF}")")/tools/nnunet_wandb_variant.py" || echo "")}"
+# exactly what spine_predict_803_best.sh does.
+#
+# TRAINER_SRC resolution (first hit wins) — you rarely need to pass it:
+#   1. explicit TRAINER_SRC=...
+#   2. <NNUNET_SIF>/../../tools/nnunet_wandb_variant.py — right when the .sif
+#      lives in the TRAINING repo's containers/ (spinesurg-ct-nnunet/containers),
+#      which is how job 36127105 found it for free.
+#   3. ${PROJECT_ROOT%/*}/spinesurg-ct-nnunet/tools/... — right when the .sif
+#      lives in THIS repo (e.g. containers/ctspinopelvic1k-ts.sif), since
+#      CTSpinoPelvic1K has no tools/ dir of its own.
+_TRAINER_REL="tools/nnunet_wandb_variant.py"
+_TRAINER_FROM_SIF="$([ -n "${NNUNET_SIF:-}" ] && \
+    echo "$(dirname "$(dirname "${NNUNET_SIF}")")/${_TRAINER_REL}" || echo "")"
+_TRAINER_SIBLING="$(dirname "${PROJECT_ROOT}")/spinesurg-ct-nnunet/${_TRAINER_REL}"
+if [[ -z "${TRAINER_SRC:-}" ]]; then
+    if [[ -n "${_TRAINER_FROM_SIF}" && -f "${_TRAINER_FROM_SIF}" ]]; then
+        TRAINER_SRC="${_TRAINER_FROM_SIF}"
+    elif [[ -f "${_TRAINER_SIBLING}" ]]; then
+        TRAINER_SRC="${_TRAINER_SIBLING}"
+    else
+        TRAINER_SRC="${_TRAINER_FROM_SIF:-${_TRAINER_SIBLING}}"  # best guess; guard reports it
+    fi
+fi
 TRAINER_DST="/opt/conda/lib/python3.11/site-packages/nnunetv2/training/nnUNetTrainer/variants/nnunet_wandb_variant.py"
 DRY_RUN="${DRY_RUN:-0}"
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
@@ -176,10 +196,10 @@ CENV="PYTHONPATH=${PPATH},nnUNet_results=${NNUNET_RESULTS}"
 
 if [[ "${DRY_RUN}" != "1" ]]; then
     if [[ -z "${NNUNET_SIF:-}" || ! -f "${NNUNET_SIF:-}" ]]; then
-        echo "ERROR: NNUNET_SIF not set / not found. A real run needs the"
-        echo "       spinopelvic-seg nnU-Net+CUDA container (the project .sif"
-        echo "       lacks nnunetv2). Re-submit with"
-        echo "       NNUNET_SIF=/path/spinopelvic.sif, or DRY_RUN=1."
+        echo "ERROR: NNUNET_SIF not set / not found. A real run needs an"
+        echo "       nnU-Net+CUDA container (the lean ctspinopelvic1k.sif lacks"
+        echo "       nnunetv2; ctspinopelvic1k-ts.sif ships it). Re-submit with"
+        echo "       NNUNET_SIF=\$(pwd)/containers/ctspinopelvic1k-ts.sif, or DRY_RUN=1."
         exit 1
     fi
     if [[ -z "${TRAINER_SRC:-}" || ! -f "${TRAINER_SRC:-}" ]]; then
