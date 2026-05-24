@@ -69,33 +69,16 @@ HF_EXPORT_DIR="${HF_EXPORT_DIR:-${DATA_DIR}/hf_export}"
 PSEUDO_OUT_DIR="${PSEUDO_OUT_DIR:-${DATA_DIR}/hf_export_v2}"
 MODELS_CONFIG="${MODELS_CONFIG:-${PROJECT_ROOT}/configs/pseudolabel_models.json}"
 NNUNET_RESULTS="${NNUNET_RESULTS:-${nnUNet_results:-${PROJECT_ROOT}/nnunet/results}}"
-# The checkpoints were trained with a CUSTOM trainer class defined in the
-# training repo (spinesurg-ct-nnunet/tools/nnunet_wandb_variant.py). At
-# predict time nnU-Net imports the class by name (`nnUNetTrainerWandB_…`),
-# so we MUST bind-mount that file into the container's variants dir —
-# exactly what spine_predict_803_best.sh does.
-#
-# TRAINER_SRC resolution (first hit wins) — you rarely need to pass it:
-#   1. explicit TRAINER_SRC=...
-#   2. <NNUNET_SIF>/../../tools/nnunet_wandb_variant.py — right when the .sif
-#      lives in the TRAINING repo's containers/ (spinesurg-ct-nnunet/containers),
-#      which is how job 36127105 found it for free.
-#   3. ${PROJECT_ROOT%/*}/spinesurg-ct-nnunet/tools/... — right when the .sif
-#      lives in THIS repo (e.g. containers/ctspinopelvic1k-ts.sif), since
-#      CTSpinoPelvic1K has no tools/ dir of its own.
-_TRAINER_REL="tools/nnunet_wandb_variant.py"
-_TRAINER_FROM_SIF="$([ -n "${NNUNET_SIF:-}" ] && \
-    echo "$(dirname "$(dirname "${NNUNET_SIF}")")/${_TRAINER_REL}" || echo "")"
-_TRAINER_SIBLING="$(dirname "${PROJECT_ROOT}")/spinesurg-ct-nnunet/${_TRAINER_REL}"
-if [[ -z "${TRAINER_SRC:-}" ]]; then
-    if [[ -n "${_TRAINER_FROM_SIF}" && -f "${_TRAINER_FROM_SIF}" ]]; then
-        TRAINER_SRC="${_TRAINER_FROM_SIF}"
-    elif [[ -f "${_TRAINER_SIBLING}" ]]; then
-        TRAINER_SRC="${_TRAINER_SIBLING}"
-    else
-        TRAINER_SRC="${_TRAINER_FROM_SIF:-${_TRAINER_SIBLING}}"  # best guess; guard reports it
-    fi
-fi
+# The checkpoints were trained under a CUSTOM trainer class name
+# (nnUNetTrainerWandB_500ep_LSTVOversample). nnUNetv2_predict locates the
+# trainer BY NAME and calls its build_network_architecture() (a @staticmethod
+# inherited from nnUNetTrainer that builds the net from the plans) before
+# loading weights — the trainer is never instantiated for inference. So all a
+# real run needs is a class of that name subclassing nnUNetTrainer, which we
+# vendor as a self-contained ~10-line shim in THIS repo and bind into the
+# container. No dependency on the training repo being checked out.
+# (Full training trainer: spinesurg-ct-nnunet/tools/nnunet_wandb_variant.py.)
+TRAINER_SRC="${TRAINER_SRC:-${PROJECT_ROOT}/containers/nnunet_wandb_variant.py}"
 TRAINER_DST="/opt/conda/lib/python3.11/site-packages/nnunetv2/training/nnUNetTrainer/variants/nnunet_wandb_variant.py"
 DRY_RUN="${DRY_RUN:-0}"
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
@@ -203,13 +186,14 @@ if [[ "${DRY_RUN}" != "1" ]]; then
         exit 1
     fi
     if [[ -z "${TRAINER_SRC:-}" || ! -f "${TRAINER_SRC:-}" ]]; then
-        echo "ERROR: TRAINER_SRC not set / not found. The checkpoints use a"
-        echo "       custom trainer class (nnUNetTrainerWandB_500ep_LSTVOversample);"
-        echo "       nnUNetv2_predict needs its .py bind-mounted into the"
-        echo "       container, or it fails with 'Unable to locate trainer"
-        echo "       class …'. Re-submit with"
-        echo "       TRAINER_SRC=/path/spinesurg-ct-nnunet/tools/nnunet_wandb_variant.py"
-        echo "       (default assumes NNUNET_SIF lives at <repo>/containers/*.sif)."
+        echo "ERROR: TRAINER_SRC not found: ${TRAINER_SRC:-<unset>}"
+        echo "       The checkpoints use a custom trainer class"
+        echo "       (nnUNetTrainerWandB_500ep_LSTVOversample); nnUNetv2_predict"
+        echo "       needs a .py defining it bound into the container, or it"
+        echo "       fails with 'Unable to locate trainer class …'. This repo"
+        echo "       ships a self-contained shim at"
+        echo "       containers/nnunet_wandb_variant.py (the default) — if you"
+        echo "       see this, it was deleted or TRAINER_SRC points elsewhere."
         exit 1
     fi
 fi
