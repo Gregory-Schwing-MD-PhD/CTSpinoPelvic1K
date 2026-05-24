@@ -83,16 +83,47 @@ PSEUDO_LIMIT="${PSEUDO_LIMIT:-0}"
 
 mkdir -p "${LOGS_DIR}" "${PSEUDO_OUT_DIR}" "${NNUNET_RESULTS}"
 
-# The first `singularity exec` on a read-only SIF with a bind onto a path that
-# does NOT exist inside the image (our trainer .py -> .../variants/) forces a
-# writable-sandbox conversion of the multi-GB CUDA image. That conversion is
-# written to SINGULARITY_TMPDIR; if that defaults to NFS it can hang for hours
-# with zero output (job 36124058). Pin it to node-local /tmp — exactly what
-# the proven spine_eval_ensemble.sh does — and clean it up on exit.
-export SINGULARITY_TMPDIR="/tmp/${USER}_job_${SLURM_JOB_ID:-local}_singularity"
-export XDG_RUNTIME_DIR="${SINGULARITY_TMPDIR}/runtime"
-mkdir -p "${SINGULARITY_TMPDIR}" "${XDG_RUNTIME_DIR}"
-trap 'rm -rf "${SINGULARITY_TMPDIR}"' EXIT
+# ── Split scratch (mirrors slurm/benchmark_totalseg.sh) ──────────────────────
+# Job 36127105 died because BOTH the multi-GB SIF->sandbox unpack AND the
+# container's runtime /tmp (nnU-Net's multiprocessing listener sockets
+# /tmp/pymp-*, preprocessing scratch) shared the node's /tmp. When it filled /
+# was reaped mid-run the listener socket vanished (RemoteError /
+# FileNotFoundError), then libtorch_cpu.so became unreadable (Intel MKL FATAL
+# ERROR) and every later fold silently fell through to passthrough.
+#
+# Fix = the proven TotalSeg-bench policy:
+#   * sandbox unpack (read-mostly, ~10 GB)  -> node-local /tmp
+#       (SINGULARITY_TMPDIR on NFS hangs the conversion for hours, job 36124058)
+#   * container /tmp + XDG (churny runtime)  -> roomy project NFS
+NODE_SCRATCH="/tmp/${USER}_${SLURM_JOB_ID:-$$}"
+NFS_SCRATCH="${PROJECT_ROOT}/.scratch/${USER}_${SLURM_JOB_ID:-$$}"
+export SINGULARITY_TMPDIR="${NODE_SCRATCH}/singularity_unpack"   # ~10 GB sandbox
+HOST_CONTAINER_TMP="${NFS_SCRATCH}/container_tmp"                # bound at /tmp
+export XDG_RUNTIME_DIR="${NFS_SCRATCH}/xdg_runtime"
+mkdir -p "${SINGULARITY_TMPDIR}" "${HOST_CONTAINER_TMP}" "${XDG_RUNTIME_DIR}"
+trap 'rm -rf "${NODE_SCRATCH}" "${NFS_SCRATCH}" 2>/dev/null || true' EXIT TERM INT
+
+# Preflight: fail loud & early if scratch is too tight — instead of dying
+# three folds in. (Same thresholds as benchmark_totalseg.sh.)
+_free_gib() {
+    local kb
+    kb=$(df -k --output=avail "$1" 2>/dev/null | tail -1 | tr -d ' ')
+    echo $(( ${kb:-0} / 1024 / 1024 ))
+}
+NODE_FREE_GIB=$(_free_gib "${NODE_SCRATCH}")
+NFS_FREE_GIB=$(_free_gib "${NFS_SCRATCH}")
+if [[ "${NODE_FREE_GIB}" -lt 15 ]]; then
+    echo "ERROR: node /tmp (${NODE_SCRATCH}) has only ${NODE_FREE_GIB} GiB free;" >&2
+    echo "       need 15 for the singularity sandbox unpack. Likely too many" >&2
+    echo "       concurrent jobs on $(hostname); re-submit, optionally with" >&2
+    echo "       --exclude=$(hostname)." >&2
+    exit 1
+fi
+if [[ "${NFS_FREE_GIB}" -lt 30 ]]; then
+    echo "ERROR: project NFS (${NFS_SCRATCH}) has only ${NFS_FREE_GIB} GiB free;" >&2
+    echo "       need 30. Free up space under ${PROJECT_ROOT}." >&2
+    exit 1
+fi
 
 echo "======================================================================"
 echo " Pseudo-label completion (v2 tree)"
@@ -104,6 +135,8 @@ echo "   v2 out        : ${PSEUDO_OUT_DIR}"
 echo "   Models config : ${MODELS_CONFIG}"
 echo "   nnUNet_results: ${NNUNET_RESULTS:-<unset>}"
 echo "   Trainer src   : ${TRAINER_SRC:-<unset>}"
+echo "   Sandbox       : ${SINGULARITY_TMPDIR}  (node /tmp, ${NODE_FREE_GIB} GiB free)"
+echo "   Ctr /tmp      : ${HOST_CONTAINER_TMP}  (NFS, ${NFS_FREE_GIB} GiB free)"
 echo "   DRY_RUN       : ${DRY_RUN}"
 echo "   Started       : $(date)"
 echo "======================================================================"
@@ -135,6 +168,9 @@ PPATH="/workspace/scripts:/workspace/src:/workspace"
 # nnUNet_results is bound at the SAME host path so the container writes
 # downloaded checkpoints back to NFS (persists across re-submits).
 BINDS="${PROJECT_ROOT}:/workspace,${DATA_DIR}:/data,${NNUNET_RESULTS}:${NNUNET_RESULTS}"
+# Container /tmp -> NFS so nnU-Net's /tmp/pymp-* sockets + preprocessing scratch
+# never touch the node /tmp that holds the sandbox (the 36127105 failure mode).
+BINDS="${BINDS},${HOST_CONTAINER_TMP}:/tmp"
 CENV="PYTHONPATH=${PPATH},nnUNet_results=${NNUNET_RESULTS}"
 [[ -n "${HF_TOKEN:-}" ]] && CENV="${CENV},HF_TOKEN=${HF_TOKEN}"
 
