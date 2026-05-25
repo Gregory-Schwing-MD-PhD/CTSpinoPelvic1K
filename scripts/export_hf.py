@@ -1237,8 +1237,13 @@ def _wipe_remote_repo(api, repo_id: str, repo_type: str, token: str,
     all_files = api.list_repo_files(repo_id=repo_id, repo_type=repo_type,
                                     token=token, revision=revision)
     # Keep .gitattributes so the repo's LFS tracking rules survive the
-    # re-push that follows.
-    files = [f for f in all_files if f != ".gitattributes"]
+    # re-push. Also skip anything under .cache/ — the Hub reserves that
+    # prefix and rejects CommitOperationDelete on it (ValueError), and it
+    # isn't dataset content anyway (it's upload state a prior push wrongly
+    # uploaded; the ignore_patterns fix below stops that recurring). The
+    # leftover .cache/* is inert and hidden from the dataset view.
+    files = [f for f in all_files
+             if f != ".gitattributes" and not f.startswith(".cache/")]
     if not files:
         log.info("  repo already empty (only .gitattributes) — nothing to do")
         return
@@ -1365,7 +1370,12 @@ def push_to_hub(
         repo_id=repo_id, repo_type=HF_REPO_TYPE,
         folder_path=str(out_dir), num_workers=num_workers,
         revision=revision,
-        ignore_patterns=["qc/*", "qc/**/*", ".hf_staging/*"],
+        # Never upload local-only state: QC figures, staging, and the
+        # upload cache + .hf_push_target marker under .cache/. The Hub
+        # rejects later deletes under .cache/, so uploading it also breaks
+        # WIPE_REMOTE — exclude it here so it never lands remotely.
+        ignore_patterns=["qc/*", "qc/**/*", ".hf_staging/*",
+                         ".cache/*", ".cache/**/*"],
     )
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text(target)        # remember what this cache now represents
