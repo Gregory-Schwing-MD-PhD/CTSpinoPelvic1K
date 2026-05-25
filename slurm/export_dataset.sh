@@ -225,7 +225,12 @@ C_MANIFEST="/data/placed/${MANIFEST_FILE}"
 C_NIFTI="/data/tcia_nifti"
 C_PLACED_SPINE="/data/placed/spine"
 C_PLACED_PELVIC="/data/placed/pelvic"
-C_HF_EXPORT="/data/hf_export"
+# Honor HF_EXPORT_DIR (was hardcoded /data/hf_export): with DATA_DIR bound at
+# /data, the container path is /data/<basename of HF_EXPORT_DIR>. This is what
+# makes `HF_EXPORT_DIR=.../hf_export_v2 make hf-push` actually upload the v2
+# tree instead of silently re-uploading v1. Assumes HF_EXPORT_DIR lives under
+# DATA_DIR (it does by default and for the v2 tree).
+C_HF_EXPORT="/data/$(basename "${HF_EXPORT_DIR}")"
 
 # ── Stage the dataset card and interface script ─────────────────────────────
 if [[ "${SKIP_EXPORT}" != "1" ]]; then
@@ -270,11 +275,25 @@ if [[ "${PUSH}" == "1" ]]; then
     echo "#  PUSH TARGET (verify before this proceeds):"
     echo "#    HF_REPO_ID  = ${HF_REPO_ID}"
     echo "#    HF_REVISION = ${HF_REVISION:-<main>}  (separate branch; main/URL untouched)"
+    echo "#    UPLOAD DIR  = ${HF_EXPORT_DIR}  -> container ${C_HF_EXPORT}"
     echo "#    URL         = https://huggingface.co/datasets/${HF_REPO_ID}"
     echo "#    WIPE_REMOTE = ${WIPE_REMOTE}  (1 = clear all files first; repo/URL/history kept)"
     echo "#    HF_TOKEN    = ${HF_TOKEN:0:8}***  (redacted)"
     echo "######################################################################"
     echo ""
+fi
+
+# Push-only safety: refuse to push if the resolved export dir has no manifest
+# (wrong HF_EXPORT_DIR, or the export/pseudolabel never finished). Stops an
+# empty/partial tree from being uploaded to the live repo. The Makefile checks
+# this too, but a direct `sbatch slurm/export_dataset.sh` would otherwise skip
+# it — and that's the path that just pushed the wrong tree.
+if [[ "${PUSH}" == "1" && "${SKIP_EXPORT}" == "1" && ! -f "${HF_EXPORT_DIR}/manifest.json" ]]; then
+    echo "ERROR: push requested (SKIP_EXPORT=1) but no manifest.json in"
+    echo "       ${HF_EXPORT_DIR}"
+    echo "       — wrong HF_EXPORT_DIR, or the export/pseudolabel didn't finish."
+    echo "       Refusing to push an empty/partial tree to ${HF_REPO_ID}."
+    exit 1
 fi
 
 _run python3 /workspace/scripts/export_hf.py \
