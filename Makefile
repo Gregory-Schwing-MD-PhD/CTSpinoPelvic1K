@@ -233,7 +233,9 @@ hf-push: check-container  ## Stage 3b — push an already-staged data/hf_export/
 	@echo "  HF_REPO_ID    = $(HF_REPO_ID)"
 	@echo "  HF_REVISION   = $(HF_REVISION)  (empty = main branch)"
 	@echo "  WIPE_REMOTE   = $(WIPE_REMOTE)  (1 = clear all files first; repo/URL/history kept)"
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),PUSH=1,SKIP_EXPORT=1,HF_REPO_ID=$(HF_REPO_ID),HF_REVISION=$(HF_REVISION),HF_EXPORT_DIR=$(HF_PUSH_DIR),HF_WORKERS=$(HF_WORKERS),HF_PRIVATE=$(HF_PRIVATE),WIPE_REMOTE=$(WIPE_REMOTE),MANIFEST_FILE=$(MANIFEST_FILE) \
+	@echo "  Resources     : 2 cpu / 16G (push is a network upload; overrides the 24c/128G export header so it schedules fast)"
+	sbatch --cpus-per-task=2 --mem=16G \
+	       --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),PUSH=1,SKIP_EXPORT=1,HF_REPO_ID=$(HF_REPO_ID),HF_REVISION=$(HF_REVISION),HF_EXPORT_DIR=$(HF_PUSH_DIR),HF_WORKERS=$(HF_WORKERS),HF_PRIVATE=$(HF_PRIVATE),WIPE_REMOTE=$(WIPE_REMOTE),MANIFEST_FILE=$(MANIFEST_FILE) \
 	       slurm/export_dataset.sh
 
 .PHONY: export-dataset
