@@ -50,10 +50,12 @@ token — uploads of your corrections go through the project's server.
   You'll run the tool as `python -m reviewtool …` from inside that
   `CTSpinoPelvic1K` folder.
 
-> **ITK-SNAP not on the command line?** The `python -m reviewtool` commands
-> below take `--itksnap "/full/path/to/itksnap"`. On macOS that's typically
-> `--itksnap /Applications/ITK-SNAP.app/Contents/bin/itksnap`; on Windows
-> `--itksnap "C:\Program Files\ITK-SNAP 4.0\bin\ITK-SNAP.exe"`.
+> **ITK-SNAP path:** `reviewtool` auto-detects ITK-SNAP in the standard
+> location — `/Applications/ITK-SNAP.app/Contents/bin/itksnap` on macOS,
+> `C:\Program Files\ITK-SNAP *\bin\ITK-SNAP.exe` on Windows, or anything named
+> `itksnap` on your `PATH`. You only need to point it out if you installed it
+> somewhere nonstandard: pass `--itksnap "/full/path/to/itksnap"` to the
+> commands below, or set `REVIEWTOOL_ITKSNAP=/full/path` once.
 
 ### 3. Connect (once)
 ```bash

@@ -38,3 +38,8 @@ def test_edit_is_corrected_with_diff():
     assert decision == "corrected"
     assert rec["diff"]["n_voxels_changed"] == 2
     assert rec["diff"]["regions_touched"] == ["pelvis"]
+
+
+def test_default_itksnap_honors_env(monkeypatch):
+    monkeypatch.setenv("REVIEWTOOL_ITKSNAP", "/custom/path/itksnap")
+    assert cli._default_itksnap() == "/custom/path/itksnap"

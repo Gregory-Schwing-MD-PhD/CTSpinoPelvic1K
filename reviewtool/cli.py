@@ -115,15 +115,46 @@ def _load(path: Path):
     return np.asarray(nib.load(str(path)).dataobj)
 
 
+def _default_itksnap() -> str:
+    """Best-effort ITK-SNAP executable so reviewers rarely need --itksnap.
+
+    Order: $REVIEWTOOL_ITKSNAP → anything named itksnap on PATH → the standard
+    per-OS install location. Falls back to the bare name 'itksnap' (whose
+    later FileNotFoundError prints the --itksnap hint)."""
+    import os
+    import shutil
+    env = os.environ.get("REVIEWTOOL_ITKSNAP")
+    if env:
+        return env
+    for name in ("itksnap", "ITK-SNAP"):
+        found = shutil.which(name)
+        if found:
+            return found
+    candidates: list = []
+    if sys.platform == "darwin":
+        candidates.append("/Applications/ITK-SNAP.app/Contents/bin/itksnap")
+    elif sys.platform.startswith("win"):
+        for base in (r"C:\Program Files", r"C:\Program Files (x86)"):
+            candidates += sorted(Path(base).glob("ITK-SNAP*/bin/ITK-SNAP.exe"),
+                                 reverse=True)               # newest version first
+    else:  # linux
+        candidates += ["/usr/bin/itksnap", "/snap/bin/itksnap",
+                       "/usr/local/bin/itksnap"]
+    for c in candidates:
+        if Path(c).exists():
+            return str(c)
+    return "itksnap"
+
+
 def _launch_itksnap(itksnap: str, ct: Path, seg: Path, labels: Path) -> None:
-    print(f"\nOpening ITK-SNAP — edit the segmentation, Save Segmentation to:\n"
-          f"  {seg}\nthen quit ITK-SNAP to continue.\n")
+    print(f"\nOpening ITK-SNAP ({itksnap}) — edit the segmentation, Save "
+          f"Segmentation to:\n  {seg}\nthen quit ITK-SNAP to continue.\n")
     try:
         subprocess.run([itksnap, "-g", str(ct), "-s", str(seg),
                         "-l", str(labels)], check=False)
     except FileNotFoundError:
-        sys.exit(f"'{itksnap}' not found on PATH — install ITK-SNAP or pass "
-                 f"--itksnap /path/to/itksnap")
+        sys.exit(f"'{itksnap}' not found — install ITK-SNAP, add it to PATH, "
+                 f"set REVIEWTOOL_ITKSNAP, or pass --itksnap /path/to/itksnap")
 
 
 # ── commands ─────────────────────────────────────────────────────────────────
@@ -221,7 +252,7 @@ def cmd_next(a):
                       or labels_descriptor.descriptor_text())
 
     print(f"case {job['case_id']}  (review the {job['region_to_review']} region)")
-    _launch_itksnap(a.itksnap, ct, seg, labels)
+    _launch_itksnap(a.itksnap or _default_itksnap(), ct, seg, labels)
 
     decision, record = build_submission(
         _load(pseudo), _load(seg), job["region_to_review"], _sha256(pseudo))
@@ -248,7 +279,7 @@ def cmd_adjudicate(a):
     print(f"ADJUDICATE {job['case_id']}  IRR={job.get('irr')}\n"
           f"two reviewers disagreed on the {job['region_to_review']} region; "
           f"produce the deciding label.")
-    _launch_itksnap(a.itksnap, ct, seg, labels)
+    _launch_itksnap(a.itksnap or _default_itksnap(), ct, seg, labels)
     _submit_adjudication(s, base, job, work, seg, a.notes)
 
 
@@ -302,7 +333,8 @@ def main(argv=None) -> int:
     for name, fn in (("next", cmd_next), ("adjudicate", cmd_adjudicate)):
         p = sub.add_parser(name)
         p.add_argument("--workdir", default=str(Path.home() / ".reviewtool" / "work"))
-        p.add_argument("--itksnap", default="itksnap")
+        p.add_argument("--itksnap", default=None,
+                       help="ITK-SNAP executable (auto-detected if omitted)")
         if name == "adjudicate":
             p.add_argument("--notes", default="")
         p.set_defaults(fn=fn)
