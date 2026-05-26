@@ -59,6 +59,13 @@ class LocalBackend:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(data)
 
+    def write_many(self, files: dict, commit_message: str = "") -> None:
+        for path, data in files.items():
+            if isinstance(data, str):
+                self.write_text(path, data)
+            else:
+                self.write_bytes(path, data)
+
     def list(self, prefix: str) -> List[str]:
         base = self._p(prefix)
         if not base.exists():
@@ -119,6 +126,26 @@ class HFBackend:
     def write_text(self, path: str, text: str) -> None:
         self.write_bytes(path, text.encode("utf-8"))
 
+    def write_many(self, files: dict, commit_message: str = "review: batch write") -> None:
+        """Write many files in ONE commit.
+
+        Every other write here is its own commit (upload_file). HF caps
+        repo commits at 128/hour, so seeding 128 cases as 128 separate
+        commits trips a 429 mid-seed. This collapses a batch into a single
+        create_commit. `files` maps path_in_repo -> str | bytes.
+        """
+        from huggingface_hub import CommitOperationAdd
+        ops = []
+        for path, data in files.items():
+            if isinstance(data, str):
+                data = data.encode("utf-8")
+            ops.append(CommitOperationAdd(path_in_repo=path, path_or_fileobj=data))
+        if not ops:
+            return
+        self.api.create_commit(
+            repo_id=self.repo_id, repo_type=self.repo_type, token=self.token,
+            operations=ops, commit_message=commit_message)
+
     def list(self, prefix: str) -> List[str]:
         try:
             return sorted(
@@ -149,6 +176,18 @@ class ReviewStore:
     def put_case(self, case: dict) -> None:
         self.b.write_text(self.case_path(case["case_id"]),
                           json.dumps(case, indent=2))
+
+    def put_cases(self, cases: List[dict]) -> None:
+        """Persist many cases in a SINGLE backend commit (see write_many)."""
+        files = {self.case_path(c["case_id"]): json.dumps(c, indent=2)
+                 for c in cases}
+        if files:
+            self.b.write_many(files,
+                              commit_message=f"review: seed {len(files)} cases")
+
+    def has_any_case(self) -> bool:
+        """Cheap presence check: one LIST, no per-case download."""
+        return any(p.endswith(".json") for p in self.b.list("cases/"))
 
     def list_cases(self) -> List[dict]:
         out = []
@@ -190,17 +229,25 @@ def init_cases_from_manifest(store: ReviewStore, records: List[dict],
     Idempotent: never clobbers a case that already has claims/reviews. The
     `region_to_review` is the pseudo-filled side (the only thing reviewers
     touch); priority defaults to 0 (raise it later for low-confidence).
+
+    All new cases are written in a SINGLE commit (store.put_cases). Writing
+    one commit per case trips HF's 128-commits/hour limit on first boot;
+    existence is checked from a single file LIST (not 128 downloads) so a
+    re-boot is cheap and never re-commits cases that already exist.
     """
-    n = 0
+    existing = {p[len("cases/"):-len(".json")]
+                for p in store.b.list("cases/")
+                if p.startswith("cases/") and p.endswith(".json")}
+    new_cases = []
     for rec in records:
         cfg = rec.get("config")
         region = {"spine_only": "pelvis", "pelvic_native": "spine"}.get(cfg)
         if region is None:                       # fused / out of scope
             continue
         cid = schema.case_id(rec.get("token"), cfg)
-        if store.get_case(cid):                  # don't overwrite live state
+        if cid in existing:                      # don't overwrite live state
             continue
-        store.put_case({
+        new_cases.append({
             "case_id": cid,
             "token": str(rec.get("token")),
             "config": cfg,
@@ -215,5 +262,5 @@ def init_cases_from_manifest(store: ReviewStore, records: List[dict],
             "slots": {},
             "final": None,
         })
-        n += 1
-    return n
+    store.put_cases(new_cases)                   # single commit (no-op if empty)
+    return len(new_cases)

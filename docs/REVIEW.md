@@ -131,7 +131,7 @@ HF_TOKEN=<write> HF_REPO_ID=<org>/CTSpinoPelvic1K \
 
 ### 2. Deploy the review Space (Docker SDK — HF builds it, no Docker Hub)
 ```bash
-hf repo create <org>/CTSpinoPelvic1K-review --repo-type space --space_sdk docker
+hf repos create <org>/CTSpinoPelvic1K-review --type space --space-sdk docker
 git clone https://huggingface.co/spaces/<org>/CTSpinoPelvic1K-review
 cd CTSpinoPelvic1K-review
 SRC=/path/to/CTSpinoPelvic1K

@@ -75,7 +75,8 @@ def _startup():
     global SERVICE
     SERVICE = _build_service()
     # First boot: seed cases from the v2 manifest if the store is empty.
-    if not SERVICE.store.list_cases():
+    # has_any_case() is one LIST (not a download of every case file).
+    if not SERVICE.store.has_any_case():
         try:
             from huggingface_hub import hf_hub_download
             mp = hf_hub_download(
