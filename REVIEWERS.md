@@ -24,3 +24,9 @@ to collect.
 Once you're logged in to HuggingFace, the review tool knows who you are — that's
 all most reviewers need. **If you'll be a senior adjudicator**, send the project
 lead your HuggingFace **username** so they can enable adjudication for you.
+
+## Optional: faster editing with AI
+
+If a draft needs heavy re-drawing, you can speed it up with ITK-SNAP's
+nnInteractive AI tool (free, runs on Google Colab — no GPU of your own needed).
+It's entirely optional. See **[REVIEWERS_AI_EDITING.md](REVIEWERS_AI_EDITING.md)**.

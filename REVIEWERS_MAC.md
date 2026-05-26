@@ -73,6 +73,11 @@ Repeat `python3 -m reviewtool next` for the next case. Check progress with:
 python3 -m reviewtool status
 ```
 
+> **Optional — faster editing with AI:** if a draft needs heavy re-drawing, you
+> can use ITK-SNAP's nnInteractive AI tool (runs on free Google Colab — no GPU
+> needed, which matters on a Mac). Entirely optional; see
+> [REVIEWERS_AI_EDITING.md](REVIEWERS_AI_EDITING.md).
+
 ## If an upload gets interrupted
 
 Internet drop, crash, or a "rate-limited" message **after you saved**? Your edit
