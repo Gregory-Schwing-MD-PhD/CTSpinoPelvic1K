@@ -185,10 +185,6 @@ class ReviewStore:
             self.b.write_many(files,
                               commit_message=f"review: seed {len(files)} cases")
 
-    def has_any_case(self) -> bool:
-        """Cheap presence check: one LIST, no per-case download."""
-        return any(p.endswith(".json") for p in self.b.list("cases/"))
-
     def list_cases(self) -> List[dict]:
         out = []
         for p in self.b.list("cases/"):

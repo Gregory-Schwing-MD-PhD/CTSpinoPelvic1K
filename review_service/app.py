@@ -74,21 +74,27 @@ _LOCK = threading.Lock()       # serialize writes (single-worker Space)
 def _startup():
     global SERVICE
     SERVICE = _build_service()
-    # First boot: seed cases from the v2 manifest if the store is empty.
-    # has_any_case() is one LIST (not a download of every case file).
-    if not SERVICE.store.has_any_case():
-        try:
-            from huggingface_hub import hf_hub_download
-            mp = hf_hub_download(
-                repo_id=SERVICE.v2_repo, repo_type="dataset",
-                filename="manifest.json", revision=SERVICE.source_revision)
-            data = json.loads(Path(mp).read_text())
-            recs = data if isinstance(data, list) else data.get("records", [])
-            n = store_mod.init_cases_from_manifest(
-                SERVICE.store, recs, source_revision=SERVICE.source_revision)
-            print(f"[startup] seeded {n} review cases from {SERVICE.v2_repo}")
-        except Exception as e:                       # noqa: BLE001
-            print(f"[startup] could not seed cases: {e}")
+    # Seed / gap-fill from the v2 manifest on EVERY boot. init_cases_from_manifest
+    # is idempotent and cheap (one repo LIST + a single batched commit of ONLY
+    # the missing cases, or a no-op if none). Running it unconditionally
+    # self-heals a partial seed — e.g. a first seed truncated by HF's
+    # commit-rate limit — which a "seed only if the store is empty" guard would
+    # silently leave incomplete forever.
+    try:
+        from huggingface_hub import hf_hub_download
+        mp = hf_hub_download(
+            repo_id=SERVICE.v2_repo, repo_type="dataset",
+            filename="manifest.json", revision=SERVICE.source_revision)
+        data = json.loads(Path(mp).read_text())
+        recs = data if isinstance(data, list) else data.get("records", [])
+        n = store_mod.init_cases_from_manifest(
+            SERVICE.store, recs, source_revision=SERVICE.source_revision)
+        if n:
+            print(f"[startup] seeded {n} new review case(s) from {SERVICE.v2_repo}")
+        else:
+            print("[startup] all review cases already present; nothing to seed")
+    except Exception as e:                           # noqa: BLE001
+        print(f"[startup] could not seed/gap-fill cases: {e}")
 
 
 def auth(authorization: str = Header(default="")) -> dict:
