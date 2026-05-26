@@ -8,15 +8,16 @@ save, and quit. The tool downloads the scan, measures your edits, and uploads th
 result. Two reviewers see each case independently; disagreements go to a senior
 adjudicator. No prior command-line experience needed.
 
-## Before you start — your reviewer key
+## Before you start — a free HuggingFace account
 
-Your project lead will send you **your personal reviewer key** — a code that
-looks like `k_3f9a8c1d…`. You'll paste it in once, in step 3 below.
+You sign in with a free HuggingFace account (there's **no separate reviewer
+key**):
 
-- It is created and sent **to you** by the project lead — you do **not** sign up
-  for it anywhere.
-- It is **not** a HuggingFace token; you don't need a HuggingFace account at all.
-- No key yet? Ask the project lead before continuing.
+1. Make an account at <https://huggingface.co/join>.
+2. Create a **Read** token: Settings → Access Tokens → **New token** → type
+   **Read** → copy it.
+
+You'll paste that token during `hf auth login` in step 3.
 
 ## 1. Install Python
 
@@ -26,23 +27,25 @@ first screen, check "Add python.exe to PATH"**, then click *Install Now*.
 ## 2. Install ITK-SNAP
 
 Download from <http://www.itksnap.org> (Downloads) and run the installer,
-accepting the defaults. The review tool finds it automatically — you don't need
-to note where it installed.
+accepting the defaults. The review tool finds it automatically.
 
-## 3. Get the review tool and connect
+## 3. Get the tool and sign in
 
-Open **PowerShell** (Start menu → type "PowerShell") and run these one at a time.
-Replace `<YOUR_REVIEWER_KEY>` with the key your project lead sent you:
+Open **PowerShell** (Start menu → type "PowerShell") and run these one at a time:
 
 ```powershell
 git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git
 cd CTSpinoPelvic1K
 py -m pip install requests huggingface_hub numpy nibabel
-py -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review.hf.space --key <YOUR_REVIEWER_KEY>
+hf auth login
+py -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review.hf.space
 ```
 
-> No `git`? Install it from <https://git-scm.com/download/win> (defaults are
-> fine), reopen PowerShell, and re-run the `git clone` line.
+> - `hf auth login` asks for the **Read** token you copied — paste it (it stays
+>   hidden as you type) and press Enter. Answer "n" if it asks about git
+>   credentials.
+> - No `git`? Install it from <https://git-scm.com/download/win> (defaults are
+>   fine), reopen PowerShell, and re-run the `git clone` line.
 
 Steps 1–3 are done **once**.
 
@@ -93,15 +96,14 @@ Safe to run anytime, even if everything already went through.
 
 - **`py` not recognized** → reinstall Python and check "Add python.exe to PATH"
   (step 1), then reopen PowerShell.
+- **`invalid credentials` / `401`** → you're not signed in to HuggingFace (or the
+  token expired). Run `hf auth login` again with a valid **Read** token.
 - **`itksnap not found`** → it installed somewhere nonstandard; add
   `--itksnap "C:\Program Files\ITK-SNAP 4.0\bin\ITK-SNAP.exe"` (adjust the
   version) to the `next` command.
 - **`No module named reviewtool`** → make sure you're in the folder:
   `cd CTSpinoPelvic1K`.
 - **"nothing to claim"** → all cases assigned/done for now; check back later.
-- **permission / `401` downloading a scan** → the dataset is access-controlled;
-  tell the project lead (you'd then make a free HuggingFace Read token and run
-  `hf auth login`).
 
 Stuck on anything else? Send the project lead a copy of what the terminal
 printed.

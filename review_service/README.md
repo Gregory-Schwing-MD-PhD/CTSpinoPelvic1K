@@ -11,12 +11,14 @@ pinned: false
 # CTSpinoPelvic1K review service (Phase 2)
 
 FastAPI coordination service for **distributed double-review + adjudication**
-of the v2 pseudo labels. Holds the single HF write token; reviewers
-authenticate with per-reviewer API keys and never see the token. CT +
-pseudo labels are fetched by the client straight from the **public v2**
-repo; only corrected labels are uploaded through this service into a
-**private review repo**, which is the source of truth for claims / status /
-reviews / finalized labels.
+of the v2 pseudo labels. Reviewers authenticate with their **own HuggingFace
+login** (`hf auth login`); the Space verifies the token via `whoami` and uses
+the username as their identity (open mode — any HF user may review; only
+`ADJUDICATORS` may adjudicate). The Space holds the single dataset **write**
+token, which reviewers never see. CT + pseudo labels are fetched by the client
+straight from the **public v2** repo; only corrected labels are uploaded
+through this service into a **private review repo**, the source of truth for
+claims / status / reviews / finalized labels.
 
 ## Deploy as a HuggingFace Space (Docker SDK)
 
@@ -29,7 +31,8 @@ to a Space whose SDK is **docker**. Set these **Space secrets / variables**:
 | `REVIEW_REPO` | `anonymous-neurips-ED/CTSpinoPelvic1K-reviews` | private dataset (auto-created) |
 | `V2_REPO` | `anonymous-neurips-ED/CTSpinoPelvic1K` | public source of CT + pseudo |
 | `SOURCE_REVISION` | `v2` | branch holding the pseudo labels |
-| `REVIEWER_KEYS` | `{"k_alice":{"id":"alice","role":"primary"},"k_snr":{"id":"snr","role":"adjudicator"}}` | API-key → reviewer map |
+| `ADJUDICATORS` | `drsmith,drokafor` | HF usernames allowed to adjudicate; any other HF-authenticated user is a primary reviewer |
+| `REVIEWER_KEYS` | `{"k_snr":{"id":"snr","role":"adjudicator"}}` | optional/legacy: bearer values matching a key here bypass HF identity |
 | `TAU` | `0.9` | IRR agreement threshold (per-class min-Dice) |
 | `IRR_MODE` | `per_class_min` | or `overall` |
 
@@ -55,7 +58,9 @@ LOCAL_STORE_DIR=/tmp/rs V2_REPO=org/X REVIEWER_KEYS='{"k":{"id":"a","role":"adju
 | GET | `/status` | reviewer | JSON summary |
 | GET | `/` | — | HTML dashboard |
 
-Auth: `Authorization: Bearer <api_key>`.
+Auth: `Authorization: Bearer <hf_token>` (the reviewer's HuggingFace token; the
+Space resolves it to a username via `whoami`). A legacy minted `<api_key>` is
+also accepted if present in `REVIEWER_KEYS`.
 
 ## Closing the loop → v3
 When review is complete, pull the private repo's `finals.json` + corrected

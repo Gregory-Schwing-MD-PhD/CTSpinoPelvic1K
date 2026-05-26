@@ -2,12 +2,12 @@
 
 This page has two parts:
 
-- **[Part A — Reviewers](#part-a--reviewers-start-here)** — if you were given a
-  *reviewer key* and asked to correct CT segmentations, start here. No prior
-  command-line or ML experience needed.
+- **[Part A — Reviewers](#part-a--reviewers-start-here)** — if you were asked to
+  correct CT segmentations, start here. No prior command-line or ML experience
+  needed.
 - **[Part B — Maintainer setup](#part-b--maintainer-setup)** — only the person
-  running the project needs this (stand up the backend, issue reviewer keys,
-  build the final dataset). Reviewers can ignore it.
+  running the project needs this (stand up the backend, build the final
+  dataset). Reviewers can ignore it.
 
 ---
 
@@ -21,9 +21,10 @@ scan, measuring your changes, uploading the result). You'll do this one case
 at a time; two reviewers see each case independently, and disagreements go to
 a senior adjudicator.
 
-You will need three things, set up once: **(1)** a HuggingFace account +
-token, **(2)** ITK-SNAP + the `reviewtool` program, **(3)** the
-**reviewer key** and **service URL** the maintainer sent you.
+You will need three things, set up once: **(1)** a free HuggingFace account +
+Read token (this is how you sign in — there's no separate reviewer key),
+**(2)** ITK-SNAP + the `reviewtool` program, **(3)** the **service URL** the
+maintainer sent you.
 
 ### 1. Make a HuggingFace account + token (5 min)
 1. Go to **https://huggingface.co/join** and create a free account.
@@ -59,11 +60,12 @@ token — uploads of your corrections go through the project's server.
 
 ### 3. Connect (once)
 ```bash
-huggingface-cli login          # paste your hf_... token when prompted
-python -m reviewtool login --service <SERVICE_URL> --key <YOUR_REVIEWER_KEY>
+hf auth login                  # paste your Read token when prompted
+python -m reviewtool login --service <SERVICE_URL>
 ```
-`<SERVICE_URL>` and `<YOUR_REVIEWER_KEY>` come from the maintainer (the URL
-looks like `https://<org>-ctspinopelvic1k-review.hf.space`).
+You sign in with your own HuggingFace account — there's no separate reviewer
+key. `<SERVICE_URL>` comes from the maintainer (it looks like
+`https://<org>-ctspinopelvic1k-review.hf.space`).
 
 ### 4. Review a case
 ```bash
@@ -163,24 +165,32 @@ Then in the Space's **Settings → Variables and secrets**:
 | `REVIEW_REPO` | `<org>/CTSpinoPelvic1K-reviews` |
 | `V2_REPO` | `<org>/CTSpinoPelvic1K` |
 | `SOURCE_REVISION` | `v2` |
-| `REVIEWER_KEYS` | `{"k_alice":{"id":"alice","role":"primary"},"k_bob":{"id":"bob","role":"primary"},"k_snr":{"id":"snr","role":"adjudicator"}}` |
+| `ADJUDICATORS` | `drsmith,drokafor` (HF usernames; everyone else who signs in is a primary reviewer) |
 | `TAU` | `0.9` |
+
+Reviewers authenticate with their own HuggingFace login (open mode) — there are
+no per-reviewer keys to mint or distribute. `REVIEWER_KEYS` is still honored if
+set (legacy), but isn't needed.
 
 On boot it seeds one review case per `spine_only`/`pelvic_native` record from
 the v2 manifest. The Space URL (`https://<org>-ctspinopelvic1k-review.hf.space`)
 is the `--service` value you give reviewers; the dashboard is at `/`.
 
 ### 3. Onboard reviewers
-Send each med student: the **Space URL**, **their key** (the `k_…` you put in
-`REVIEWER_KEYS`), and a link to **Part A** of this page. Make `role` =
-`adjudicator` for senior reviewers, `primary` for the rest. Keep the Space at
-**1 replica** (the atomic-claim lock assumes a single worker).
+Send each reviewer the per-OS setup guide — **[REVIEWERS.md](../REVIEWERS.md)**
+(it links the Windows / Mac / Linux versions). The service URL is already filled
+into those guides. Reviewers sign in with their own free HuggingFace account —
+**no keys to mint or distribute.** For senior **adjudicators**, add their HF
+username to the `ADJUDICATORS` Space variable (everyone else is a primary
+reviewer automatically). Keep the Space at **1 replica** (the atomic-claim lock
+assumes a single worker).
 
-> **Smoke-test before onboarding:** with a throwaway key, run
+> **Smoke-test before onboarding:** sign in with your own HF account
+> (`hf auth login`), then `reviewtool login --service <url>` and run
 > `python -m reviewtool next` on one case end-to-end (claim → tiny edit →
-> save → quit) and confirm a record + label appear in the private
-> `…-reviews` repo. The service core is unit-tested, but verify the live
-> HTTP + ITK-SNAP path once.
+> save → quit); confirm a record + label appear in the private `…-reviews`
+> repo. The service core is unit-tested, but verify the live HTTP + ITK-SNAP
+> path once.
 
 ### 4. Build v3 when review is done
 ```bash

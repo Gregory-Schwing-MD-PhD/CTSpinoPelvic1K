@@ -10,15 +10,17 @@ an AI-generated *draft* segmentation; your job is to open one case at a time in
 - **Mac** → **[REVIEWERS_MAC.md](REVIEWERS_MAC.md)**
 - **Linux / Windows WSL** → **[REVIEWERS_LINUX.md](REVIEWERS_LINUX.md)**
 
-## What you need first (all platforms)
+## How you sign in (all platforms)
 
-Your project lead will send you two things — have them ready before you start:
+You sign in with a **free HuggingFace account** — that's your identity for the
+review (your username is recorded with your work). There's **no separate key**
+to collect.
 
-1. **Your reviewer key** — a code that looks like `k_3f9a8c1d…`. It's personal
-   to you; **the project lead creates it and sends it to you** (you do *not* sign
-   up for it anywhere, and it is *not* a HuggingFace token). If you don't have
-   one yet, ask them.
-2. The **service URL** — already filled into the commands in each guide
-   (`https://gregoryschwingmdphd-ctspinopelvic1k-review.hf.space`).
+1. Make a free account at <https://huggingface.co/join>.
+2. Create a **Read** token: Settings → Access Tokens → **New token** → type
+   **Read** → copy it.
+3. Your guide tells you when to run `hf auth login` and paste that token.
 
-You do **not** need a HuggingFace account or token.
+Once you're logged in to HuggingFace, the review tool knows who you are — that's
+all most reviewers need. **If you'll be a senior adjudicator**, send the project
+lead your HuggingFace **username** so they can enable adjudication for you.

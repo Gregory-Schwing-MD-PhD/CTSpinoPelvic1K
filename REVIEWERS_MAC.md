@@ -8,15 +8,16 @@ save, and quit. The tool downloads the scan, measures your edits, and uploads th
 result. Two reviewers see each case independently; disagreements go to a senior
 adjudicator. No prior command-line experience needed.
 
-## Before you start — your reviewer key
+## Before you start — a free HuggingFace account
 
-Your project lead will send you **your personal reviewer key** — a code that
-looks like `k_3f9a8c1d…`. You'll paste it in once, in step 2 below.
+You sign in with a free HuggingFace account (there's **no separate reviewer
+key**):
 
-- It is created and sent **to you** by the project lead — you do **not** sign up
-  for it anywhere.
-- It is **not** a HuggingFace token; you don't need a HuggingFace account at all.
-- No key yet? Ask the project lead before continuing.
+1. Make an account at <https://huggingface.co/join>.
+2. Create a **Read** token: Settings → Access Tokens → **New token** → type
+   **Read** → copy it.
+
+You'll paste that token during `hf auth login` in step 2.
 
 ## 1. Install ITK-SNAP
 
@@ -24,24 +25,28 @@ Download from <http://www.itksnap.org> (Downloads), open the `.dmg`, and drag
 **ITK-SNAP** into your Applications folder. The review tool finds it
 automatically.
 
-## 2. Get the review tool and connect
+## 2. Get the tool and sign in
 
 Open **Terminal** (Applications → Utilities → Terminal) and run these one at a
-time. Replace `<YOUR_REVIEWER_KEY>` with the key your project lead sent you:
+time:
 
 ```bash
 git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git
 cd CTSpinoPelvic1K
 python3 -m pip install requests huggingface_hub numpy nibabel
-python3 -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review.hf.space --key <YOUR_REVIEWER_KEY>
+hf auth login
+python3 -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review.hf.space
 ```
 
+> - `hf auth login` asks for the **Read** token you copied — paste it (it stays
+>   hidden as you type) and press Enter. Answer "n" if it asks about git
+>   credentials.
 > - If `git` prompts to install "command line developer tools," click
 >   **Install**, then re-run the `git clone` line.
 > - If you get `command not found: python3`, install Python from
 >   <https://www.python.org/downloads/> and reopen Terminal.
 
-Step 1–2 are done **once**.
+Steps 1–2 are done **once**.
 
 ## 3. Review a case
 
@@ -90,6 +95,8 @@ Safe to run anytime, even if everything already went through.
 
 - **`command not found: python3`** → install Python from
   <https://www.python.org/downloads/>, then reopen Terminal.
+- **`invalid credentials` / `401`** → you're not signed in to HuggingFace (or the
+  token expired). Run `hf auth login` again with a valid **Read** token.
 - **`itksnap not found`** → ITK-SNAP isn't in Applications; reinstall it there, or
   add `--itksnap /Applications/ITK-SNAP.app/Contents/bin/itksnap` to the `next`
   command.
@@ -98,9 +105,6 @@ Safe to run anytime, even if everything already went through.
 - **`No module named reviewtool`** → make sure you're in the folder:
   `cd CTSpinoPelvic1K`.
 - **"nothing to claim"** → all cases assigned/done for now; check back later.
-- **permission / `401` downloading a scan** → the dataset is access-controlled;
-  tell the project lead (you'd then make a free HuggingFace Read token and run
-  `hf auth login`).
 
 Stuck on anything else? Send the project lead a copy of what the terminal
 printed.

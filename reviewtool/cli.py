@@ -2,15 +2,17 @@
 reviewtool/cli.py — annotator-facing CLI.
 
 Commands:
-  reviewtool login   --service URL --key KEY
+  reviewtool login   --service URL          (uses your `hf auth login` identity)
   reviewtool next    [--workdir DIR] [--itksnap itksnap]   # claim→edit→submit
   reviewtool adjudicate [...]                               # disagreements
   reviewtool status
   reviewtool resume                                         # re-upload saved edits
 
 All HF download/upload is hidden: CT + pseudo come straight from the public
-v2 repo; the corrected label is uploaded *through the Space*, so the
-annotator never holds the dataset token — only their reviewer API key.
+v2 repo; the corrected label is uploaded *through the Space*. The reviewer
+authenticates with their own HuggingFace login (`hf auth login`) — the Space
+verifies the username and holds the only dataset *write* token, which the
+reviewer never sees. (A legacy `--key` is still accepted if configured.)
 
 The decision logic (`build_submission`) is pure and unit-tested; everything
 else is I/O glue (subprocess + HTTP).
@@ -82,8 +84,15 @@ def _cfg() -> dict:
 def _api():
     import requests          # local import so `login` works before install note
     cfg = _cfg()
+    token = cfg.get("api_key")              # legacy minted key, if any
+    if not token:
+        from huggingface_hub import get_token
+        token = get_token()                 # from `hf auth login`
+        if not token:
+            sys.exit("not authenticated — run `hf auth login` first, then "
+                     "`reviewtool login --service <url>`.")
     s = requests.Session()
-    s.headers["Authorization"] = f"Bearer {cfg['api_key']}"
+    s.headers["Authorization"] = f"Bearer {token}"
     return s, cfg["service_url"].rstrip("/")
 
 
@@ -161,9 +170,15 @@ def _launch_itksnap(itksnap: str, ct: Path, seg: Path, labels: Path) -> None:
 
 def cmd_login(a):
     CONFIG.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG.write_text(json.dumps(
-        {"service_url": a.service, "api_key": a.key}, indent=2))
+    cfg = {"service_url": a.service}
+    if a.key:                               # optional legacy minted key
+        cfg["api_key"] = a.key
+    CONFIG.write_text(json.dumps(cfg, indent=2))
     print(f"saved {CONFIG}")
+    from huggingface_hub import get_token
+    if not a.key and not get_token():
+        print("note: you're not logged in to HuggingFace yet — "
+              "run `hf auth login` before `reviewtool next`.")
 
 
 def _claim(s, base, path="/claim"):
@@ -328,7 +343,10 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("login"); p.add_argument("--service", required=True)
-    p.add_argument("--key", required=True); p.set_defaults(fn=cmd_login)
+    p.add_argument("--key", default=None,
+                   help="(optional) legacy reviewer key; omit to use your "
+                        "HuggingFace login")
+    p.set_defaults(fn=cmd_login)
 
     for name, fn in (("next", cmd_next), ("adjudicate", cmd_adjudicate)):
         p = sub.add_parser(name)

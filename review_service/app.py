@@ -11,16 +11,26 @@ Deploy as a HuggingFace Space (see Dockerfile + README). Configure via env:
   REVIEW_REPO         org/CTSpinoPelvic1K-reviews  (private dataset)
   V2_REPO             org/CTSpinoPelvic1K          (public; source of CT+pseudo)
   SOURCE_REVISION     v2                            (branch holding pseudo)
-  REVIEWER_KEYS       JSON: {"<api_key>": {"id":"rev_a","role":"primary"}, ...}
+  ADJUDICATORS        comma/space-separated HF usernames allowed to adjudicate;
+                      any other HF-authenticated user is a primary reviewer
+  REVIEWER_KEYS       (optional/legacy) JSON {"<api_key>":{"id":..,"role":..}};
+                      bearer values matching a key here bypass HF identity
   TAU, IRR_MODE       agreement threshold + mode (default 0.9 / per_class_min)
   LOCAL_STORE_DIR     optional: use a local dir instead of HFBackend (dev)
+
+Auth: reviewers send their own HuggingFace token (from `hf auth login`) as the
+bearer; the Space verifies it with `whoami` and uses the returned username as
+their identity (open mode — any HF user may review). The Space holds the only
+dataset WRITE token; reviewers never see it.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -65,7 +75,14 @@ def _build_service() -> svc.ReviewService:
 
 
 app = FastAPI(title="CTSpinoPelvic1K review service")
-KEYS = _load_keys()
+KEYS = _load_keys()                       # legacy minted keys (optional)
+ADJUDICATORS = {                          # HF usernames allowed to adjudicate
+    u.strip().lower()
+    for u in os.environ.get("ADJUDICATORS", "").replace(",", " ").split()
+    if u.strip()
+}
+_WHOAMI_CACHE: dict = {}                   # sha256(token) -> (username, ts)
+_WHOAMI_TTL = 600                          # re-verify a token every 10 min
 SERVICE: Optional[svc.ReviewService] = None
 _LOCK = threading.Lock()       # serialize writes (single-worker Space)
 
@@ -97,13 +114,42 @@ def _startup():
         print(f"[startup] could not seed/gap-fill cases: {e}")
 
 
+def _hf_username(token: str) -> Optional[str]:
+    """Verified HuggingFace username for a token (cached), or None if invalid.
+
+    The token is the reviewer's own (read-scoped) HF token; we call whoami to
+    confirm identity and only cache sha256(token) -> username, never the token."""
+    h = hashlib.sha256(token.encode()).hexdigest()
+    now = time.time()
+    hit = _WHOAMI_CACHE.get(h)
+    if hit and now - hit[1] < _WHOAMI_TTL:
+        return hit[0]
+    try:
+        from huggingface_hub import whoami as hf_whoami
+        name = hf_whoami(token=token).get("name")
+    except Exception:                       # invalid token / network
+        return None
+    if name:
+        _WHOAMI_CACHE[h] = (name, now)
+    return name
+
+
 def auth(authorization: str = Header(default="")) -> dict:
-    key = authorization[7:] if authorization.lower().startswith("bearer ") \
+    cred = authorization[7:] if authorization.lower().startswith("bearer ") \
         else authorization
-    who = KEYS.get(key)
-    if not who:
-        raise HTTPException(401, "invalid or missing reviewer API key")
-    return who                  # {"id":..., "role":...}
+    cred = cred.strip()
+    if not cred:
+        raise HTTPException(401, "missing credentials")
+    who = KEYS.get(cred)                    # 1) legacy minted reviewer key
+    if who:
+        return who                          # {"id":..., "role":...}
+    username = _hf_username(cred)           # 2) HuggingFace identity (open mode)
+    if not username:
+        raise HTTPException(
+            401, "invalid credentials — run `hf auth login`, then "
+                 "`reviewtool login --service <url>`")
+    role = "adjudicator" if username.lower() in ADJUDICATORS else "primary"
+    return {"id": username, "role": role}
 
 
 def _require(role: str, who: dict):

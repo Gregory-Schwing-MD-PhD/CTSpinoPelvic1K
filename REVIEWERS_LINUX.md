@@ -13,15 +13,16 @@ adjudicator.
 > plain Windows or Mac, use [REVIEWERS_WINDOWS.md](REVIEWERS_WINDOWS.md) or
 > [REVIEWERS_MAC.md](REVIEWERS_MAC.md) instead.
 
-## Before you start — your reviewer key
+## Before you start — a free HuggingFace account
 
-Your project lead will send you **your personal reviewer key** — a code that
-looks like `k_3f9a8c1d…`. You'll paste it in once, in step 1c below.
+You sign in with a free HuggingFace account (there's **no separate reviewer
+key**):
 
-- It is created and sent **to you** by the project lead — you do **not** sign up
-  for it anywhere.
-- It is **not** a HuggingFace token; you don't need a HuggingFace account at all.
-- No key yet? Ask the project lead before continuing.
+1. Make an account at <https://huggingface.co/join>.
+2. Create a **Read** token: Settings → Access Tokens → **New token** → type
+   **Read** → copy it.
+
+You'll paste that token during `hf auth login` in step 1c.
 
 ## 1. One-time setup
 
@@ -60,12 +61,11 @@ source ~/.bashrc
 > that `echo $DISPLAY` prints something like `:0`. If it's blank, run
 > `wsl --update` in Windows PowerShell and reopen your terminal.
 
-### c) Connect to the review service
-
-Replace `<YOUR_REVIEWER_KEY>` with the key your project lead sent you:
+### c) Sign in
 
 ```bash
-python3 -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review.hf.space --key <YOUR_REVIEWER_KEY>
+hf auth login        # paste the Read token you copied; answer "n" to git creds
+python3 -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review.hf.space
 ```
 
 Section 1 is done **once**.
@@ -115,6 +115,8 @@ Safe to run anytime, even if everything already went through.
 
 ## Troubleshooting
 
+- **`invalid credentials` / `401`** → you're not signed in to HuggingFace (or the
+  token expired). Run `hf auth login` again with a valid **Read** token.
 - **`itksnap not found` / nothing opens** → re-check step 1b: `ls
   ~/itksnap-*/bin/itksnap` should show the file and `echo $REVIEWTOOL_ITKSNAP`
   its full path. You can also pass it explicitly:
@@ -126,9 +128,6 @@ Safe to run anytime, even if everything already went through.
 - **`No module named reviewtool`** → make sure you're in the folder:
   `cd CTSpinoPelvic1K`.
 - **"nothing to claim"** → all cases assigned/done for now; check back later.
-- **permission / `401` downloading a scan** → the dataset is access-controlled;
-  tell the project lead (you'd then make a free HuggingFace Read token and run
-  `hf auth login`).
 
 Stuck on anything else? Send the project lead a copy of what the terminal
 printed.
