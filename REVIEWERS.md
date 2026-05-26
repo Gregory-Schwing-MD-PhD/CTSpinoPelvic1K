@@ -1,4 +1,7 @@
-# CTSpinoPelvic1K — Reviewer Guide
+# CTSpinoPelvic1K — Reviewer Guide (macOS / Windows)
+
+> **On Linux or Windows WSL?** ITK-SNAP installs differently there — use
+> **[REVIEWERS_LINUX.md](REVIEWERS_LINUX.md)** instead of this guide.
 
 Thanks for helping review the spine + pelvis segmentations!
 
