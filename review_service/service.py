@@ -19,6 +19,7 @@ store; only `reject` carries no label.
 from __future__ import annotations
 
 import io
+import json
 import sys
 import tempfile
 import uuid
@@ -92,7 +93,19 @@ class ReviewService:
             raise ReviewError("malformed claim token")
         return parts[0], parts[1]      # case_id, slot
 
-    def _agree(self, case: dict) -> Optional[bool]:
+    def _read_label(self, path: Optional[str],
+                    files: Optional[dict] = None) -> Optional[bytes]:
+        """Label bytes, preferring this op's not-yet-committed `files` batch
+        over the committed store — so IRR/finalize can read a label written
+        earlier in the same submit, before its single commit lands."""
+        if not path:
+            return None
+        if files and path in files:
+            d = files[path]
+            return bytes(d) if isinstance(d, (bytes, bytearray)) else None
+        return self.store.get_label_bytes(path)
+
+    def _agree(self, case: dict, files: Optional[dict] = None) -> Optional[bool]:
         """IRR between the two primary slots' labels (None if <2 labels)."""
         labels = []
         for s in ("1", "2"):
@@ -100,7 +113,7 @@ class ReviewService:
             lp = slot.get("label_path")
             if not slot.get("done") or not lp:
                 return None
-            data = self.store.get_label_bytes(lp)
+            data = self._read_label(lp, files)
             if data is None:
                 return None
             labels.append(_load_label_array(data, lp))
@@ -165,8 +178,19 @@ class ReviewService:
         sl = case.get("slots", {}).get(slot)
         if not sl or sl.get("claim_token") != claim_token:
             raise ReviewError("claim token does not match an open claim")
+
+        new_sha = _sha256(label_bytes) if label_bytes is not None else None
         if sl.get("done"):
-            raise ReviewError("slot already submitted")
+            # Idempotent retry: a client re-sending the SAME work (e.g. after a
+            # lost response / network blip) must succeed, not error — that is
+            # what lets `reviewtool resume` recover without losing a finished
+            # edit. A resubmit with DIFFERENT content under a done slot is a
+            # real conflict and still raises.
+            if sl.get("label_sha256") == new_sha:
+                return {"case_id": case_id, "duplicate": True,
+                        "status": schema.derive_status(case, case.get("agree")),
+                        "irr": case.get("irr")}
+            raise ReviewError("slot already submitted with different content")
 
         region = case["region_to_review"]
         decision = record.get("decision", "accept")
@@ -182,14 +206,19 @@ class ReviewService:
         record["prov_after"] = schema.provenance_after(
             case["prov_before"], region, decision)
 
+        # Accumulate every file this submit writes; commit them in ONE atomic
+        # commit (was 2-4 separate commits -> 2-4x the HF commit-rate cost, and
+        # a partial-write window between them).
+        files: Dict[str, object] = {}
+
         label_path = None
         if decision in ("accept", "corrected"):
             if label_bytes is None:
                 raise ReviewError(f"{decision} requires a label upload")
-            label_path = self.store.put_label(
-                case_id, f"{slot}_label{_ext(label_name)}", label_bytes)
+            label_path = f"reviews/{case_id}/{slot}_label{_ext(label_name)}"
+            files[label_path] = label_bytes
             record["artifact"] = label_path
-            record["corrected_label_sha256"] = _sha256(label_bytes)
+            record["corrected_label_sha256"] = new_sha
             if not record.get("diff"):
                 record["diff"] = {"n_voxels_changed": 0}
 
@@ -197,39 +226,44 @@ class ReviewService:
         if errs:
             raise ReviewError("invalid review record: " + "; ".join(errs))
 
-        self.store.put_review(record)
+        files[f"reviews/{case_id}/{record['review_id']}.json"] = \
+            json.dumps(record, indent=2)
         sl.update(done=True, review_id=record["review_id"],
                   decision=decision, label_path=label_path,
-                  submitted_at=schema.utcnow())
+                  label_sha256=new_sha, submitted_at=schema.utcnow())
 
         # evaluate once both primaries are in
         agree = None
         if len(schema.primary_done(case)) >= schema.N_PRIMARY:
-            agree = self._agree(case)
+            agree = self._agree(case, files)
             case["agree"] = agree          # persist so derive_status is stateless
             if agree is True:
-                self._finalize_from_primaries(case)
-        self.store.put_case(case)
+                self._finalize_from_primaries(case, files)
+        files[self.store.case_path(case_id)] = json.dumps(case, indent=2)
+        self.store.b.write_many(
+            files, commit_message=f"review: submit {case_id}/{slot}")
         return {"case_id": case_id, "status": schema.derive_status(case, agree),
                 "irr": case.get("irr")}
 
-    def _finalize_from_primaries(self, case: dict) -> None:
+    def _finalize_from_primaries(self, case: dict, files: dict) -> None:
         """Auto-finalize an agreed case: keep the more-conservative label
-        (fewest voxels changed; tie -> slot 1)."""
+        (fewest voxels changed; tie -> slot 1). The final label is added to
+        `files` so it rides the submit's single commit (reads prefer the
+        pending batch, since the chosen label may be this submit's own)."""
         best_slot, best_changed = None, None
         for s in ("1", "2"):
             sl = case["slots"][s]
-            rev = self._get_review(case, sl["review_id"])
+            rev = self._get_review(case, sl["review_id"], files)
             changed = (rev.get("diff", {}) or {}).get("n_voxels_changed", 0)
             if best_changed is None or changed < best_changed:
                 best_slot, best_changed = s, changed
         sl = case["slots"][best_slot]
-        rev = self._get_review(case, sl["review_id"])
+        rev = self._get_review(case, sl["review_id"], files)
         final_label = f"reviews/{case['case_id']}/final_label" \
                       f"{_ext(sl['label_path'] or '.nii.gz')}"
-        data = self.store.get_label_bytes(sl["label_path"])
+        data = self._read_label(sl["label_path"], files)
         if data is not None:
-            self.store.b.write_bytes(final_label, data)
+            files[final_label] = data
         decision = "corrected" if best_changed and best_changed > 0 else "accept"
         case["final"] = {
             "decision": decision,
@@ -240,9 +274,11 @@ class ReviewService:
             "irr": case.get("irr"),
         }
 
-    def _get_review(self, case: dict, review_id: str) -> dict:
-        import json
+    def _get_review(self, case: dict, review_id: str,
+                    files: Optional[dict] = None) -> dict:
         path = f"reviews/{case['case_id']}/{review_id}.json"
+        if files and path in files:
+            return json.loads(files[path])
         t = self.store.b.read_text(path)
         return json.loads(t) if t else {}
 
@@ -291,8 +327,13 @@ class ReviewService:
         adj = case["slots"].get(schema.ADJ_SLOT)
         if not adj or adj.get("claim_token") != claim_token:
             raise ReviewError("claim token does not match the adjudication claim")
+        if adj.get("done"):
+            # Idempotent retry (see submit): a re-sent adjudication is a no-op.
+            return {"case_id": case_id, "duplicate": True,
+                    "status": schema.derive_status(case)}
 
         region = case["region_to_review"]
+        files: Dict[str, object] = {}
         if decision == "reject":
             case["final"] = {"decision": "reject",
                              "prov_after": case["prov_before"],
@@ -301,8 +342,8 @@ class ReviewService:
         else:
             if label_bytes is None:
                 raise ReviewError("adjudication requires a final label")
-            label_path = self.store.put_label(
-                case_id, f"final_label{_ext(label_name)}", label_bytes)
+            label_path = f"reviews/{case_id}/final_label{_ext(label_name)}"
+            files[label_path] = label_bytes
             rec = schema.ReviewRecord(
                 review_id=schema.review_id(case["token"], case["config"],
                                            adj["reviewer"], round=2),
@@ -316,7 +357,8 @@ class ReviewService:
                 prov_after=schema.provenance_after(case["prov_before"], region,
                                                    "corrected"), notes=notes,
             ).to_dict()
-            self.store.put_review(rec)
+            files[f"reviews/{case_id}/{rec['review_id']}.json"] = \
+                json.dumps(rec, indent=2)
             case["final"] = {"decision": "corrected",
                              "prov_after": rec["prov_after"],
                              "label_rel": label_path,
@@ -324,7 +366,9 @@ class ReviewService:
                              "by": adj["reviewer"], "at": schema.utcnow(),
                              "irr": case.get("irr")}
         adj.update(done=True, submitted_at=schema.utcnow())
-        self.store.put_case(case)
+        files[self.store.case_path(case_id)] = json.dumps(case, indent=2)
+        self.store.b.write_many(
+            files, commit_message=f"review: adjudicate {case_id}")
         return {"case_id": case_id, "status": schema.derive_status(case)}
 
     # ── status + finals ───────────────────────────────────────────────────

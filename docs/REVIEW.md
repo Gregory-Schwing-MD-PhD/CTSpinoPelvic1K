@@ -90,6 +90,15 @@ anytime with:
 python -m reviewtool status
 ```
 
+**If an upload is interrupted** (network drop, the tool crashes, or you see a
+"rate-limited" message), your edit is **not lost** — it's saved on disk. Just
+run:
+```bash
+python -m reviewtool resume
+```
+to re-send any pending case(s). It's safe to run anytime, even if everything
+already went through (re-sending work the server already has is a no-op).
+
 ### Rules of thumb
 - **One region only** — the one named in the terminal. Manual labels are gold.
 - **Don't renumber labels.** Keep the palette as loaded.
@@ -103,6 +112,8 @@ python -m reviewtool status
   and make sure you clicked “Agree” on the dataset page (gated datasets).
 - **“nothing to claim”** → all cases are assigned/done for now; check back
   later or ping the maintainer.
+- **upload failed / “rate-limited” / tool crashed after you saved** → your
+  edit is safe on disk; run `python -m reviewtool resume` to send it.
 - **Adjudicators only:** `python -m reviewtool adjudicate --notes "…"` shows a
   case where two reviewers disagreed (with both their results); you produce
   the deciding label the same way (edit → save → quit).

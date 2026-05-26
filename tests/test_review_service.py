@@ -133,14 +133,24 @@ def test_accept_path_finalizes_as_pseudo_corrected(tmp_path):
     assert case["final"]["prov_after"]["pelvis"] == "pseudo_corrected"
 
 
-def test_submit_rejects_bad_token_and_double_submit(tmp_path):
+def test_submit_rejects_bad_token(tmp_path):
     s, _ = _service(tmp_path)
-    a = s.claim("rev_a")
+    s.claim("rev_a")
     with pytest.raises(svc.ReviewError):
         s.submit("bogus::1::xyz", _rec(), _npy(_label(4)), "label.npy")
-    s.submit(a["claim_token"], _rec(), _npy(_label(4)), "label.npy")
+
+
+def test_double_submit_same_content_is_idempotent(tmp_path):
+    """A retry of the SAME work (lost-response recovery / `reviewtool resume`)
+    succeeds as a duplicate; a resubmit with DIFFERENT content still errors."""
+    s, _ = _service(tmp_path)
+    a = s.claim("rev_a")
+    lab = _label(4)
+    s.submit(a["claim_token"], _rec(), _npy(lab), "label.npy")
+    again = s.submit(a["claim_token"], _rec(), _npy(lab), "label.npy")
+    assert again.get("duplicate") is True
     with pytest.raises(svc.ReviewError):
-        s.submit(a["claim_token"], _rec(), _npy(_label(4)), "label.npy")
+        s.submit(a["claim_token"], _rec(changed=99), _npy(_label(7)), "label.npy")
 
 
 def test_build_finals_and_status_summary(tmp_path):

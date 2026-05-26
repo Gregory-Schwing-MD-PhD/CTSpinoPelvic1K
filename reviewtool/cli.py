@@ -6,6 +6,7 @@ Commands:
   reviewtool next    [--workdir DIR] [--itksnap itksnap]   # claim→edit→submit
   reviewtool adjudicate [...]                               # disagreements
   reviewtool status
+  reviewtool resume                                         # re-upload saved edits
 
 All HF download/upload is hidden: CT + pseudo come straight from the public
 v2 repo; the corrected label is uploaded *through the Space*, so the
@@ -21,6 +22,7 @@ import hashlib
 import json
 import sys
 import subprocess
+import time
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -30,6 +32,26 @@ if str(_ROOT / "scripts") not in sys.path:
 from review import diff, labels_descriptor  # noqa: E402
 
 CONFIG = Path.home() / ".reviewtool" / "config.json"
+
+# An "active claim" is persisted the moment a case is claimed (before any
+# edit), so a finished segmentation is NEVER lost to a flaky upload, a crash,
+# or a HuggingFace commit-rate 429: the edited seg.nii.gz stays in its workdir
+# and `reviewtool resume` re-uploads it. Submit is idempotent server-side, so
+# replaying work the server already recorded is a safe no-op.
+ACTIVE_DIR = Path.home() / ".reviewtool" / "active"
+
+
+def _save_active(job: dict, work: Path, kind: str = "review", **extra) -> None:
+    ACTIVE_DIR.mkdir(parents=True, exist_ok=True)
+    payload = {"kind": kind, "job": job, "workdir": str(work), **extra}
+    (ACTIVE_DIR / f"{Path(work).name}.json").write_text(
+        json.dumps(payload, indent=2))
+
+
+def _clear_active(work) -> None:
+    p = ACTIVE_DIR / f"{Path(work).name}.json"
+    if p.exists():
+        p.unlink()
 
 
 # ── pure core (tested) ───────────────────────────────────────────────────────
@@ -121,6 +143,66 @@ def _claim(s, base, path="/claim"):
     return r.json()
 
 
+def _post_resilient(s, url, *, data, label_path, timeout=300,
+                    max_tries=4, backoff=3.0):
+    """POST a submit/adjudicate with the edited label, retrying transient
+    failures (socket errors, 5xx, a brief 429). The label is read into memory
+    so each attempt can rebuild a fresh multipart body. Returns the final
+    requests.Response; the caller inspects the status."""
+    import requests
+    label_bytes = Path(label_path).read_bytes()
+    r = None
+    for attempt in range(1, max_tries + 1):
+        files = {"label": ("label.nii.gz", label_bytes, "application/gzip")}
+        try:
+            r = s.post(url, data=data, files=files, timeout=timeout)
+        except requests.RequestException:
+            if attempt == max_tries:
+                raise
+            time.sleep(backoff * attempt)
+            continue
+        if (r.status_code == 429 or 500 <= r.status_code < 600) \
+                and attempt < max_tries:
+            time.sleep(backoff * attempt)
+            continue
+        return r
+    return r
+
+
+def _finish_submit(r, work) -> bool:
+    """Interpret a submit/adjudicate response. The active claim is cleared
+    ONLY on success — on any failure it is kept so `resume` can retry without
+    the reviewer redoing the segmentation."""
+    if r.status_code == 429:
+        print("\nRATE-LIMITED by HuggingFace (commit cap reached this hour).\n"
+              "Your edit is SAVED locally — nothing is lost. Re-run later:\n"
+              "  python -m reviewtool resume\n")
+        return False
+    if not r.ok:
+        print(f"submit failed [{r.status_code}]: {r.text[:300]}\n"
+              "Your edit is saved locally; `reviewtool resume` will retry.")
+        return False
+    out = r.json()
+    _clear_active(work)
+    print("submitted ->", out,
+          "(already recorded)" if out.get("duplicate") else "")
+    return True
+
+
+def _submit_review(s, base, job, work, seg, record) -> bool:
+    data = {"claim_token": job["claim_token"], "record": json.dumps(record)}
+    return _finish_submit(
+        _post_resilient(s, base + "/submit", data=data, label_path=seg), work)
+
+
+def _submit_adjudication(s, base, job, work, seg, notes) -> bool:
+    data = {"claim_token": job["claim_token"], "decision": "corrected",
+            "notes": notes}
+    return _finish_submit(
+        _post_resilient(s, base + "/adjudicate", data=data, label_path=seg),
+        work)
+
+
 def cmd_next(a):
     s, base = _api()
     job = _claim(s, base)
@@ -129,6 +211,7 @@ def cmd_next(a):
         return
     work = Path(a.workdir) / job["case_id"]
     work.mkdir(parents=True, exist_ok=True)
+    _save_active(job, work, kind="review")              # durable before any edit
     ct = _fetch(job, job["ct_file"], work / "ct.nii.gz")
     pseudo = _fetch(job, job["label_file"], work / "pseudo.nii.gz")
     seg = work / "seg.nii.gz"
@@ -143,12 +226,7 @@ def cmd_next(a):
     decision, record = build_submission(
         _load(pseudo), _load(seg), job["region_to_review"], _sha256(pseudo))
     print(f"decision={decision}  voxels_changed={record['diff']['n_voxels_changed']}")
-
-    files = {"label": ("label.nii.gz", open(seg, "rb"), "application/gzip")}
-    data = {"claim_token": job["claim_token"], "record": json.dumps(record)}
-    r = s.post(base + "/submit", data=data, files=files, timeout=300)
-    r.raise_for_status()
-    print("submitted ->", r.json())
+    _submit_review(s, base, job, work, seg, record)
 
 
 def cmd_adjudicate(a):
@@ -159,6 +237,7 @@ def cmd_adjudicate(a):
         return
     work = Path(a.workdir) / (job["case_id"] + "__adj")
     work.mkdir(parents=True, exist_ok=True)
+    _save_active(job, work, kind="adjudicate", notes=a.notes)
     ct = _fetch(job, job["ct_file"], work / "ct.nii.gz")
     pseudo = _fetch(job, job["label_file"], work / "pseudo.nii.gz")
     seg = work / "seg.nii.gz"
@@ -170,13 +249,7 @@ def cmd_adjudicate(a):
           f"two reviewers disagreed on the {job['region_to_review']} region; "
           f"produce the deciding label.")
     _launch_itksnap(a.itksnap, ct, seg, labels)
-
-    files = {"label": ("label.nii.gz", open(seg, "rb"), "application/gzip")}
-    data = {"claim_token": job["claim_token"], "decision": "corrected",
-            "notes": a.notes}
-    r = s.post(base + "/adjudicate", data=data, files=files, timeout=300)
-    r.raise_for_status()
-    print("adjudicated ->", r.json())
+    _submit_adjudication(s, base, job, work, seg, a.notes)
 
 
 def cmd_status(a):
@@ -184,6 +257,38 @@ def cmd_status(a):
     r = s.get(base + "/status", timeout=60)
     r.raise_for_status()
     print(json.dumps(r.json(), indent=2))
+
+
+def cmd_resume(a):
+    """Re-upload any edits whose submit didn't confirm (crash / 429 / network).
+    The edited seg.nii.gz + downloaded pseudo are still in each workdir, so the
+    review record is recomputed and re-sent; the server is idempotent."""
+    s, base = _api()
+    pend = sorted(ACTIVE_DIR.glob("*.json")) if ACTIVE_DIR.exists() else []
+    if not pend:
+        print("nothing to resume — no saved claims.")
+        return
+    print(f"{len(pend)} saved claim(s) to resume.")
+    for f in pend:
+        st = json.loads(f.read_text())
+        job, work = st["job"], Path(st["workdir"])
+        kind = st.get("kind", "review")
+        seg = work / "seg.nii.gz"
+        if not seg.exists():
+            print(f"skip {work.name}: edited label missing ({seg})")
+            continue
+        print(f"resuming {work.name} ({kind}) ...")
+        if kind == "adjudicate":
+            _submit_adjudication(s, base, job, work, seg, st.get("notes", ""))
+        else:
+            pseudo = work / "pseudo.nii.gz"
+            if not pseudo.exists():
+                print(f"skip {work.name}: pseudo label missing; cannot recompute diff")
+                continue
+            _, record = build_submission(
+                _load(pseudo), _load(seg), job["region_to_review"],
+                _sha256(pseudo))
+            _submit_review(s, base, job, work, seg, record)
 
 
 def main(argv=None) -> int:
@@ -203,6 +308,7 @@ def main(argv=None) -> int:
         p.set_defaults(fn=fn)
 
     p = sub.add_parser("status"); p.set_defaults(fn=cmd_status)
+    p = sub.add_parser("resume"); p.set_defaults(fn=cmd_resume)
 
     args = ap.parse_args(argv)
     return args.fn(args) or 0
