@@ -1,4 +1,4 @@
-# CTSpinoPelvic1K — Reviewer Guide (Linux / WSL)
+# CTSpinoPelvic1K — Reviewer Guide (Mac)
 
 Thanks for helping review the spine + pelvis segmentations!
 
@@ -6,71 +6,44 @@ Thanks for helping review the spine + pelvis segmentations!
 You'll open one case at a time in **ITK-SNAP**, fix mistakes in **one region**,
 save, and quit. The tool downloads the scan, measures your edits, and uploads the
 result. Two reviewers see each case independently; disagreements go to a senior
-adjudicator.
-
-> This guide is for **Linux** and **Windows WSL (Ubuntu)**, where ITK-SNAP isn't
-> in the package manager and you install the official Linux build by hand. On
-> plain Windows or Mac, use [REVIEWERS_WINDOWS.md](REVIEWERS_WINDOWS.md) or
-> [REVIEWERS_MAC.md](REVIEWERS_MAC.md) instead.
+adjudicator. No prior command-line experience needed.
 
 ## Before you start — your reviewer key
 
 Your project lead will send you **your personal reviewer key** — a code that
-looks like `k_3f9a8c1d…`. You'll paste it in once, in step 1c below.
+looks like `k_3f9a8c1d…`. You'll paste it in once, in step 2 below.
 
 - It is created and sent **to you** by the project lead — you do **not** sign up
   for it anywhere.
 - It is **not** a HuggingFace token; you don't need a HuggingFace account at all.
 - No key yet? Ask the project lead before continuing.
 
-## 1. One-time setup
+## 1. Install ITK-SNAP
 
-### a) Get the review tool
+Download from <http://www.itksnap.org> (Downloads), open the `.dmg`, and drag
+**ITK-SNAP** into your Applications folder. The review tool finds it
+automatically.
+
+## 2. Get the review tool and connect
+
+Open **Terminal** (Applications → Utilities → Terminal) and run these one at a
+time. Replace `<YOUR_REVIEWER_KEY>` with the key your project lead sent you:
 
 ```bash
 git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git
 cd CTSpinoPelvic1K
 python3 -m pip install requests huggingface_hub numpy nibabel
-```
-
-### b) Install ITK-SNAP (Linux build)
-
-`apt install itksnap` does **not** work on recent Ubuntu — install the official
-Linux build instead:
-
-1. Download the **Linux (gcc64) `.tar.gz`** from <http://www.itksnap.org> →
-   Downloads.
-   - **WSL:** download it in your Windows browser; WSL sees your Downloads at
-     `/mnt/c/Users/<YourWindowsName>/Downloads/`.
-   - **Native Linux:** save it to `~/Downloads/`.
-2. Extract it and tell `reviewtool` where it is (adjust the path to where you
-   saved it):
-
-```bash
-cd ~
-tar xzf /mnt/c/Users/<YourWindowsName>/Downloads/itksnap-*-Linux-*.tar.gz
-ls ~/itksnap-*/bin/itksnap        # confirm the binary exists
-
-# remember it permanently (reviewtool reads this first):
-echo "export REVIEWTOOL_ITKSNAP=$(ls ~/itksnap-*/bin/itksnap | head -1)" >> ~/.bashrc
-source ~/.bashrc
-```
-
-> **WSL only:** the ITK-SNAP window displays through WSLg (Windows 11). Check
-> that `echo $DISPLAY` prints something like `:0`. If it's blank, run
-> `wsl --update` in Windows PowerShell and reopen your terminal.
-
-### c) Connect to the review service
-
-Replace `<YOUR_REVIEWER_KEY>` with the key your project lead sent you:
-
-```bash
 python3 -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review.hf.space --key <YOUR_REVIEWER_KEY>
 ```
 
-Section 1 is done **once**.
+> - If `git` prompts to install "command line developer tools," click
+>   **Install**, then re-run the `git clone` line.
+> - If you get `command not found: python3`, install Python from
+>   <https://www.python.org/downloads/> and reopen Terminal.
 
-## 2. Review a case
+Step 1–2 are done **once**.
+
+## 3. Review a case
 
 ```bash
 python3 -m reviewtool next
@@ -115,14 +88,13 @@ Safe to run anytime, even if everything already went through.
 
 ## Troubleshooting
 
-- **`itksnap not found` / nothing opens** → re-check step 1b: `ls
-  ~/itksnap-*/bin/itksnap` should show the file and `echo $REVIEWTOOL_ITKSNAP`
-  its full path. You can also pass it explicitly:
-  `python3 -m reviewtool next --itksnap ~/itksnap-*/bin/itksnap`.
-- **ITK-SNAP errors about a missing library** (`libGL.so.1`, `libxcb-*`) →
-  `sudo apt-get install -y libopengl0 libgl1 libxcb-xinerama0 libxcb-cursor0`.
-- **`$DISPLAY` is blank (WSL)** → WSLg isn't active; run `wsl --update` in
-  Windows PowerShell, then reopen the terminal.
+- **`command not found: python3`** → install Python from
+  <https://www.python.org/downloads/>, then reopen Terminal.
+- **`itksnap not found`** → ITK-SNAP isn't in Applications; reinstall it there, or
+  add `--itksnap /Applications/ITK-SNAP.app/Contents/bin/itksnap` to the `next`
+  command.
+- **macOS won't open ITK-SNAP ("unidentified developer")** → right-click the app
+  in Applications → **Open** → **Open** once to approve it.
 - **`No module named reviewtool`** → make sure you're in the folder:
   `cd CTSpinoPelvic1K`.
 - **"nothing to claim"** → all cases assigned/done for now; check back later.
