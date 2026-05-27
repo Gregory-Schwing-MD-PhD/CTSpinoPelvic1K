@@ -1,0 +1,208 @@
+"""
+seg_compare.py — quantify how much the model's pseudo segmentation disagrees
+with the CT-intensity segmentation, to gauge whether a second training run is
+worthwhile.
+
+Neither label is ground truth, but the intensity segmentation snaps to actual
+bone edges, so where the model and intensity DISAGREE the model's boundaries
+are suspect. Low Dice / large surface distance between the two — concentrated in
+particular classes — is the quantitative case for retraining (e.g. on the
+intensity-refined labels as improved targets). High agreement says the model's
+masks are already close and a retrain would buy little.
+
+Compares, per `spine_only` / `pelvic_native` case, in the PSEUDO-filled region
+only (identified by diffing the original manual tree, so manual voxels don't
+inflate the agreement), for each pseudo class:
+  * Dice overlap (model vs intensity)
+  * voxel volumes + volume ratio (intensity / model)
+  * average symmetric surface distance (ASSD, in voxels) — the boundary metric
+
+Writes a per-case-per-class CSV and prints an aggregate summary.
+
+Usage
+-----
+  python scripts/seg_compare.py \
+      --manual_from data/hf_export \
+      --model       data/hf_export_v2 \
+      --intensity   data/hf_export_v2_refined \
+      --out_csv     data/seg_compare.csv
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import logging
+import statistics as st
+import sys
+from pathlib import Path
+from typing import Dict, List, Optional
+
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s  %(levelname)-8s  %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S")
+log = logging.getLogger("ctspinopelvic1k.seg_compare")
+
+CLASS_NAMES = {1: "L1", 2: "L2", 3: "L3", 4: "L4", 5: "L5", 6: "L6",
+               7: "sacrum", 8: "left_hip", 9: "right_hip"}
+REGION_CANONICAL = {"spine": (1, 2, 3, 4, 5, 6), "pelvis": (7, 8, 9)}
+SCOPE = {"spine_only": "pelvis", "pelvic_native": "spine"}   # pseudo region
+
+
+# ===========================================================================
+# Pure core  (unit-tested in tests/test_seg_compare.py)
+# ===========================================================================
+
+def dice_volumes(model, intensity, fillable, classes) -> Dict[int, dict]:
+    """Per-class Dice + voxel volumes between model and intensity, restricted
+    to `fillable` (the pseudo region). Dice is NaN where neither has the class."""
+    import numpy as np
+    model = np.asarray(model)
+    intensity = np.asarray(intensity)
+    fillable = np.asarray(fillable, dtype=bool)
+    out: Dict[int, dict] = {}
+    for c in classes:
+        a = (model == c) & fillable
+        b = (intensity == c) & fillable
+        na, nb = int(a.sum()), int(b.sum())
+        inter = int((a & b).sum())
+        dice = (2.0 * inter / (na + nb)) if (na + nb) else float("nan")
+        out[int(c)] = {
+            "dice": dice, "vol_model": na, "vol_intensity": nb,
+            "vol_ratio": (nb / na) if na else float("nan"),
+        }
+    return out
+
+
+def surface_distance(a, b) -> float:
+    """Average symmetric surface distance (voxels) between two binary masks.
+    NaN if either is empty."""
+    import numpy as np
+    from scipy.ndimage import binary_erosion, distance_transform_edt
+    a = np.asarray(a, dtype=bool)
+    b = np.asarray(b, dtype=bool)
+    if not a.any() or not b.any():
+        return float("nan")
+    sa = a ^ binary_erosion(a)            # surface voxels of a
+    sb = b ^ binary_erosion(b)
+    da = distance_transform_edt(~b)[sa]   # a-surface -> nearest b
+    db = distance_transform_edt(~a)[sb]   # b-surface -> nearest a
+    n = len(da) + len(db)
+    return float((da.sum() + db.sum()) / n) if n else float("nan")
+
+
+# ===========================================================================
+# Orchestrator
+# ===========================================================================
+
+def _load_manifest(p: Path) -> List[dict]:
+    data = json.loads(p.read_text())
+    if isinstance(data, dict):
+        data = data.get("records", data.get("cases", []))
+    return [r for r in data if isinstance(r, dict)]
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--manual_from", required=True, type=Path,
+                    help="Original manual tree (to mask out manual voxels).")
+    ap.add_argument("--model", required=True, type=Path,
+                    help="Model pseudo tree (pseudolabel.py output).")
+    ap.add_argument("--intensity", required=True, type=Path,
+                    help="Intensity-refined tree (intensity_refine.py output).")
+    ap.add_argument("--out_csv", type=Path, default=Path("seg_compare.csv"))
+    ap.add_argument("--no_assd", dest="assd", action="store_false",
+                    help="Skip surface-distance (faster; Dice + volumes only).")
+    ap.add_argument("--limit", type=int, default=0)
+    ap.set_defaults(assd=True)
+    args = ap.parse_args()
+
+    import numpy as np
+    import nibabel as nib
+
+    records = _load_manifest(args.model / "manifest.json")
+    scoped = [r for r in records if r.get("config") in SCOPE
+              and r.get("label_file")]
+    if args.limit:
+        scoped = scoped[:args.limit]
+    log.info("comparing %d scoped cases  (assd=%s)", len(scoped), args.assd)
+
+    rows: List[dict] = []
+    per_class_dice: Dict[int, list] = {}
+    per_class_assd: Dict[int, list] = {}
+    per_class_ratio: Dict[int, list] = {}
+
+    for i, rec in enumerate(scoped, 1):
+        lbl = rec["label_file"]
+        tok, cfg = rec.get("token", "?"), rec["config"]
+        classes = REGION_CANONICAL[SCOPE[cfg]]
+        try:
+            v1 = np.asarray(nib.load(str(args.manual_from / lbl)).dataobj).astype(np.int16)
+            mdl = np.asarray(nib.load(str(args.model / lbl)).dataobj).astype(np.int16)
+            inten = np.asarray(nib.load(str(args.intensity / lbl)).dataobj).astype(np.int16)
+        except Exception as exc:                          # noqa: BLE001
+            log.warning("token=%s: load failed (%s) — skip", tok, exc)
+            continue
+        if not (v1.shape == mdl.shape == inten.shape):
+            log.warning("token=%s: shape mismatch — skip", tok)
+            continue
+        fillable = ~((v1 >= 1) & (v1 <= 9))
+        dv = dice_volumes(mdl, inten, fillable, classes)
+        for c, m in dv.items():
+            assd = float("nan")
+            if args.assd and (m["vol_model"] or m["vol_intensity"]):
+                assd = surface_distance((mdl == c) & fillable,
+                                        (inten == c) & fillable)
+            rows.append({
+                "token": tok, "config": cfg, "class": c,
+                "class_name": CLASS_NAMES.get(c, str(c)),
+                "dice": round(m["dice"], 4) if m["dice"] == m["dice"] else "",
+                "vol_model": m["vol_model"], "vol_intensity": m["vol_intensity"],
+                "vol_ratio": round(m["vol_ratio"], 4) if m["vol_ratio"] == m["vol_ratio"] else "",
+                "assd_vox": round(assd, 3) if assd == assd else "",
+            })
+            if m["dice"] == m["dice"]:
+                per_class_dice.setdefault(c, []).append(m["dice"])
+            if m["vol_ratio"] == m["vol_ratio"]:
+                per_class_ratio.setdefault(c, []).append(m["vol_ratio"])
+            if assd == assd:
+                per_class_assd.setdefault(c, []).append(assd)
+        if i % 50 == 0 or i == len(scoped):
+            log.info("  ... %d/%d", i, len(scoped))
+
+    args.out_csv.parent.mkdir(parents=True, exist_ok=True)
+    with open(args.out_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["token", "config", "class",
+                           "class_name", "dice", "vol_model", "vol_intensity",
+                           "vol_ratio", "assd_vox"])
+        w.writeheader()
+        w.writerows(rows)
+    log.info("wrote %d rows -> %s", len(rows), args.out_csv)
+
+    log.info("=" * 64)
+    log.info("model-vs-intensity agreement (per pseudo class)")
+    log.info("  %-10s %6s  %7s %7s  %8s  %8s", "class", "n",
+             "Dice", "median", "ASSD vox", "vol_int/mdl")
+    for c in sorted(per_class_dice):
+        ds = per_class_dice[c]
+        assds = per_class_assd.get(c, [])
+        ratios = per_class_ratio.get(c, [])
+        log.info("  %-10s %6d  %7.3f %7.3f  %8s  %8s",
+                 CLASS_NAMES.get(c, str(c)), len(ds),
+                 st.mean(ds), st.median(ds),
+                 f"{st.mean(assds):.2f}" if assds else "—",
+                 f"{st.mean(ratios):.2f}" if ratios else "—")
+    all_d = [d for v in per_class_dice.values() for d in v]
+    if all_d:
+        log.info("  %-10s %6d  %7.3f %7.3f", "ALL", len(all_d),
+                 st.mean(all_d), st.median(all_d))
+    log.info("=" * 64)
+    log.info("Low mean Dice / large ASSD in a class = the model's boundaries "
+             "there disagree most with bone intensity → strongest retrain case.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

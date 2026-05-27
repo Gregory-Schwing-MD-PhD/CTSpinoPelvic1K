@@ -88,6 +88,16 @@ PSEUDO_LIMIT   ?= 0
 # preflight guard honest for the v2 push instead of always checking v1.
 HF_PUSH_DIR    := $(if $(strip $(HF_EXPORT_DIR)),$(HF_EXPORT_DIR),$(DATA_DIR)/hf_export)
 
+# ── Intensity refinement (Stage 3.6 — CT-intensity bone seg on the v2 tree) ──
+# CPU-only post-step (lean container). Empty values fall through to the
+# slurm script's own defaults.
+REFINE_OUT_DIR ?=        # refined out tree (default: data/hf_export_v2_refined)
+REFINE_PCTL    ?= 10     # manual-HU percentile -> bone threshold (per case)
+REFINE_ERODE   ?= 1      # erode manual mask this many vox before HU sampling
+REFINE_FILL    ?= 1      # 1 = hole-fill marrow, 0 = leave hollow
+REFINE_LIMIT   ?= 0      # cap cases (debug)
+REFINE_DRY_RUN ?= 0      # 1 = plan only
+
 # ── Stage 4 control (TotalSegmentator benchmark) ─────────────────────────────
 TS_WINDOW_MM    ?= 40.0
 DOCKERHUB_USER  ?= gregoryschwingmdphd
@@ -108,12 +118,12 @@ help:  ## Show this help
 	@echo ""
 	@echo "Pipeline (in order):"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-	  grep -E '^(download-raw|create-dataset|hf-stage|hf-push|pseudolabel|export-dataset|benchmark-totalseg):' | \
+	  grep -E '^(download-raw|create-dataset|hf-stage|hf-push|pseudolabel|intensity-refine|export-dataset|benchmark-totalseg):' | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m  %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Inspection / utilities:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-	  grep -vE '^(build-container|hpc-pull|hpc-pull-now|docker-push|install-dev|test|lint|check-syntax|download-raw|create-dataset|hf-stage|hf-push|pseudolabel|export-dataset|benchmark-totalseg|help):' | \
+	  grep -vE '^(build-container|hpc-pull|hpc-pull-now|docker-push|install-dev|test|lint|check-syntax|download-raw|create-dataset|hf-stage|hf-push|pseudolabel|intensity-refine|export-dataset|benchmark-totalseg|help):' | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m  %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Common env overrides (set via VAR=value before the target):"
@@ -273,6 +283,24 @@ pseudolabel:  ## Stage 3.5 — complete partial cases via out-of-fold nnU-Net (D
 	@echo "       HF_EXPORT_DIR=\$$(pwd)/data/hf_export_v2 make hf-push"
 	sbatch --export=ALL,SIF_PATH=$(CONTAINER),NNUNET_SIF=$(NNUNET_SIF),NNUNET_RESULTS=$(NNUNET_RESULTS),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),MODELS_CONFIG=$(MODELS_CONFIG),DRY_RUN=$(DRY_RUN),SKIP_DOWNLOAD=$(SKIP_DOWNLOAD),PSEUDO_LIMIT=$(PSEUDO_LIMIT),HF_TOKEN=$(HF_TOKEN) \
 	       slurm/pseudolabel.sh
+
+
+# =============================================================================
+# Stage 3.6 — intensity refinement (CT-intensity bone seg of the pseudo region)
+# =============================================================================
+.PHONY: intensity-refine
+intensity-refine: check-container  ## Stage 3.6 — CT-intensity bone refine of the pseudo region (CPU; REFINE_DRY_RUN=1 to plan)
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting Stage 3.6: intensity-refine  (CPU, REFINE_DRY_RUN=$(REFINE_DRY_RUN))"
+	@echo "  v1 manual = $(if $(strip $(HF_EXPORT_DIR)),$(HF_EXPORT_DIR),$(DATA_DIR)/hf_export)"
+	@echo "  v2 pseudo = $(if $(strip $(PSEUDO_OUT_DIR)),$(PSEUDO_OUT_DIR),$(DATA_DIR)/hf_export_v2)"
+	@echo "  refined   = $(if $(strip $(REFINE_OUT_DIR)),$(REFINE_OUT_DIR),$(DATA_DIR)/hf_export_v2_refined)"
+	@echo "  percentile=$(REFINE_PCTL)  erode=$(REFINE_ERODE)  fill=$(REFINE_FILL)"
+	@echo "  -> then publish the refined tree to the v2 branch:"
+	@echo "     HF_TOKEN=hf_xxx HF_REPO_ID=org/Name HF_REVISION=v2 WIPE_REMOTE=1 \\"
+	@echo "       HF_EXPORT_DIR=\$$(pwd)/data/hf_export_v2_refined make hf-push"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),REFINE_OUT_DIR=$(REFINE_OUT_DIR),REFINE_PCTL=$(REFINE_PCTL),REFINE_ERODE=$(REFINE_ERODE),REFINE_FILL=$(REFINE_FILL),REFINE_LIMIT=$(REFINE_LIMIT),REFINE_DRY_RUN=$(REFINE_DRY_RUN) \
+	       slurm/intensity_refine.sh
 
 
 # =============================================================================
