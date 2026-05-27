@@ -26,37 +26,37 @@ You'll paste that token during `hf auth login` in step 1c.
 
 ## 1. One-time setup
 
-### a) Get the review tool
+Do these in order, top to bottom. Watch which folder you're in — the prompt
+shows it (`~$` is your home folder; `~/CTSpinoPelvic1K$` is the repo).
+
+> **Important:** every `reviewtool` command (Step 3 below and Section 2) must be
+> run from **inside the `CTSpinoPelvic1K` folder**. If you open a new terminal
+> later, run `cd ~/CTSpinoPelvic1K` first — otherwise you'll get
+> `No module named reviewtool`.
+
+### Step 1 — Install ITK-SNAP
+
+`apt install itksnap` does **not** work on recent Ubuntu, so install the
+official Linux build: it's a `.tar.gz` you unpack into a **home-directory**
+folder (`~/itksnap`) and add to your `PATH`. (Not `/usr/bin` or `/usr/local` —
+those belong to the package manager.)
+
+1. **Download** the **Linux (gcc64) `.tar.gz`** from <http://www.itksnap.org> →
+   Downloads.
+   - **WSL:** download it in your Windows browser. WSL sees your Windows
+     Downloads at `/mnt/c/Users/<YourWindowsName>/Downloads/`.
+   - **Native Linux:** save it to `~/Downloads/`.
+
+2. From your **home folder**, locate the file you downloaded, unpack it into
+   `~/itksnap`, and add it to your PATH (replace the `tar` filename with your
+   real one — browsers sometimes rename the download):
 
 ```bash
-git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git
-cd CTSpinoPelvic1K
-python3 -m pip install requests huggingface_hub numpy nibabel
-```
+cd ~
+ls -t ~/Downloads/*.tar.gz /mnt/c/Users/*/Downloads/*.tar.gz 2>/dev/null   # find your download
 
-### b) Install ITK-SNAP (Linux build)
-
-`apt install itksnap` does **not** work on recent Ubuntu — install the official
-Linux build instead. It's just a `.tar.gz`: you unpack it into a folder and add
-that folder's `bin/` to your `PATH`.
-
-> **Where does the folder go?** A plain folder in your home directory —
-> `~/itksnap` — is the right place on a single-user machine (no `sudo`, no
-> system directories). Don't put it in `/usr/bin` or `/usr/local`; those are for
-> the package manager. The commands below create `~/itksnap` for you.
-
-**Step 1 — download** the **Linux (gcc64) `.tar.gz`** from
-<http://www.itksnap.org> → Downloads.
-- **WSL:** download it in your Windows browser; WSL sees it at
-  `/mnt/c/Users/<YourWindowsName>/Downloads/`.
-- **Native Linux:** save it to `~/Downloads/` (or `wget` the link there).
-
-**Step 2 — unpack into `~/itksnap` and put it on your PATH.** Replace the path
-in the first line with your actual download (e.g. the WSL Downloads path):
-
-```bash
 mkdir -p ~/itksnap
-tar -C ~/itksnap --strip-components=1 -xzf ~/Downloads/itksnap-*-Linux-*.tar.gz
+tar -C ~/itksnap --strip-components=1 -xzf ~/Downloads/itksnap-4.4.0-Linux-x86_64.tar.gz   # <- your file
 
 echo 'export PATH="$HOME/itksnap/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
@@ -64,32 +64,39 @@ source ~/.bashrc
 which itksnap        # should print  /home/<you>/itksnap/bin/itksnap
 ```
 
-`--strip-components=1` drops the version-stamped top folder, so the program
-always lands at exactly `~/itksnap/bin/itksnap`. `reviewtool` finds anything
-named `itksnap` on your `PATH` automatically — no extra config.
-
-> **Already unpacked it somewhere else?** You don't need to move it — just add
-> *that* folder's `bin` to your PATH and reload, e.g.:
-> ```bash
-> echo 'export PATH="/full/path/to/itksnap-<version>-Linux-x86_64/bin:$PATH"' >> ~/.bashrc
-> source ~/.bashrc
-> which itksnap
-> ```
+`--strip-components=1` strips the version-stamped top folder, so the program
+always lands at exactly `~/itksnap/bin/itksnap` and `reviewtool` finds it on
+your `PATH` automatically.
 
 > **WSL only:** the ITK-SNAP window displays through WSLg (Windows 11). Check
 > that `echo $DISPLAY` prints something like `:0`. If it's blank, run
 > `wsl --update` in Windows PowerShell and reopen your terminal.
 
-### c) Sign in
+### Step 2 — Get the review tool
 
 ```bash
-hf auth login        # paste the Read token you copied; answer "n" to git creds
+cd ~
+git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git
+cd CTSpinoPelvic1K          # stay in this folder for Step 3 and for reviewing
+python3 -m pip install requests huggingface_hub numpy nibabel
+```
+
+> **Already cloned it before?** Don't re-clone — update it instead:
+> `cd ~/CTSpinoPelvic1K && git pull`.
+
+### Step 3 — Sign in (from inside `~/CTSpinoPelvic1K`)
+
+```bash
+hf auth login        # paste your Read token; answer "n" to git creds
 python3 -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review.hf.space
 ```
 
 Section 1 is done **once**.
 
 ## 2. Review a case
+
+From inside `~/CTSpinoPelvic1K` (run `cd ~/CTSpinoPelvic1K` first if you're not
+there):
 
 ```bash
 python3 -m reviewtool next
