@@ -41,6 +41,7 @@ source configs/default.env
 HF_EXPORT_DIR="${HF_EXPORT_DIR:-${DATA_DIR}/hf_export}"
 PSEUDO_OUT_DIR="${PSEUDO_OUT_DIR:-${DATA_DIR}/hf_export_v2}"
 REFINE_OUT_DIR="${REFINE_OUT_DIR:-${DATA_DIR}/hf_export_v2_refined}"
+REFINE_MODE="${REFINE_MODE:-clip}"
 REFINE_PCTL="${REFINE_PCTL:-10}"
 REFINE_ERODE="${REFINE_ERODE:-1}"
 REFINE_FILL="${REFINE_FILL:-1}"
@@ -67,6 +68,7 @@ echo "   Node        : $(hostname)"
 echo "   v1 manual   : ${HF_EXPORT_DIR}"
 echo "   v2 pseudo   : ${PSEUDO_OUT_DIR}"
 echo "   refined out : ${REFINE_OUT_DIR}"
+echo "   mode        : ${REFINE_MODE}   (clip = subtractive; resegment = can grow)"
 echo "   percentile  : ${REFINE_PCTL}   erode: ${REFINE_ERODE}   fill_holes: ${REFINE_FILL}"
 echo "   DRY_RUN     : ${REFINE_DRY_RUN}"
 echo "   Started     : $(date)"
@@ -88,6 +90,7 @@ stdbuf -oL -eL singularity exec \
         --manual_from "/data/$(basename "${HF_EXPORT_DIR}")" \
         --in          "/data/$(basename "${PSEUDO_OUT_DIR}")" \
         --out         "/data/$(basename "${REFINE_OUT_DIR}")" \
+        --mode        "${REFINE_MODE}" \
         --percentile  "${REFINE_PCTL}" \
         --erode_iter  "${REFINE_ERODE}" \
         ${EXTRA}

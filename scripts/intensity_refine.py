@@ -21,8 +21,8 @@ IDEA
 ====
 The pseudo-filled structures (vertebrae, sacrum, hips) are all BONE, which CT
 separates cleanly by HU. The model is reliable at saying WHICH structure a
-region is, but a CT threshold gives crisper bone boundaries. So, per scoped
-case, in the pseudo region only:
+region is, but a CT threshold gives crisper bone boundaries. Per scoped case,
+in the pseudo region only:
 
   1. CALIBRATE a bone HU threshold from THIS scan's MANUAL annotation. The
      manual side is known bone in the same acquisition (same kVp/kernel), so
@@ -31,18 +31,23 @@ case, in the pseudo region only:
      cancellous centre HU is the LOW end of bone (cortical borders are higher),
      so a threshold near it keeps the whole bone instead of a hollow shell.
 
-  2. THRESHOLD the CT to a bone mask, take CONNECTED COMPONENTS, and keep only
-     components that OVERLAP the model's prediction. This drops threshold
-     artifacts and unrelated bone the model didn't predict — ribs in spine
-     crops, femurs in pelvic crops.
+  2. Apply it, per `--mode`:
+     * clip (DEFAULT) — keep each predicted voxel ONLY where the CT is bone
+       (>= threshold), plus the marrow enclosed within it; clipped to the
+       prediction. This is SUBTRACTIVE: the result is always a subset of the
+       model mask, so over-segmentation (the usual failure — the model bleeds
+       past the bone) is erased, and unrelated bone (ribs/femurs) can't be
+       added because it was never predicted. Nothing to gate, nothing to grow.
+     * resegment — threshold to a bone mask, keep CONNECTED COMPONENTS that
+       overlap the prediction, and nearest-class label them. This CAN grow into
+       bone the model MISSED (under-segmentation), at the cost of needing the
+       CC gate to keep ribs/femurs out.
 
-  3. Solidify marrow (per-slice 2D hole-fill along all 3 axes) and label each
-     kept voxel with the NEAREST predicted class.
+  3. Solidify marrow (per-slice 2D hole-fill along all 3 axes).
 
 What intensity CANNOT do: separate two TOUCHING bones (L4/L5 facets, sacrum/
-ilium at the SI joint) — they're one bright blob. There the boundary BETWEEN
-labels still comes from the model (nearest-class); only the OUTER bone contour
-comes from intensity.
+ilium at the SI joint) — they're one bright blob. Class boundaries there come
+from the model; only the OUTER bone contour comes from intensity.
 
 Usage
 -----
@@ -121,16 +126,20 @@ def _solid_fill(mask) -> "object":
     return filled
 
 
-def refine_label(v1_label, v2_label, ct, *,
+def refine_label(v1_label, v2_label, ct, *, mode: str = "clip",
                  percentile: float = 10.0, erode_iter: int = 1,
                  fill_holes: bool = True) -> Tuple["object", Optional[float]]:
     """Re-segment the pseudo region of one case from CT intensity.
 
     `v1_label` is the ORIGINAL manual label (foreground 1..9 = manual; 0 /
     IGNORE_LABEL = un-annotated). `v2_label` is the pseudo-labelled result.
-    Manual voxels (v1 in 1..9) are never touched; the pseudo-filled voxels
-    (where v1 was background/IGNORE and v2 has a class) are replaced by a
-    calibrated, CC-gated, nearest-class intensity segmentation.
+    Manual voxels (v1 in 1..9) are never touched.
+
+    mode="clip" (default): SUBTRACTIVE — keep each predicted voxel only where
+    the CT is bone (plus enclosed marrow), clipped to the prediction. Result is
+    a subset of the model mask: erases over-segmentation, never adds bone.
+    mode="resegment": keep bone connected-components overlapping the prediction
+    and nearest-class label them; CAN grow into bone the model missed.
 
     Returns (refined_label, threshold_used).
     """
@@ -155,18 +164,29 @@ def refine_label(v1_label, v2_label, ct, *,
         return out, None
 
     bone = (ct >= thr) & fillable
-    cc, n = cc_label(bone)
     out[pred_fg] = 0                            # clear the old model pseudo voxels
-    if n:
-        keep_ids = [int(v) for v in np.unique(cc[pred_fg]) if v != 0]
-        kept = np.isin(cc, keep_ids) if keep_ids else np.zeros_like(bone)
-        if fill_holes and kept.any():
-            kept = _solid_fill(kept) & fillable
-        if kept.any():
-            idx = distance_transform_edt(~pred_fg, return_distances=False,
-                                         return_indices=True)
-            nearest = pred_classmap[tuple(idx)]
-            out[kept] = nearest[kept].astype(np.int16)
+    if mode == "clip":
+        # Keep predicted bone (+ enclosed marrow), clipped to the prediction —
+        # never grows, so over-segmentation is erased and unrelated bone can't
+        # be added. Per-class masks are disjoint, so labels stay the model's.
+        for c in np.unique(pred_classmap[pred_fg]):
+            pc = pred_classmap == int(c)
+            seg_c = pc & bone
+            if fill_holes:
+                seg_c = _solid_fill(seg_c) & pc
+            out[seg_c] = int(c)
+    else:  # "resegment" — CC-gated, can grow into bone the model missed
+        cc, n = cc_label(bone)
+        if n:
+            keep_ids = [int(v) for v in np.unique(cc[pred_fg]) if v != 0]
+            kept = np.isin(cc, keep_ids) if keep_ids else np.zeros_like(bone)
+            if fill_holes and kept.any():
+                kept = _solid_fill(kept) & fillable
+            if kept.any():
+                idx = distance_transform_edt(~pred_fg, return_distances=False,
+                                             return_indices=True)
+                nearest = pred_classmap[tuple(idx)]
+                out[kept] = nearest[kept].astype(np.int16)
     return out, thr
 
 
@@ -192,6 +212,10 @@ def main() -> int:
                          "--hf_export). Used to identify pseudo voxels exactly "
                          "and to calibrate the threshold from manual bone.")
     ap.add_argument("--out", required=True, type=Path)
+    ap.add_argument("--mode", choices=("clip", "resegment"), default="clip",
+                    help="clip (default): subtractive, keep predicted voxels "
+                         "that are bone (erases over-segmentation, never grows). "
+                         "resegment: CC-gated, can grow into missed bone.")
     ap.add_argument("--percentile", type=float, default=10.0,
                     help="Percentile of manual trabecular HU used as the bone "
                          "threshold (default 10).")
@@ -223,9 +247,9 @@ def main() -> int:
     records = _load_manifest(man_path)
     scoped = [r for r in records if r.get("config") in SCOPE
               and r.get("ct_file") and r.get("label_file")]
-    log.info("intensity_refine: %d records, %d scoped; percentile=%.0f "
+    log.info("intensity_refine: %d records, %d scoped; mode=%s percentile=%.0f "
              "erode=%d fill_holes=%s", len(records), len(scoped),
-             args.percentile, args.erode_iter, args.fill_holes)
+             args.mode, args.percentile, args.erode_iter, args.fill_holes)
 
     if args.dry_run:
         for i, r in enumerate(scoped[:args.limit or None], 1):
@@ -275,7 +299,7 @@ def main() -> int:
                 _copy(ct_rel); _copy(lbl_rel); n_skip += 1
                 continue
             refined, thr = refine_label(
-                v1, v2, ct, percentile=args.percentile,
+                v1, v2, ct, mode=args.mode, percentile=args.percentile,
                 erode_iter=args.erode_iter, fill_holes=args.fill_holes)
             _copy(ct_rel)
             nib.save(nib.Nifti1Image(refined, ref.affine, ref.header),

@@ -48,7 +48,30 @@ def test_calibrate_none_without_manual_bone():
 # refine_label  (v1 = manual, v2 = pseudo-labelled)
 # --------------------------------------------------------------------------- #
 
-def test_refine_segments_pseudo_from_intensity_and_drops_stray_bone():
+def test_refine_clip_erases_oversegmentation_and_never_grows():
+    # DEFAULT mode. Model over-predicts a sacrum bar; only part is real bone,
+    # and there's real bone the model did NOT predict. clip keeps predicted∩bone
+    # and never adds the un-predicted bone.
+    v1 = np.full((1, 7, 7), IGNORE_LABEL, dtype=np.int16)
+    v1[0, 0, 0] = 3                                        # manual spine (calibration)
+    v2 = np.zeros((1, 7, 7), dtype=np.int16)
+    v2[0, 0, 0] = 3
+    v2[0, 2, 1] = v2[0, 2, 2] = v2[0, 2, 3] = v2[0, 2, 4] = 7   # predicted bar (4 vox)
+    ct = np.full((1, 7, 7), -1000.0, dtype=np.float32)
+    ct[0, 0, 0] = 200.0                                   # manual bone HU
+    ct[0, 2, 1] = ct[0, 2, 2] = ct[0, 2, 3] = 300.0       # bone (predicted)
+    ct[0, 2, 4] = 50.0                                    # soft tissue (over-seg)
+    ct[0, 3, 0] = 300.0                                   # real bone, NOT predicted
+
+    out, _ = refine_label(v1, v2, ct, percentile=50, erode_iter=0,
+                          fill_holes=False)                # default mode="clip"
+    assert out[0, 2, 1] == 7 and out[0, 2, 2] == 7 and out[0, 2, 3] == 7
+    assert out[0, 2, 4] == 0          # over-segmentation (soft tissue) erased
+    assert out[0, 3, 0] == 0          # un-predicted bone NOT added (no growth)
+    assert out[0, 0, 0] == 3          # manual untouched
+
+
+def test_refine_resegment_grows_and_drops_stray_bone():
     v1 = np.full((1, 7, 7), IGNORE_LABEL, dtype=np.int16)   # un-annotated region
     v1[0, 1, 1] = 3; v1[0, 1, 2] = 3                        # manual spine
     v2 = np.zeros((1, 7, 7), dtype=np.int16)
@@ -59,9 +82,10 @@ def test_refine_segments_pseudo_from_intensity_and_drops_stray_bone():
     ct[0, 4, 3] = ct[0, 4, 4] = ct[0, 4, 5] = 300.0        # pseudo-region bone bar
     ct[0, 6, 0] = 300.0                                    # stray rib — separate CC
 
-    out, thr = refine_label(v1, v2, ct, percentile=10, erode_iter=0,
-                            fill_holes=False)
+    out, thr = refine_label(v1, v2, ct, mode="resegment", percentile=10,
+                            erode_iter=0, fill_holes=False)
     assert out[0, 1, 1] == 3 and out[0, 1, 2] == 3         # manual untouched
+    # grows along the bone bar beyond the single predicted voxel:
     assert out[0, 4, 3] == 7 and out[0, 4, 4] == 7 and out[0, 4, 5] == 7
     assert out[0, 6, 0] == 0                                # stray bone NOT kept
     assert 150.0 <= thr <= 250.0                            # calibrated off manual
