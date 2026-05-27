@@ -40,6 +40,11 @@ python3 -m pip install requests huggingface_hub numpy nibabel
 Linux build instead. It's just a `.tar.gz`: you unpack it into a folder and add
 that folder's `bin/` to your `PATH`.
 
+> **Where does the folder go?** A plain folder in your home directory —
+> `~/itksnap` — is the right place on a single-user machine (no `sudo`, no
+> system directories). Don't put it in `/usr/bin` or `/usr/local`; those are for
+> the package manager. The commands below create `~/itksnap` for you.
+
 **Step 1 — download** the **Linux (gcc64) `.tar.gz`** from
 <http://www.itksnap.org> → Downloads.
 - **WSL:** download it in your Windows browser; WSL sees it at
