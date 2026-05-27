@@ -119,12 +119,22 @@ def _solid_fill(mask) -> "object":
     """
     import numpy as np
     from scipy.ndimage import binary_fill_holes
-    filled = np.asarray(mask, dtype=bool).copy()
-    for axis in range(filled.ndim):
-        slabs = np.moveaxis(filled, axis, 0)        # view; writes hit `filled`
+    mask = np.asarray(mask, dtype=bool)
+    out = mask.copy()
+    if not mask.any():
+        return out
+    # Crop to the mask's bounding box: holes are enclosed WITHIN the mask, so
+    # per-slice fill on the bbox is identical to the full volume but avoids
+    # looping over every (mostly empty) slice of a 512^3 CT.
+    coords = np.argwhere(mask)
+    sl = tuple(slice(int(lo), int(hi) + 1)
+               for lo, hi in zip(coords.min(0), coords.max(0)))
+    sub = out[sl]
+    for axis in range(sub.ndim):
+        slabs = np.moveaxis(sub, axis, 0)           # view; writes hit `out[sl]`
         for i in range(slabs.shape[0]):
             slabs[i] = binary_fill_holes(slabs[i])
-    return filled
+    return out
 
 
 def refine_label(v1_label, v2_label, ct, *, mode: str = "clip",

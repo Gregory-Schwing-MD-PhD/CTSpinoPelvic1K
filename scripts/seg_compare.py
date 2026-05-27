@@ -83,6 +83,14 @@ def surface_distance(a, b) -> float:
     b = np.asarray(b, dtype=bool)
     if not a.any() or not b.any():
         return float("nan")
+    # Crop to the union bounding box: both masks lie inside it, so EDT distances
+    # to the nearest opposite voxel are exact, but the transform runs on a small
+    # box instead of the whole 512^3 volume.
+    u = a | b
+    coords = np.argwhere(u)
+    sl = tuple(slice(int(lo), int(hi) + 1)
+               for lo, hi in zip(coords.min(0), coords.max(0)))
+    a, b = a[sl], b[sl]
     sa = a ^ binary_erosion(a)            # surface voxels of a
     sb = b ^ binary_erosion(b)
     da = distance_transform_edt(~b)[sa]   # a-surface -> nearest b
