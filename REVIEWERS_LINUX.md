@@ -37,25 +37,39 @@ python3 -m pip install requests huggingface_hub numpy nibabel
 ### b) Install ITK-SNAP (Linux build)
 
 `apt install itksnap` does **not** work on recent Ubuntu — install the official
-Linux build instead:
+Linux build instead. It's just a `.tar.gz`: you unpack it into a folder and add
+that folder's `bin/` to your `PATH`.
 
-1. Download the **Linux (gcc64) `.tar.gz`** from <http://www.itksnap.org> →
-   Downloads.
-   - **WSL:** download it in your Windows browser; WSL sees your Downloads at
-     `/mnt/c/Users/<YourWindowsName>/Downloads/`.
-   - **Native Linux:** save it to `~/Downloads/`.
-2. Extract it and tell `reviewtool` where it is (adjust the path to where you
-   saved it):
+**Step 1 — download** the **Linux (gcc64) `.tar.gz`** from
+<http://www.itksnap.org> → Downloads.
+- **WSL:** download it in your Windows browser; WSL sees it at
+  `/mnt/c/Users/<YourWindowsName>/Downloads/`.
+- **Native Linux:** save it to `~/Downloads/` (or `wget` the link there).
+
+**Step 2 — unpack into `~/itksnap` and put it on your PATH.** Replace the path
+in the first line with your actual download (e.g. the WSL Downloads path):
 
 ```bash
-cd ~
-tar xzf /mnt/c/Users/<YourWindowsName>/Downloads/itksnap-*-Linux-*.tar.gz
-ls ~/itksnap-*/bin/itksnap        # confirm the binary exists
+mkdir -p ~/itksnap
+tar -C ~/itksnap --strip-components=1 -xzf ~/Downloads/itksnap-*-Linux-*.tar.gz
 
-# remember it permanently (reviewtool reads this first):
-echo "export REVIEWTOOL_ITKSNAP=$(ls ~/itksnap-*/bin/itksnap | head -1)" >> ~/.bashrc
+echo 'export PATH="$HOME/itksnap/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
+
+which itksnap        # should print  /home/<you>/itksnap/bin/itksnap
 ```
+
+`--strip-components=1` drops the version-stamped top folder, so the program
+always lands at exactly `~/itksnap/bin/itksnap`. `reviewtool` finds anything
+named `itksnap` on your `PATH` automatically — no extra config.
+
+> **Already unpacked it somewhere else?** You don't need to move it — just add
+> *that* folder's `bin` to your PATH and reload, e.g.:
+> ```bash
+> echo 'export PATH="/full/path/to/itksnap-<version>-Linux-x86_64/bin:$PATH"' >> ~/.bashrc
+> source ~/.bashrc
+> which itksnap
+> ```
 
 > **WSL only:** the ITK-SNAP window displays through WSLg (Windows 11). Check
 > that `echo $DISPLAY` prints something like `:0`. If it's blank, run
@@ -122,10 +136,10 @@ Safe to run anytime, even if everything already went through.
 
 - **`invalid credentials` / `401`** → you're not signed in to HuggingFace (or the
   token expired). Run `hf auth login` again with a valid **Read** token.
-- **`itksnap not found` / nothing opens** → re-check step 1b: `ls
-  ~/itksnap-*/bin/itksnap` should show the file and `echo $REVIEWTOOL_ITKSNAP`
-  its full path. You can also pass it explicitly:
-  `python3 -m reviewtool next --itksnap ~/itksnap-*/bin/itksnap`.
+- **`itksnap not found` / nothing opens** → run `which itksnap`; it should print
+  a path ending in `/bin/itksnap`. If it prints nothing, redo the PATH step in
+  1b and **open a new terminal** (or `source ~/.bashrc`). You can also point at
+  it directly: `python3 -m reviewtool next --itksnap ~/itksnap/bin/itksnap`.
 - **ITK-SNAP errors about a missing library** (`libGL.so.1`, `libxcb-*`) →
   `sudo apt-get install -y libopengl0 libgl1 libxcb-xinerama0 libxcb-cursor0`.
 - **`$DISPLAY` is blank (WSL)** → WSLg isn't active; run `wsl --update` in
