@@ -24,6 +24,7 @@ if str(_SCRIPTS) not in sys.path:
 from pseudolabel import (  # noqa: E402
     IGNORE_LABEL,
     build_heldout_fold_map,
+    intensity_refine_pseudo,
     merge_pseudo_into_manual,
     remap_prediction,
     updated_record,
@@ -82,6 +83,62 @@ def test_merge_returns_copy_not_view():
     merged = merge_pseudo_into_manual(manual, pred)
     assert merged is not manual
     assert manual.tolist() == [0, 2]   # input untouched
+
+
+# --------------------------------------------------------------------------- #
+# intensity_refine_pseudo — pseudo gives CLASS, CT intensity gives SHAPE
+# --------------------------------------------------------------------------- #
+
+def test_intensity_class_from_pred_shape_from_ct():
+    # pred marks one sacrum (7) voxel; CT shows a bone bar through it + one
+    # stray bone voxel far away (a rib the model didn't predict).
+    manual = np.zeros((1, 5, 5), dtype=np.int16)
+    manual[0, 0, 0] = 3                       # a manual spine voxel
+    pred = np.zeros((1, 5, 5), dtype=np.int16)
+    pred[0, 2, 2] = 7
+    ct = np.full((1, 5, 5), -1000.0, dtype=np.float32)
+    ct[0, 2, 1] = ct[0, 2, 2] = ct[0, 2, 3] = 300.0   # bone bar near pred
+    ct[0, 0, 4] = 300.0                                # stray bone, far away
+    out = intensity_refine_pseudo(manual, pred, ct, hu_threshold=150,
+                                  dilate_vox=1, fill_holes=False)
+    assert out[0, 2, 1] == 7 and out[0, 2, 2] == 7 and out[0, 2, 3] == 7
+    assert out[0, 0, 4] == 0          # unrelated bone NOT swept in
+    assert out[0, 0, 0] == 3          # manual voxel untouched
+    assert out[0, 1, 1] == 0          # non-bone stays background
+
+
+def test_intensity_fill_holes_solidifies_marrow():
+    manual = np.zeros((1, 5, 5), dtype=np.int16)
+    pred = np.zeros((1, 5, 5), dtype=np.int16)
+    pred[0, 2, 2] = 8
+    ct = np.full((1, 5, 5), -1000.0, dtype=np.float32)
+    for di in (-1, 0, 1):                      # bone ring, hollow centre
+        for dj in (-1, 0, 1):
+            if di or dj:
+                ct[0, 2 + di, 2 + dj] = 300.0
+    out = intensity_refine_pseudo(manual, pred, ct, hu_threshold=150,
+                                  dilate_vox=2, fill_holes=True)
+    assert out[0, 2, 2] == 8           # enclosed marrow filled in
+    assert out[0, 1, 1] == 8
+
+
+def test_intensity_never_overwrites_manual_even_if_bone_and_predicted():
+    manual = np.zeros((1, 3, 3), dtype=np.int16)
+    manual[0, 1, 1] = 5                        # manual lumbar voxel
+    pred = np.zeros((1, 3, 3), dtype=np.int16)
+    pred[0, 1, 1] = 7                          # model wrongly predicts here
+    ct = np.full((1, 3, 3), 300.0, dtype=np.float32)   # all bone
+    out = intensity_refine_pseudo(manual, pred, ct, hu_threshold=150,
+                                  dilate_vox=1, fill_holes=False)
+    assert out[0, 1, 1] == 5           # manual wins over bone + prediction
+
+
+def test_intensity_no_prediction_fills_nothing():
+    manual = np.array([[[0, IGNORE_LABEL, 4]]], dtype=np.int16)
+    pred = np.zeros((1, 1, 3), dtype=np.int16)
+    ct = np.full((1, 1, 3), 300.0, dtype=np.float32)   # bone everywhere
+    out = intensity_refine_pseudo(manual, pred, ct, hu_threshold=150)
+    assert out.ravel().tolist() == [0, 0, 4]   # IGNORE->0, manual kept, no fabrication
 
 
 # --------------------------------------------------------------------------- #

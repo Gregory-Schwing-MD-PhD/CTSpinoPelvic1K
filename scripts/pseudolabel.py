@@ -37,6 +37,16 @@ A manual voxel is NEVER overwritten. Pseudo only fills voxels the manual
 annotator left as background (0) or IGNORE_LABEL (10). prov_<region> for the
 filled side flips null→"pseudo"; the manual side keeps prov="manual".
 
+TWO-STEP SEGMENTATION (--seg_mode intensity, default)
+=====================================================
+The structures we pseudo-fill are all BONE, which CT separates cleanly by
+intensity. The model is reliable at *classifying* a region (L4 vs sacrum vs
+hip) but a simple HU threshold gives crisper, more accurate bone boundaries
+than the model's mask. So by default the prediction is used only as a CLASS
+oracle + coarse spatial prior, and CT bone-intensity defines which voxels are
+actually segmented (see intensity_refine_pseudo). `--seg_mode pseudo` restores
+the legacy behavior (model mask used verbatim) for comparison.
+
 MODEL
 =====
 nnU-Net v2, Dataset803 (merged-label), downloaded from HuggingFace
@@ -133,6 +143,82 @@ def merge_pseudo_into_manual(manual, pred_canonical) -> "object":
     fillable = (merged == 0) | (merged == IGNORE_LABEL)
     take = fillable & (pred_canonical > 0)
     merged[take] = pred_canonical[take].astype(np.int16)
+    merged[merged == IGNORE_LABEL] = 0
+    return merged
+
+
+def _solid_fill(mask) -> "object":
+    """Fill enclosed holes per 2D slice along ALL three axes, then union.
+
+    More robust than 3D fill for bone: a vertebral body's marrow is 3D-connected
+    to the exterior through foramina (so 3D fill leaves it hollow), but it is
+    enclosed within the axial cross-section, so per-slice filling solidifies it.
+    Axis-agnostic, and works on thin/degenerate volumes too.
+    """
+    import numpy as np
+    from scipy.ndimage import binary_fill_holes
+    filled = np.asarray(mask, dtype=bool).copy()
+    for axis in range(filled.ndim):
+        slabs = np.moveaxis(filled, axis, 0)        # view; writes hit `filled`
+        for i in range(slabs.shape[0]):
+            slabs[i] = binary_fill_holes(slabs[i])
+    return filled
+
+
+def intensity_refine_pseudo(manual, pred_canonical, ct, *,
+                            hu_threshold: float = 150.0,
+                            dilate_vox: int = 3,
+                            fill_holes: bool = True) -> "object":
+    """Two-step fill: the prediction supplies the CLASS, CT intensity the SHAPE.
+
+    The pseudo-filled structures (vertebrae, sacrum, hips) are all bone, which
+    CT separates cleanly by HU. We therefore keep the model only as a class
+    oracle + coarse spatial prior and let CT bone-intensity define the actual
+    voxels segmented:
+
+      1. bone   = (ct > hu_threshold), restricted to FILLABLE voxels (so the
+                  manual region is never touched);
+      2. per predicted class c, take bone within `dilate_vox` of the model's
+         predicted region for c — a spatial prior so unrelated bone in the FOV
+         (ribs, femurs) the model did NOT predict is not swept in — and, if
+         `fill_holes`, solidify the marrow interior;
+      3. assign every such candidate voxel the class of the NEAREST predicted
+         voxel.
+
+    Manual classes 1..9 are never written; residual IGNORE collapses to 0. With
+    no predicted foreground there is nothing to key off, so nothing is filled.
+    Requires CT and label on the same grid (true post-export); raises otherwise.
+    """
+    import numpy as np
+    from scipy.ndimage import binary_dilation, distance_transform_edt
+
+    manual = np.asarray(manual, dtype=np.int16)
+    pred_canonical = np.asarray(pred_canonical, dtype=np.int16)
+    ct = np.asarray(ct, dtype=np.float32)
+    if ct.shape[:3] != manual.shape[:3]:
+        raise ValueError(
+            f"CT {ct.shape} and label {manual.shape} grids differ; resample "
+            "CT onto the label grid before intensity refinement")
+
+    merged = manual.copy()
+    fillable = (merged == 0) | (merged == IGNORE_LABEL)
+    pred_fg = pred_canonical > 0
+    if pred_fg.any() and fillable.any():
+        bone = (ct > hu_threshold) & fillable
+        candidates = np.zeros(merged.shape, dtype=bool)
+        for c in np.unique(pred_canonical[pred_fg]):
+            domain = binary_dilation(pred_canonical == int(c),
+                                     iterations=int(dilate_vox))
+            mask_c = bone & domain
+            if fill_holes:
+                mask_c = _solid_fill(mask_c) & fillable
+            candidates |= mask_c
+        # class of the nearest predicted voxel, for every candidate
+        idx = distance_transform_edt(~pred_fg, return_distances=False,
+                                     return_indices=True)
+        nearest = pred_canonical[tuple(idx)]
+        merged[candidates] = nearest[candidates].astype(np.int16)
+
     merged[merged == IGNORE_LABEL] = 0
     return merged
 
@@ -345,6 +431,23 @@ def main() -> int:
                     help="nnU-Net preprocessing workers (-npp).")
     ap.add_argument("--nps", type=int, default=4,
                     help="nnU-Net segmentation-export workers (-nps).")
+    ap.add_argument("--seg_mode", choices=("intensity", "pseudo"),
+                    default="intensity",
+                    help="How the prediction becomes the filled label. "
+                         "'intensity' (default): pseudo gives the CLASS, CT "
+                         "bone-intensity gives the SHAPE. 'pseudo': legacy — "
+                         "use the model mask verbatim.")
+    ap.add_argument("--hu_threshold", type=float, default=150.0,
+                    help="Bone HU threshold for --seg_mode intensity "
+                         "(default 150).")
+    ap.add_argument("--dilate_vox", type=int, default=3,
+                    help="Voxels to dilate each predicted class region before "
+                         "intersecting with the bone mask, so unrelated bone "
+                         "isn't swept in (default 3).")
+    ap.add_argument("--no_fill_holes", dest="fill_holes", action="store_false",
+                    help="Don't hole-fill bone interiors (marrow) in intensity "
+                         "mode; leaves hollow structures.")
+    ap.set_defaults(fill_holes=True)
     ap.add_argument("--skip_download", action="store_true")
     ap.add_argument("--dry_run", action="store_true",
                     help="Plan only: copy v1→v2 verbatim, log the per-case "
@@ -358,7 +461,12 @@ def main() -> int:
             _s.reconfigure(line_buffering=True)
         except Exception:
             pass
-    log.info("pseudolabel starting (dry_run=%s) ...", bool(args.dry_run))
+    log.info("pseudolabel starting (dry_run=%s, seg_mode=%s) ...",
+             bool(args.dry_run), args.seg_mode)
+    if args.seg_mode == "intensity":
+        log.info("  intensity fill: HU>%.0f, dilate=%d vox, fill_holes=%s "
+                 "(pseudo=class, CT=shape)", args.hu_threshold,
+                 args.dilate_vox, args.fill_holes)
 
     import numpy as np
     import nibabel as nib
@@ -530,7 +638,22 @@ def main() -> int:
                 pred_canon = remap_prediction(
                     pred_arr, cfg["label_remap"], supplied)
                 manual = np.asarray(ref.dataobj).astype(np.int16)
-                merged = merge_pseudo_into_manual(manual, pred_canon)
+                if args.seg_mode == "intensity":
+                    ct_img = nib.load(str(src / rec["ct_file"]))
+                    ct_arr = np.asarray(ct_img.dataobj).astype(np.float32)
+                    if ct_arr.shape[:3] != manual.shape[:3]:
+                        log.warning("token=%s cid=%s: CT/label grid mismatch "
+                                    "(%s vs %s) — pred-only fill this case",
+                                    tok, cid, ct_arr.shape, manual.shape)
+                        merged = merge_pseudo_into_manual(manual, pred_canon)
+                    else:
+                        merged = intensity_refine_pseudo(
+                            manual, pred_canon, ct_arr,
+                            hu_threshold=args.hu_threshold,
+                            dilate_vox=args.dilate_vox,
+                            fill_holes=args.fill_holes)
+                else:
+                    merged = merge_pseudo_into_manual(manual, pred_canon)
                 _copy_into_v2(rec["ct_file"])             # CT into v2
                 nib.save(nib.Nifti1Image(merged, ref.affine, ref.header),
                          str(out / rec["label_file"]))    # merged label
