@@ -8,6 +8,15 @@ the pipeline can continue from either. Only `spine_only` / `pelvic_native`
 records are refined (in the pseudo-filled region only); `fused` and everything
 else pass through verbatim.
 
+It needs BOTH trees:
+  --manual_from  the ORIGINAL staged/manual tree (pseudolabel.py's --hf_export)
+  --in           the pseudo-labelled tree           (pseudolabel.py's --out)
+The pseudo-filled voxels are identified EXACTLY by diffing the two — a voxel is
+"pseudo" only where the manual tree was background/IGNORE and v2 now has a
+class. This matters because a manual spine annotation can legitimately contain
+a sacrum voxel (class 7 from VerSe id 26); keying off class alone would wrongly
+re-segment that manual voxel. Manual voxels are NEVER modified.
+
 IDEA
 ====
 The pseudo-filled structures (vertebrae, sacrum, hips) are all BONE, which CT
@@ -30,9 +39,6 @@ case, in the pseudo region only:
   3. Solidify marrow (per-slice 2D hole-fill along all 3 axes) and label each
      kept voxel with the NEAREST predicted class.
 
-HARD CONTRACT (unchanged): manual voxels on the manual side are NEVER modified;
-only the pseudo region is re-segmented.
-
 What intensity CANNOT do: separate two TOUCHING bones (L4/L5 facets, sacrum/
 ilium at the SI joint) — they're one bright blob. There the boundary BETWEEN
 labels still comes from the model (nearest-class); only the OUTER bone contour
@@ -41,8 +47,9 @@ comes from intensity.
 Usage
 -----
   python scripts/intensity_refine.py \
-      --in  data/hf_export_v2 \
-      --out data/hf_export_v2_refined \
+      --manual_from data/hf_export \
+      --in          data/hf_export_v2 \
+      --out         data/hf_export_v2_refined \
       [--percentile 10] [--erode_iter 1] [--no_fill_holes] \
       [--limit N] [--dry_run]
 """
@@ -63,12 +70,8 @@ logging.basicConfig(
 )
 log = logging.getLogger("ctspinopelvic1k.intensity_refine")
 
-# Mirrors pseudolabel.py / export_hf.py (re-declared so the core stays a pure,
-# dependency-light, trivially-testable unit).
-CANONICAL_SPINE = frozenset({1, 2, 3, 4, 5, 6})
-CANONICAL_PELVIS = frozenset({7, 8, 9})
-REGION_CANONICAL = {"spine": CANONICAL_SPINE, "pelvis": CANONICAL_PELVIS}
-# config -> (manual region, pseudo-filled region)
+IGNORE_LABEL = 10
+# config -> (manual region, pseudo-filled region) — for scoping + logging only.
 SCOPE = {
     "spine_only":    ("spine",  "pelvis"),
     "pelvic_native": ("pelvis", "spine"),
@@ -118,38 +121,42 @@ def _solid_fill(mask) -> "object":
     return filled
 
 
-def refine_label(label, ct, manual_classes, pseudo_classes, *,
+def refine_label(v1_label, v2_label, ct, *,
                  percentile: float = 10.0, erode_iter: int = 1,
                  fill_holes: bool = True) -> Tuple["object", Optional[float]]:
-    """Re-segment the pseudo region of one label with calibrated, CC-gated,
-    intensity bone segmentation. Returns (refined_label, threshold_used).
+    """Re-segment the pseudo region of one case from CT intensity.
 
-    `manual_classes` / `pseudo_classes` are the canonical-id sets for the
-    manual and pseudo-filled sides. Manual voxels are never touched; the pseudo
-    region is replaced by the intensity result; background stays background.
+    `v1_label` is the ORIGINAL manual label (foreground 1..9 = manual; 0 /
+    IGNORE_LABEL = un-annotated). `v2_label` is the pseudo-labelled result.
+    Manual voxels (v1 in 1..9) are never touched; the pseudo-filled voxels
+    (where v1 was background/IGNORE and v2 has a class) are replaced by a
+    calibrated, CC-gated, nearest-class intensity segmentation.
+
+    Returns (refined_label, threshold_used).
     """
     import numpy as np
     from scipy.ndimage import label as cc_label, distance_transform_edt
 
-    label = np.asarray(label, dtype=np.int16)
+    v1 = np.asarray(v1_label, dtype=np.int16)
+    v2 = np.asarray(v2_label, dtype=np.int16)
     ct = np.asarray(ct, dtype=np.float32)
-    out = label.copy()
+    out = v2.copy()
 
-    manual_mask = np.isin(label, list(manual_classes))
-    pred_classmap = np.where(np.isin(label, list(pseudo_classes)),
-                             label, 0).astype(np.int16)
+    manual_mask = (v1 >= 1) & (v1 <= 9)        # exact manual region (any class)
+    fillable = ~manual_mask                    # v1 was 0 / IGNORE here
+    pred_classmap = np.where(fillable & (v2 >= 1) & (v2 <= 9),
+                             v2, 0).astype(np.int16)   # the model's pseudo fill
     pred_fg = pred_classmap > 0
-    if not pred_fg.any():                  # nothing pseudo to refine
+    if not pred_fg.any():                      # nothing pseudo to refine
         return out, None
     thr = calibrate_threshold(ct, manual_mask, percentile=percentile,
                               erode_iter=erode_iter)
-    if thr is None:                        # no manual bone to calibrate from
+    if thr is None:                            # no manual bone to calibrate from
         return out, None
 
-    fillable = ~manual_mask                # never write into the manual side
     bone = (ct >= thr) & fillable
     cc, n = cc_label(bone)
-    out[pred_fg] = 0                        # clear the old model pseudo voxels
+    out[pred_fg] = 0                            # clear the old model pseudo voxels
     if n:
         keep_ids = [int(v) for v in np.unique(cc[pred_fg]) if v != 0]
         kept = np.isin(cc, keep_ids) if keep_ids else np.zeros_like(bone)
@@ -179,7 +186,11 @@ def main() -> int:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--in", dest="in_tree", required=True, type=Path,
-                    help="A pseudo-labelled tree (pseudolabel.py output).")
+                    help="The pseudo-labelled tree (pseudolabel.py --out).")
+    ap.add_argument("--manual_from", required=True, type=Path,
+                    help="The ORIGINAL staged/manual tree (pseudolabel.py "
+                         "--hf_export). Used to identify pseudo voxels exactly "
+                         "and to calibrate the threshold from manual bone.")
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--percentile", type=float, default=10.0,
                     help="Percentile of manual trabecular HU used as the bone "
@@ -191,7 +202,7 @@ def main() -> int:
                     help="Don't hole-fill marrow; leaves hollow structures.")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--dry_run", action="store_true",
-                    help="Plan only: log per-case calibration, write nothing.")
+                    help="Plan only: log per-case scope, write nothing.")
     ap.set_defaults(fill_holes=True)
     args = ap.parse_args()
 
@@ -204,7 +215,7 @@ def main() -> int:
     import numpy as np
     import nibabel as nib
 
-    src, out = args.in_tree, args.out
+    src, man_src, out = args.in_tree, args.manual_from, args.out
     man_path = src / "manifest.json"
     if not man_path.exists():
         log.error("No manifest.json in %s", src)
@@ -247,24 +258,30 @@ def main() -> int:
             continue
         man_reg, ps_reg = SCOPE[rec["config"]]
         try:
+            v1_path = man_src / lbl_rel
+            if not v1_path.exists():
+                log.warning("token=%s: manual label %s missing — passthrough",
+                            rec.get("token"), v1_path)
+                _copy(ct_rel); _copy(lbl_rel); n_skip += 1
+                continue
             ref = nib.load(str(src / lbl_rel))
-            label = np.asarray(ref.dataobj).astype(np.int16)
-            ct_img = nib.load(str(src / ct_rel))
-            ct = np.asarray(ct_img.dataobj).astype(np.float32)
-            if ct.shape[:3] != label.shape[:3]:
-                log.warning("token=%s: CT/label grid mismatch (%s vs %s) — "
-                            "passthrough", rec.get("token"), ct.shape, label.shape)
+            v2 = np.asarray(ref.dataobj).astype(np.int16)
+            v1 = np.asarray(nib.load(str(v1_path)).dataobj).astype(np.int16)
+            ct = np.asarray(nib.load(str(src / ct_rel)).dataobj).astype(np.float32)
+            if not (v1.shape[:3] == v2.shape[:3] == ct.shape[:3]):
+                log.warning("token=%s: grid mismatch (v1 %s / v2 %s / ct %s) — "
+                            "passthrough", rec.get("token"), v1.shape, v2.shape,
+                            ct.shape)
                 _copy(ct_rel); _copy(lbl_rel); n_skip += 1
                 continue
             refined, thr = refine_label(
-                label, ct, REGION_CANONICAL[man_reg], REGION_CANONICAL[ps_reg],
-                percentile=args.percentile, erode_iter=args.erode_iter,
-                fill_holes=args.fill_holes)
+                v1, v2, ct, percentile=args.percentile,
+                erode_iter=args.erode_iter, fill_holes=args.fill_holes)
             _copy(ct_rel)
             nib.save(nib.Nifti1Image(refined, ref.affine, ref.header),
                      str(out / lbl_rel))
             n_refined += 1
-            fg = int(((refined > 0) & (refined != 0)).sum())
+            fg = int((refined > 0).sum())
             log.info("token=%s: refined %s  HU>=%.0f  (%d fg vox)  [%d/%d]",
                      rec.get("token"), ps_reg,
                      thr if thr is not None else float("nan"), fg,

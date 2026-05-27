@@ -7,8 +7,10 @@ Locks the behavior that matters:
   * threshold artifacts / unrelated bone (ribs) are dropped by keeping only
     connected components that OVERLAP the model prediction;
   * marrow interiors are solidified (hole fill);
-  * manual voxels are NEVER modified; the pseudo region is re-segmented and
-    each kept voxel takes the nearest predicted class.
+  * pseudo voxels are identified by diffing the ORIGINAL manual tree (v1)
+    against the pseudo tree (v2), so a manual sacrum-from-spine (class 7 in a
+    spine_only case) is NEVER re-segmented;
+  * each kept voxel takes the nearest predicted class.
 """
 import sys
 from pathlib import Path
@@ -20,12 +22,10 @@ if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
 from intensity_refine import (  # noqa: E402
+    IGNORE_LABEL,
     calibrate_threshold,
     refine_label,
 )
-
-SPINE = {1, 2, 3, 4, 5, 6}
-PELVIS = {7, 8, 9}
 
 
 # --------------------------------------------------------------------------- #
@@ -45,60 +45,88 @@ def test_calibrate_none_without_manual_bone():
 
 
 # --------------------------------------------------------------------------- #
-# refine_label
+# refine_label  (v1 = manual, v2 = pseudo-labelled)
 # --------------------------------------------------------------------------- #
 
 def test_refine_segments_pseudo_from_intensity_and_drops_stray_bone():
-    label = np.zeros((1, 7, 7), dtype=np.int16)
-    label[0, 1, 1] = 3                       # manual spine (calibration source)
-    label[0, 1, 2] = 3
-    label[0, 4, 4] = 7                       # model predicts sacrum here
+    v1 = np.full((1, 7, 7), IGNORE_LABEL, dtype=np.int16)   # un-annotated region
+    v1[0, 1, 1] = 3; v1[0, 1, 2] = 3                        # manual spine
+    v2 = np.zeros((1, 7, 7), dtype=np.int16)
+    v2[0, 1, 1] = 3; v2[0, 1, 2] = 3                        # manual preserved
+    v2[0, 4, 4] = 7                                         # model predicts sacrum
     ct = np.full((1, 7, 7), -1000.0, dtype=np.float32)
-    ct[0, 1, 1] = 150.0; ct[0, 1, 2] = 250.0           # manual bone HU
-    ct[0, 4, 3] = ct[0, 4, 4] = ct[0, 4, 5] = 300.0    # pseudo-region bone bar
-    ct[0, 6, 0] = 300.0                                # stray rib — separate CC
+    ct[0, 1, 1] = 150.0; ct[0, 1, 2] = 250.0               # manual bone HU
+    ct[0, 4, 3] = ct[0, 4, 4] = ct[0, 4, 5] = 300.0        # pseudo-region bone bar
+    ct[0, 6, 0] = 300.0                                    # stray rib — separate CC
 
-    out, thr = refine_label(label, ct, SPINE, PELVIS,
-                            percentile=10, erode_iter=0, fill_holes=False)
-    assert out[0, 1, 1] == 3 and out[0, 1, 2] == 3     # manual untouched
+    out, thr = refine_label(v1, v2, ct, percentile=10, erode_iter=0,
+                            fill_holes=False)
+    assert out[0, 1, 1] == 3 and out[0, 1, 2] == 3         # manual untouched
     assert out[0, 4, 3] == 7 and out[0, 4, 4] == 7 and out[0, 4, 5] == 7
-    assert out[0, 6, 0] == 0                            # stray bone NOT kept
-    assert 150.0 <= thr <= 250.0                        # calibrated off manual
+    assert out[0, 6, 0] == 0                                # stray bone NOT kept
+    assert 150.0 <= thr <= 250.0                            # calibrated off manual
 
 
 def test_refine_fills_marrow_when_prediction_overlaps_bone():
-    label = np.zeros((1, 7, 7), dtype=np.int16)
-    label[0, 0, 0] = 3                       # manual spine (calibration)
-    for di in (-1, 0, 1):                    # model predicts the whole structure
-        for dj in (-1, 0, 1):
-            label[0, 4 + di, 4 + dj] = 8
+    v1 = np.full((1, 7, 7), IGNORE_LABEL, dtype=np.int16)
+    v1[0, 0, 0] = 3                                         # manual (calibration)
+    v2 = np.zeros((1, 7, 7), dtype=np.int16)
+    v2[0, 0, 0] = 3
+    for di in (-1, 0, 1):                                  # model predicts the
+        for dj in (-1, 0, 1):                              # whole 3x3 structure
+            v2[0, 4 + di, 4 + dj] = 8
     ct = np.full((1, 7, 7), -1000.0, dtype=np.float32)
     ct[0, 0, 0] = 300.0
-    for di in (-1, 0, 1):                    # bone ring, hollow (marrow) centre
+    for di in (-1, 0, 1):                                  # bone ring, hollow centre
         for dj in (-1, 0, 1):
             if di or dj:
                 ct[0, 4 + di, 4 + dj] = 300.0
 
-    out, _ = refine_label(label, ct, SPINE, PELVIS,
-                          percentile=50, erode_iter=0, fill_holes=True)
-    assert out[0, 4, 4] == 8                 # enclosed marrow filled + labelled
+    out, _ = refine_label(v1, v2, ct, percentile=50, erode_iter=0,
+                          fill_holes=True)
+    assert out[0, 4, 4] == 8                               # marrow filled + labelled
     assert out[0, 4, 3] == 8
 
 
 def test_refine_never_modifies_manual_even_if_bone_and_adjacent_pred():
-    label = np.zeros((1, 3, 3), dtype=np.int16)
-    label[0, 1, 1] = 5                        # manual lumbar
-    label[0, 1, 0] = 7                        # pseudo prediction next to it
-    ct = np.full((1, 3, 3), 300.0, dtype=np.float32)   # everything bone
-    out, _ = refine_label(label, ct, SPINE, PELVIS,
-                          percentile=50, erode_iter=0, fill_holes=False)
-    assert out[0, 1, 1] == 5                  # manual wins over bone + neighbour
+    v1 = np.full((1, 3, 3), IGNORE_LABEL, dtype=np.int16)
+    v1[0, 1, 1] = 5                                        # manual lumbar
+    v2 = np.zeros((1, 3, 3), dtype=np.int16)
+    v2[0, 1, 1] = 5
+    v2[0, 1, 0] = 7                                        # pseudo prediction next to it
+    ct = np.full((1, 3, 3), 300.0, dtype=np.float32)       # everything bone
+    out, _ = refine_label(v1, v2, ct, percentile=50, erode_iter=0,
+                          fill_holes=False)
+    assert out[0, 1, 1] == 5                               # manual wins over bone
+
+
+def test_refine_preserves_manual_sacrum_from_spine():
+    # spine_only case where the manual spine annotation includes a sacrum voxel
+    # (class 7 from VerSe id 26). Class-based partitioning would treat it as
+    # pseudo and re-segment it; diffing v1 vs v2 keeps it manual.
+    v1 = np.full((1, 5, 5), IGNORE_LABEL, dtype=np.int16)
+    v1[0, 1, 1] = 4                                        # manual L4
+    v1[0, 2, 1] = 7                                        # manual sacrum-from-spine
+    v2 = np.zeros((1, 5, 5), dtype=np.int16)
+    v2[0, 1, 1] = 4; v2[0, 2, 1] = 7                       # manual preserved by pseudolabel
+    v2[0, 4, 4] = 8                                        # pseudo hip fill
+    ct = np.full((1, 5, 5), -1000.0, dtype=np.float32)
+    ct[0, 1, 1] = ct[0, 2, 1] = 250.0                      # manual bone HU
+    ct[0, 4, 4] = 300.0                                    # pseudo-region bone
+
+    out, _ = refine_label(v1, v2, ct, percentile=10, erode_iter=0,
+                          fill_holes=False)
+    assert out[0, 2, 1] == 7                               # manual sacrum NOT touched
+    assert out[0, 1, 1] == 4
+    assert out[0, 4, 4] == 8                               # pseudo region refined
 
 
 def test_refine_no_prediction_returns_unchanged():
-    label = np.zeros((1, 1, 3), dtype=np.int16)
-    label[0, 0, 2] = 3                        # manual only, no pseudo classes
+    v1 = np.full((1, 1, 3), IGNORE_LABEL, dtype=np.int16)
+    v1[0, 0, 2] = 3                                        # manual only
+    v2 = np.zeros((1, 1, 3), dtype=np.int16)
+    v2[0, 0, 2] = 3                                        # no pseudo fill
     ct = np.full((1, 1, 3), 300.0, dtype=np.float32)
-    out, thr = refine_label(label, ct, SPINE, PELVIS)
+    out, thr = refine_label(v1, v2, ct)
     assert thr is None
-    assert out.tolist() == label.tolist()
+    assert out.tolist() == v2.tolist()
