@@ -63,6 +63,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -194,6 +195,33 @@ def refine_label(v1_label, v2_label, ct, *, mode: str = "clip",
 # Orchestrator
 # ===========================================================================
 
+def link_or_copy(src_path, dst_path, *, copy: bool = False) -> str:
+    """Place src at dst with ONE physical copy of the data on disk.
+
+    Hard-link first (same filesystem: zero extra bytes, and the result is a
+    normal file to every tool incl. the HF uploader). Fall back to a relative
+    symlink (cross-fs), then a full copy. `copy=True` forces a real copy.
+    Returns the method used. Used for the big CT volumes so the v2 / refined
+    export trees reference the single v1 CT store instead of duplicating 280 GB.
+    """
+    src_path, dst_path = str(src_path), str(dst_path)
+    Path(dst_path).parent.mkdir(parents=True, exist_ok=True)
+    if copy:
+        shutil.copy2(src_path, dst_path)
+        return "copy"
+    try:
+        os.link(src_path, dst_path)                       # hardlink: 0 extra bytes
+        return "hardlink"
+    except OSError:
+        pass
+    try:
+        os.symlink(os.path.relpath(src_path, os.path.dirname(dst_path)), dst_path)
+        return "symlink"
+    except OSError:
+        shutil.copy2(src_path, dst_path)
+        return "copy"
+
+
 def _load_manifest(p: Path) -> List[dict]:
     data = json.loads(p.read_text())
     if isinstance(data, dict):
@@ -224,6 +252,10 @@ def main() -> int:
                          "sampling HU, to exclude the cortical rim (default 1).")
     ap.add_argument("--no_fill_holes", dest="fill_holes", action="store_false",
                     help="Don't hole-fill marrow; leaves hollow structures.")
+    ap.add_argument("--copy_ct", action="store_true",
+                    help="Copy CT volumes instead of hard-linking them to the "
+                         "v1 store (only needed if the trees are on different "
+                         "filesystems). Default hard-links: one copy on disk.")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--dry_run", action="store_true",
                     help="Plan only: log per-case scope, write nothing.")
@@ -266,10 +298,17 @@ def main() -> int:
         if (src / extra).exists():
             shutil.copy2(str(src / extra), str(out / extra))
 
-    def _copy(rel):
+    def _copy(rel):                                       # for small label files
         if rel and (src / rel).exists() and not (out / rel).exists():
             (out / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(str(src / rel), str(out / rel))
+
+    def _place_ct(rel):                                   # ONE physical CT copy
+        if not rel or (out / rel).exists():
+            return
+        srcp = man_src / rel if (man_src / rel).exists() else src / rel
+        if Path(srcp).exists():
+            link_or_copy(srcp, out / rel, copy=args.copy_ct)
 
     n_refined = n_pass = n_skip = n_fail = 0
     todo = scoped[:args.limit] if args.limit else scoped
@@ -278,7 +317,7 @@ def main() -> int:
     for rec in records:
         ct_rel, lbl_rel = rec.get("ct_file"), rec.get("label_file")
         if id(rec) not in refine_ids:
-            _copy(ct_rel); _copy(lbl_rel); n_pass += 1
+            _place_ct(ct_rel); _copy(lbl_rel); n_pass += 1
             continue
         man_reg, ps_reg = SCOPE[rec["config"]]
         try:
@@ -286,7 +325,7 @@ def main() -> int:
             if not v1_path.exists():
                 log.warning("token=%s: manual label %s missing — passthrough",
                             rec.get("token"), v1_path)
-                _copy(ct_rel); _copy(lbl_rel); n_skip += 1
+                _place_ct(ct_rel); _copy(lbl_rel); n_skip += 1
                 continue
             ref = nib.load(str(src / lbl_rel))
             v2 = np.asarray(ref.dataobj).astype(np.int16)
@@ -296,12 +335,12 @@ def main() -> int:
                 log.warning("token=%s: grid mismatch (v1 %s / v2 %s / ct %s) — "
                             "passthrough", rec.get("token"), v1.shape, v2.shape,
                             ct.shape)
-                _copy(ct_rel); _copy(lbl_rel); n_skip += 1
+                _place_ct(ct_rel); _copy(lbl_rel); n_skip += 1
                 continue
             refined, thr = refine_label(
                 v1, v2, ct, mode=args.mode, percentile=args.percentile,
                 erode_iter=args.erode_iter, fill_holes=args.fill_holes)
-            _copy(ct_rel)
+            _place_ct(ct_rel)
             nib.save(nib.Nifti1Image(refined, ref.affine, ref.header),
                      str(out / lbl_rel))
             n_refined += 1
@@ -313,7 +352,7 @@ def main() -> int:
         except Exception as exc:                         # noqa: BLE001
             log.warning("token=%s: refine failed (%s) — passthrough",
                         rec.get("token"), exc)
-            _copy(ct_rel); _copy(lbl_rel); n_fail += 1
+            _place_ct(ct_rel); _copy(lbl_rel); n_fail += 1
 
     log.info("=" * 60)
     log.info("intensity-refined tree -> %s", out)

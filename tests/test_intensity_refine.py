@@ -24,8 +24,26 @@ if str(_SCRIPTS) not in sys.path:
 from intensity_refine import (  # noqa: E402
     IGNORE_LABEL,
     calibrate_threshold,
+    link_or_copy,
     refine_label,
 )
+
+
+def test_link_or_copy_hardlinks_single_inode(tmp_path):
+    import os
+    src = tmp_path / "hf_export" / "ct" / "0001_ct.nii.gz"
+    src.parent.mkdir(parents=True)
+    src.write_bytes(b"CTDATA")
+    dst = tmp_path / "hf_export_v2" / "ct" / "0001_ct.nii.gz"
+    method = link_or_copy(src, dst)
+    assert dst.read_bytes() == b"CTDATA"
+    if method == "hardlink":                     # normal same-fs case
+        assert os.stat(src).st_ino == os.stat(dst).st_ino   # one physical copy
+    # copy=True forces a real, independent copy
+    dst2 = tmp_path / "hf_export_v3" / "ct" / "0001_ct.nii.gz"
+    assert link_or_copy(src, dst2, copy=True) == "copy"
+    assert os.stat(src).st_ino != os.stat(dst2).st_ino
+    assert dst2.read_bytes() == b"CTDATA"
 
 
 # --------------------------------------------------------------------------- #

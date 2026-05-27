@@ -311,6 +311,30 @@ def _align_to(ref_img, pred_img):
 # Orchestrator
 # ===========================================================================
 
+def link_or_copy(src_path, dst_path, *, copy: bool = False) -> str:
+    """Place src at dst with ONE physical copy of the data on disk: hard-link
+    (same fs: 0 extra bytes, a normal file to the HF uploader), else relative
+    symlink, else full copy. `copy=True` forces a real copy. Used for the big CT
+    volumes so the v2 tree references the single v1 CT store, not a 280 GB dup.
+    (Re-declared here, not imported, to keep this script a standalone unit.)"""
+    src_path, dst_path = str(src_path), str(dst_path)
+    Path(dst_path).parent.mkdir(parents=True, exist_ok=True)
+    if copy:
+        shutil.copy2(src_path, dst_path)
+        return "copy"
+    try:
+        os.link(src_path, dst_path)
+        return "hardlink"
+    except OSError:
+        pass
+    try:
+        os.symlink(os.path.relpath(src_path, os.path.dirname(dst_path)), dst_path)
+        return "symlink"
+    except OSError:
+        shutil.copy2(src_path, dst_path)
+        return "copy"
+
+
 def _load_manifest(p: Path) -> List[dict]:
     data = json.loads(p.read_text())
     if isinstance(data, dict):
@@ -346,6 +370,11 @@ def main() -> int:
     ap.add_argument("--nps", type=int, default=4,
                     help="nnU-Net segmentation-export workers (-nps).")
     ap.add_argument("--skip_download", action="store_true")
+    ap.add_argument("--copy_ct", action="store_true",
+                    help="Copy CT volumes into the v2 tree instead of "
+                         "hard-linking them to the v1 store (only for "
+                         "different-filesystem trees). Default hard-links: one "
+                         "physical CT copy on disk, not a 280 GB duplicate.")
     ap.add_argument("--dry_run", action="store_true",
                     help="Plan only: copy v1→v2 verbatim, log the per-case "
                          "held-out fold, run no download/inference.")
@@ -434,14 +463,18 @@ def main() -> int:
     def _case_id(r) -> str:                       # unique per record
         return Path(r["ct_file"]).name[:-len(".nii.gz")]
 
-    def _copy_into_v2(rel):
+    def _copy_into_v2(rel):                               # small files (labels)
         if rel and (src / rel).exists():
             (out / rel).parent.mkdir(parents=True, exist_ok=True)
             if not (out / rel).exists():
                 shutil.copy2(str(src / rel), str(out / rel))
 
+    def _link_ct(rel):                                    # ONE physical CT copy
+        if rel and (src / rel).exists() and not (out / rel).exists():
+            link_or_copy(src / rel, out / rel, copy=args.copy_ct)
+
     def _passthrough(r):
-        _copy_into_v2(r.get("ct_file"))
+        _link_ct(r.get("ct_file"))
         _copy_into_v2(r.get("label_file"))
 
     # Resume: completed cases left a marker holding their updated record.
@@ -467,7 +500,7 @@ def main() -> int:
             continue
         cid = _case_id(rec)
         if cid in done:                       # already merged previously
-            _copy_into_v2(ct_rel)             # ensure CT present (idempotent)
+            _link_ct(ct_rel)                  # ensure CT present (idempotent)
             new_records.append(done[cid]); n_resume += 1
             continue
         region = MISSING_REGION[cfg_v]
@@ -531,7 +564,7 @@ def main() -> int:
                     pred_arr, cfg["label_remap"], supplied)
                 manual = np.asarray(ref.dataobj).astype(np.int16)
                 merged = merge_pseudo_into_manual(manual, pred_canon)
-                _copy_into_v2(rec["ct_file"])             # CT into v2
+                _link_ct(rec["ct_file"])                  # CT into v2 (one copy)
                 nib.save(nib.Nifti1Image(merged, ref.affine, ref.header),
                          str(out / rec["label_file"]))    # merged label
                 urec = updated_record(rec, region, merged)
