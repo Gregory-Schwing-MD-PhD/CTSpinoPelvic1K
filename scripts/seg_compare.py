@@ -179,6 +179,10 @@ def main() -> int:
         "assd": args.assd,
     } for rec in scoped]
 
+    import time
+    t0 = time.time()
+    log.info("submitting %d tasks (first result usually takes a few minutes) ...",
+             len(tasks))
     from concurrent.futures import ProcessPoolExecutor, as_completed
     with ProcessPoolExecutor(max_workers=args.workers) as ex:
         futures = [ex.submit(_compare_one, t) for t in tasks]
@@ -206,8 +210,14 @@ def main() -> int:
                     per_class_ratio.setdefault(c, []).append(m["vol_ratio"])
                 if assd == assd:
                     per_class_assd.setdefault(c, []).append(assd)
-            if i % 50 == 0 or i == len(tasks):
-                log.info("  ... %d/%d", i, len(tasks))
+            if i == 1 or i % 10 == 0 or i == len(tasks):
+                elapsed = time.time() - t0
+                rate = i / max(elapsed, 1.0)
+                eta = (len(tasks) - i) / rate if rate > 0 else 0.0
+                log.info("  [%d/%d] token=%s  elapsed=%dm%02ds  rate=%.2f/s  ETA=%dm",
+                         i, len(tasks), tok,
+                         int(elapsed) // 60, int(elapsed) % 60,
+                         rate, int(eta) // 60)
 
     args.out_csv.parent.mkdir(parents=True, exist_ok=True)
     with open(args.out_csv, "w", newline="") as f:

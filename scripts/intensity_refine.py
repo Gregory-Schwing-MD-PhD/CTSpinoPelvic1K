@@ -385,17 +385,24 @@ def main() -> int:
         if Path(srcp).exists():
             link_or_copy(srcp, out / rel, copy=args.copy_ct)
 
+    import time
     n_refined = n_pass = n_skip = n_fail = 0
     todo = scoped[:args.limit] if args.limit else scoped
     refine_ids = {id(r) for r in todo}
 
-    # Passthrough cases (cheap I/O): do sequentially.
+    # Passthrough cases (fused / out-of-scope): place sequentially (cheap I/O).
+    n_pt = len(records) - len(refine_ids)
+    log.info("placing %d passthrough cases (fused / out-of-scope) ...", n_pt)
+    t_pt = time.time()
     for rec in records:
         if id(rec) in refine_ids:
             continue
         _place_ct(rec.get("ct_file"))
         _copy(rec.get("label_file"))
         n_pass += 1
+        if n_pass % 50 == 0 or n_pass == n_pt:
+            log.info("  passthrough %d/%d  (%.0fs)", n_pass, n_pt,
+                     time.time() - t_pt)
 
     # Scoped refines (CPU-heavy): parallel ProcessPoolExecutor.
     tasks = [{
@@ -413,8 +420,11 @@ def main() -> int:
         "grow_iters": args.grow_iters, "copy_ct": args.copy_ct,
     } for rec in todo]
 
-    log.info("refining %d cases on %d worker(s) ...", len(tasks), args.workers)
+    log.info("refining %d cases on %d worker(s) — first result usually takes a "
+             "few minutes (NFS warm-up + parallel CT loads) ...",
+             len(tasks), args.workers)
     from concurrent.futures import ProcessPoolExecutor, as_completed
+    t0 = time.time()
     with ProcessPoolExecutor(max_workers=args.workers) as ex:
         futures = [ex.submit(_refine_one, t) for t in tasks]
         for i, fut in enumerate(as_completed(futures), 1):
@@ -422,15 +432,10 @@ def main() -> int:
             tok, status = r["token"], r["status"]
             if status == "refined":
                 n_refined += 1
-                if i % 25 == 0 or i == len(futures):
-                    log.info("  [%d/%d] token=%s HU>=%.0f fg=%d", i, len(futures),
-                             tok, r["thr"] if r["thr"] is not None else float("nan"),
-                             r["fg"])
             elif status == "fail":
                 n_fail += 1
                 log.warning("token=%s: refine failed (%s) — passthrough",
                             tok, r.get("error"))
-                # passthrough fallback (the worker didn't write anything)
                 src_rec = next((rec for rec in todo
                                 if str(rec.get("token", "?")) == str(tok)), None)
                 if src_rec:
@@ -444,6 +449,18 @@ def main() -> int:
                 if src_rec:
                     _place_ct(src_rec.get("ct_file"))
                     _copy(src_rec.get("label_file"))
+            # log first result (proof of life), then every 5 cases, then the last
+            if i == 1 or i % 5 == 0 or i == len(futures):
+                elapsed = time.time() - t0
+                rate = i / max(elapsed, 1.0)
+                eta_s = (len(futures) - i) / rate if rate > 0 else 0.0
+                thr_s = ("%.0f" % r["thr"]) if r.get("thr") is not None else "—"
+                log.info("  [%d/%d] %s token=%s HU>=%s fg=%d  "
+                         "elapsed=%dm%02ds  rate=%.2f/s  ETA=%dm",
+                         i, len(futures), status, tok, thr_s,
+                         r.get("fg", 0),
+                         int(elapsed) // 60, int(elapsed) % 60,
+                         rate, int(eta_s) // 60)
 
     log.info("=" * 60)
     log.info("intensity-refined tree -> %s", out)
