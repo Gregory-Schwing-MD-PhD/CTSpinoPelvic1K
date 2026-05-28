@@ -7,7 +7,7 @@
 #SBATCH --mem=128G
 #SBATCH --time=08:00:00
 #SBATCH --output=logs/eval_vs_manual_%j.out
-#SBATCH --error=logs/eval_vs_manual_%j.err
+#SBATCH --error=logs/eval_vs_manual_%j.out
 #SBATCH --mail-type=END,FAIL
 
 # =============================================================================

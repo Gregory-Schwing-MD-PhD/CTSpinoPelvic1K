@@ -210,14 +210,13 @@ def main() -> int:
                     per_class_ratio.setdefault(c, []).append(m["vol_ratio"])
                 if assd == assd:
                     per_class_assd.setdefault(c, []).append(assd)
-            if i == 1 or i % 10 == 0 or i == len(tasks):
-                elapsed = time.time() - t0
-                rate = i / max(elapsed, 1.0)
-                eta = (len(tasks) - i) / rate if rate > 0 else 0.0
-                log.info("  [%d/%d] token=%s  elapsed=%dm%02ds  rate=%.2f/s  ETA=%dm",
-                         i, len(tasks), tok,
-                         int(elapsed) // 60, int(elapsed) % 60,
-                         rate, int(eta) // 60)
+            elapsed = time.time() - t0
+            rate = i / max(elapsed, 1.0)
+            eta = (len(tasks) - i) / rate if rate > 0 else 0.0
+            log.info("  [%d/%d] token=%s  elapsed=%dm%02ds  rate=%.2f/s  ETA=%dm",
+                     i, len(tasks), tok,
+                     int(elapsed) // 60, int(elapsed) % 60,
+                     rate, int(eta) // 60)
 
     args.out_csv.parent.mkdir(parents=True, exist_ok=True)
     with open(args.out_csv, "w", newline="") as f:

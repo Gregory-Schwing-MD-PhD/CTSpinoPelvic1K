@@ -7,7 +7,7 @@
 #SBATCH --mem=128G
 #SBATCH --time=08:00:00
 #SBATCH --output=logs/seg_compare_%j.out
-#SBATCH --error=logs/seg_compare_%j.err
+#SBATCH --error=logs/seg_compare_%j.out
 #SBATCH --mail-type=END,FAIL
 
 # =============================================================================

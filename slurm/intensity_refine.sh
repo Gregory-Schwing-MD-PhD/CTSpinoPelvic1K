@@ -7,7 +7,7 @@
 #SBATCH --mem=128G
 #SBATCH --time=24:00:00
 #SBATCH --output=logs/intensity_refine_%j.out
-#SBATCH --error=logs/intensity_refine_%j.err
+#SBATCH --error=logs/intensity_refine_%j.out
 #SBATCH --mail-type=END,FAIL
 
 # =============================================================================
@@ -49,6 +49,7 @@ REFINE_FILL="${REFINE_FILL:-1}"
 REFINE_WORKERS="${REFINE_WORKERS:-${SLURM_CPUS_PER_TASK:-8}}"
 REFINE_LIMIT="${REFINE_LIMIT:-0}"
 REFINE_DRY_RUN="${REFINE_DRY_RUN:-0}"
+REFINE_OVERWRITE="${REFINE_OVERWRITE:-0}"
 
 mkdir -p "${LOGS_DIR}" "${REFINE_OUT_DIR}"
 
@@ -81,6 +82,7 @@ EXTRA=""
 [[ "${REFINE_FILL}" == "0" ]]      && EXTRA="${EXTRA} --no_fill_holes"
 [[ "${REFINE_LIMIT}" != "0" ]]     && EXTRA="${EXTRA} --limit ${REFINE_LIMIT}"
 [[ "${REFINE_DRY_RUN}" == "1" ]]   && EXTRA="${EXTRA} --dry_run"
+[[ "${REFINE_OVERWRITE}" == "1" ]] && EXTRA="${EXTRA} --overwrite"
 
 BINDS="${PROJECT_ROOT}:/workspace,${DATA_DIR}:/data"
 PPATH="/workspace/scripts:/workspace/src:/workspace"

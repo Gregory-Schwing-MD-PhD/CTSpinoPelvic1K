@@ -330,6 +330,11 @@ def main() -> int:
                     help="Copy CT volumes instead of hard-linking them to the "
                          "v1 store (only needed if the trees are on different "
                          "filesystems). Default hard-links: one copy on disk.")
+    ap.add_argument("--overwrite", action="store_true",
+                    help="Re-refine cases whose output label already exists "
+                         "(default: SKIP them — resume-friendly). If you "
+                         "changed any refinement param and want fresh output, "
+                         "set this OR rm -rf the output dir first.")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--dry_run", action="store_true",
                     help="Plan only: log per-case scope, write nothing.")
@@ -404,7 +409,23 @@ def main() -> int:
             log.info("  passthrough %d/%d  (%.0fs)", n_pass, n_pt,
                      time.time() - t_pt)
 
-    # Scoped refines (CPU-heavy): parallel ProcessPoolExecutor.
+    # Scoped refines: skip cases already refined (resume) unless --overwrite.
+    n_cached = 0
+    to_refine = []
+    for rec in todo:
+        out_lbl = out / rec["label_file"]
+        if out_lbl.exists() and not args.overwrite:
+            _place_ct(rec.get("ct_file"))   # belt-and-braces: ensure CT linked
+            n_cached += 1
+        else:
+            to_refine.append(rec)
+    if n_cached:
+        log.info("resume: %d cases already refined (skipping); %d to refine. "
+                 "Use --overwrite to force a fresh refine.",
+                 n_cached, len(to_refine))
+    n_refined += n_cached
+
+    # CPU-heavy work: parallel ProcessPoolExecutor on the to-do list only.
     tasks = [{
         "token": rec.get("token", "?"),
         "v1_path":    str(man_src / rec["label_file"]),
@@ -418,11 +439,15 @@ def main() -> int:
         "mode": args.mode, "percentile": args.percentile,
         "erode_iter": args.erode_iter, "fill_holes": args.fill_holes,
         "grow_iters": args.grow_iters, "copy_ct": args.copy_ct,
-    } for rec in todo]
+    } for rec in to_refine]
 
-    log.info("refining %d cases on %d worker(s) — first result usually takes a "
-             "few minutes (NFS warm-up + parallel CT loads) ...",
-             len(tasks), args.workers)
+    if not tasks:
+        log.info("nothing to refine — all %d scoped cases already cached.",
+                 n_cached)
+    else:
+        log.info("refining %d cases on %d worker(s) — first result usually "
+                 "takes a few minutes (NFS warm-up + parallel CT loads) ...",
+                 len(tasks), args.workers)
     from concurrent.futures import ProcessPoolExecutor, as_completed
     t0 = time.time()
     with ProcessPoolExecutor(max_workers=args.workers) as ex:
@@ -449,18 +474,17 @@ def main() -> int:
                 if src_rec:
                     _place_ct(src_rec.get("ct_file"))
                     _copy(src_rec.get("label_file"))
-            # log first result (proof of life), then every 5 cases, then the last
-            if i == 1 or i % 5 == 0 or i == len(futures):
-                elapsed = time.time() - t0
-                rate = i / max(elapsed, 1.0)
-                eta_s = (len(futures) - i) / rate if rate > 0 else 0.0
-                thr_s = ("%.0f" % r["thr"]) if r.get("thr") is not None else "—"
-                log.info("  [%d/%d] %s token=%s HU>=%s fg=%d  "
-                         "elapsed=%dm%02ds  rate=%.2f/s  ETA=%dm",
-                         i, len(futures), status, tok, thr_s,
-                         r.get("fg", 0),
-                         int(elapsed) // 60, int(elapsed) % 60,
-                         rate, int(eta_s) // 60)
+            # log EVERY case completion (proof of life + continuous progress)
+            elapsed = time.time() - t0
+            rate = i / max(elapsed, 1.0)
+            eta_s = (len(futures) - i) / rate if rate > 0 else 0.0
+            thr_s = ("%.0f" % r["thr"]) if r.get("thr") is not None else "—"
+            log.info("  [%d/%d] %s token=%s HU>=%s fg=%d  "
+                     "elapsed=%dm%02ds  rate=%.2f/s  ETA=%dm",
+                     i, len(futures), status, tok, thr_s,
+                     r.get("fg", 0),
+                     int(elapsed) // 60, int(elapsed) % 60,
+                     rate, int(eta_s) // 60)
 
     log.info("=" * 60)
     log.info("intensity-refined tree -> %s", out)

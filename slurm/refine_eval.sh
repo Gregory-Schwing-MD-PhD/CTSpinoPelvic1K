@@ -7,7 +7,7 @@
 #SBATCH --mem=128G
 #SBATCH --time=24:00:00
 #SBATCH --output=logs/refine_eval_%j.out
-#SBATCH --error=logs/refine_eval_%j.err
+#SBATCH --error=logs/refine_eval_%j.out
 #SBATCH --mail-type=END,FAIL
 
 # =============================================================================
@@ -47,6 +47,7 @@ REFINE_PCTL="${REFINE_PCTL:-10}"
 REFINE_ERODE="${REFINE_ERODE:-1}"
 REFINE_FILL="${REFINE_FILL:-1}"
 REFINE_LIMIT="${REFINE_LIMIT:-0}"
+REFINE_OVERWRITE="${REFINE_OVERWRITE:-0}"
 REFINE_WORKERS="${REFINE_WORKERS:-${SLURM_CPUS_PER_TASK:-8}}"
 EVAL_NO_ASSD="${EVAL_NO_ASSD:-0}"
 COMPARE_NO_ASSD="${COMPARE_NO_ASSD:-0}"
@@ -83,8 +84,9 @@ PPATH="/workspace/scripts:/workspace/src:/workspace"
 ENV_VARS="PYTHONPATH=${PPATH},PYTHONUNBUFFERED=1"
 
 EXTRA_REFINE=""
-[[ "${REFINE_FILL}" == "0" ]]    && EXTRA_REFINE="${EXTRA_REFINE} --no_fill_holes"
-[[ "${REFINE_LIMIT}" != "0" ]]   && EXTRA_REFINE="${EXTRA_REFINE} --limit ${REFINE_LIMIT}"
+[[ "${REFINE_FILL}" == "0" ]]      && EXTRA_REFINE="${EXTRA_REFINE} --no_fill_holes"
+[[ "${REFINE_LIMIT}" != "0" ]]     && EXTRA_REFINE="${EXTRA_REFINE} --limit ${REFINE_LIMIT}"
+[[ "${REFINE_OVERWRITE}" == "1" ]] && EXTRA_REFINE="${EXTRA_REFINE} --overwrite"
 
 EXTRA_COMPARE=""
 [[ "${COMPARE_NO_ASSD}" == "1" ]] && EXTRA_COMPARE="--no_assd"

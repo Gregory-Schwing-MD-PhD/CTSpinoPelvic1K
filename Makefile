@@ -108,6 +108,7 @@ REFINE_FILL    ?= 1
 REFINE_WORKERS ?=
 REFINE_LIMIT   ?= 0
 REFINE_DRY_RUN ?= 0
+REFINE_OVERWRITE ?= 0
 # Strip any trailing whitespace from values defined with ?= so the comma-
 # separated sbatch --export list doesn't split mid-arg.
 REFINE_OUT_DIR := $(strip $(REFINE_OUT_DIR))
@@ -119,6 +120,7 @@ REFINE_FILL    := $(strip $(REFINE_FILL))
 REFINE_WORKERS := $(strip $(REFINE_WORKERS))
 REFINE_LIMIT   := $(strip $(REFINE_LIMIT))
 REFINE_DRY_RUN := $(strip $(REFINE_DRY_RUN))
+REFINE_OVERWRITE := $(strip $(REFINE_OVERWRITE))
 
 # ── Stage 4 control (TotalSegmentator benchmark) ─────────────────────────────
 TS_WINDOW_MM    ?= 40.0
@@ -321,7 +323,7 @@ intensity-refine: check-container  ## Stage 3.6 — CT-intensity bone refine of 
 	@echo "  -> then publish the refined tree to the v2 branch:"
 	@echo "     HF_TOKEN=hf_xxx HF_REPO_ID=org/Name HF_REVISION=v2 WIPE_REMOTE=1 \\"
 	@echo "       HF_EXPORT_DIR=\$$(pwd)/data/hf_export_v2_refined make hf-push"
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),REFINE_OUT_DIR=$(REFINE_OUT_DIR),REFINE_MODE=$(REFINE_MODE),REFINE_GROW=$(REFINE_GROW),REFINE_PCTL=$(REFINE_PCTL),REFINE_ERODE=$(REFINE_ERODE),REFINE_FILL=$(REFINE_FILL),REFINE_WORKERS=$(REFINE_WORKERS),REFINE_LIMIT=$(REFINE_LIMIT),REFINE_DRY_RUN=$(REFINE_DRY_RUN) \
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),REFINE_OUT_DIR=$(REFINE_OUT_DIR),REFINE_MODE=$(REFINE_MODE),REFINE_GROW=$(REFINE_GROW),REFINE_PCTL=$(REFINE_PCTL),REFINE_ERODE=$(REFINE_ERODE),REFINE_FILL=$(REFINE_FILL),REFINE_WORKERS=$(REFINE_WORKERS),REFINE_LIMIT=$(REFINE_LIMIT),REFINE_DRY_RUN=$(REFINE_DRY_RUN),REFINE_OVERWRITE=$(REFINE_OVERWRITE) \
 	       slurm/intensity_refine.sh
 
 

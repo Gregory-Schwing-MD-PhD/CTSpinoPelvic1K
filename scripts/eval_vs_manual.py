@@ -322,14 +322,13 @@ def main() -> int:
                     per_class_assd_raw.setdefault(c, []).append(m["assd_raw"])
                 if m["assd_ref"] == m["assd_ref"]:
                     per_class_assd_ref.setdefault(c, []).append(m["assd_ref"])
-            if i == 1 or i % 10 == 0 or i == len(tasks):
-                elapsed = time.time() - t0
-                rate = i / max(elapsed, 1.0)
-                eta = (len(tasks) - i) / rate if rate > 0 else 0.0
-                log.info("  [%d/%d] token=%s  elapsed=%dm%02ds  rate=%.2f/s  ETA=%dm",
-                         i, len(tasks), r["token"],
-                         int(elapsed) // 60, int(elapsed) % 60,
-                         rate, int(eta) // 60)
+            elapsed = time.time() - t0
+            rate = i / max(elapsed, 1.0)
+            eta = (len(tasks) - i) / rate if rate > 0 else 0.0
+            log.info("  [%d/%d] token=%s  elapsed=%dm%02ds  rate=%.2f/s  ETA=%dm",
+                     i, len(tasks), r["token"],
+                     int(elapsed) // 60, int(elapsed) % 60,
+                     rate, int(eta) // 60)
 
     args.out_csv.parent.mkdir(parents=True, exist_ok=True)
     with open(args.out_csv, "w", newline="") as f:
