@@ -89,22 +89,36 @@ PSEUDO_LIMIT   ?= 0
 HF_PUSH_DIR    := $(if $(strip $(HF_EXPORT_DIR)),$(HF_EXPORT_DIR),$(DATA_DIR)/hf_export)
 
 # ── seg-compare (CPU; quantify model-vs-intensity disagreement) ─────────────
-COMPARE_CSV     ?=        # output CSV (default: data/seg_compare.csv)
-COMPARE_WORKERS ?=        # default: $SLURM_CPUS_PER_TASK in the slurm script
-COMPARE_NO_ASSD ?= 0      # 1 = skip ASSD for speed (Dice + volumes only)
+COMPARE_CSV     ?=
+COMPARE_WORKERS ?=
+COMPARE_NO_ASSD ?= 0
+COMPARE_CSV     := $(strip $(COMPARE_CSV))
+COMPARE_WORKERS := $(strip $(COMPARE_WORKERS))
+COMPARE_NO_ASSD := $(strip $(COMPARE_NO_ASSD))
 
 # ── Intensity refinement (Stage 3.6 — CT-intensity bone seg on the v2 tree) ──
 # CPU-only post-step (lean container). Empty values fall through to the
 # slurm script's own defaults.
-REFINE_OUT_DIR ?=        # refined out tree (default: data/hf_export_v2_refined)
-REFINE_MODE    ?= clip   # clip = subtractive (erase over-seg); resegment = unbounded grow
-REFINE_GROW    ?= 3      # clip-mode bounded grow (vox); 0 = pure clip
-REFINE_PCTL    ?= 10     # manual-HU percentile -> bone threshold (per case)
-REFINE_ERODE   ?= 1      # erode manual mask this many vox before HU sampling
-REFINE_FILL    ?= 1      # 1 = hole-fill marrow, 0 = leave hollow
-REFINE_WORKERS ?=        # parallel worker processes (default: $SLURM_CPUS_PER_TASK)
-REFINE_LIMIT   ?= 0      # cap cases (debug)
-REFINE_DRY_RUN ?= 0      # 1 = plan only
+REFINE_OUT_DIR ?=
+REFINE_MODE    ?= clip
+REFINE_GROW    ?= 3
+REFINE_PCTL    ?= 10
+REFINE_ERODE   ?= 1
+REFINE_FILL    ?= 1
+REFINE_WORKERS ?=
+REFINE_LIMIT   ?= 0
+REFINE_DRY_RUN ?= 0
+# Strip any trailing whitespace from values defined with ?= so the comma-
+# separated sbatch --export list doesn't split mid-arg.
+REFINE_OUT_DIR := $(strip $(REFINE_OUT_DIR))
+REFINE_MODE    := $(strip $(REFINE_MODE))
+REFINE_GROW    := $(strip $(REFINE_GROW))
+REFINE_PCTL    := $(strip $(REFINE_PCTL))
+REFINE_ERODE   := $(strip $(REFINE_ERODE))
+REFINE_FILL    := $(strip $(REFINE_FILL))
+REFINE_WORKERS := $(strip $(REFINE_WORKERS))
+REFINE_LIMIT   := $(strip $(REFINE_LIMIT))
+REFINE_DRY_RUN := $(strip $(REFINE_DRY_RUN))
 
 # ── Stage 4 control (TotalSegmentator benchmark) ─────────────────────────────
 TS_WINDOW_MM    ?= 40.0
@@ -335,6 +349,10 @@ EVAL_CSV     ?=
 EVAL_WORKERS ?=
 EVAL_NO_ASSD ?= 0
 PRED_DIR     ?=
+EVAL_CSV     := $(strip $(EVAL_CSV))
+EVAL_WORKERS := $(strip $(EVAL_WORKERS))
+EVAL_NO_ASSD := $(strip $(EVAL_NO_ASSD))
+PRED_DIR     := $(strip $(PRED_DIR))
 
 
 .PHONY: seg-compare
