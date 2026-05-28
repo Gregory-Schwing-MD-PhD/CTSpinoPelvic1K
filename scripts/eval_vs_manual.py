@@ -70,6 +70,23 @@ def remap_prediction_array(pred, label_remap: Dict[str, int]) -> "object":
     return out
 
 
+def _align_pred_to_ref(ref_img, pred_img) -> "object":
+    """Nearest-neighbour resample pred onto ref's grid if they differ. Mirrors
+    pseudolabel._align_to so the model-vs-manual comparison is voxel-correct
+    (the cached pred is in CT-native space; v1 is PIR after export)."""
+    import numpy as np
+    if (pred_img.shape[:3] == ref_img.shape[:3]
+            and np.allclose(pred_img.affine, ref_img.affine, atol=1e-4)):
+        return np.asarray(pred_img.dataobj).astype(np.int16)
+    from scipy.ndimage import affine_transform
+    M = np.linalg.inv(pred_img.affine) @ ref_img.affine
+    out = affine_transform(
+        np.asarray(pred_img.dataobj).astype(np.float32),
+        M[:3, :3], offset=M[:3, 3], output_shape=ref_img.shape[:3],
+        order=0, mode="constant", cval=0.0)
+    return np.rint(out).astype(np.int16)
+
+
 # ===========================================================================
 # Orchestrator
 # ===========================================================================
@@ -95,12 +112,10 @@ def _eval_one(task: dict) -> dict:
     import nibabel as nib
     tok = task["token"]
     try:
-        v1 = np.asarray(nib.load(task["v1_path"]).dataobj).astype(np.int16)
-        pred_raw = np.asarray(nib.load(task["pred_path"]).dataobj).astype(np.int16)
-        # Pred grid may differ from v1 (nnU-Net writes in CT space; v1 may be in
-        # PIR after export). Nearest-neighbour resample pred onto v1 if needed.
-        if pred_raw.shape[:3] != v1.shape[:3]:
-            return {"token": tok, "status": "skip_shape"}
+        v1_img = nib.load(task["v1_path"])
+        pred_img = nib.load(task["pred_path"])
+        v1 = np.asarray(v1_img.dataobj).astype(np.int16)
+        pred_raw = _align_pred_to_ref(v1_img, pred_img)   # PIR / native handled
         pred = remap_prediction_array(pred_raw, task["label_remap"])
         # Restrict to the MANUAL side of this case (where ground truth is real).
         # Background mask = neither manual fg there nor pred fg there in those
