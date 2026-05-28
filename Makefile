@@ -311,6 +311,23 @@ intensity-refine: check-container  ## Stage 3.6 — CT-intensity bone refine of 
 	       slurm/intensity_refine.sh
 
 
+.PHONY: eval-vs-manual
+eval-vs-manual: check-container  ## Quantify model accuracy vs MANUAL ground truth on the scoped manual side (CPU)
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting eval-vs-manual (CPU)"
+	@echo "  v1 manual = $(if $(strip $(HF_EXPORT_DIR)),$(HF_EXPORT_DIR),$(DATA_DIR)/hf_export)"
+	@echo "  preds     = $(if $(strip $(PRED_DIR)),$(PRED_DIR),$(DATA_DIR)/hf_export_v2_work/preds)"
+	@echo "  csv       = $(if $(strip $(EVAL_CSV)),$(EVAL_CSV),$(DATA_DIR)/eval_vs_manual.csv)"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PRED_DIR=$(PRED_DIR),MODELS_CONFIG=$(MODELS_CONFIG),EVAL_CSV=$(EVAL_CSV),EVAL_WORKERS=$(EVAL_WORKERS),EVAL_NO_ASSD=$(EVAL_NO_ASSD) \
+	       slurm/eval_vs_manual.sh
+
+
+EVAL_CSV     ?=
+EVAL_WORKERS ?=
+EVAL_NO_ASSD ?= 0
+PRED_DIR     ?=
+
+
 .PHONY: seg-compare
 seg-compare: check-container  ## Quantify model-vs-intensity segmentation disagreement (CPU)
 	@mkdir -p $(LOGS_DIR)
