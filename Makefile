@@ -88,6 +88,11 @@ PSEUDO_LIMIT   ?= 0
 # preflight guard honest for the v2 push instead of always checking v1.
 HF_PUSH_DIR    := $(if $(strip $(HF_EXPORT_DIR)),$(HF_EXPORT_DIR),$(DATA_DIR)/hf_export)
 
+# ── seg-compare (CPU; quantify model-vs-intensity disagreement) ─────────────
+COMPARE_CSV     ?=        # output CSV (default: data/seg_compare.csv)
+COMPARE_WORKERS ?=        # default: $SLURM_CPUS_PER_TASK in the slurm script
+COMPARE_NO_ASSD ?= 0      # 1 = skip ASSD for speed (Dice + volumes only)
+
 # ── Intensity refinement (Stage 3.6 — CT-intensity bone seg on the v2 tree) ──
 # CPU-only post-step (lean container). Empty values fall through to the
 # slurm script's own defaults.
@@ -304,6 +309,18 @@ intensity-refine: check-container  ## Stage 3.6 — CT-intensity bone refine of 
 	@echo "       HF_EXPORT_DIR=\$$(pwd)/data/hf_export_v2_refined make hf-push"
 	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),REFINE_OUT_DIR=$(REFINE_OUT_DIR),REFINE_MODE=$(REFINE_MODE),REFINE_GROW=$(REFINE_GROW),REFINE_PCTL=$(REFINE_PCTL),REFINE_ERODE=$(REFINE_ERODE),REFINE_FILL=$(REFINE_FILL),REFINE_WORKERS=$(REFINE_WORKERS),REFINE_LIMIT=$(REFINE_LIMIT),REFINE_DRY_RUN=$(REFINE_DRY_RUN) \
 	       slurm/intensity_refine.sh
+
+
+.PHONY: seg-compare
+seg-compare: check-container  ## Quantify model-vs-intensity segmentation disagreement (CPU)
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting seg-compare (CPU)"
+	@echo "  v1 manual = $(if $(strip $(HF_EXPORT_DIR)),$(HF_EXPORT_DIR),$(DATA_DIR)/hf_export)"
+	@echo "  model v2  = $(if $(strip $(PSEUDO_OUT_DIR)),$(PSEUDO_OUT_DIR),$(DATA_DIR)/hf_export_v2)"
+	@echo "  refined   = $(if $(strip $(REFINE_OUT_DIR)),$(REFINE_OUT_DIR),$(DATA_DIR)/hf_export_v2_refined)"
+	@echo "  csv       = $(if $(strip $(COMPARE_CSV)),$(COMPARE_CSV),$(DATA_DIR)/seg_compare.csv)"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),REFINE_OUT_DIR=$(REFINE_OUT_DIR),COMPARE_CSV=$(COMPARE_CSV),COMPARE_WORKERS=$(COMPARE_WORKERS),COMPARE_NO_ASSD=$(COMPARE_NO_ASSD) \
+	       slurm/seg_compare.sh
 
 
 # =============================================================================
