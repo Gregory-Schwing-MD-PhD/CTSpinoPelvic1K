@@ -70,6 +70,53 @@ def remap_prediction_array(pred, label_remap: Dict[str, int]) -> "object":
     return out
 
 
+def _refine_pred_for_eval(pred, v1, ct, manual_classes, *,
+                          mode: str, percentile: float, erode_iter: int,
+                          fill_holes: bool, grow_iters: int):
+    """Apply intensity refinement to `pred` restricted to `manual_classes`,
+    calibrating the bone threshold from the REAL manual bone in v1. For
+    eval only — does NOT preserve manual (we're testing the refinement against
+    ground truth, not protecting it)."""
+    import numpy as np
+    from scipy.ndimage import binary_dilation, distance_transform_edt
+    from intensity_refine import calibrate_threshold, _solid_fill
+
+    manual_mask = (v1 >= 1) & (v1 <= 9)
+    if not manual_mask.any():
+        return None, None
+    thr = calibrate_threshold(ct, manual_mask, percentile=percentile,
+                              erode_iter=erode_iter)
+    if thr is None:
+        return None, None
+    pred_classmap = np.where(np.isin(pred, list(manual_classes)),
+                              pred, 0).astype(np.int16)
+    pred_fg = pred_classmap > 0
+    out = np.zeros_like(pred, dtype=np.int16)
+    if not pred_fg.any():
+        return out, thr
+    bone = ct >= thr
+    if mode == "clip" and int(grow_iters) > 0:
+        candidates = np.zeros(bone.shape, dtype=bool)
+        for c in np.unique(pred_classmap[pred_fg]):
+            seed = (pred_classmap == int(c)) & bone
+            grown = binary_dilation(seed, iterations=int(grow_iters), mask=bone)
+            if fill_holes:
+                grown = _solid_fill(grown)
+            candidates |= grown
+        idx = distance_transform_edt(~pred_fg, return_distances=False,
+                                     return_indices=True)
+        nearest = pred_classmap[tuple(idx)]
+        out[candidates] = nearest[candidates].astype(np.int16)
+    else:    # pure clip (grow_iters==0)
+        for c in np.unique(pred_classmap[pred_fg]):
+            pc = pred_classmap == int(c)
+            seg_c = pc & bone
+            if fill_holes:
+                seg_c = _solid_fill(seg_c) & pc
+            out[seg_c] = int(c)
+    return out, thr
+
+
 def _align_pred_to_ref(ref_img, pred_img) -> "object":
     """Nearest-neighbour resample pred onto ref's grid if they differ. Mirrors
     pseudolabel._align_to so the model-vs-manual comparison is voxel-correct
@@ -115,21 +162,45 @@ def _eval_one(task: dict) -> dict:
         v1_img = nib.load(task["v1_path"])
         pred_img = nib.load(task["pred_path"])
         v1 = np.asarray(v1_img.dataobj).astype(np.int16)
-        pred_raw = _align_pred_to_ref(v1_img, pred_img)   # PIR / native handled
+        pred_raw = _align_pred_to_ref(v1_img, pred_img)
         pred = remap_prediction_array(pred_raw, task["label_remap"])
-        # Restrict to the MANUAL side of this case (where ground truth is real).
-        # Background mask = neither manual fg there nor pred fg there in those
-        # classes is reported per-class via dice_volumes (NaN for empty class).
-        # fillable = whole volume (we want global Dice on manual classes).
+        ct = np.asarray(nib.load(task["ct_path"]).dataobj).astype(np.float32)
+        if ct.shape[:3] != v1.shape[:3]:
+            return {"token": tok, "status": "skip_ct_shape"}
+
         fillable = np.ones_like(v1, dtype=bool)
-        dv = dice_volumes(pred, v1, fillable, task["classes"])
+        dv_raw = dice_volumes(pred, v1, fillable, task["classes"])
+
+        refined, thr = _refine_pred_for_eval(
+            pred, v1, ct, task["classes"],
+            mode=task["refine_mode"], percentile=task["refine_pctl"],
+            erode_iter=task["refine_erode"], fill_holes=task["refine_fill"],
+            grow_iters=task["refine_grow"])
+        dv_ref = (dice_volumes(refined, v1, fillable, task["classes"])
+                  if refined is not None else None)
+
         per_class = {}
-        for c, m in dv.items():
-            assd = float("nan")
-            if task["assd"] and (m["vol_model"] or m["vol_intensity"]):
-                # In this script "model" = pred, "intensity" slot = v1 manual.
-                assd = surface_distance(pred == c, v1 == c)
-            per_class[int(c)] = {**m, "assd": assd}
+        for c in task["classes"]:
+            c = int(c)
+            raw = dv_raw[c]
+            ref = dv_ref[c] if dv_ref else None
+            assd_raw = float("nan")
+            assd_ref = float("nan")
+            if task["assd"]:
+                if raw["vol_model"] or raw["vol_intensity"]:
+                    assd_raw = surface_distance(pred == c, v1 == c)
+                if ref is not None and (ref["vol_model"] or ref["vol_intensity"]):
+                    assd_ref = surface_distance(refined == c, v1 == c)
+            per_class[c] = {
+                "dice_raw":   raw["dice"],
+                "dice_ref":   ref["dice"] if ref else float("nan"),
+                "vol_pred":   raw["vol_model"],
+                "vol_ref":    ref["vol_model"] if ref else 0,
+                "vol_manual": raw["vol_intensity"],
+                "assd_raw":   assd_raw,
+                "assd_ref":   assd_ref,
+                "thr":        thr if thr is not None else float("nan"),
+            }
         return {"token": tok, "status": "ok", "config": task["config"],
                 "per_class": per_class}
     except Exception as exc:                                # noqa: BLE001
@@ -153,7 +224,15 @@ def main() -> int:
     ap.add_argument("--workers", type=int,
                     default=max(1, (os.cpu_count() or 8) // 2))
     ap.add_argument("--limit", type=int, default=0)
-    ap.set_defaults(assd=True)
+    # Intensity refinement to ALSO evaluate against ground truth — same knobs
+    # as intensity_refine. With these defaults the comparison answers
+    # "does intensity refinement get CLOSER to ground truth than the raw model?"
+    ap.add_argument("--refine_mode", choices=("clip", "resegment"), default="clip")
+    ap.add_argument("--refine_grow", type=int, default=3)
+    ap.add_argument("--refine_pctl", type=float, default=10.0)
+    ap.add_argument("--refine_erode", type=int, default=1)
+    ap.add_argument("--no_refine_fill", dest="refine_fill", action="store_false")
+    ap.set_defaults(assd=True, refine_fill=True)
     args = ap.parse_args()
 
     label_remap = json.loads(args.models_config.read_text())[
@@ -187,10 +266,16 @@ def main() -> int:
         side = SCOPE_MANUAL_SIDE[rec["config"]]
         tasks.append({
             "token": rec.get("token", "?"), "config": rec["config"],
-            "v1_path": str(args.manual_from / rec["label_file"]),
+            "v1_path":   str(args.manual_from / rec["label_file"]),
+            "ct_path":   str(args.manual_from / rec["ct_file"]),
             "pred_path": str(pred),
             "classes": REGION_CANONICAL[side],
             "label_remap": label_remap, "assd": args.assd,
+            "refine_mode":  args.refine_mode,
+            "refine_grow":  args.refine_grow,
+            "refine_pctl":  args.refine_pctl,
+            "refine_erode": args.refine_erode,
+            "refine_fill":  args.refine_fill,
         })
 
     log.info("evaluating %d scoped cases vs MANUAL (%d had no cached pred); "
@@ -198,9 +283,10 @@ def main() -> int:
              args.assd)
 
     rows: List[dict] = []
-    per_class_dice: Dict[int, list] = {}
-    per_class_assd: Dict[int, list] = {}
-    per_class_ratio: Dict[int, list] = {}
+    per_class_dice_raw: Dict[int, list] = {}
+    per_class_dice_ref: Dict[int, list] = {}
+    per_class_assd_raw: Dict[int, list] = {}
+    per_class_assd_ref: Dict[int, list] = {}
 
     import time
     t0 = time.time()
@@ -213,21 +299,29 @@ def main() -> int:
                 log.warning("token=%s: %s", r["token"],
                             r.get("error") or r["status"])
                 continue
+            def _r(v, n=4):
+                return round(v, n) if v == v else ""
             for c, m in r["per_class"].items():
                 rows.append({
                     "token": r["token"], "config": r["config"], "class": c,
                     "class_name": CLASS_NAMES.get(c, str(c)),
-                    "dice": round(m["dice"], 4) if m["dice"] == m["dice"] else "",
-                    "vol_pred": m["vol_model"], "vol_manual": m["vol_intensity"],
-                    "vol_ratio": round(m["vol_ratio"], 4) if m["vol_ratio"] == m["vol_ratio"] else "",
-                    "assd_vox": round(m["assd"], 3) if m["assd"] == m["assd"] else "",
+                    "dice_raw":     _r(m["dice_raw"]),
+                    "dice_refined": _r(m["dice_ref"]),
+                    "vol_pred":     m["vol_pred"],
+                    "vol_refined":  m["vol_ref"],
+                    "vol_manual":   m["vol_manual"],
+                    "assd_raw":     _r(m["assd_raw"], 3),
+                    "assd_refined": _r(m["assd_ref"], 3),
+                    "threshold":    _r(m["thr"], 1),
                 })
-                if m["dice"] == m["dice"]:
-                    per_class_dice.setdefault(c, []).append(m["dice"])
-                if m["vol_ratio"] == m["vol_ratio"]:
-                    per_class_ratio.setdefault(c, []).append(m["vol_ratio"])
-                if m["assd"] == m["assd"]:
-                    per_class_assd.setdefault(c, []).append(m["assd"])
+                if m["dice_raw"] == m["dice_raw"]:
+                    per_class_dice_raw.setdefault(c, []).append(m["dice_raw"])
+                if m["dice_ref"] == m["dice_ref"]:
+                    per_class_dice_ref.setdefault(c, []).append(m["dice_ref"])
+                if m["assd_raw"] == m["assd_raw"]:
+                    per_class_assd_raw.setdefault(c, []).append(m["assd_raw"])
+                if m["assd_ref"] == m["assd_ref"]:
+                    per_class_assd_ref.setdefault(c, []).append(m["assd_ref"])
             if i == 1 or i % 10 == 0 or i == len(tasks):
                 elapsed = time.time() - t0
                 rate = i / max(elapsed, 1.0)
@@ -240,34 +334,48 @@ def main() -> int:
     args.out_csv.parent.mkdir(parents=True, exist_ok=True)
     with open(args.out_csv, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=["token", "config", "class",
-                           "class_name", "dice", "vol_pred", "vol_manual",
-                           "vol_ratio", "assd_vox"])
+                           "class_name", "dice_raw", "dice_refined",
+                           "vol_pred", "vol_refined", "vol_manual",
+                           "assd_raw", "assd_refined", "threshold"])
         w.writeheader()
         w.writerows(rows)
     log.info("wrote %d rows -> %s", len(rows), args.out_csv)
 
-    log.info("=" * 64)
-    log.info("model-vs-MANUAL accuracy (per manual-side class)")
-    log.info("  %-10s %6s  %7s %7s  %8s  %8s", "class", "n",
-             "Dice", "median", "ASSD vox", "vol_pred/man")
-    for c in sorted(per_class_dice):
-        ds = per_class_dice[c]
-        assds = per_class_assd.get(c, [])
-        ratios = per_class_ratio.get(c, [])
-        log.info("  %-10s %6d  %7.3f %7.3f  %8s  %8s",
-                 CLASS_NAMES.get(c, str(c)), len(ds),
-                 st.mean(ds), st.median(ds),
-                 f"{st.mean(assds):.2f}" if assds else "—",
-                 f"{st.mean(ratios):.2f}" if ratios else "—")
-    all_d = [d for v in per_class_dice.values() for d in v]
-    if all_d:
-        log.info("  %-10s %6d  %7.3f %7.3f", "ALL", len(all_d),
-                 st.mean(all_d), st.median(all_d))
-    log.info("=" * 64)
-    log.info("High Dice / low ASSD = model is good where we HAVE ground truth, "
-             "so its pseudo labels on the other side are likely trustworthy. "
-             "Low Dice = the model is wobbly; intensity refinement and human "
-             "review matter more.")
+    log.info("=" * 72)
+    log.info("model-vs-MANUAL accuracy (per manual-side class; raw model vs "
+             "intensity-refined model)")
+    log.info("  %-10s %6s   %7s %7s   %7s %7s   %5s",
+             "class", "n", "Dice raw", "Dice ref", "ASSD raw", "ASSD ref",
+             "Δ Dice")
+    for c in sorted(per_class_dice_raw):
+        raws = per_class_dice_raw[c]
+        refs = per_class_dice_ref.get(c, [])
+        ar = per_class_assd_raw.get(c, [])
+        af = per_class_assd_ref.get(c, [])
+        d_raw = st.mean(raws)
+        d_ref = st.mean(refs) if refs else float("nan")
+        delta = d_ref - d_raw if refs else float("nan")
+        log.info("  %-10s %6d   %7.3f %7.3f   %7s %7s   %+5.3f",
+                 CLASS_NAMES.get(c, str(c)), len(raws),
+                 d_raw, d_ref,
+                 f"{st.mean(ar):.2f}" if ar else "—",
+                 f"{st.mean(af):.2f}" if af else "—",
+                 delta if delta == delta else float("nan"))
+    all_raw = [d for v in per_class_dice_raw.values() for d in v]
+    all_ref = [d for v in per_class_dice_ref.values() for d in v]
+    if all_raw:
+        d_raw = st.mean(all_raw)
+        d_ref = st.mean(all_ref) if all_ref else float("nan")
+        log.info("  %-10s %6d   %7.3f %7.3f                       %+5.3f",
+                 "ALL", len(all_raw), d_raw, d_ref,
+                 (d_ref - d_raw) if all_ref else float("nan"))
+    log.info("=" * 72)
+    log.info("Δ Dice > 0 = intensity refinement gets CLOSER to ground truth in "
+             "that class (refinement is improving the model). Δ Dice < 0 = the "
+             "refinement is hurting (its boundaries differ from truth more "
+             "than the raw model's). High raw Dice = model is already good and "
+             "refinement is just polish. Low raw Dice + positive Δ = strongest "
+             "case for retraining on the refined labels.")
     return 0
 
 

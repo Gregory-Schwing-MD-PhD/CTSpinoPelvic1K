@@ -311,6 +311,15 @@ intensity-refine: check-container  ## Stage 3.6 — CT-intensity bone refine of 
 	       slurm/intensity_refine.sh
 
 
+.PHONY: refine-eval
+refine-eval: check-container  ## Stage 3.6 + compare + eval-vs-manual, all in ONE SLURM job (CPU)
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting refine+eval (three stages, one job)"
+	@echo "  mode=$(REFINE_MODE)  grow=$(REFINE_GROW)  percentile=$(REFINE_PCTL)  erode=$(REFINE_ERODE)  fill=$(REFINE_FILL)"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),REFINE_OUT_DIR=$(REFINE_OUT_DIR),PRED_DIR=$(PRED_DIR),MODELS_CONFIG=$(MODELS_CONFIG),COMPARE_CSV=$(COMPARE_CSV),EVAL_CSV=$(EVAL_CSV),REFINE_MODE=$(REFINE_MODE),REFINE_GROW=$(REFINE_GROW),REFINE_PCTL=$(REFINE_PCTL),REFINE_ERODE=$(REFINE_ERODE),REFINE_FILL=$(REFINE_FILL),REFINE_LIMIT=$(REFINE_LIMIT),REFINE_WORKERS=$(REFINE_WORKERS),COMPARE_NO_ASSD=$(COMPARE_NO_ASSD),EVAL_NO_ASSD=$(EVAL_NO_ASSD) \
+	       slurm/refine_eval.sh
+
+
 .PHONY: eval-vs-manual
 eval-vs-manual: check-container  ## Quantify model accuracy vs MANUAL ground truth on the scoped manual side (CPU)
 	@mkdir -p $(LOGS_DIR)
