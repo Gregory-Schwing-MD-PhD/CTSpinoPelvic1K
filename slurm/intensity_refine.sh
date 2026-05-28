@@ -3,9 +3,9 @@
 #SBATCH -q primary
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
-#SBATCH --time=04:00:00
+#SBATCH --cpus-per-task=48
+#SBATCH --mem=256G
+#SBATCH --time=12:00:00
 #SBATCH --output=logs/intensity_refine_%j.out
 #SBATCH --error=logs/intensity_refine_%j.err
 #SBATCH --mail-type=END,FAIL
@@ -42,9 +42,11 @@ HF_EXPORT_DIR="${HF_EXPORT_DIR:-${DATA_DIR}/hf_export}"
 PSEUDO_OUT_DIR="${PSEUDO_OUT_DIR:-${DATA_DIR}/hf_export_v2}"
 REFINE_OUT_DIR="${REFINE_OUT_DIR:-${DATA_DIR}/hf_export_v2_refined}"
 REFINE_MODE="${REFINE_MODE:-clip}"
+REFINE_GROW="${REFINE_GROW:-3}"            # 0 = pure clip; >0 = bounded grow
 REFINE_PCTL="${REFINE_PCTL:-10}"
 REFINE_ERODE="${REFINE_ERODE:-1}"
 REFINE_FILL="${REFINE_FILL:-1}"
+REFINE_WORKERS="${REFINE_WORKERS:-${SLURM_CPUS_PER_TASK:-8}}"
 REFINE_LIMIT="${REFINE_LIMIT:-0}"
 REFINE_DRY_RUN="${REFINE_DRY_RUN:-0}"
 
@@ -68,8 +70,9 @@ echo "   Node        : $(hostname)"
 echo "   v1 manual   : ${HF_EXPORT_DIR}"
 echo "   v2 pseudo   : ${PSEUDO_OUT_DIR}"
 echo "   refined out : ${REFINE_OUT_DIR}"
-echo "   mode        : ${REFINE_MODE}   (clip = subtractive; resegment = can grow)"
+echo "   mode        : ${REFINE_MODE}   grow_iters: ${REFINE_GROW}   (0 = pure clip; >0 = bounded grow)"
 echo "   percentile  : ${REFINE_PCTL}   erode: ${REFINE_ERODE}   fill_holes: ${REFINE_FILL}"
+echo "   workers     : ${REFINE_WORKERS}"
 echo "   DRY_RUN     : ${REFINE_DRY_RUN}"
 echo "   Started     : $(date)"
 echo "======================================================================"
@@ -91,8 +94,10 @@ stdbuf -oL -eL singularity exec \
         --in          "/data/$(basename "${PSEUDO_OUT_DIR}")" \
         --out         "/data/$(basename "${REFINE_OUT_DIR}")" \
         --mode        "${REFINE_MODE}" \
+        --grow_iters  "${REFINE_GROW}" \
         --percentile  "${REFINE_PCTL}" \
         --erode_iter  "${REFINE_ERODE}" \
+        --workers     "${REFINE_WORKERS}" \
         ${EXTRA}
 
 echo ""

@@ -110,6 +110,33 @@ def _load_manifest(p: Path) -> List[dict]:
     return [r for r in data if isinstance(r, dict)]
 
 
+def _compare_one(task: dict) -> dict:
+    """ProcessPoolExecutor worker: load v1/model/intensity for one case, compute
+    per-class Dice + volumes + (optionally) ASSD. Returns a result dict."""
+    import numpy as np
+    import nibabel as nib
+    tok = task["token"]
+    try:
+        v1 = np.asarray(nib.load(task["v1_path"]).dataobj).astype(np.int16)
+        mdl = np.asarray(nib.load(task["mdl_path"]).dataobj).astype(np.int16)
+        inten = np.asarray(nib.load(task["int_path"]).dataobj).astype(np.int16)
+        if not (v1.shape == mdl.shape == inten.shape):
+            return {"token": tok, "status": "skip_shape"}
+        fillable = ~((v1 >= 1) & (v1 <= 9))
+        dv = dice_volumes(mdl, inten, fillable, task["classes"])
+        per_class = {}
+        for c, m in dv.items():
+            assd = float("nan")
+            if task["assd"] and (m["vol_model"] or m["vol_intensity"]):
+                assd = surface_distance((mdl == c) & fillable,
+                                        (inten == c) & fillable)
+            per_class[int(c)] = {**m, "assd": assd}
+        return {"token": tok, "status": "ok", "config": task["config"],
+                "per_class": per_class}
+    except Exception as exc:                                  # noqa: BLE001
+        return {"token": tok, "status": "fail", "error": str(exc)}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__,
@@ -123,62 +150,64 @@ def main() -> int:
     ap.add_argument("--out_csv", type=Path, default=Path("seg_compare.csv"))
     ap.add_argument("--no_assd", dest="assd", action="store_false",
                     help="Skip surface-distance (faster; Dice + volumes only).")
+    ap.add_argument("--workers", type=int,
+                    default=max(1, (__import__("os").cpu_count() or 8) // 2),
+                    help="Parallel worker processes (default = nproc/2).")
     ap.add_argument("--limit", type=int, default=0)
     ap.set_defaults(assd=True)
     args = ap.parse_args()
-
-    import numpy as np
-    import nibabel as nib
 
     records = _load_manifest(args.model / "manifest.json")
     scoped = [r for r in records if r.get("config") in SCOPE
               and r.get("label_file")]
     if args.limit:
         scoped = scoped[:args.limit]
-    log.info("comparing %d scoped cases  (assd=%s)", len(scoped), args.assd)
+    log.info("comparing %d scoped cases  (assd=%s, workers=%d)",
+             len(scoped), args.assd, args.workers)
 
     rows: List[dict] = []
     per_class_dice: Dict[int, list] = {}
     per_class_assd: Dict[int, list] = {}
     per_class_ratio: Dict[int, list] = {}
 
-    for i, rec in enumerate(scoped, 1):
-        lbl = rec["label_file"]
-        tok, cfg = rec.get("token", "?"), rec["config"]
-        classes = REGION_CANONICAL[SCOPE[cfg]]
-        try:
-            v1 = np.asarray(nib.load(str(args.manual_from / lbl)).dataobj).astype(np.int16)
-            mdl = np.asarray(nib.load(str(args.model / lbl)).dataobj).astype(np.int16)
-            inten = np.asarray(nib.load(str(args.intensity / lbl)).dataobj).astype(np.int16)
-        except Exception as exc:                          # noqa: BLE001
-            log.warning("token=%s: load failed (%s) — skip", tok, exc)
-            continue
-        if not (v1.shape == mdl.shape == inten.shape):
-            log.warning("token=%s: shape mismatch — skip", tok)
-            continue
-        fillable = ~((v1 >= 1) & (v1 <= 9))
-        dv = dice_volumes(mdl, inten, fillable, classes)
-        for c, m in dv.items():
-            assd = float("nan")
-            if args.assd and (m["vol_model"] or m["vol_intensity"]):
-                assd = surface_distance((mdl == c) & fillable,
-                                        (inten == c) & fillable)
-            rows.append({
-                "token": tok, "config": cfg, "class": c,
-                "class_name": CLASS_NAMES.get(c, str(c)),
-                "dice": round(m["dice"], 4) if m["dice"] == m["dice"] else "",
-                "vol_model": m["vol_model"], "vol_intensity": m["vol_intensity"],
-                "vol_ratio": round(m["vol_ratio"], 4) if m["vol_ratio"] == m["vol_ratio"] else "",
-                "assd_vox": round(assd, 3) if assd == assd else "",
-            })
-            if m["dice"] == m["dice"]:
-                per_class_dice.setdefault(c, []).append(m["dice"])
-            if m["vol_ratio"] == m["vol_ratio"]:
-                per_class_ratio.setdefault(c, []).append(m["vol_ratio"])
-            if assd == assd:
-                per_class_assd.setdefault(c, []).append(assd)
-        if i % 50 == 0 or i == len(scoped):
-            log.info("  ... %d/%d", i, len(scoped))
+    tasks = [{
+        "token": rec.get("token", "?"), "config": rec["config"],
+        "v1_path":  str(args.manual_from / rec["label_file"]),
+        "mdl_path": str(args.model       / rec["label_file"]),
+        "int_path": str(args.intensity   / rec["label_file"]),
+        "classes": REGION_CANONICAL[SCOPE[rec["config"]]],
+        "assd": args.assd,
+    } for rec in scoped]
+
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+    with ProcessPoolExecutor(max_workers=args.workers) as ex:
+        futures = [ex.submit(_compare_one, t) for t in tasks]
+        for i, fut in enumerate(as_completed(futures), 1):
+            r = fut.result()
+            tok = r["token"]
+            if r["status"] != "ok":
+                log.warning("token=%s: %s — skip", tok,
+                            r.get("error") or r["status"])
+                continue
+            cfg = r["config"]
+            for c, m in r["per_class"].items():
+                assd = m["assd"]
+                rows.append({
+                    "token": tok, "config": cfg, "class": c,
+                    "class_name": CLASS_NAMES.get(c, str(c)),
+                    "dice": round(m["dice"], 4) if m["dice"] == m["dice"] else "",
+                    "vol_model": m["vol_model"], "vol_intensity": m["vol_intensity"],
+                    "vol_ratio": round(m["vol_ratio"], 4) if m["vol_ratio"] == m["vol_ratio"] else "",
+                    "assd_vox": round(assd, 3) if assd == assd else "",
+                })
+                if m["dice"] == m["dice"]:
+                    per_class_dice.setdefault(c, []).append(m["dice"])
+                if m["vol_ratio"] == m["vol_ratio"]:
+                    per_class_ratio.setdefault(c, []).append(m["vol_ratio"])
+                if assd == assd:
+                    per_class_assd.setdefault(c, []).append(assd)
+            if i % 50 == 0 or i == len(tasks):
+                log.info("  ... %d/%d", i, len(tasks))
 
     args.out_csv.parent.mkdir(parents=True, exist_ok=True)
     with open(args.out_csv, "w", newline="") as f:

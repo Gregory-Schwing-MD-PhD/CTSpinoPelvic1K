@@ -139,18 +139,22 @@ def _solid_fill(mask) -> "object":
 
 def refine_label(v1_label, v2_label, ct, *, mode: str = "clip",
                  percentile: float = 10.0, erode_iter: int = 1,
-                 fill_holes: bool = True) -> Tuple["object", Optional[float]]:
+                 fill_holes: bool = True,
+                 grow_iters: int = 0) -> Tuple["object", Optional[float]]:
     """Re-segment the pseudo region of one case from CT intensity.
 
     `v1_label` is the ORIGINAL manual label (foreground 1..9 = manual; 0 /
     IGNORE_LABEL = un-annotated). `v2_label` is the pseudo-labelled result.
     Manual voxels (v1 in 1..9) are never touched.
 
-    mode="clip" (default): SUBTRACTIVE — keep each predicted voxel only where
-    the CT is bone (plus enclosed marrow), clipped to the prediction. Result is
-    a subset of the model mask: erases over-segmentation, never adds bone.
+    mode="clip" (default): keep predicted voxels that are bone (+ enclosed
+    marrow). If `grow_iters > 0`, also geodesically grow the predicted-bone
+    seed through CT-bone for that many voxels — picks up adjacent bone the
+    model narrowly missed without runaway into ribs/femurs (the dilation can
+    only travel through bone, and only `grow_iters` steps). With grow_iters=0
+    it is pure clip: a subset of the model mask, no growth.
     mode="resegment": keep bone connected-components overlapping the prediction
-    and nearest-class label them; CAN grow into bone the model missed.
+    and nearest-class label them; UNBOUNDED grow via CC connectivity.
 
     Returns (refined_label, threshold_used).
     """
@@ -176,10 +180,27 @@ def refine_label(v1_label, v2_label, ct, *, mode: str = "clip",
 
     bone = (ct >= thr) & fillable
     out[pred_fg] = 0                            # clear the old model pseudo voxels
-    if mode == "clip":
-        # Keep predicted bone (+ enclosed marrow), clipped to the prediction —
-        # never grows, so over-segmentation is erased and unrelated bone can't
-        # be added. Per-class masks are disjoint, so labels stay the model's.
+    if mode == "clip" and int(grow_iters) > 0:
+        # Bounded grow: dilate the predicted-bone seed THROUGH the bone mask
+        # (geodesic dilation), for `grow_iters` voxels. Bone the model just
+        # narrowly missed is picked up; bone disconnected from the seed (ribs,
+        # femurs) is unreachable. Nearest-class assignment resolves overlaps.
+        from scipy.ndimage import binary_dilation
+        candidates = np.zeros(bone.shape, dtype=bool)
+        for c in np.unique(pred_classmap[pred_fg]):
+            seed = (pred_classmap == int(c)) & bone
+            grown = binary_dilation(seed, iterations=int(grow_iters), mask=bone)
+            if fill_holes:
+                grown = _solid_fill(grown) & fillable
+            candidates |= grown
+        idx = distance_transform_edt(~pred_fg, return_distances=False,
+                                     return_indices=True)
+        nearest = pred_classmap[tuple(idx)]
+        out[candidates] = nearest[candidates].astype(np.int16)
+    elif mode == "clip":
+        # Pure clip (grow_iters=0): keep predicted bone (+ enclosed marrow),
+        # clipped to the prediction. Per-class masks are disjoint -> labels stay
+        # the model's; no EDT needed.
         for c in np.unique(pred_classmap[pred_fg]):
             pc = pred_classmap == int(c)
             seg_c = pc & bone
@@ -239,6 +260,39 @@ def _load_manifest(p: Path) -> List[dict]:
     return [r for r in data if isinstance(r, dict)]
 
 
+def _refine_one(task: dict) -> dict:
+    """ProcessPoolExecutor worker: load v1/v2/CT for one case, refine, save the
+    label, hard-link the CT into the out tree. Returns a result dict."""
+    import numpy as np
+    import nibabel as nib
+    tok = task["token"]
+    try:
+        v1_path = task["v1_path"]
+        if not Path(v1_path).exists():
+            return {"token": tok, "status": "skip_no_v1"}
+        ref = nib.load(task["v2_path"])
+        v2 = np.asarray(ref.dataobj).astype(np.int16)
+        v1 = np.asarray(nib.load(v1_path).dataobj).astype(np.int16)
+        ct = np.asarray(nib.load(task["ct_path"]).dataobj).astype(np.float32)
+        if not (v1.shape[:3] == v2.shape[:3] == ct.shape[:3]):
+            return {"token": tok, "status": "skip_shape"}
+        refined, thr = refine_label(
+            v1, v2, ct,
+            mode=task["mode"], percentile=task["percentile"],
+            erode_iter=task["erode_iter"], fill_holes=task["fill_holes"],
+            grow_iters=task["grow_iters"])
+        out_lbl = Path(task["out_lbl"])
+        out_lbl.parent.mkdir(parents=True, exist_ok=True)
+        nib.save(nib.Nifti1Image(refined, ref.affine, ref.header), str(out_lbl))
+        out_ct = Path(task["out_ct"])
+        if not out_ct.exists():
+            link_or_copy(task["ct_link_src"], out_ct, copy=task["copy_ct"])
+        return {"token": tok, "status": "refined", "thr": thr,
+                "fg": int((refined > 0).sum())}
+    except Exception as exc:                                 # noqa: BLE001
+        return {"token": tok, "status": "fail", "error": str(exc)}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__,
@@ -262,6 +316,16 @@ def main() -> int:
                          "sampling HU, to exclude the cortical rim (default 1).")
     ap.add_argument("--no_fill_holes", dest="fill_holes", action="store_false",
                     help="Don't hole-fill marrow; leaves hollow structures.")
+    ap.add_argument("--grow_iters", type=int, default=0,
+                    help="In clip mode, geodesically dilate the predicted-bone "
+                         "seed through CT-bone for this many voxels — picks up "
+                         "adjacent bone the model narrowly missed without "
+                         "runaway (ribs/femurs are unreachable through bone). "
+                         "0 = pure clip (default); 3-5 = bounded grow.")
+    ap.add_argument("--workers", type=int,
+                    default=max(1, (os.cpu_count() or 8) // 2),
+                    help="Parallel worker processes for the per-case refine "
+                         "(default = nproc/2).")
     ap.add_argument("--copy_ct", action="store_true",
                     help="Copy CT volumes instead of hard-linking them to the "
                          "v1 store (only needed if the trees are on different "
@@ -289,9 +353,10 @@ def main() -> int:
     records = _load_manifest(man_path)
     scoped = [r for r in records if r.get("config") in SCOPE
               and r.get("ct_file") and r.get("label_file")]
-    log.info("intensity_refine: %d records, %d scoped; mode=%s percentile=%.0f "
-             "erode=%d fill_holes=%s", len(records), len(scoped),
-             args.mode, args.percentile, args.erode_iter, args.fill_holes)
+    log.info("intensity_refine: %d records, %d scoped; mode=%s grow_iters=%d "
+             "percentile=%.0f erode=%d fill_holes=%s workers=%d",
+             len(records), len(scoped), args.mode, args.grow_iters,
+             args.percentile, args.erode_iter, args.fill_holes, args.workers)
 
     if args.dry_run:
         for i, r in enumerate(scoped[:args.limit or None], 1):
@@ -324,45 +389,61 @@ def main() -> int:
     todo = scoped[:args.limit] if args.limit else scoped
     refine_ids = {id(r) for r in todo}
 
+    # Passthrough cases (cheap I/O): do sequentially.
     for rec in records:
-        ct_rel, lbl_rel = rec.get("ct_file"), rec.get("label_file")
-        if id(rec) not in refine_ids:
-            _place_ct(ct_rel); _copy(lbl_rel); n_pass += 1
+        if id(rec) in refine_ids:
             continue
-        man_reg, ps_reg = SCOPE[rec["config"]]
-        try:
-            v1_path = man_src / lbl_rel
-            if not v1_path.exists():
-                log.warning("token=%s: manual label %s missing — passthrough",
-                            rec.get("token"), v1_path)
-                _place_ct(ct_rel); _copy(lbl_rel); n_skip += 1
-                continue
-            ref = nib.load(str(src / lbl_rel))
-            v2 = np.asarray(ref.dataobj).astype(np.int16)
-            v1 = np.asarray(nib.load(str(v1_path)).dataobj).astype(np.int16)
-            ct = np.asarray(nib.load(str(src / ct_rel)).dataobj).astype(np.float32)
-            if not (v1.shape[:3] == v2.shape[:3] == ct.shape[:3]):
-                log.warning("token=%s: grid mismatch (v1 %s / v2 %s / ct %s) — "
-                            "passthrough", rec.get("token"), v1.shape, v2.shape,
-                            ct.shape)
-                _place_ct(ct_rel); _copy(lbl_rel); n_skip += 1
-                continue
-            refined, thr = refine_label(
-                v1, v2, ct, mode=args.mode, percentile=args.percentile,
-                erode_iter=args.erode_iter, fill_holes=args.fill_holes)
-            _place_ct(ct_rel)
-            nib.save(nib.Nifti1Image(refined, ref.affine, ref.header),
-                     str(out / lbl_rel))
-            n_refined += 1
-            fg = int((refined > 0).sum())
-            log.info("token=%s: refined %s  HU>=%.0f  (%d fg vox)  [%d/%d]",
-                     rec.get("token"), ps_reg,
-                     thr if thr is not None else float("nan"), fg,
-                     n_refined, len(todo))
-        except Exception as exc:                         # noqa: BLE001
-            log.warning("token=%s: refine failed (%s) — passthrough",
-                        rec.get("token"), exc)
-            _place_ct(ct_rel); _copy(lbl_rel); n_fail += 1
+        _place_ct(rec.get("ct_file"))
+        _copy(rec.get("label_file"))
+        n_pass += 1
+
+    # Scoped refines (CPU-heavy): parallel ProcessPoolExecutor.
+    tasks = [{
+        "token": rec.get("token", "?"),
+        "v1_path":    str(man_src / rec["label_file"]),
+        "v2_path":    str(src     / rec["label_file"]),
+        "ct_path":    str(src     / rec["ct_file"]),
+        "out_lbl":    str(out     / rec["label_file"]),
+        "out_ct":     str(out     / rec["ct_file"]),
+        "ct_link_src": str(man_src / rec["ct_file"])
+                       if (man_src / rec["ct_file"]).exists()
+                       else str(src / rec["ct_file"]),
+        "mode": args.mode, "percentile": args.percentile,
+        "erode_iter": args.erode_iter, "fill_holes": args.fill_holes,
+        "grow_iters": args.grow_iters, "copy_ct": args.copy_ct,
+    } for rec in todo]
+
+    log.info("refining %d cases on %d worker(s) ...", len(tasks), args.workers)
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+    with ProcessPoolExecutor(max_workers=args.workers) as ex:
+        futures = [ex.submit(_refine_one, t) for t in tasks]
+        for i, fut in enumerate(as_completed(futures), 1):
+            r = fut.result()
+            tok, status = r["token"], r["status"]
+            if status == "refined":
+                n_refined += 1
+                if i % 25 == 0 or i == len(futures):
+                    log.info("  [%d/%d] token=%s HU>=%.0f fg=%d", i, len(futures),
+                             tok, r["thr"] if r["thr"] is not None else float("nan"),
+                             r["fg"])
+            elif status == "fail":
+                n_fail += 1
+                log.warning("token=%s: refine failed (%s) — passthrough",
+                            tok, r.get("error"))
+                # passthrough fallback (the worker didn't write anything)
+                src_rec = next((rec for rec in todo
+                                if str(rec.get("token", "?")) == str(tok)), None)
+                if src_rec:
+                    _place_ct(src_rec.get("ct_file"))
+                    _copy(src_rec.get("label_file"))
+            else:   # skip_no_v1 / skip_shape
+                n_skip += 1
+                log.warning("token=%s: %s — passthrough", tok, status)
+                src_rec = next((rec for rec in todo
+                                if str(rec.get("token", "?")) == str(tok)), None)
+                if src_rec:
+                    _place_ct(src_rec.get("ct_file"))
+                    _copy(src_rec.get("label_file"))
 
     log.info("=" * 60)
     log.info("intensity-refined tree -> %s", out)

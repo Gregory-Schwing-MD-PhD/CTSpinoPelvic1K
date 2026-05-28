@@ -92,10 +92,12 @@ HF_PUSH_DIR    := $(if $(strip $(HF_EXPORT_DIR)),$(HF_EXPORT_DIR),$(DATA_DIR)/hf
 # CPU-only post-step (lean container). Empty values fall through to the
 # slurm script's own defaults.
 REFINE_OUT_DIR ?=        # refined out tree (default: data/hf_export_v2_refined)
-REFINE_MODE    ?= clip   # clip = subtractive (erase over-seg); resegment = can grow
+REFINE_MODE    ?= clip   # clip = subtractive (erase over-seg); resegment = unbounded grow
+REFINE_GROW    ?= 3      # clip-mode bounded grow (vox); 0 = pure clip
 REFINE_PCTL    ?= 10     # manual-HU percentile -> bone threshold (per case)
 REFINE_ERODE   ?= 1      # erode manual mask this many vox before HU sampling
 REFINE_FILL    ?= 1      # 1 = hole-fill marrow, 0 = leave hollow
+REFINE_WORKERS ?=        # parallel worker processes (default: $SLURM_CPUS_PER_TASK)
 REFINE_LIMIT   ?= 0      # cap cases (debug)
 REFINE_DRY_RUN ?= 0      # 1 = plan only
 
@@ -296,11 +298,11 @@ intensity-refine: check-container  ## Stage 3.6 — CT-intensity bone refine of 
 	@echo "  v1 manual = $(if $(strip $(HF_EXPORT_DIR)),$(HF_EXPORT_DIR),$(DATA_DIR)/hf_export)"
 	@echo "  v2 pseudo = $(if $(strip $(PSEUDO_OUT_DIR)),$(PSEUDO_OUT_DIR),$(DATA_DIR)/hf_export_v2)"
 	@echo "  refined   = $(if $(strip $(REFINE_OUT_DIR)),$(REFINE_OUT_DIR),$(DATA_DIR)/hf_export_v2_refined)"
-	@echo "  mode=$(REFINE_MODE)  percentile=$(REFINE_PCTL)  erode=$(REFINE_ERODE)  fill=$(REFINE_FILL)"
+	@echo "  mode=$(REFINE_MODE)  grow_iters=$(REFINE_GROW)  percentile=$(REFINE_PCTL)  erode=$(REFINE_ERODE)  fill=$(REFINE_FILL)"
 	@echo "  -> then publish the refined tree to the v2 branch:"
 	@echo "     HF_TOKEN=hf_xxx HF_REPO_ID=org/Name HF_REVISION=v2 WIPE_REMOTE=1 \\"
 	@echo "       HF_EXPORT_DIR=\$$(pwd)/data/hf_export_v2_refined make hf-push"
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),REFINE_OUT_DIR=$(REFINE_OUT_DIR),REFINE_MODE=$(REFINE_MODE),REFINE_PCTL=$(REFINE_PCTL),REFINE_ERODE=$(REFINE_ERODE),REFINE_FILL=$(REFINE_FILL),REFINE_LIMIT=$(REFINE_LIMIT),REFINE_DRY_RUN=$(REFINE_DRY_RUN) \
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),REFINE_OUT_DIR=$(REFINE_OUT_DIR),REFINE_MODE=$(REFINE_MODE),REFINE_GROW=$(REFINE_GROW),REFINE_PCTL=$(REFINE_PCTL),REFINE_ERODE=$(REFINE_ERODE),REFINE_FILL=$(REFINE_FILL),REFINE_WORKERS=$(REFINE_WORKERS),REFINE_LIMIT=$(REFINE_LIMIT),REFINE_DRY_RUN=$(REFINE_DRY_RUN) \
 	       slurm/intensity_refine.sh
 
 

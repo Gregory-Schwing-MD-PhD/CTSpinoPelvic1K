@@ -89,6 +89,28 @@ def test_refine_clip_erases_oversegmentation_and_never_grows():
     assert out[0, 0, 0] == 3          # manual untouched
 
 
+def test_refine_clip_with_grow_picks_up_adjacent_bone_but_not_far_bone():
+    # clip + bounded grow: bone adjacent to the prediction IS labelled,
+    # bone farther than grow_iters away is NOT.
+    v1 = np.full((1, 7, 7), IGNORE_LABEL, dtype=np.int16)
+    v1[0, 0, 0] = 3                                      # manual spine (calibration)
+    v2 = np.zeros((1, 7, 7), dtype=np.int16)
+    v2[0, 0, 0] = 3
+    v2[0, 2, 2] = 7                                      # single predicted voxel
+    ct = np.full((1, 7, 7), -1000.0, dtype=np.float32)
+    ct[0, 0, 0] = 200.0
+    ct[0, 2, 2] = 300.0                                  # predicted is bone
+    ct[0, 2, 3] = 300.0                                  # adjacent bone, 1 step
+    ct[0, 5, 5] = 300.0                                  # far bone, > grow_iters
+
+    out, _ = refine_label(v1, v2, ct, percentile=50, erode_iter=0,
+                          fill_holes=False, grow_iters=2)
+    assert out[0, 2, 2] == 7                # predicted bone kept
+    assert out[0, 2, 3] == 7                # adjacent bone picked up by grow
+    assert out[0, 5, 5] == 0                # far bone NOT reached
+    assert out[0, 0, 0] == 3                # manual untouched
+
+
 def test_refine_resegment_grows_and_drops_stray_bone():
     v1 = np.full((1, 7, 7), IGNORE_LABEL, dtype=np.int16)   # un-annotated region
     v1[0, 1, 1] = 3; v1[0, 1, 2] = 3                        # manual spine
