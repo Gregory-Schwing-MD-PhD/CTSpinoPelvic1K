@@ -3,8 +3,8 @@
 #SBATCH -q primary
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=48
-#SBATCH --mem=256G
+#SBATCH --cpus-per-task=24
+#SBATCH --mem=128G
 #SBATCH --time=12:00:00
 #SBATCH --output=logs/intensity_refine_%j.out
 #SBATCH --error=logs/intensity_refine_%j.err
