@@ -327,6 +327,26 @@ intensity-refine: check-container  ## Stage 3.6 — CT-intensity bone refine of 
 	       slurm/intensity_refine.sh
 
 
+PCTL_SWEEP ?= 5,10,15,20,30
+GROW_SWEEP ?= 0,1,2
+SWEEP_CSV  ?=
+BEST_JSON  ?=
+PCTL_SWEEP := $(strip $(PCTL_SWEEP))
+GROW_SWEEP := $(strip $(GROW_SWEEP))
+SWEEP_CSV  := $(strip $(SWEEP_CSV))
+BEST_JSON  := $(strip $(BEST_JSON))
+
+
+.PHONY: sweep-refine
+sweep-refine: check-container  ## Sweep (pctl, grow), pick best, build refined tree, run compare + eval — all in ONE job
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting sweep-refine (CPU, all stages, one job)"
+	@echo "  pctl_sweep = $(PCTL_SWEEP)"
+	@echo "  grow_sweep = $(GROW_SWEEP)"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),REFINE_OUT_DIR=$(REFINE_OUT_DIR),PRED_DIR=$(PRED_DIR),MODELS_CONFIG=$(MODELS_CONFIG),SWEEP_CSV=$(SWEEP_CSV),BEST_JSON=$(BEST_JSON),COMPARE_CSV=$(COMPARE_CSV),EVAL_CSV=$(EVAL_CSV),PCTL_SWEEP=$(PCTL_SWEEP),GROW_SWEEP=$(GROW_SWEEP),REFINE_WORKERS=$(REFINE_WORKERS) \
+	       slurm/sweep_refine.sh
+
+
 .PHONY: refine-eval
 refine-eval: check-container  ## Stage 3.6 + compare + eval-vs-manual, all in ONE SLURM job (CPU)
 	@mkdir -p $(LOGS_DIR)
