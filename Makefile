@@ -327,8 +327,11 @@ intensity-refine: check-container  ## Stage 3.6 — CT-intensity bone refine of 
 	       slurm/intensity_refine.sh
 
 
-PCTL_SWEEP ?= 5,10,15,20,30
-GROW_SWEEP ?= 0,1,2
+# NOTE: use := (not ?=) so a stray exported PCTL_SWEEP/GROW_SWEEP in the shell
+# environment can't silently shrink the sweep. Command-line overrides
+# (make sweep-refine PCTL_SWEEP=5) still win, since CLI beats makefile assignment.
+PCTL_SWEEP := 5,10,15,20,30
+GROW_SWEEP := 0,1,2
 SWEEP_CSV  ?=
 BEST_JSON  ?=
 PCTL_SWEEP := $(strip $(PCTL_SWEEP))
