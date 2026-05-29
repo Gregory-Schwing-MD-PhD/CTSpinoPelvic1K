@@ -128,17 +128,42 @@ def _default_itksnap() -> str:
     """Best-effort ITK-SNAP executable so reviewers rarely need --itksnap.
 
     Order: $REVIEWTOOL_ITKSNAP → anything named itksnap on PATH → the standard
-    per-OS install location. Falls back to the bare name 'itksnap' (whose
+    per-OS install location. EVERY candidate (the env override included) is
+    verified to resolve to a runnable executable; a stale/broken one is skipped
+    so detection falls through to the next option instead of handing subprocess
+    a path that doesn't exist. Falls back to the bare name 'itksnap' (whose
     later FileNotFoundError prints the --itksnap hint)."""
     import os
     import shutil
+
+    def _runnable(cand) -> Optional[str]:
+        """Resolve cand (a bare name or an explicit path) to a runnable
+        executable, or None. shutil.which handles PATH lookup AND verifies an
+        explicit path is an executable file; the is_file/X_OK backstop covers
+        an extensionless explicit path on Windows that which would miss."""
+        if not cand:
+            return None
+        hit = shutil.which(str(cand))
+        if hit:
+            return hit
+        p = Path(cand)
+        if p.is_file() and os.access(p, os.X_OK):
+            return str(p)
+        return None
+
     env = os.environ.get("REVIEWTOOL_ITKSNAP")
+    hit = _runnable(env)
+    if hit:
+        return hit
     if env:
-        return env
+        print(f"warning: REVIEWTOOL_ITKSNAP={env!r} is not a runnable "
+              "executable; ignoring it and auto-detecting ITK-SNAP.",
+              file=sys.stderr)
+
     for name in ("itksnap", "ITK-SNAP"):
-        found = shutil.which(name)
-        if found:
-            return found
+        hit = _runnable(name)
+        if hit:
+            return hit
     candidates: list = []
     if sys.platform == "darwin":
         candidates.append("/Applications/ITK-SNAP.app/Contents/bin/itksnap")
@@ -150,8 +175,9 @@ def _default_itksnap() -> str:
         candidates += ["/usr/bin/itksnap", "/snap/bin/itksnap",
                        "/usr/local/bin/itksnap"]
     for c in candidates:
-        if Path(c).exists():
-            return str(c)
+        hit = _runnable(c)
+        if hit:
+            return hit
     return "itksnap"
 
 

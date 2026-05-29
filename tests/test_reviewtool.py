@@ -40,6 +40,17 @@ def test_edit_is_corrected_with_diff():
     assert rec["diff"]["regions_touched"] == ["pelvis"]
 
 
-def test_default_itksnap_honors_env(monkeypatch):
-    monkeypatch.setenv("REVIEWTOOL_ITKSNAP", "/custom/path/itksnap")
-    assert cli._default_itksnap() == "/custom/path/itksnap"
+def test_default_itksnap_honors_valid_env(tmp_path, monkeypatch):
+    fake = tmp_path / "itksnap"
+    fake.write_text("#!/bin/sh\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("REVIEWTOOL_ITKSNAP", str(fake))
+    assert cli._default_itksnap() == str(fake)
+
+
+def test_default_itksnap_ignores_broken_env(monkeypatch):
+    # A stale env override pointing at a non-existent file must NOT be returned
+    # (that's what was handing subprocess a bad path); detection falls through.
+    broken = "/usr/bin/itksnap-stale-0.0.0/bin/itksnap"
+    monkeypatch.setenv("REVIEWTOOL_ITKSNAP", broken)
+    assert cli._default_itksnap() != broken
