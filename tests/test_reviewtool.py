@@ -40,6 +40,29 @@ def test_edit_is_corrected_with_diff():
     assert rec["diff"]["regions_touched"] == ["pelvis"]
 
 
+def test_resume_skips_unedited_claim():
+    # seg never edited (== pseudo) and not a deliberate accept -> must NOT be
+    # submitted (this is the never-opened-in-ITK-SNAP case).
+    pseudo = _vol()
+    _, rec = cli.build_submission(pseudo, pseudo.copy(), "pelvis", "sha")
+    assert cli._resume_action(rec, accepted=False) == "skip"
+
+
+def test_resume_submits_deliberate_accept():
+    # 0 changes but tagged accepted (reviewer looked, accepted, upload failed).
+    pseudo = _vol()
+    _, rec = cli.build_submission(pseudo, pseudo.copy(), "pelvis", "sha")
+    assert cli._resume_action(rec, accepted=True) == "submit"
+
+
+def test_resume_submits_real_edit():
+    pseudo = _vol()
+    edited = pseudo.copy()
+    edited[0:5, 1, 0] = 7
+    _, rec = cli.build_submission(pseudo, edited, "pelvis", "sha")
+    assert cli._resume_action(rec, accepted=False) == "submit"
+
+
 def test_default_itksnap_honors_valid_env(tmp_path, monkeypatch):
     fake = tmp_path / "itksnap"
     fake.write_text("#!/bin/sh\n")

@@ -73,6 +73,20 @@ def build_submission(pseudo, edited, region: str,
     return decision, record
 
 
+def _resume_action(record: dict, accepted: bool) -> str:
+    """Pure: decide what `resume` should do with a saved REVIEW claim.
+
+    A claim is persisted at claim time — BEFORE any edit — purely for
+    durability, so the fact that a saved claim exists does NOT mean work was
+    done. Only replay it if the seg genuinely differs from the pseudo (a real
+    correction), or it was explicitly recorded as a deliberate accept after a
+    clean editor session. Otherwise it's a never-opened / never-saved case and
+    must NOT be auto-submitted as an 'accept'."""
+    if record["diff"]["n_voxels_changed"] > 0:
+        return "submit"
+    return "submit" if accepted else "skip"
+
+
 # ── config / http ────────────────────────────────────────────────────────────
 
 def _cfg() -> dict:
@@ -181,15 +195,19 @@ def _default_itksnap() -> str:
     return "itksnap"
 
 
-def _launch_itksnap(itksnap: str, ct: Path, seg: Path, labels: Path) -> None:
+def _launch_itksnap(itksnap: str, ct: Path, seg: Path, labels: Path) -> int:
+    """Open ITK-SNAP on the case and return its exit code. A non-zero code
+    means it failed to start or crashed (e.g. missing Qt platform lib) — the
+    caller must treat that as 'no edit captured' and NOT submit."""
     print(f"\nOpening ITK-SNAP ({itksnap}) — edit the segmentation, Save "
           f"Segmentation to:\n  {seg}\nthen quit ITK-SNAP to continue.\n")
     try:
-        subprocess.run([itksnap, "-g", str(ct), "-s", str(seg),
-                        "-l", str(labels)], check=False)
+        proc = subprocess.run([itksnap, "-g", str(ct), "-s", str(seg),
+                               "-l", str(labels)], check=False)
     except FileNotFoundError:
         sys.exit(f"'{itksnap}' not found — install ITK-SNAP, add it to PATH, "
                  f"set REVIEWTOOL_ITKSNAP, or pass --itksnap /path/to/itksnap")
+    return proc.returncode
 
 
 # ── commands ─────────────────────────────────────────────────────────────────
@@ -293,11 +311,23 @@ def cmd_next(a):
                       or labels_descriptor.descriptor_text())
 
     print(f"case {job['case_id']}  (review the {job['region_to_review']} region)")
-    _launch_itksnap(a.itksnap or _default_itksnap(), ct, seg, labels)
+    rc = _launch_itksnap(a.itksnap or _default_itksnap(), ct, seg, labels)
+    if rc != 0:
+        print(f"\nITK-SNAP exited with code {rc} — it failed to start or "
+              f"crashed, so NO edit was captured. Not submitting.\n"
+              f"Your claim is saved (nothing sent to the server). Fix ITK-SNAP, "
+              f"then re-open this case with:\n"
+              f"  python -m reviewtool edit {job['case_id']}")
+        return
 
     decision, record = build_submission(
         _load(pseudo), _load(seg), job["region_to_review"], _sha256(pseudo))
     print(f"decision={decision}  voxels_changed={record['diff']['n_voxels_changed']}")
+    if decision == "accept":
+        # 0 voxels changed after a clean editor session = a DELIBERATE accept.
+        # Tag the saved claim so a failed upload can be replayed by `resume`
+        # without being mistaken for a never-opened case.
+        _save_active(job, work, kind="review", accepted=True)
     _submit_review(s, base, job, work, seg, record)
 
 
@@ -320,7 +350,12 @@ def cmd_adjudicate(a):
     print(f"ADJUDICATE {job['case_id']}  IRR={job.get('irr')}\n"
           f"two reviewers disagreed on the {job['region_to_review']} region; "
           f"produce the deciding label.")
-    _launch_itksnap(a.itksnap or _default_itksnap(), ct, seg, labels)
+    rc = _launch_itksnap(a.itksnap or _default_itksnap(), ct, seg, labels)
+    if rc != 0:
+        print(f"\nITK-SNAP exited with code {rc} — no deciding label captured. "
+              f"Not submitting. Your claim is saved; fix ITK-SNAP and re-open "
+              f"with:\n  python -m reviewtool edit {job['case_id']}__adj")
+        return
     _submit_adjudication(s, base, job, work, seg, a.notes)
 
 
@@ -349,18 +384,88 @@ def cmd_resume(a):
         if not seg.exists():
             print(f"skip {work.name}: edited label missing ({seg})")
             continue
-        print(f"resuming {work.name} ({kind}) ...")
+        pseudo = work / "pseudo.nii.gz"
         if kind == "adjudicate":
+            # An adjudication is meaningless without an actual deciding edit.
+            if pseudo.exists() and seg.read_bytes() == pseudo.read_bytes():
+                print(f"skip {work.name}: no edits detected — never reviewed or "
+                      f"not saved. Review it with `reviewtool edit {work.name}`.")
+                continue
+            print(f"resuming {work.name} ({kind}) ...")
             _submit_adjudication(s, base, job, work, seg, st.get("notes", ""))
         else:
-            pseudo = work / "pseudo.nii.gz"
             if not pseudo.exists():
                 print(f"skip {work.name}: pseudo label missing; cannot recompute diff")
                 continue
             _, record = build_submission(
                 _load(pseudo), _load(seg), job["region_to_review"],
                 _sha256(pseudo))
+            if _resume_action(record, st.get("accepted", False)) == "skip":
+                print(f"skip {work.name}: no edits detected — never reviewed or "
+                      f"not saved (would submit the raw pseudo-label as an "
+                      f"accept). Review it with `reviewtool edit {work.name}`.")
+                continue
+            print(f"resuming {work.name} ({kind}) ...")
             _submit_review(s, base, job, work, seg, record)
+
+
+def cmd_edit(a):
+    """Re-open an already-claimed case in ITK-SNAP and submit it — `next`
+    without the claim+download. Use after an ITK-SNAP crash or a fresh install
+    to finish cases sitting in ~/.reviewtool/active/ from a downloaded workdir."""
+    s, base = _api()
+    pend = sorted(ACTIVE_DIR.glob("*.json")) if ACTIVE_DIR.exists() else []
+    names = [Path(json.loads(f.read_text())["workdir"]).name for f in pend]
+    if not pend:
+        print("no saved claims to edit — run `reviewtool next` to claim one.")
+        return
+    target = a.case
+    if target is None:
+        if len(pend) == 1:
+            target = names[0]
+        else:
+            print("multiple saved claims — pass one as `reviewtool edit <case>`:")
+            for n in names:
+                print("  ", n)
+            return
+    match = [f for f, n in zip(pend, names) if n == target]
+    if not match:
+        print(f"no saved claim named {target!r}. Saved claims:")
+        for n in names:
+            print("  ", n)
+        return
+
+    st = json.loads(match[0].read_text())
+    job, work = st["job"], Path(st["workdir"])
+    kind = st.get("kind", "review")
+    ct, seg, labels = work / "ct.nii.gz", work / "seg.nii.gz", work / "labels.txt"
+    if not ct.exists() or not seg.exists():
+        print(f"workdir incomplete ({work}): missing ct/seg — re-claim with "
+              "`reviewtool next`.")
+        return
+    if not labels.exists():
+        labels.write_text(job.get("labels_descriptor")
+                          or labels_descriptor.descriptor_text())
+
+    print(f"editing {work.name} ({kind}) — review the "
+          f"{job['region_to_review']} region")
+    rc = _launch_itksnap(a.itksnap or _default_itksnap(), ct, seg, labels)
+    if rc != 0:
+        print(f"ITK-SNAP exited with code {rc} — no edit captured. "
+              "Not submitting; your claim is kept.")
+        return
+
+    if kind == "adjudicate":
+        _submit_adjudication(s, base, job, work, seg, st.get("notes", ""))
+    else:
+        pseudo = work / "pseudo.nii.gz"
+        _, record = build_submission(
+            _load(pseudo), _load(seg), job["region_to_review"], _sha256(pseudo))
+        print(f"decision={record['decision']}  "
+              f"voxels_changed={record['diff']['n_voxels_changed']}")
+        if record["decision"] == "accept":
+            _save_active(job, work, kind="review", accepted=True)
+        _submit_review(s, base, job, work, seg, record)
 
 
 def main(argv=None) -> int:
@@ -382,6 +487,15 @@ def main(argv=None) -> int:
         if name == "adjudicate":
             p.add_argument("--notes", default="")
         p.set_defaults(fn=fn)
+
+    p = sub.add_parser("edit",
+                       help="re-open an already-claimed case in ITK-SNAP and "
+                            "submit it (no re-download)")
+    p.add_argument("case", nargs="?", default=None,
+                   help="case id of a saved claim (omit if only one is saved)")
+    p.add_argument("--itksnap", default=None,
+                   help="ITK-SNAP executable (auto-detected if omitted)")
+    p.set_defaults(fn=cmd_edit)
 
     p = sub.add_parser("status"); p.set_defaults(fn=cmd_status)
     p = sub.add_parser("resume"); p.set_defaults(fn=cmd_resume)
