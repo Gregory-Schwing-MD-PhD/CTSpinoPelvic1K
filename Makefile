@@ -122,6 +122,22 @@ REFINE_LIMIT   := $(strip $(REFINE_LIMIT))
 REFINE_DRY_RUN := $(strip $(REFINE_DRY_RUN))
 REFINE_OVERWRITE := $(strip $(REFINE_OVERWRITE))
 
+# ── compete-refine + change-review control ───────────────────────────────────
+REVIEW_OUT_DIR    ?=
+PURITY_TOL        ?= 0.15
+MIN_BLEED_VOX     ?= 50
+RUN_REFINE        ?= 1
+REVIEW_AXIS       ?= 2
+REVIEW_MAX_SLICES ?= 12
+REVIEW_NO_PNGS    ?= 0
+REVIEW_OUT_DIR    := $(strip $(REVIEW_OUT_DIR))
+PURITY_TOL        := $(strip $(PURITY_TOL))
+MIN_BLEED_VOX     := $(strip $(MIN_BLEED_VOX))
+RUN_REFINE        := $(strip $(RUN_REFINE))
+REVIEW_AXIS       := $(strip $(REVIEW_AXIS))
+REVIEW_MAX_SLICES := $(strip $(REVIEW_MAX_SLICES))
+REVIEW_NO_PNGS    := $(strip $(REVIEW_NO_PNGS))
+
 # ── Stage 4 control (TotalSegmentator benchmark) ─────────────────────────────
 TS_WINDOW_MM    ?= 40.0
 DOCKERHUB_USER  ?= gregoryschwingmdphd
@@ -357,6 +373,17 @@ refine-eval: check-container  ## Stage 3.6 + compare + eval-vs-manual, all in ON
 	@echo "  mode=$(REFINE_MODE)  grow=$(REFINE_GROW)  percentile=$(REFINE_PCTL)  erode=$(REFINE_ERODE)  fill=$(REFINE_FILL)"
 	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),REFINE_OUT_DIR=$(REFINE_OUT_DIR),PRED_DIR=$(PRED_DIR),MODELS_CONFIG=$(MODELS_CONFIG),COMPARE_CSV=$(COMPARE_CSV),EVAL_CSV=$(EVAL_CSV),REFINE_MODE=$(REFINE_MODE),REFINE_GROW=$(REFINE_GROW),REFINE_PCTL=$(REFINE_PCTL),REFINE_ERODE=$(REFINE_ERODE),REFINE_FILL=$(REFINE_FILL),REFINE_LIMIT=$(REFINE_LIMIT),REFINE_WORKERS=$(REFINE_WORKERS),COMPARE_NO_ASSD=$(COMPARE_NO_ASSD),EVAL_NO_ASSD=$(EVAL_NO_ASSD) \
 	       slurm/refine_eval.sh
+
+
+.PHONY: refine-review
+refine-review: check-container  ## compete-refine + 2D change-overlay review, ONE SLURM job (CPU). RUN_REFINE=0 to review an existing tree only.
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting compete-refine + change-review (one job)"
+	@echo "  mode=$(REFINE_MODE)  purity_tol=$(PURITY_TOL)  min_bleed_vox=$(MIN_BLEED_VOX)  RUN_REFINE=$(RUN_REFINE)"
+	@echo "  refined   = $(if $(strip $(REFINE_OUT_DIR)),$(REFINE_OUT_DIR),$(DATA_DIR)/hf_export_v2_compete)"
+	@echo "  review    = $(if $(strip $(REVIEW_OUT_DIR)),$(REVIEW_OUT_DIR),$(DATA_DIR)/refine_review)"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),REFINE_OUT_DIR=$(REFINE_OUT_DIR),REVIEW_OUT_DIR=$(REVIEW_OUT_DIR),REFINE_MODE=$(REFINE_MODE),REFINE_PCTL=$(REFINE_PCTL),REFINE_ERODE=$(REFINE_ERODE),REFINE_GROW=$(REFINE_GROW),REFINE_FILL=$(REFINE_FILL),PURITY_TOL=$(PURITY_TOL),MIN_BLEED_VOX=$(MIN_BLEED_VOX),REFINE_WORKERS=$(REFINE_WORKERS),REFINE_LIMIT=$(REFINE_LIMIT),REFINE_OVERWRITE=$(REFINE_OVERWRITE),RUN_REFINE=$(RUN_REFINE),REVIEW_AXIS=$(REVIEW_AXIS),REVIEW_MAX_SLICES=$(REVIEW_MAX_SLICES),REVIEW_NO_PNGS=$(REVIEW_NO_PNGS) \
+	       slurm/refine_review.sh
 
 
 .PHONY: eval-vs-manual

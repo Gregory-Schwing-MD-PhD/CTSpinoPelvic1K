@@ -147,6 +147,18 @@ def main() -> int:
             flagged_tokens.add(t)
             flags_by_token.setdefault(t, []).append(f)
 
+    # PNGs need matplotlib; if the container lacks it, degrade to change-maps +
+    # CSV + an image-less index rather than failing the whole job.
+    want_pngs = not args.no_pngs
+    if want_pngs:
+        try:
+            import matplotlib  # noqa: F401
+        except Exception:
+            log.warning("matplotlib not available — writing change-map NIfTIs + "
+                        "summary.csv only (overlay them on the CT in ITK-SNAP).")
+            want_pngs = False
+    args.no_pngs = not want_pngs
+
     args.out.mkdir(parents=True, exist_ok=True)
     rows: List[dict] = []
     for i, rec in enumerate(records, 1):
