@@ -241,6 +241,31 @@ def test_compete_flags_fused_component_and_keeps_model_boundary():
     assert set(flags[0]["classes"]) == {5, 7}             # both classes recorded
 
 
+def test_compete_fills_enclosed_marrow_and_erases_external_overseg():
+    # A predicted bone ring (class 8) with a sub-threshold marrow centre, plus an
+    # external predicted soft-tissue voxel (over-seg). compete must fill the
+    # enclosed marrow to the dominant class and erase the non-enclosed over-seg.
+    v1 = np.full((1, 5, 6), IGNORE_LABEL, dtype=np.int16)
+    v1[0, 0, 0] = 5                                       # manual (calibration)
+    v2 = np.zeros((1, 5, 6), dtype=np.int16)
+    v2[0, 0, 0] = 5
+    ct = np.full((1, 5, 6), -1000.0, dtype=np.float32)
+    ct[0, 0, 0] = 300.0
+    for i in (1, 2, 3):                                   # 3x3 ring, hollow centre
+        for j in (1, 2, 3):
+            v2[0, i, j] = 8
+            ct[0, i, j] = 300.0 if (i, j) != (2, 2) else 50.0   # centre = marrow
+    v2[0, 0, 5] = 8                                       # external over-seg
+    ct[0, 0, 5] = 50.0                                    # ... in soft tissue
+
+    out, _ = refine_label(v1, v2, ct, mode="compete", percentile=50,
+                          erode_iter=0, fill_holes=True)
+    assert out[0, 1, 2] == 8                              # ring labelled
+    assert out[0, 2, 2] == 8                              # enclosed marrow filled
+    assert out[0, 0, 5] == 0                              # external over-seg erased
+    assert out[0, 0, 0] == 5                              # manual untouched
+
+
 def test_compete_does_not_swallow_unpredicted_bone_at_grow0():
     # Hip (class 8) fused to UNpredicted femur bone in one component. With the
     # default grow_iters=0, compete only reclaims the predicted voxels -> the

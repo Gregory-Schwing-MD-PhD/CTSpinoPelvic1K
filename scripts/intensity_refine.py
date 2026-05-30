@@ -163,45 +163,73 @@ def compete_relabel(pred_classmap, bone, *, purity_tol: float = 0.15,
     """
     import numpy as np
     from scipy.ndimage import (label as cc_label, generate_binary_structure,
-                               binary_dilation)
+                               binary_dilation, center_of_mass)
     pred_classmap = np.asarray(pred_classmap, dtype=np.int16)
     bone = np.asarray(bone, dtype=bool)
     out = np.zeros_like(pred_classmap)
     flags: list = []
     pred_fg = pred_classmap > 0
-    if not bone.any() or not pred_fg.any():
+    pred_bone = pred_fg & bone                 # the voxels we reclaim (predicted ∩ bone)
+    if not pred_bone.any():
         return out, flags
 
     cc, n = cc_label(bone, structure=generate_binary_structure(bone.ndim, 1))
-    for cid in range(1, n + 1):
-        comp = cc == cid
-        here = pred_classmap[comp & pred_fg]
-        if here.size == 0:
-            continue                       # bone the model never predicted (rib/femur)
-        vals, counts = np.unique(here, return_counts=True)
-        k = int(np.argmax(counts))
-        dominant = int(vals[k])
-        total = int(counts.sum())
-        minority = total - int(counts[k])
-        minority_frac = minority / total if total else 0.0
-        if minority_frac <= purity_tol or minority <= min_bleed_vox:
-            seed = comp & pred_fg
-            region = (binary_dilation(seed, iterations=int(grow_iters), mask=comp)
-                      if int(grow_iters) > 0 else seed)
-            if fill_holes:
-                region = _solid_fill(region) & comp
-            out[region] = dominant
-        else:                              # touching / fused bone -> keep model + flag
-            keep = comp & pred_fg
-            out[keep] = pred_classmap[keep].astype(np.int16)
-            ctr = np.argwhere(comp)
+    if n == 0:
+        return out, flags
+
+    # Per-component tally of predicted classes, over predicted-bone voxels only.
+    # Vectorised: bincount on (component_id * ncls + class) — NO python loop over
+    # components (there can be tens of thousands from thresholding the whole CT).
+    comp_p = cc[pred_bone].astype(np.int64)
+    cls_p = pred_classmap[pred_bone].astype(np.int64)
+    ncls = int(cls_p.max()) + 1
+    counts = np.bincount(comp_p * ncls + cls_p,
+                         minlength=(n + 1) * ncls).reshape(n + 1, ncls)
+    counts[0] = 0                              # background component
+    total = counts.sum(axis=1)
+    dom = counts.argmax(axis=1)                # dominant predicted class per component
+    minority = total - counts[np.arange(n + 1), dom]
+    minority_frac = np.where(total > 0, minority / np.maximum(total, 1), 0.0)
+    has_pred = total > 0
+    confident = has_pred & ((minority_frac <= purity_tol)
+                            | (minority <= min_bleed_vox))
+    ambiguous = has_pred & ~confident
+
+    # Confident components -> reclaim their predicted-bone voxels to the dominant
+    # class (a neighbour's cross-disc bleed flips to this structure). Growth is
+    # bounded WITHIN the component so unpredicted bone (femur) can't be swallowed.
+    conf_vox = confident[cc] & pred_bone
+    if int(grow_iters) > 0:
+        conf_vox = binary_dilation(conf_vox, iterations=int(grow_iters),
+                                   mask=confident[cc] & bone)
+    out[conf_vox] = dom[cc[conf_vox]].astype(np.int16)
+
+    # Ambiguous (touching/fused) components -> keep the model's per-voxel boundary.
+    amb_vox = ambiguous[cc] & pred_bone
+    out[amb_vox] = pred_classmap[amb_vox].astype(np.int16)
+
+    # Recover enclosed marrow per labelled class (sub-threshold interior the
+    # cortical ring encloses), the SAME way clip/resegment do — and ONLY enclosed
+    # holes, so external over-segmentation past the cortex stays erased.
+    if fill_holes:
+        for k in np.unique(out[out > 0]):
+            newly = _solid_fill(out == int(k)) & (out == 0)
+            out[newly] = int(k)
+
+    # Flag the ambiguous components (few) for review; centroids in one pass.
+    amb_ids = np.nonzero(ambiguous)[0]
+    if amb_ids.size:
+        coms = center_of_mass(np.ones(cc.shape, dtype=np.uint8), cc,
+                              list(amb_ids.tolist()))
+        coms = np.atleast_2d(coms)             # (k, ndim) for both 1 and many
+        for cid, com in zip(amb_ids.tolist(), coms):
+            col = counts[cid]
             flags.append({
-                "dominant": dominant,
-                "classes": {int(v): int(c)
-                            for v, c in zip(vals.tolist(), counts.tolist())},
-                "minority_frac": round(float(minority_frac), 3),
-                "n_pred_vox": total,
-                "centroid": [int(round(x)) for x in ctr.mean(0)],
+                "dominant": int(dom[cid]),
+                "classes": {int(c): int(col[c]) for c in np.nonzero(col)[0]},
+                "minority_frac": round(float(minority_frac[cid]), 3),
+                "n_pred_vox": int(total[cid]),
+                "centroid": [int(round(x)) for x in com],
             })
     return out, flags
 
