@@ -24,6 +24,7 @@ if str(_SCRIPTS) not in sys.path:
 from intensity_refine import (  # noqa: E402
     IGNORE_LABEL,
     calibrate_threshold,
+    compete_relabel,
     link_or_copy,
     refine_label,
 )
@@ -183,6 +184,74 @@ def test_refine_preserves_manual_sacrum_from_spine():
     assert out[0, 2, 1] == 7                               # manual sacrum NOT touched
     assert out[0, 1, 1] == 4
     assert out[0, 4, 4] == 8                               # pseudo region refined
+
+
+# --------------------------------------------------------------------------- #
+# compete mode  (per-component reclaim + fused-component flagging)
+# --------------------------------------------------------------------------- #
+
+def test_compete_fixes_cross_disc_bleed():
+    # Two vertebrae = two SEPARATE bone components split by a non-bone disc gap.
+    # Component B (class 4) has a class-3 voxel that bled across from A onto B's
+    # bone. compete reclaims B wholesale to its dominant class 4 -> bleed fixed;
+    # the non-bone gap is dropped.
+    v1 = np.full((1, 5, 9), IGNORE_LABEL, dtype=np.int16)
+    v1[0, 0, 0] = 5                                        # manual (calibration)
+    v2 = np.zeros((1, 5, 9), dtype=np.int16)
+    v2[0, 0, 0] = 5
+    v2[0, 2, 1] = v2[0, 2, 2] = 3                          # component A (L3)
+    v2[0, 2, 4] = 3                                        # <- bleed onto B's bone
+    v2[0, 2, 5] = v2[0, 2, 6] = 4                          # component B (L4)
+    ct = np.full((1, 5, 9), -1000.0, dtype=np.float32)
+    ct[0, 0, 0] = 200.0
+    ct[0, 2, 1] = ct[0, 2, 2] = 300.0                      # A is bone
+    ct[0, 2, 3] = 50.0                                     # disc gap (non-bone)
+    ct[0, 2, 4] = ct[0, 2, 5] = ct[0, 2, 6] = 300.0        # B is bone (contiguous)
+
+    out, _ = refine_label(v1, v2, ct, mode="compete", percentile=50,
+                          erode_iter=0, fill_holes=False)
+    assert out[0, 2, 1] == 3 and out[0, 2, 2] == 3         # A stays L3
+    assert out[0, 2, 4] == 4                               # bleed reclaimed to L4
+    assert out[0, 2, 5] == 4 and out[0, 2, 6] == 4
+    assert out[0, 2, 3] == 0                               # disc gap dropped
+    assert out[0, 0, 0] == 5                               # manual untouched
+
+
+def test_compete_flags_fused_component_and_keeps_model_boundary():
+    # One bone component shared ~50/50 by two classes = touching/fused bone.
+    # compete must NOT force one label: it keeps the model's per-voxel boundary
+    # and records a review flag. (min_bleed_vox=0 disables the small-bleed
+    # escape so purity_tol governs.)
+    v1 = np.full((1, 5, 7), IGNORE_LABEL, dtype=np.int16)
+    v1[0, 0, 0] = 5
+    v2 = np.zeros((1, 5, 7), dtype=np.int16)
+    v2[0, 0, 0] = 5
+    v2[0, 2, 1] = v2[0, 2, 2] = 5                          # half the blob = L5
+    v2[0, 2, 3] = v2[0, 2, 4] = 7                          # other half = sacrum
+    ct = np.full((1, 5, 7), -1000.0, dtype=np.float32)
+    ct[0, 0, 0] = 200.0
+    ct[0, 2, 1] = ct[0, 2, 2] = ct[0, 2, 3] = ct[0, 2, 4] = 300.0   # one bone blob
+
+    flags = []
+    out, _ = refine_label(v1, v2, ct, mode="compete", percentile=50,
+                          erode_iter=0, fill_holes=False, min_bleed_vox=0,
+                          purity_tol=0.15, flags_out=flags)
+    assert out[0, 2, 1] == 5 and out[0, 2, 4] == 7         # model boundary kept
+    assert len(flags) == 1
+    assert set(flags[0]["classes"]) == {5, 7}             # both classes recorded
+
+
+def test_compete_does_not_swallow_unpredicted_bone_at_grow0():
+    # Hip (class 8) fused to UNpredicted femur bone in one component. With the
+    # default grow_iters=0, compete only reclaims the predicted voxels -> the
+    # femur (never predicted) is left as background, not absorbed into the hip.
+    pred = np.zeros((1, 1, 6), dtype=np.int16)
+    pred[0, 0, 0] = pred[0, 0, 1] = 8                      # predicted hip
+    bone = np.ones((1, 1, 6), dtype=bool)                 # one long bone component
+    out, flags = compete_relabel(pred, bone, grow_iters=0, fill_holes=False)
+    assert out[0, 0, 0] == 8 and out[0, 0, 1] == 8         # hip reclaimed
+    assert out[0, 0, 4] == 0 and out[0, 0, 5] == 0         # femur NOT swallowed
+    assert flags == []                                     # single-class -> no flag
 
 
 def test_refine_no_prediction_returns_unchanged():

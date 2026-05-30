@@ -137,10 +137,82 @@ def _solid_fill(mask) -> "object":
     return out
 
 
+def compete_relabel(pred_classmap, bone, *, purity_tol: float = 0.15,
+                    min_bleed_vox: int = 50, grow_iters: int = 0,
+                    fill_holes: bool = True) -> Tuple["object", list]:
+    """Per-connected-bone-component label competition.
+
+    Each bone connected-component the model predicted is reclaimed WHOLE to its
+    dominant predicted class — fixing a neighbour's label that bled across a
+    (non-bone) disc onto this bone — BUT only when the component is class-pure
+    enough to be clearly ONE structure. A component substantially shared by >1
+    predicted class is TOUCHING / FUSED bone (SI joint, L5-S1 fusion,
+    hip+sacrum) that intensity cannot separate: there the model's own per-voxel
+    boundary is kept and the component is FLAGGED for human review.
+
+    A component counts as confident when the minority (non-dominant) predicted
+    voxels are either <= `purity_tol` of the component's predicted voxels OR
+    <= `min_bleed_vox` in absolute count (a tiny bleed). Growth past the
+    predicted voxels is bounded (`grow_iters`, confined to the same component)
+    so a target fused to UNpredicted bone — femur at the hip — can't be
+    swallowed.
+
+    Returns (region_label, flags): an int array with the reclaimed/kept class
+    per bone voxel (0 elsewhere), and a list of dicts describing the multi-class
+    (ambiguous) components that were left to the model and flagged.
+    """
+    import numpy as np
+    from scipy.ndimage import (label as cc_label, generate_binary_structure,
+                               binary_dilation)
+    pred_classmap = np.asarray(pred_classmap, dtype=np.int16)
+    bone = np.asarray(bone, dtype=bool)
+    out = np.zeros_like(pred_classmap)
+    flags: list = []
+    pred_fg = pred_classmap > 0
+    if not bone.any() or not pred_fg.any():
+        return out, flags
+
+    cc, n = cc_label(bone, structure=generate_binary_structure(bone.ndim, 1))
+    for cid in range(1, n + 1):
+        comp = cc == cid
+        here = pred_classmap[comp & pred_fg]
+        if here.size == 0:
+            continue                       # bone the model never predicted (rib/femur)
+        vals, counts = np.unique(here, return_counts=True)
+        k = int(np.argmax(counts))
+        dominant = int(vals[k])
+        total = int(counts.sum())
+        minority = total - int(counts[k])
+        minority_frac = minority / total if total else 0.0
+        if minority_frac <= purity_tol or minority <= min_bleed_vox:
+            seed = comp & pred_fg
+            region = (binary_dilation(seed, iterations=int(grow_iters), mask=comp)
+                      if int(grow_iters) > 0 else seed)
+            if fill_holes:
+                region = _solid_fill(region) & comp
+            out[region] = dominant
+        else:                              # touching / fused bone -> keep model + flag
+            keep = comp & pred_fg
+            out[keep] = pred_classmap[keep].astype(np.int16)
+            ctr = np.argwhere(comp)
+            flags.append({
+                "dominant": dominant,
+                "classes": {int(v): int(c)
+                            for v, c in zip(vals.tolist(), counts.tolist())},
+                "minority_frac": round(float(minority_frac), 3),
+                "n_pred_vox": total,
+                "centroid": [int(round(x)) for x in ctr.mean(0)],
+            })
+    return out, flags
+
+
 def refine_label(v1_label, v2_label, ct, *, mode: str = "clip",
                  percentile: float = 10.0, erode_iter: int = 1,
                  fill_holes: bool = True,
-                 grow_iters: int = 0) -> Tuple["object", Optional[float]]:
+                 grow_iters: int = 0,
+                 purity_tol: float = 0.15, min_bleed_vox: int = 50,
+                 flags_out: Optional[list] = None
+                 ) -> Tuple["object", Optional[float]]:
     """Re-segment the pseudo region of one case from CT intensity.
 
     `v1_label` is the ORIGINAL manual label (foreground 1..9 = manual; 0 /
@@ -155,8 +227,13 @@ def refine_label(v1_label, v2_label, ct, *, mode: str = "clip",
     it is pure clip: a subset of the model mask, no growth.
     mode="resegment": keep bone connected-components overlapping the prediction
     and nearest-class label them; UNBOUNDED grow via CC connectivity.
+    mode="compete": per bone connected-component, reclaim the whole component to
+    its dominant predicted class (fixes a neighbour's label that bled across a
+    disc), EXCEPT multi-class (touching/fused) components, which keep the model
+    boundary and are appended to `flags_out` for review. See `compete_relabel`.
 
-    Returns (refined_label, threshold_used).
+    Returns (refined_label, threshold_used). When `flags_out` is a list and
+    mode="compete", ambiguous-component flags are appended to it.
     """
     import numpy as np
     from scipy.ndimage import label as cc_label, distance_transform_edt
@@ -180,7 +257,16 @@ def refine_label(v1_label, v2_label, ct, *, mode: str = "clip",
 
     bone = (ct >= thr) & fillable
     out[pred_fg] = 0                            # clear the old model pseudo voxels
-    if mode == "clip" and int(grow_iters) > 0:
+    if mode == "compete":
+        region_lbl, flags = compete_relabel(
+            pred_classmap, bone, purity_tol=purity_tol,
+            min_bleed_vox=min_bleed_vox, grow_iters=int(grow_iters),
+            fill_holes=fill_holes)
+        sel = region_lbl > 0
+        out[sel] = region_lbl[sel]
+        if flags_out is not None:
+            flags_out.extend(flags)
+    elif mode == "clip" and int(grow_iters) > 0:
         # Bounded grow: dilate the predicted-bone seed THROUGH the bone mask
         # (geodesic dilation), for `grow_iters` voxels. Bone the model just
         # narrowly missed is picked up; bone disconnected from the seed (ribs,
@@ -276,11 +362,14 @@ def _refine_one(task: dict) -> dict:
         ct = np.asarray(nib.load(task["ct_path"]).dataobj).astype(np.float32)
         if not (v1.shape[:3] == v2.shape[:3] == ct.shape[:3]):
             return {"token": tok, "status": "skip_shape"}
+        flags: list = []
         refined, thr = refine_label(
             v1, v2, ct,
             mode=task["mode"], percentile=task["percentile"],
             erode_iter=task["erode_iter"], fill_holes=task["fill_holes"],
-            grow_iters=task["grow_iters"])
+            grow_iters=task["grow_iters"],
+            purity_tol=task["purity_tol"], min_bleed_vox=task["min_bleed_vox"],
+            flags_out=flags)
         out_lbl = Path(task["out_lbl"])
         out_lbl.parent.mkdir(parents=True, exist_ok=True)
         nib.save(nib.Nifti1Image(refined, ref.affine, ref.header), str(out_lbl))
@@ -288,7 +377,8 @@ def _refine_one(task: dict) -> dict:
         if not out_ct.exists():
             link_or_copy(task["ct_link_src"], out_ct, copy=task["copy_ct"])
         return {"token": tok, "status": "refined", "thr": thr,
-                "fg": int((refined > 0).sum())}
+                "fg": int((refined > 0).sum()),
+                "flags": [{**f, "token": tok} for f in flags]}
     except Exception as exc:                                 # noqa: BLE001
         return {"token": tok, "status": "fail", "error": str(exc)}
 
@@ -304,10 +394,23 @@ def main() -> int:
                          "--hf_export). Used to identify pseudo voxels exactly "
                          "and to calibrate the threshold from manual bone.")
     ap.add_argument("--out", required=True, type=Path)
-    ap.add_argument("--mode", choices=("clip", "resegment"), default="clip",
+    ap.add_argument("--mode", choices=("clip", "resegment", "compete"),
+                    default="clip",
                     help="clip (default): subtractive, keep predicted voxels "
                          "that are bone (erases over-segmentation, never grows). "
-                         "resegment: CC-gated, can grow into missed bone.")
+                         "resegment: CC-gated, can grow into missed bone. "
+                         "compete: per bone component, reclaim it to its dominant "
+                         "class (fixes cross-disc bleed); multi-class (fused) "
+                         "components keep the model boundary and are flagged.")
+    ap.add_argument("--purity_tol", type=float, default=0.15,
+                    help="compete: a bone component is confidently ONE structure "
+                         "when its minority predicted classes are <= this "
+                         "fraction (default 0.15); above it the component is "
+                         "treated as touching/fused and flagged for review.")
+    ap.add_argument("--min_bleed_vox", type=int, default=50,
+                    help="compete: minority voxels <= this count are always "
+                         "treated as a bleed and absorbed, regardless of "
+                         "--purity_tol (default 50).")
     ap.add_argument("--percentile", type=float, default=10.0,
                     help="Percentile of manual trabecular HU used as the bone "
                          "threshold (default 10).")
@@ -439,6 +542,7 @@ def main() -> int:
         "mode": args.mode, "percentile": args.percentile,
         "erode_iter": args.erode_iter, "fill_holes": args.fill_holes,
         "grow_iters": args.grow_iters, "copy_ct": args.copy_ct,
+        "purity_tol": args.purity_tol, "min_bleed_vox": args.min_bleed_vox,
     } for rec in to_refine]
 
     if not tasks:
@@ -450,6 +554,7 @@ def main() -> int:
                  len(tasks), args.workers)
     from concurrent.futures import ProcessPoolExecutor, as_completed
     t0 = time.time()
+    review_flags: List[dict] = []
     with ProcessPoolExecutor(max_workers=args.workers) as ex:
         futures = [ex.submit(_refine_one, t) for t in tasks]
         for i, fut in enumerate(as_completed(futures), 1):
@@ -457,6 +562,7 @@ def main() -> int:
             tok, status = r["token"], r["status"]
             if status == "refined":
                 n_refined += 1
+                review_flags.extend(r.get("flags", []))
             elif status == "fail":
                 n_fail += 1
                 log.warning("token=%s: refine failed (%s) — passthrough",
@@ -485,6 +591,15 @@ def main() -> int:
                      r.get("fg", 0),
                      int(elapsed) // 60, int(elapsed) % 60,
                      rate, int(eta_s) // 60)
+
+    # compete mode: persist the ambiguous (touching/fused) components for review.
+    if args.mode == "compete":
+        flags_path = out / "review_flags.json"
+        flags_path.write_text(json.dumps(review_flags, indent=2))
+        n_cases_flagged = len({f["token"] for f in review_flags})
+        log.info("compete: %d ambiguous (touching/fused) component(s) across "
+                 "%d case(s) flagged for review -> %s",
+                 len(review_flags), n_cases_flagged, flags_path)
 
     log.info("=" * 60)
     log.info("intensity-refined tree -> %s", out)
