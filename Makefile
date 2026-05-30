@@ -376,6 +376,11 @@ refine-eval: check-container  ## Stage 3.6 + compare + eval-vs-manual, all in ON
 
 
 .PHONY: refine-review
+# This job IS the compete-refine + review; default to compete (not the global
+# clip) and to bounded-grow 0 (so a hip seed can't grow into an unpredicted
+# femur). A command-line REFINE_MODE=/REFINE_GROW= still overrides these.
+refine-review: REFINE_MODE := compete
+refine-review: REFINE_GROW := 0
 refine-review: check-container  ## compete-refine + 2D change-overlay review, ONE SLURM job (CPU). RUN_REFINE=0 to review an existing tree only.
 	@mkdir -p $(LOGS_DIR)
 	@echo "Submitting compete-refine + change-review (one job)"
