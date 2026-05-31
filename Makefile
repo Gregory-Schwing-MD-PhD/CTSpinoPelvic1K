@@ -140,6 +140,14 @@ REVIEW_AXIS       := $(strip $(REVIEW_AXIS))
 REVIEW_MAX_SLICES := $(strip $(REVIEW_MAX_SLICES))
 REVIEW_NO_PNGS    := $(strip $(REVIEW_NO_PNGS))
 
+# ── vertebra QC (neighbour-mixing metrics) ───────────────────────────────────
+QC_MANUAL_CSV     ?=
+QC_PSEUDO_CSV     ?=
+QC_LIMIT          ?= 0
+QC_MANUAL_CSV     := $(strip $(QC_MANUAL_CSV))
+QC_PSEUDO_CSV     := $(strip $(QC_PSEUDO_CSV))
+QC_LIMIT          := $(strip $(QC_LIMIT))
+
 # ── Stage 4 control (TotalSegmentator benchmark) ─────────────────────────────
 TS_WINDOW_MM    ?= 40.0
 DOCKERHUB_USER  ?= gregoryschwingmdphd
@@ -366,6 +374,14 @@ sweep-refine: check-container  ## Sweep (pctl, grow), pick best, build refined t
 	@echo "  grow_sweep = $(GROW_SWEEP)"
 	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),REFINE_OUT_DIR=$(REFINE_OUT_DIR),PRED_DIR=$(PRED_DIR),MODELS_CONFIG=$(MODELS_CONFIG),SWEEP_CSV=$(SWEEP_CSV),BEST_JSON=$(BEST_JSON),COMPARE_CSV=$(COMPARE_CSV),EVAL_CSV=$(EVAL_CSV),PCTL_SWEEP=$(PCTL_SWEEP),GROW_SWEEP=$(GROW_SWEEP),REFINE_WORKERS=$(REFINE_WORKERS) \
 	       slurm/sweep_refine.sh
+
+
+.PHONY: vertebra-qc
+vertebra-qc: check-container  ## GT-free neighbour-mixing QC on manual vs pseudo trees (CPU)
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting vertebra-qc (manual vs pseudo neighbour-mixing metrics)"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),QC_MANUAL_CSV=$(QC_MANUAL_CSV),QC_PSEUDO_CSV=$(QC_PSEUDO_CSV),QC_LIMIT=$(QC_LIMIT) \
+	       slurm/vertebra_qc.sh
 
 
 .PHONY: refine-eval
