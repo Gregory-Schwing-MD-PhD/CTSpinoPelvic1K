@@ -239,6 +239,7 @@ def refine_label(v1_label, v2_label, ct, *, mode: str = "clip",
                  fill_holes: bool = True,
                  grow_iters: int = 0,
                  purity_tol: float = 0.15, min_bleed_vox: int = 50,
+                 bone_floor: float = 0.0,
                  flags_out: Optional[list] = None
                  ) -> Tuple["object", Optional[float]]:
     """Re-segment the pseudo region of one case from CT intensity.
@@ -282,6 +283,14 @@ def refine_label(v1_label, v2_label, ct, *, mode: str = "clip",
                               erode_iter=erode_iter)
     if thr is None:                            # no manual bone to calibrate from
         return out, None
+    # Optional HU floor on the calibrated threshold. Fatty marrow drags the
+    # per-case trabecular percentile far below soft tissue (~0-60 HU), which
+    # bridges every bone through the discs/joints into one component — fatal for
+    # compete's per-structure separation. A floor (~150 HU) lifts the threshold
+    # above disc/joint soft tissue so healthy gaps separate the bones; the
+    # excluded marrow is recovered by the hole-fill step.
+    if bone_floor:
+        thr = max(thr, float(bone_floor))
 
     bone = (ct >= thr) & fillable
     out[pred_fg] = 0                            # clear the old model pseudo voxels
@@ -397,6 +406,7 @@ def _refine_one(task: dict) -> dict:
             erode_iter=task["erode_iter"], fill_holes=task["fill_holes"],
             grow_iters=task["grow_iters"],
             purity_tol=task["purity_tol"], min_bleed_vox=task["min_bleed_vox"],
+            bone_floor=task["bone_floor"],
             flags_out=flags)
         out_lbl = Path(task["out_lbl"])
         out_lbl.parent.mkdir(parents=True, exist_ok=True)
@@ -439,6 +449,12 @@ def main() -> int:
                     help="compete: minority voxels <= this count are always "
                          "treated as a bleed and absorbed, regardless of "
                          "--purity_tol (default 50).")
+    ap.add_argument("--bone_floor", type=float, default=0.0,
+                    help="HU floor on the per-case calibrated threshold "
+                         "(default 0 = off). Fatty marrow drags the calibrated "
+                         "threshold below soft tissue, bridging all bones into "
+                         "one component; ~150 lifts it above disc/joint tissue "
+                         "so structures separate (needed for compete).")
     ap.add_argument("--percentile", type=float, default=10.0,
                     help="Percentile of manual trabecular HU used as the bone "
                          "threshold (default 10).")
@@ -571,6 +587,7 @@ def main() -> int:
         "erode_iter": args.erode_iter, "fill_holes": args.fill_holes,
         "grow_iters": args.grow_iters, "copy_ct": args.copy_ct,
         "purity_tol": args.purity_tol, "min_bleed_vox": args.min_bleed_vox,
+        "bone_floor": args.bone_floor,
     } for rec in to_refine]
 
     if not tasks:

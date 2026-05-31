@@ -55,6 +55,7 @@ REFINE_GROW="${REFINE_GROW:-0}"
 REFINE_FILL="${REFINE_FILL:-1}"
 PURITY_TOL="${PURITY_TOL:-0.15}"
 MIN_BLEED_VOX="${MIN_BLEED_VOX:-50}"
+BONE_FLOOR="${BONE_FLOOR:-150}"            # HU floor so discs/joints separate bones
 REFINE_WORKERS="${REFINE_WORKERS:-${SLURM_CPUS_PER_TASK:-8}}"
 REFINE_LIMIT="${REFINE_LIMIT:-0}"
 REFINE_OVERWRITE="${REFINE_OVERWRITE:-0}"
@@ -83,7 +84,7 @@ echo "   v2 pseudo   : ${PSEUDO_OUT_DIR}"
 echo "   refined out : ${REFINE_OUT_DIR}"
 echo "   review out  : ${REVIEW_OUT_DIR}"
 echo "   mode        : ${REFINE_MODE}  pctl=${REFINE_PCTL} erode=${REFINE_ERODE} grow=${REFINE_GROW}"
-echo "   compete     : purity_tol=${PURITY_TOL}  min_bleed_vox=${MIN_BLEED_VOX}"
+echo "   compete     : purity_tol=${PURITY_TOL}  min_bleed_vox=${MIN_BLEED_VOX}  bone_floor=${BONE_FLOOR}"
 echo "   RUN_REFINE  : ${RUN_REFINE}"
 echo "   Started     : $(date)"
 echo "======================================================================"
@@ -113,6 +114,7 @@ if [[ "${RUN_REFINE}" == "1" ]]; then
             --grow_iters   "${REFINE_GROW}" \
             --purity_tol   "${PURITY_TOL}" \
             --min_bleed_vox "${MIN_BLEED_VOX}" \
+            --bone_floor   "${BONE_FLOOR}" \
             --workers      "${REFINE_WORKERS}" \
             ${EXTRA}
 else

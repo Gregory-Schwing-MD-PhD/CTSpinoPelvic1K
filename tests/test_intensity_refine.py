@@ -266,6 +266,39 @@ def test_compete_fills_enclosed_marrow_and_erases_external_overseg():
     assert out[0, 0, 0] == 5                              # manual untouched
 
 
+def test_bone_floor_separates_structures_for_compete():
+    # Two bone cores bridged by a soft-tissue voxel (a disc-like gap). The manual
+    # HU calibrates LOW (fatty marrow), so without a floor the bridge is included
+    # -> one multi-class component -> flagged, no relabel. A 150 HU floor excludes
+    # the bridge -> two single-class components -> separated & reclaimed.
+    v1 = np.full((1, 3, 7), IGNORE_LABEL, dtype=np.int16)
+    v1[0, 0, 0] = 5
+    v2 = np.zeros((1, 3, 7), dtype=np.int16)
+    v2[0, 0, 0] = 5
+    v2[0, 1, 1] = v2[0, 1, 2] = 3                  # core A (L3)
+    v2[0, 1, 3] = 3                                # bridge (predicted)
+    v2[0, 1, 4] = v2[0, 1, 5] = 4                  # core B (L4)
+    ct = np.full((1, 3, 7), -1000.0, dtype=np.float32)
+    ct[0, 0, 0] = 100.0                            # manual -> low calibration
+    ct[0, 1, 1] = ct[0, 1, 2] = 400.0              # A is dense bone
+    ct[0, 1, 3] = 100.0                            # soft-tissue bridge (disc)
+    ct[0, 1, 4] = ct[0, 1, 5] = 400.0              # B is dense bone
+
+    f0 = []
+    refine_label(v1, v2, ct, mode="compete", percentile=50, erode_iter=0,
+                 fill_holes=False, min_bleed_vox=0, purity_tol=0.15, flags_out=f0)
+    assert len(f0) == 1                            # bridged into one fused blob
+
+    f1 = []
+    out1, thr1 = refine_label(v1, v2, ct, mode="compete", percentile=50,
+                              erode_iter=0, fill_holes=False, min_bleed_vox=0,
+                              purity_tol=0.15, bone_floor=150.0, flags_out=f1)
+    assert thr1 == 150.0
+    assert f1 == []                                # separated -> both confident
+    assert out1[0, 1, 3] == 0                      # disc-bridge dropped
+    assert out1[0, 1, 1] == 3 and out1[0, 1, 4] == 4
+
+
 def test_compete_does_not_swallow_unpredicted_bone_at_grow0():
     # Hip (class 8) fused to UNpredicted femur bone in one component. With the
     # default grow_iters=0, compete only reclaims the predicted voxels -> the
