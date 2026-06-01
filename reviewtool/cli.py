@@ -468,6 +468,104 @@ def cmd_edit(a):
         _submit_review(s, base, job, work, seg, record)
 
 
+def _load_manifest_local(path: Path) -> list:
+    payload = json.loads(Path(path).read_text())
+    if isinstance(payload, dict):
+        payload = payload.get("records", payload.get("cases", []))
+    return [r for r in payload if isinstance(r, dict)]
+
+
+def _is_flag(v) -> bool:
+    return str(v).strip() in ("1", "1.0", "True", "true")
+
+
+def _flag_hint(row: dict) -> str:
+    """Human 'what to look for' from a merged-QC row, so the reviewer opens each
+    case knowing the suspected defect."""
+    h = []
+    if _is_flag(row.get("mixing_flag")):
+        h.append(f"vertebra MIXING (off_main={row.get('off_main_frac','?')}, "
+                 f"order-inv={row.get('n_order_inversions','?')})")
+    if _is_flag(row.get("leak_flag")):
+        h.append(f"OFF-BONE leak (off_bone={row.get('off_bone_frac','?')})")
+    if _is_flag(row.get("struct_flag")):
+        s = []
+        if _is_flag(row.get("lr_swap")):
+            s.append("L/R HIP SWAP")
+        if str(row.get("vertebra_gap", "0")).strip() not in ("", "0", "0.0"):
+            s.append("missing level")
+        if _is_flag(row.get("pelvis_incomplete")):
+            s.append("pelvis incomplete")
+        if _is_flag(row.get("duplication_flag")):
+            s.append("duplicated structure")
+        h.append("structure: " + (", ".join(s) if s else "issue"))
+    return "  |  ".join(h) or "(flagged)"
+
+
+def _fixlist_rows(rows: list, only_flagged: bool = True) -> list:
+    """Rows to review, preserving the CSV's worst-first order."""
+    if not only_flagged:
+        return list(rows)
+    return [r for r in rows if _is_flag(r.get("needs_review"))
+            or _is_flag(r.get("mixing_flag")) or _is_flag(r.get("leak_flag"))
+            or _is_flag(r.get("struct_flag"))]
+
+
+def cmd_fix_list(a):
+    """Walk a merged-QC CSV worst-first, open each flagged case in ITK-SNAP for
+    a student to fix, and save the corrected label into a reviewed tree. LOCAL
+    (no Space): reads the pseudo tree on disk; resumable (skips cases already in
+    the out tree)."""
+    import csv as _csv
+    import shutil as _shutil
+    qc = Path(a.qc_csv)
+    if not qc.exists():
+        sys.exit(f"QC CSV not found: {qc}")
+    rows = _fixlist_rows(list(_csv.DictReader(open(qc))), only_flagged=not a.all)
+    if a.limit:
+        rows = rows[:a.limit]
+    if not rows:
+        print(f"nothing to fix — no flagged cases in {qc}")
+        return
+
+    tree = Path(a.tree)
+    index = {(str(r.get("token")), str(r.get("config"))): r
+             for r in _load_manifest_local(tree / "manifest.json")}
+    out = Path(a.out) if a.out else tree.parent / (tree.name + "_reviewed")
+    (out / "labels").mkdir(parents=True, exist_ok=True)
+    labels_txt = out / "labels.txt"
+    labels_txt.write_text(labels_descriptor.descriptor_text())
+    itksnap = a.itksnap or _default_itksnap()
+
+    print(f"{len(rows)} flagged case(s) to review — corrected labels go to {out}\n"
+          f"(edit in ITK-SNAP, Save Segmentation, quit to advance; Ctrl-C to stop)\n")
+    n_done = n_skip = 0
+    for i, row in enumerate(rows, 1):
+        key = (str(row.get("token")), str(row.get("config")))
+        rec = index.get(key)
+        if not rec or not rec.get("label_file") or not rec.get("ct_file"):
+            print(f"[{i}/{len(rows)}] {key}: not in manifest — skip"); n_skip += 1
+            continue
+        src_ct, src_pseudo = tree / rec["ct_file"], tree / rec["label_file"]
+        dst = out / rec["label_file"]
+        if dst.exists() and not a.redo:
+            n_skip += 1
+            continue                                     # already reviewed
+        if not src_ct.exists() or not src_pseudo.exists():
+            print(f"[{i}/{len(rows)}] {key}: missing CT/label in tree — skip")
+            n_skip += 1
+            continue
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        _shutil.copy2(str(src_pseudo), str(dst))         # editable copy; SAVE here
+        print(f"[{i}/{len(rows)}] token={key[0]}  {key[1]}")
+        print(f"    WHY FLAGGED: {_flag_hint(row)}")
+        rc = _launch_itksnap(itksnap, src_ct, dst, labels_txt)
+        if rc != 0:
+            print(f"    ITK-SNAP exited {rc}; left the unedited copy — rerun to redo.")
+        n_done += 1
+    print(f"\ndone: {n_done} opened, {n_skip} skipped. Reviewed tree: {out}")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="reviewtool", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -496,6 +594,22 @@ def main(argv=None) -> int:
     p.add_argument("--itksnap", default=None,
                    help="ITK-SNAP executable (auto-detected if omitted)")
     p.set_defaults(fn=cmd_edit)
+
+    p = sub.add_parser("fix-list",
+                       help="review QC-flagged cases from a merged-QC CSV in "
+                            "ITK-SNAP (local; writes a corrected tree)")
+    p.add_argument("qc_csv", help="merged QC CSV (scripts/merge_qc.py output)")
+    p.add_argument("--tree", required=True,
+                   help="pseudo tree on disk (manifest.json + ct/ + labels/)")
+    p.add_argument("--out", default=None,
+                   help="reviewed-tree output dir (default: <tree>_reviewed)")
+    p.add_argument("--itksnap", default=None)
+    p.add_argument("--all", action="store_true",
+                   help="open every row, not just flagged ones")
+    p.add_argument("--redo", action="store_true",
+                   help="re-open cases already present in the out tree")
+    p.add_argument("--limit", type=int, default=0)
+    p.set_defaults(fn=cmd_fix_list)
 
     p = sub.add_parser("status"); p.set_defaults(fn=cmd_status)
     p = sub.add_parser("resume"); p.set_defaults(fn=cmd_resume)
