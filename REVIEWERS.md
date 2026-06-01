@@ -4,13 +4,18 @@ Thanks for helping review the spine + pelvis segmentations! Each CT already has
 an AI-generated *draft* segmentation; your job is to open one case at a time in
 **ITK-SNAP**, fix **one** region, save, and quit. The tool handles the rest.
 
-## What's different now (triaged + fast)
+## What's different now (triaged + fast + a clear goal)
 
-You only review cases that **automated quality checks flagged** as likely wrong
-— not all 800+. When the tool opens a case it prints a **`WHY FLAGGED:`** line
-telling you the suspected problem, and it downloads a small **cropped** region
-(a few seconds, not a 200 MB volume). Each case is quick and you know what to
-look for.
+You only review the **~210 cases** that **automated quality checks flagged** as
+likely wrong — not all 800+. Each case is fast and gives you a measurable goal:
+
+- On open, the terminal prints **`WHY FLAGGED - focus your edit here:`** — the
+  specific problem(s) to fix (a leak, a mixed-up vertebra, a stray piece, …).
+- It downloads a small **crop** (seconds, not a 200 MB volume) and opens it in
+  ITK-SNAP, with a **gold reference example** in a second window to compare to.
+- **Every time you Save (Ctrl-S), the terminal re-runs the checks** and shows
+  `off-bone leak 0.07 -> 0.01 OK`. **A case is "done" when the checks read
+  `OK`.** Edit → save → watch them clear → quit when OK.
 
 ## How to actually fix a case → **[REVIEWERS_FIXING.md](REVIEWERS_FIXING.md)**
 
