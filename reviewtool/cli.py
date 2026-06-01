@@ -422,6 +422,83 @@ def _watch_itksnap(itksnap, ct, seg, labels, *, qc_ct, before) -> int:
     return proc.returncode if proc.returncode is not None else 0
 
 
+def _qc_startup(ct_path, draft_path) -> None:
+    """Print the DRAFT's current QC so the reviewer knows what to focus on — this
+    is the 'WHY FLAGGED' for the live flow (the Space doesn't carry the reason).
+    Degrades silently without scipy / the QC modules."""
+    try:
+        import numpy as np
+        import nibabel as nib
+        from vertebra_topology_qc import vertebra_topology_metrics
+        from bone_leak_qc import bone_leak_metrics
+        from structure_qc import structure_metrics
+    except Exception:
+        return
+    try:
+        dimg = nib.load(str(draft_path))
+        aff = dimg.affine
+        draft = np.asarray(dimg.dataobj)
+        ct = None
+        if Path(ct_path).exists():
+            c = np.asarray(nib.load(str(ct_path)).dataobj).astype(np.float32)
+            if c.shape[:3] == draft.shape[:3]:
+                ct = c
+    except Exception:
+        return
+    m = {}
+    for fn in (lambda l: vertebra_topology_metrics(l, aff),
+               lambda l: structure_metrics(l, aff)):
+        try:
+            m.update(fn(draft))
+        except Exception:
+            pass
+    if ct is not None:
+        try:
+            m.update(bone_leak_metrics(draft, ct))
+        except Exception:
+            pass
+    if not m:
+        return
+    foci = []
+    if m.get("off_bone_frac", 0) > 0.058:
+        foci.append(f"OFF-BONE LEAK  (off_bone={m['off_bone_frac']:.3f}; target <= 0.058)")
+    if m.get("off_main_frac", 0) > 0.005:
+        foci.append(f"vertebra MIXING  (off_main={m['off_main_frac']:.3f}; target <= 0.005)")
+    if m.get("n_order_inversions", 0):
+        foci.append("level ORDER wrong (a vertebra is out of sequence)")
+    if m.get("duplication_flag", 0):
+        foci.append("DUPLICATED structure (a stray disconnected piece)")
+    if m.get("lr_swap", 0):
+        foci.append("L/R HIP SWAP")
+    if m.get("vertebra_gap", 0):
+        foci.append("MISSING level (a gap in the sequence)")
+    print("  WHY FLAGGED - focus your edit here:")
+    if foci:
+        for f in foci:
+            print(f"    * {f}")
+    else:
+        print("    * nothing obvious in the automated metrics - may be a "
+              "borderline flag; give the structure a quick look.")
+    print("  (edit, Save (Ctrl-S), and watch these clear to OK above.)")
+
+
+def _open_space_reference(job, snap, work):
+    """Download the gold reference example (crops/reference/ in the v2 repo, if
+    present) and open it in a second ITK-SNAP window for comparison. None if no
+    reference is published."""
+    try:
+        rct = _fetch(job, "crops/reference/ct.nii.gz", work / "ref_ct.nii.gz")
+        rseg = _fetch(job, "crops/reference/seg.nii.gz", work / "ref_seg.nii.gz")
+    except Exception:
+        return None
+    rlbl = work / "ref_labels.txt"
+    rlbl.write_text(job.get("labels_descriptor")
+                    or labels_descriptor.descriptor_text())
+    print("  opened a GOLD reference example in a second window "
+          "(tile the two windows to compare).")
+    return _launch_itksnap_bg(snap, rct, rseg, rlbl)
+
+
 def cmd_next(a):
     s, base = _api()
     job = _claim(s, base)
@@ -461,13 +538,21 @@ def cmd_next(a):
 
     print(f"case {job['case_id']}  ({note} — {job['region_to_review']} region)")
     before_qc = (work / "crop_seg.nii.gz") if crop else pseudo
-    if getattr(a, "watch", False):                      # live QC on every Save
+    if not getattr(a, "no_qc", False):                  # WHY FLAGGED / what to fix
+        _qc_startup(snap_ct, before_qc)
+
+    ref_proc = None
+    if not getattr(a, "no_reference", False):           # gold example beside the case
+        ref_proc = _open_space_reference(job, snap, work)
+
+    if getattr(a, "no_watch", False):                   # watch is the default
+        rc = _launch_itksnap(snap, snap_ct, snap_seg, labels)
+    else:
         rc = _watch_itksnap(snap, snap_ct, snap_seg, labels,
                             qc_ct=snap_ct, before=before_qc)
-    else:
-        rc = _launch_itksnap(snap, snap_ct, snap_seg, labels)
-    if ctx_proc is not None:
-        ctx_proc.terminate()
+    for p in (ctx_proc, ref_proc):
+        if p is not None:
+            p.terminate()
     if rc != 0:
         print(f"\nITK-SNAP exited with code {rc} — it failed to start or "
               f"crashed, so NO edit was captured. Not submitting.\n"
@@ -479,8 +564,8 @@ def cmd_next(a):
     if crop:                                            # fold the crop edit into full-res
         _paste_edit_to_full(snap_seg, crop["origin"], pseudo, seg)
 
-    # watch mode already printed QC live on each save; otherwise show it once now.
-    if not getattr(a, "no_qc", False) and not getattr(a, "watch", False):
+    # watch (default) already printed QC live on each save; in --no_watch show once.
+    if not getattr(a, "no_qc", False) and getattr(a, "no_watch", False):
         _qc_feedback(snap_ct, before_qc, snap_seg)
 
     decision, record = build_submission(
@@ -828,11 +913,13 @@ def main(argv=None) -> int:
                                 "original repo and open it read-only beside the crop "
                                 "(to verify the rest of the volume looks fine)")
             p.add_argument("--no_qc", action="store_true",
-                           help="skip the draft->edit QC check printed after each "
-                                "edit (needs scipy; on by default)")
-            p.add_argument("--watch", action="store_true",
-                           help="keep ITK-SNAP open and reprint the QC check every "
-                                "time you Save Segmentation (live progress; needs scipy)")
+                           help="skip the QC focus/progress prints (needs scipy; "
+                                "QC is on by default)")
+            p.add_argument("--no_watch", action="store_true",
+                           help="don't keep ITK-SNAP open for live QC; use the "
+                                "old quit-to-submit behaviour")
+            p.add_argument("--no_reference", action="store_true",
+                           help="don't open the gold reference example window")
         if name == "adjudicate":
             p.add_argument("--notes", default="")
         p.set_defaults(fn=fn)

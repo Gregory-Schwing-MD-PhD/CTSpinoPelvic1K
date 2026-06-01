@@ -54,22 +54,23 @@ Steps 1–2 are done **once**.
 python3 -m reviewtool next
 ```
 
-This claims a **flagged** case, downloads a small **crop** (fast), and opens
-ITK-SNAP. The terminal prints a **`WHY FLAGGED:`** line with the suspected
-problem. **New to editing? Open [REVIEWERS_FIXING.md](REVIEWERS_FIXING.md)** —
-ITK-SNAP tools + a fix recipe per flag. (Add `--full` to also open the whole
-scan read-only for context.) Then:
+This claims a **flagged** case and prints a **`WHY FLAGGED - focus your edit
+here`** list (your target). It downloads a small **crop** (fast), opens it in
+ITK-SNAP, and opens a **gold reference example** in a second window to compare
+against. Then:
 
-1. The terminal says **which region to review** — `spine` (L1–L6) **or** `pelvis`
-   (sacrum + both hips). **Only edit that region**; the other is an expert manual
-   annotation — don't touch it.
-2. Fix the draft with the brush / polygon tools. **Don't renumber or recolor
-   labels** — the palette is locked: `L1–L6 = 1–6`, `sacrum = 7`,
-   `left hip = 8`, `right hip = 9`.
-3. **Segmentation → Save Segmentation Image**, saving **over the file it opened**
-   (`seg.nii.gz`). Then **quit ITK-SNAP**.
-4. On quit the tool uploads your result — you'll see `submitted -> ...`. Nothing
-   to fix? Just save and quit; that's a valid "accept".
+1. **Read the `WHY FLAGGED` focus list. New to editing? Open
+   [REVIEWERS_FIXING.md](REVIEWERS_FIXING.md)** — ITK-SNAP tools, video
+   tutorials, and a fix recipe per flag.
+2. **Only edit the region named** — `spine` (L1–L6) **or** `pelvis` (sacrum +
+   hips); don't touch the other. **Don't renumber/recolor labels** —
+   `L1–L6 = 1–6, sacrum = 7, left hip = 8, right hip = 9`.
+3. Fix it, then **Save Segmentation** (**⌘-S**). The terminal **re-runs the QC
+   and shows progress** (`off-bone leak 0.072 -> 0.008 OK`). Keep editing and
+   saving until the checks read **OK** — that's your goal. (Tile the two windows
+   to compare against the gold example.)
+4. **Quit ITK-SNAP** when OK — it uploads (`submitted -> ...`). Nothing wrong?
+   Save once and quit (a valid "accept").
 
 Repeat `python3 -m reviewtool next` for the next case. Check progress with:
 
