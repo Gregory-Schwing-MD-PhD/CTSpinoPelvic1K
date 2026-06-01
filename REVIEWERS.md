@@ -23,6 +23,9 @@ If you've never edited a segmentation, **read this first** — it covers the
 ITK-SNAP tools, how to tell bone from soft tissue on the CT, how to identify a
 vertebra level, and a fix recipe for each kind of flag.
 
+**One-page quick reference to keep beside ITK-SNAP →
+[REVIEWERS_CHEATSHEET.md](REVIEWERS_CHEATSHEET.md)**
+
 ## Open the setup guide for your computer
 
 - **Windows** → **[REVIEWERS_WINDOWS.md](REVIEWERS_WINDOWS.md)**  *(recommended —
