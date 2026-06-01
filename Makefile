@@ -148,6 +148,14 @@ QC_MANUAL_CSV     := $(strip $(QC_MANUAL_CSV))
 QC_PSEUDO_CSV     := $(strip $(QC_PSEUDO_CSV))
 QC_LIMIT          := $(strip $(QC_LIMIT))
 
+# ── bone-leak QC (label bled off bone) ───────────────────────────────────────
+LEAK_MANUAL_CSV   ?=
+LEAK_PSEUDO_CSV   ?=
+LEAK_BONE_HU      ?= 150
+LEAK_MANUAL_CSV   := $(strip $(LEAK_MANUAL_CSV))
+LEAK_PSEUDO_CSV   := $(strip $(LEAK_PSEUDO_CSV))
+LEAK_BONE_HU      := $(strip $(LEAK_BONE_HU))
+
 # ── Stage 4 control (TotalSegmentator benchmark) ─────────────────────────────
 TS_WINDOW_MM    ?= 40.0
 DOCKERHUB_USER  ?= gregoryschwingmdphd
@@ -382,6 +390,14 @@ vertebra-qc: check-container  ## GT-free neighbour-mixing QC on manual vs pseudo
 	@echo "Submitting vertebra-qc (manual vs pseudo neighbour-mixing metrics)"
 	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),QC_MANUAL_CSV=$(QC_MANUAL_CSV),QC_PSEUDO_CSV=$(QC_PSEUDO_CSV),QC_LIMIT=$(QC_LIMIT) \
 	       slurm/vertebra_qc.sh
+
+
+.PHONY: bone-leak-qc
+bone-leak-qc: check-container  ## GT-free off-bone label-leak QC on manual vs pseudo trees (CPU)
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting bone-leak-qc (off-bone label leak: manual vs pseudo)"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),LEAK_MANUAL_CSV=$(LEAK_MANUAL_CSV),LEAK_PSEUDO_CSV=$(LEAK_PSEUDO_CSV),LEAK_BONE_HU=$(LEAK_BONE_HU),QC_LIMIT=$(QC_LIMIT) \
+	       slurm/bone_leak_qc.sh
 
 
 .PHONY: refine-eval
