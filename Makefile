@@ -177,6 +177,8 @@ CROPS_OUT_DIR     ?=
 CROP_PAD          ?= 8
 DECOMP_CSV        ?=
 DECOMP_K          ?= 1
+REF_TOKEN         ?=
+REF_TOKEN         := $(strip $(REF_TOKEN))
 QC_MASTER_CSV     := $(strip $(QC_MASTER_CSV))
 CROPS_OUT_DIR     := $(strip $(CROPS_OUT_DIR))
 CROP_PAD          := $(strip $(CROP_PAD))
@@ -449,6 +451,14 @@ push-crops: check-container  ## Upload review crops to the v2 dataset under crop
 	@echo "Submitting push-crops -> $(HF_REPO_ID)@$(if $(strip $(HF_REVISION)),$(HF_REVISION),v2):crops/"
 	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),HF_REPO_ID=$(HF_REPO_ID),HF_REVISION=$(HF_REVISION),CROPS_OUT_DIR=$(CROPS_OUT_DIR) \
 	       slurm/push_crops.sh
+
+
+.PHONY: push-reference
+push-reference: check-container  ## Crop a clean gold case and upload it to crops/reference/ (the review gold example). HF_TOKEN + HF_REPO_ID required; REF_TOKEN optional.
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting push-reference -> $(HF_REPO_ID)@$(if $(strip $(HF_REVISION)),$(HF_REVISION),v2):crops/reference/"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),HF_REPO_ID=$(HF_REPO_ID),HF_REVISION=$(HF_REVISION),REF_TOKEN=$(REF_TOKEN),HF_EXPORT_DIR=$(HF_EXPORT_DIR) \
+	       slurm/push_reference.sh
 
 
 .PHONY: boundary-decomp
