@@ -443,6 +443,14 @@ export-crops: check-container  ## Cut small ROI crops of the QC-flagged cases fo
 	       slurm/export_crops.sh
 
 
+.PHONY: push-crops
+push-crops: check-container  ## Upload review crops to the v2 dataset under crops/ (network). HF_TOKEN + HF_REPO_ID required.
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting push-crops -> $(HF_REPO_ID)@$(if $(strip $(HF_REVISION)),$(HF_REVISION),v2):crops/"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),HF_REPO_ID=$(HF_REPO_ID),HF_REVISION=$(HF_REVISION),CROPS_OUT_DIR=$(CROPS_OUT_DIR) \
+	       slurm/push_crops.sh
+
+
 .PHONY: boundary-decomp
 boundary-decomp: check-container  ## Split the Dice gap into boundary (irreducible) vs interior (fixable) on fused GT (CPU)
 	@mkdir -p $(LOGS_DIR)
