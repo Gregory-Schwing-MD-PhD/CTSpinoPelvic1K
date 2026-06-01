@@ -78,7 +78,7 @@ your `PATH` automatically.
 cd ~
 git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git
 cd CTSpinoPelvic1K          # stay in this folder for Step 3 and for reviewing
-python3 -m pip install requests huggingface_hub numpy nibabel
+python3 -m pip install requests huggingface_hub numpy nibabel scipy
 ```
 
 > **Already cloned it before?** Don't re-clone — update it instead:

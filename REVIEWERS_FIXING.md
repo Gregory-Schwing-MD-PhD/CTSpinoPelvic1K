@@ -12,6 +12,33 @@ a minority need real re-drawing.
 
 ---
 
+## Watch these first (15 min well spent)
+
+ITK-SNAP has several ways to segment/edit — **watch these, then experiment with
+each on a practice case to find what's fastest for *you***. Different fixes suit
+different tools (a leak is quick to erase; a missing chunk is faster with
+pre-segmentation or AI).
+
+- **Short — standard annotation** (pre-segmentation thresholding, active-contour
+  "snake", erasing): <https://www.youtube.com/watch?v=BIGv7OJySe8>
+- **Long — in-depth tutorial** (the full toolset): <https://www.youtube.com/watch?v=Wob8beX88Ks>
+- **AI-assisted editing** (nnInteractive — click to segment): <https://www.youtube.com/watch?v=gpQ19OPUm34>
+
+**Tips while you experiment:**
+- For **erasing leaks** (the most common fix), the plain **paintbrush set to
+  Clear Label** is fastest — no need for the fancy tools.
+- For **filling a missing chunk**, try the **active-contour / pre-segmentation**
+  (threshold to bright bone, drop a bubble, let it grow) — much faster than
+  hand-painting slice by slice.
+- For **heavy re-draws**, the **AI tool** roughs it in and you clean up.
+- Whatever tool you use, the goal is the same: the label edge sits on the bright
+  cortical bone, no spill onto gray/black. Pick the tool that gets you there
+  fastest for that particular fix.
+
+After each save, the tool prints a **QC check** (draft → your edit) so you can
+see whether your correction actually cleared the flag — use it as feedback while
+you're learning which approach works best.
+
 ## 0. The two things to remember
 
 1. **Only edit the region named in the terminal** — `spine` (L1–L6) **or**

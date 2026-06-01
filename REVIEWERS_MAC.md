@@ -33,7 +33,7 @@ time:
 ```bash
 git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git
 cd CTSpinoPelvic1K
-python3 -m pip install requests huggingface_hub numpy nibabel
+python3 -m pip install requests huggingface_hub numpy nibabel scipy
 hf auth login
 python3 -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review-triaged.hf.space
 ```

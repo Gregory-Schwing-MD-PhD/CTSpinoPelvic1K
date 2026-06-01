@@ -36,7 +36,7 @@ Open **PowerShell** (Start menu → type "PowerShell") and run these one at a ti
 ```powershell
 git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git
 cd CTSpinoPelvic1K
-py -m pip install requests huggingface_hub numpy nibabel
+py -m pip install requests huggingface_hub numpy nibabel scipy
 hf auth login
 py -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review-triaged.hf.space
 ```

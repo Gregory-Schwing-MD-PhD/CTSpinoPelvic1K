@@ -323,6 +323,76 @@ def _submit_adjudication(s, base, job, work, seg, notes) -> bool:
         work)
 
 
+def _qc_feedback(ct_path, before_path, after_path) -> None:
+    """Print a draft->edit QC comparison so the reviewer sees whether their fix
+    cleared the flag. Computes the same metrics the triage used. Degrades
+    SILENTLY if scipy / the QC modules aren't installed (it's just feedback)."""
+    try:
+        import numpy as np
+        import nibabel as nib
+        from vertebra_topology_qc import vertebra_topology_metrics
+        from bone_leak_qc import bone_leak_metrics
+        from structure_qc import structure_metrics
+    except Exception:
+        return
+    try:
+        bimg = nib.load(str(before_path))
+        aff = bimg.affine
+        before = np.asarray(bimg.dataobj)
+        after = np.asarray(nib.load(str(after_path)).dataobj)
+        ct = None
+        if Path(ct_path).exists():
+            c = np.asarray(nib.load(str(ct_path)).dataobj).astype(np.float32)
+            if c.shape[:3] == before.shape[:3]:
+                ct = c
+    except Exception:
+        return
+
+    def _metrics(lab):
+        out = {}
+        for fn in (lambda l: vertebra_topology_metrics(l, aff),
+                   lambda l: structure_metrics(l, aff)):
+            try:
+                out.update(fn(lab))
+            except Exception:
+                pass
+        if ct is not None:
+            try:
+                out.update(bone_leak_metrics(lab, ct))
+            except Exception:
+                pass
+        return out
+
+    mb, ma = _metrics(before), _metrics(after)
+    if not ma:
+        return
+    print("  QC check (draft -> your edit):")
+    elevated = False
+    for key, name, thr in (("off_bone_frac", "off-bone leak", 0.058),
+                           ("off_main_frac", "vertebra mixing", 0.005)):
+        if key not in ma:
+            continue
+        vb, va = mb.get(key), ma.get(key)
+        ok = va is not None and va <= thr
+        elevated = elevated or not ok
+        print(f"    {name:16s} {('%.4f' % vb) if vb is not None else '-':>8} -> "
+              f"{('%.4f' % va) if va is not None else '-':>8}   "
+              f"{'OK' if ok else 'STILL HIGH'} (target <= {thr})")
+    for key, name in (("n_order_inversions", "level order"),
+                      ("duplication_flag", "duplicated piece"),
+                      ("lr_swap", "L/R hip swap"),
+                      ("vertebra_gap", "missing level")):
+        vb, va = mb.get(key, 0), ma.get(key, 0)
+        if not vb and not va:
+            continue
+        ok = not va
+        elevated = elevated or not ok
+        print(f"    {name:16s} {vb} -> {va}   {'OK' if ok else 'STILL FLAGGED'}")
+    print("  ! some checks still elevated - recheck the flagged region "
+          "(or it may be a true case the metric can't fully clear)."
+          if elevated else "  OK - all automated checks pass on your edit.")
+
+
 def cmd_next(a):
     s, base = _api()
     job = _claim(s, base)
@@ -374,6 +444,12 @@ def cmd_next(a):
         return
     if crop:                                            # fold the crop edit into full-res
         _paste_edit_to_full(snap_seg, crop["origin"], pseudo, seg)
+
+    if not getattr(a, "no_qc", False):                  # real-time QC: did the fix clear it?
+        if crop:
+            _qc_feedback(snap_ct, work / "crop_seg.nii.gz", snap_seg)
+        else:
+            _qc_feedback(snap_ct, pseudo, seg)
 
     decision, record = build_submission(
         _load(pseudo), _load(seg), job["region_to_review"], _sha256(pseudo))
@@ -719,6 +795,9 @@ def main(argv=None) -> int:
                            help="for a crop case, ALSO pull the full scan from the "
                                 "original repo and open it read-only beside the crop "
                                 "(to verify the rest of the volume looks fine)")
+            p.add_argument("--no_qc", action="store_true",
+                           help="skip the draft->edit QC check printed after each "
+                                "edit (needs scipy; on by default)")
         if name == "adjudicate":
             p.add_argument("--notes", default="")
         p.set_defaults(fn=fn)
