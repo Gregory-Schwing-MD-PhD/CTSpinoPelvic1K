@@ -196,6 +196,35 @@ def _default_itksnap() -> str:
     return "itksnap"
 
 
+def _itksnap_failure_hint(rc: int) -> None:
+    """Platform-specific troubleshooting when ITK-SNAP won't start."""
+    if sys.platform.startswith("linux"):
+        print(f"  ITK-SNAP exited {rc}. On Ubuntu this is almost always the Qt "
+              "xcb library. Fix ONE of:\n"
+              "    sudo apt-get install -y libxcb-cursor0                 # with sudo\n"
+              "    conda install -y -c conda-forge xcb-util-cursor && \\\n"
+              "      cp $CONDA_PREFIX/lib/libxcb-cursor.so.0* ~/itksnap/lib/   # no sudo\n"
+              "  Also: `unset REVIEWTOOL_ITKSNAP` if it points at a stale path.")
+    elif sys.platform == "darwin":
+        print(f"  ITK-SNAP exited {rc}. On macOS, if it's Gatekeeper-quarantined:\n"
+              "    xattr -dr com.apple.quarantine /Applications/ITK-SNAP.app\n"
+              "  or open ITK-SNAP once from Finder to approve it.")
+    elif sys.platform.startswith("win"):
+        print(f"  ITK-SNAP exited {rc}. Ensure it's installed, then pass e.g.\n"
+              '    --itksnap "C:\\Program Files\\ITK-SNAP 4.2\\bin\\ITK-SNAP.exe"\n'
+              "  or set the REVIEWTOOL_ITKSNAP env var to the .exe path.")
+
+
+def _launch_itksnap_bg(itksnap: str, ct: Path, seg: Path, labels: Path):
+    """Open ITK-SNAP NON-blocking (for a persistent reference window). Returns a
+    Popen handle (or None if it couldn't launch)."""
+    try:
+        return subprocess.Popen([itksnap, "-g", str(ct), "-s", str(seg),
+                                 "-l", str(labels)])
+    except (FileNotFoundError, OSError):
+        return None
+
+
 def _launch_itksnap(itksnap: str, ct: Path, seg: Path, labels: Path) -> int:
     """Open ITK-SNAP on the case and return its exit code. A non-zero code
     means it failed to start or crashed (e.g. missing Qt platform lib) — the
@@ -319,6 +348,7 @@ def cmd_next(a):
               f"Your claim is saved (nothing sent to the server). Fix ITK-SNAP, "
               f"then re-open this case with:\n"
               f"  python -m reviewtool edit {job['case_id']}")
+        _itksnap_failure_hint(rc)
         return
 
     decision, record = build_submission(
@@ -356,6 +386,7 @@ def cmd_adjudicate(a):
         print(f"\nITK-SNAP exited with code {rc} — no deciding label captured. "
               f"Not submitting. Your claim is saved; fix ITK-SNAP and re-open "
               f"with:\n  python -m reviewtool edit {job['case_id']}__adj")
+        _itksnap_failure_hint(rc)
         return
     _submit_adjudication(s, base, job, work, seg, a.notes)
 
@@ -454,6 +485,7 @@ def cmd_edit(a):
     if rc != 0:
         print(f"ITK-SNAP exited with code {rc} — no edit captured. "
               "Not submitting; your claim is kept.")
+        _itksnap_failure_hint(rc)
         return
 
     if kind == "adjudicate":
@@ -555,6 +587,20 @@ def cmd_fix_list(a):
     labels_txt.write_text(labels_descriptor.descriptor_text())
     itksnap = a.itksnap or _default_itksnap()
 
+    # Optional persistent "good example" window beside the review window.
+    ref_proc = None
+    if a.reference:
+        rdir = Path(a.reference)
+        rct, rseg, rlbl = rdir / "ct.nii.gz", rdir / "seg.nii.gz", rdir / "labels.txt"
+        if not rlbl.exists():
+            rlbl.write_text(labels_descriptor.descriptor_text())
+        if rct.exists() and rseg.exists():
+            print(f"opening reference example beside review: {rdir.name} "
+                  "(leave it open to compare against)\n")
+            ref_proc = _launch_itksnap_bg(itksnap, rct, rseg, rlbl)
+        else:
+            print(f"reference {rdir} missing ct/seg — continuing without the example panel")
+
     print(f"{len(rows)} flagged case(s) to review — corrected labels go to {out}\n"
           f"(edit in ITK-SNAP, Save Segmentation, quit to advance; Ctrl-C to stop)\n")
     n_done = n_skip = 0
@@ -587,7 +633,9 @@ def cmd_fix_list(a):
             crop_seg = cdir / "seg.nii.gz"
             rc = _launch_itksnap(itksnap, cdir / "ct.nii.gz", crop_seg, cdir / "labels.txt")
             if rc != 0:
-                print(f"    ITK-SNAP exited {rc}; not saving — rerun to redo.")
+                print(f"    not saving — rerun to redo.")
+                _itksnap_failure_hint(rc)
+                n_skip += 1
                 continue
             _paste_crop_to_full(crop_seg, cj, src_pseudo, dst)
             print(f"    saved full-res -> {dst}")
@@ -598,8 +646,11 @@ def cmd_fix_list(a):
         _shutil.copy2(str(src_pseudo), str(dst))         # editable copy; SAVE here
         rc = _launch_itksnap(itksnap, src_ct, dst, labels_txt)
         if rc != 0:
-            print(f"    ITK-SNAP exited {rc}; left the unedited copy — rerun to redo.")
+            print(f"    left the unedited copy — rerun to redo.")
+            _itksnap_failure_hint(rc)
         n_done += 1
+    if ref_proc is not None:
+        ref_proc.terminate()
     print(f"\ndone: {n_done} opened, {n_skip} skipped. Reviewed tree: {out}")
 
 
@@ -643,6 +694,9 @@ def main(argv=None) -> int:
     p.add_argument("--crops", default=None,
                    help="review the small ROI crops in this dir "
                         "(from export_review_crops.py); edits paste back to full-res")
+    p.add_argument("--reference", default=None,
+                   help="a crop dir (ct/seg/labels) of a GOOD example to open in a "
+                        "second ITK-SNAP window beside each case for comparison")
     p.add_argument("--itksnap", default=None)
     p.add_argument("--all", action="store_true",
                    help="open every row, not just flagged ones")

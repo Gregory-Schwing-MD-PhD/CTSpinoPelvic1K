@@ -111,8 +111,12 @@ def _export_one(task: dict) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--qc_csv", required=True, type=Path, help="merged QC worklist")
-    ap.add_argument("--tree", required=True, type=Path, help="pseudo tree (ct/ + labels/)")
+    ap.add_argument("--qc_csv", type=Path, default=None, help="merged QC worklist (flagged rows)")
+    ap.add_argument("--tokens", default=None,
+                    help="instead of --qc_csv, export these explicit cases: a "
+                         "comma list of 'token' or 'token:config' (e.g. to make a "
+                         "GOOD reference example from data/hf_export)")
+    ap.add_argument("--tree", required=True, type=Path, help="source tree (ct/ + labels/)")
     ap.add_argument("--out", required=True, type=Path, help="crops output dir")
     ap.add_argument("--pad", type=int, default=8, help="voxel padding around bone bbox")
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 8) // 2))
@@ -122,11 +126,28 @@ def main() -> int:
     from review import labels_descriptor
     labels_txt = labels_descriptor.descriptor_text()
 
-    rows = _flagged_rows(args.qc_csv)
+    manifest = _load_manifest(args.tree / "manifest.json")
+    index = {(str(r.get("token")), str(r.get("config"))): r for r in manifest}
+
+    if args.tokens:
+        by_tok: dict = {}
+        for rec in manifest:
+            by_tok.setdefault(str(rec.get("token")), []).append(rec)
+        rows = []
+        for spec in args.tokens.split(","):
+            spec = spec.strip()
+            if not spec:
+                continue
+            tok, _, cfg = spec.partition(":")
+            for rec in by_tok.get(tok, []):
+                if not cfg or str(rec.get("config")) == cfg:
+                    rows.append({"token": tok, "config": str(rec.get("config"))})
+    elif args.qc_csv:
+        rows = _flagged_rows(args.qc_csv)
+    else:
+        sys.exit("provide --qc_csv (flagged worklist) or --tokens (explicit cases)")
     if args.limit:
         rows = rows[:args.limit]
-    index = {(str(r.get("token")), str(r.get("config"))): r
-             for r in _load_manifest(args.tree / "manifest.json")}
 
     tasks = []
     for r in rows:
