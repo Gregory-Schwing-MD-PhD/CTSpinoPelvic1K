@@ -95,15 +95,20 @@ def _export_one(task: dict) -> dict:
         nib.save(ct_img.slicer[bbox], str(out_dir / "ct.nii.gz"))
         nib.save(lbl_img.slicer[bbox], str(out_dir / "seg.nii.gz"))
         (out_dir / "labels.txt").write_text(task["labels_txt"])
-        (out_dir / "crop.json").write_text(json.dumps({
+        dname = out_dir.name
+        entry = {
             "token": tok, "config": task["config"],
             "label_file": task["label_file"],
+            "ct_crop": f"crops/{dname}/ct.nii.gz",     # path within the v2 repo once uploaded
+            "seg_crop": f"crops/{dname}/seg.nii.gz",
+            "dir": dname,
             "origin": [int(s.start) for s in bbox],
             "crop_shape": [int(s.stop - s.start) for s in bbox],
             "full_shape": [int(x) for x in lab.shape],
-        }, indent=2))
+        }
+        (out_dir / "crop.json").write_text(json.dumps(entry, indent=2))
         mb = sum(f.stat().st_size for f in out_dir.glob("*.nii.gz")) / 1e6
-        return {"token": tok, "status": "ok", "mb": round(mb, 1)}
+        return {"token": tok, "status": "ok", "mb": round(mb, 1), "entry": entry}
     except Exception as exc:                       # noqa: BLE001
         return {"token": tok, "status": "fail", "error": str(exc)}
 
@@ -171,6 +176,7 @@ def main() -> int:
     from concurrent.futures import ProcessPoolExecutor, as_completed
     n_ok = n_fail = 0
     sizes = []
+    index = []
     with ProcessPoolExecutor(max_workers=args.workers) as ex:
         futs = [ex.submit(_export_one, t) for t in tasks]
         for i, fut in enumerate(as_completed(futs), 1):
@@ -178,11 +184,16 @@ def main() -> int:
             if r["status"] == "ok":
                 n_ok += 1
                 sizes.append(r["mb"])
+                index.append(r["entry"])
             elif r["status"] == "fail":
                 n_fail += 1
                 log.warning("token=%s: crop failed (%s)", r["token"], r.get("error"))
             if i % 25 == 0 or i == len(futs):
                 log.info("  %d/%d done", i, len(futs))
+
+    # crops_index.json drives the Space's triage seeding + claim crop-urls: it
+    # lists exactly the cases to review and how to fold each crop back to full-res.
+    (args.out / "crops_index.json").write_text(json.dumps(index, indent=2))
 
     avg = (sum(sizes) / len(sizes)) if sizes else 0.0
     log.info("=" * 60)

@@ -104,8 +104,21 @@ def _startup():
             filename="manifest.json", revision=SERVICE.source_revision)
         data = json.loads(Path(mp).read_text())
         recs = data if isinstance(data, list) else data.get("records", [])
+        # TRIAGE: if the v2 repo carries crops/crops_index.json (the QC-flagged
+        # worklist), seed ONLY those cases and attach their review-crop info.
+        crops_index = None
+        try:
+            cp = hf_hub_download(repo_id=SERVICE.v2_repo, repo_type="dataset",
+                                 filename="crops/crops_index.json",
+                                 revision=SERVICE.source_revision)
+            crops_index = {e["label_file"]: e
+                           for e in json.loads(Path(cp).read_text())}
+            print(f"[startup] crops_index: triaging to {len(crops_index)} flagged case(s)")
+        except Exception:
+            print("[startup] no crops/crops_index.json — seeding the full manifest")
         n = store_mod.init_cases_from_manifest(
-            SERVICE.store, recs, source_revision=SERVICE.source_revision)
+            SERVICE.store, recs, source_revision=SERVICE.source_revision,
+            crops_index=crops_index)
         if n:
             print(f"[startup] seeded {n} new review case(s) from {SERVICE.v2_repo}")
         else:

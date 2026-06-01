@@ -165,6 +165,9 @@ class ReviewService:
             "source_label_sha256": case.get("source_label_sha256", ""),
             "prov_before": case["prov_before"],
             "labels_descriptor": labels_descriptor.descriptor_text(),
+            # Triage-crop review: small ct/seg crop + voxel origin so the client
+            # downloads a few MB and pastes its edit back into the full label.
+            "crop": case.get("crop"),
         }
 
     # ── submit ──────────────────────────────────────────────────────────────

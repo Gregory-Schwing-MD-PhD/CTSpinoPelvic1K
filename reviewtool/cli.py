@@ -332,16 +332,28 @@ def cmd_next(a):
     work = Path(a.workdir) / job["case_id"]
     work.mkdir(parents=True, exist_ok=True)
     _save_active(job, work, kind="review")              # durable before any edit
-    ct = _fetch(job, job["ct_file"], work / "ct.nii.gz")
+    crop = job.get("crop")
+    # The full pseudo LABEL is small (~MB) and is what we submit; with a crop we
+    # avoid the ~200 MB CT and only pull the few-MB crop CT + crop mask.
     pseudo = _fetch(job, job["label_file"], work / "pseudo.nii.gz")
     seg = work / "seg.nii.gz"
-    seg.write_bytes(pseudo.read_bytes())                # edit a copy
     labels = work / "labels.txt"
     labels.write_text(job.get("labels_descriptor")
                       or labels_descriptor.descriptor_text())
+    if crop:
+        snap_ct = _fetch(job, crop["ct_crop"], work / "ct.nii.gz")    # crop CT (few MB)
+        snap_seg = work / "crop_edit.nii.gz"
+        snap_seg.write_bytes(_fetch(job, crop["seg_crop"],
+                                    work / "crop_seg.nii.gz").read_bytes())
+        note = "crop review"
+    else:
+        snap_ct = _fetch(job, job["ct_file"], work / "ct.nii.gz")     # full CT
+        snap_seg = seg
+        seg.write_bytes(pseudo.read_bytes())                          # edit a copy
+        note = "review"
 
-    print(f"case {job['case_id']}  (review the {job['region_to_review']} region)")
-    rc = _launch_itksnap(a.itksnap or _default_itksnap(), ct, seg, labels)
+    print(f"case {job['case_id']}  ({note} — {job['region_to_review']} region)")
+    rc = _launch_itksnap(a.itksnap or _default_itksnap(), snap_ct, snap_seg, labels)
     if rc != 0:
         print(f"\nITK-SNAP exited with code {rc} — it failed to start or "
               f"crashed, so NO edit was captured. Not submitting.\n"
@@ -350,6 +362,8 @@ def cmd_next(a):
               f"  python -m reviewtool edit {job['case_id']}")
         _itksnap_failure_hint(rc)
         return
+    if crop:                                            # fold the crop edit into full-res
+        _paste_edit_to_full(snap_seg, crop["origin"], pseudo, seg)
 
     decision, record = build_submission(
         _load(pseudo), _load(seg), job["region_to_review"], _sha256(pseudo))
@@ -559,6 +573,20 @@ def _paste_crop_to_full(crop_seg: Path, crop_json: Path, full_src: Path, dst: Pa
     Path(dst).parent.mkdir(parents=True, exist_ok=True)
     nib.save(nib.Nifti1Image(merged.astype(full.dtype), full_img.affine,
                              full_img.header), str(dst))
+
+
+def _paste_edit_to_full(edit_seg: Path, origin, full_label: Path, dst: Path):
+    """Paste an edited crop mask into the full-res label at voxel `origin`, save
+    to dst. Lets a crop-reviewed case submit a full label (unchanged server)."""
+    import numpy as np
+    import nibabel as nib
+    from export_review_crops import paste_back
+    fi = nib.load(str(full_label))
+    full = np.asarray(fi.dataobj)
+    crop = np.asarray(nib.load(str(edit_seg)).dataobj)
+    merged = paste_back(full, crop, origin)
+    Path(dst).parent.mkdir(parents=True, exist_ok=True)
+    nib.save(nib.Nifti1Image(merged.astype(full.dtype), fi.affine, fi.header), str(dst))
 
 
 def cmd_fix_list(a):

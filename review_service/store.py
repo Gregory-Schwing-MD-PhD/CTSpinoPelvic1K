@@ -219,12 +219,19 @@ class ReviewStore:
 
 
 def init_cases_from_manifest(store: ReviewStore, records: List[dict],
-                             source_revision: str = "v2") -> int:
+                             source_revision: str = "v2",
+                             crops_index: Optional[dict] = None) -> int:
     """Create one review case per scoped (spine_only/pelvic_native) record.
 
     Idempotent: never clobbers a case that already has claims/reviews. The
     `region_to_review` is the pseudo-filled side (the only thing reviewers
     touch); priority defaults to 0 (raise it later for low-confidence).
+
+    TRIAGE + CROPS: if `crops_index` (keyed by pseudo label_file -> crop entry)
+    is given, ONLY the cases in it are seeded — i.e. the QC-flagged worklist —
+    and each case carries a `crop` block (small ct/seg crop paths + voxel
+    origin) so the client can review a few-MB crop and paste the edit back to
+    full-res. Without it, the full manifest is seeded as before.
 
     All new cases are written in a SINGLE commit (store.put_cases). Writing
     one commit per case trips HF's 128-commits/hour limit on first boot;
@@ -240,10 +247,12 @@ def init_cases_from_manifest(store: ReviewStore, records: List[dict],
         region = {"spine_only": "pelvis", "pelvic_native": "spine"}.get(cfg)
         if region is None:                       # fused / out of scope
             continue
+        if crops_index is not None and rec.get("label_file") not in crops_index:
+            continue                             # triage: only the flagged worklist
         cid = schema.case_id(rec.get("token"), cfg)
         if cid in existing:                      # don't overwrite live state
             continue
-        new_cases.append({
+        case = {
             "case_id": cid,
             "token": str(rec.get("token")),
             "config": cfg,
@@ -257,6 +266,11 @@ def init_cases_from_manifest(store: ReviewStore, records: List[dict],
                             "pelvis": rec.get("prov_pelvis")},
             "slots": {},
             "final": None,
-        })
+        }
+        if crops_index is not None:
+            e = crops_index[rec["label_file"]]
+            case["crop"] = {"ct_crop": e["ct_crop"], "seg_crop": e["seg_crop"],
+                            "origin": e["origin"]}
+        new_cases.append(case)
     store.put_cases(new_cases)                   # single commit (no-op if empty)
     return len(new_cases)
