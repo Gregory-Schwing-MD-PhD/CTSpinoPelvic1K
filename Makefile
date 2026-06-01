@@ -457,7 +457,7 @@ push-crops: check-container  ## Upload review crops to the v2 dataset under crop
 push-reference: check-container  ## Crop a clean gold case and upload it to crops/reference/ (the review gold example). HF_TOKEN + HF_REPO_ID required; REF_TOKEN optional.
 	@mkdir -p $(LOGS_DIR)
 	@echo "Submitting push-reference -> $(HF_REPO_ID)@$(if $(strip $(HF_REVISION)),$(HF_REVISION),v2):crops/reference/"
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),HF_REPO_ID=$(HF_REPO_ID),HF_REVISION=$(HF_REVISION),REF_TOKEN=$(REF_TOKEN),HF_EXPORT_DIR=$(HF_EXPORT_DIR) \
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),HF_REPO_ID=$(HF_REPO_ID),HF_REVISION=$(HF_REVISION),REF_TOKEN=$(REF_TOKEN),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR) \
 	       slurm/push_reference.sh
 
 

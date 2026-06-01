@@ -11,18 +11,20 @@
 #SBATCH --mail-type=END,FAIL
 
 # =============================================================================
-# push_reference — crop ONE clean gold (fused) case and upload it to
+# push_reference — crop ONE clean, COMPLETE example case and upload it to
 # crops/reference/ in the v2 dataset, so the review tool opens it as the
-# side-by-side GOLD example for every case. Auto-picks a clean fused token if
-# REF_TOKEN is not given. See scripts/export_review_crops.py
+# side-by-side good example for every case. Defaults to a clean SCOPED case
+# (config != fused, needs_review=0) from the v2 tree — small crop, like the
+# worklist — rather than a fused gold case (whose full diagnostic CT crops big).
+# See scripts/export_review_crops.py
 #
 # Options (env):
 #   HF_TOKEN       write token (REQUIRED)
 #   HF_REPO_ID     dataset repo, e.g. gregoryschwingmdphd/CTSpinoPelvic1K (REQUIRED)
 #   HF_REVISION    branch                              (default: v2)
-#   REF_TOKEN      the gold case token (default: auto-pick a clean fused)
-#   HF_EXPORT_DIR  manual/gold tree                    (default: data/hf_export)
-#   REF_QC_CSV     radiologist master for auto-pick    (default: data/qc_master_manual.csv)
+#   REF_TOKEN      example as 'token:config' (default: auto-pick a clean scoped)
+#   PSEUDO_OUT_DIR tree to crop from                   (default: data/hf_export_v2)
+#   REF_QC_CSV     calibrated master for auto-pick     (default: data/qc_master.csv)
 # =============================================================================
 set -euo pipefail
 
@@ -34,8 +36,8 @@ HF_TOKEN="${HF_TOKEN:-}"
 HF_REPO_ID="${HF_REPO_ID:-}"
 HF_REVISION="${HF_REVISION:-v2}"
 REF_TOKEN="${REF_TOKEN:-}"
-HF_EXPORT_DIR="${HF_EXPORT_DIR:-${DATA_DIR}/hf_export}"
-REF_QC_CSV="${REF_QC_CSV:-${DATA_DIR}/qc_master_manual.csv}"
+PSEUDO_OUT_DIR="${PSEUDO_OUT_DIR:-${DATA_DIR}/hf_export_v2}"
+REF_QC_CSV="${REF_QC_CSV:-${DATA_DIR}/qc_master.csv}"
 REF_DIR="${DATA_DIR}/ref_tmp"
 
 mkdir -p "${LOGS_DIR}" "${REF_DIR}"
@@ -43,35 +45,38 @@ mkdir -p "${LOGS_DIR}" "${REF_DIR}"
 [[ -z "${HF_TOKEN}" ]]   && { echo "ERROR: HF_TOKEN required (write token)"; exit 1; }
 [[ -z "${HF_REPO_ID}" ]] && { echo "ERROR: HF_REPO_ID required"; exit 1; }
 [[ -f "${SIF_PATH}" ]]   || { echo "ERROR: container missing. make build-container"; exit 1; }
-[[ -f "${HF_EXPORT_DIR}/manifest.json" ]] || { echo "ERROR: no manifest in ${HF_EXPORT_DIR}"; exit 1; }
+[[ -f "${PSEUDO_OUT_DIR}/manifest.json" ]] || { echo "ERROR: no manifest in ${PSEUDO_OUT_DIR}"; exit 1; }
 
-# Auto-pick the cleanest fused case (config=fused, needs_review=0) if not named.
-if [[ -z "${REF_TOKEN}" ]]; then
+# REF_SPEC = 'token:config' fed to export_review_crops --tokens. Auto-pick a
+# clean, NON-fused (small) case if not given.
+REF_SPEC="${REF_TOKEN:-}"
+if [[ -z "${REF_SPEC}" ]]; then
     if [[ -f "${REF_QC_CSV}" ]]; then
-        REF_TOKEN=$(awk -F, 'NR>1 && $2=="fused" && $3==0 {print $1; exit}' "${REF_QC_CSV}")
+        REF_SPEC=$(awk -F, 'NR>1 && $3==0 && $2!="fused" {print $1":"$2; exit}' "${REF_QC_CSV}")
     fi
-    if [[ -z "${REF_TOKEN}" ]]; then
-        echo "ERROR: could not auto-pick a clean fused token from ${REF_QC_CSV}."
-        echo "       Pass one explicitly: REF_TOKEN=<token> make push-reference ..."; exit 1
+    if [[ -z "${REF_SPEC}" ]]; then
+        echo "ERROR: could not auto-pick a clean scoped case from ${REF_QC_CSV}."
+        echo "       Pass one: REF_TOKEN=<token>:<config> make push-reference ..."; exit 1
     fi
 fi
 echo "======================================================================"
-echo " push_reference — gold example -> ${HF_REPO_ID}@${HF_REVISION}:crops/reference/"
+echo " push_reference — example -> ${HF_REPO_ID}@${HF_REVISION}:crops/reference/"
 echo "   Job ID    : ${SLURM_JOB_ID:-local}   Node: $(hostname)"
-echo "   gold token: ${REF_TOKEN}  (fused)"
+echo "   example   : ${REF_SPEC}   (clean, complete; small crop)"
+echo "   tree      : ${PSEUDO_OUT_DIR}"
 echo "   Started   : $(date)"
 echo "======================================================================"
 
 BINDS="${PROJECT_ROOT}:/workspace,${DATA_DIR}:/data"
 ENV_VARS="PYTHONPATH=/workspace/scripts:/workspace,PYTHONUNBUFFERED=1,HF_TOKEN=${HF_TOKEN}"
 
-# 1) crop the gold case
+# 1) crop the example case
 rm -rf "${REF_DIR:?}"/* 2>/dev/null || true
 stdbuf -oL -eL singularity exec \
     --env "${ENV_VARS}" --bind "${BINDS}" --pwd /workspace "${SIF_PATH}" \
     python3 -u /workspace/scripts/export_review_crops.py \
-        --tokens "${REF_TOKEN}:fused" \
-        --tree   "/data/$(basename "${HF_EXPORT_DIR}")" \
+        --tokens "${REF_SPEC}" \
+        --tree   "/data/$(basename "${PSEUDO_OUT_DIR}")" \
         --out    "/data/ref_tmp"
 
 # 2) upload the single crop dir to crops/reference/
@@ -82,7 +87,7 @@ import glob, os
 from huggingface_hub import upload_folder
 dirs = sorted(glob.glob('/data/ref_tmp/*/'))
 if not dirs:
-    raise SystemExit('no crop produced for ${REF_TOKEN} (token not in ${HF_EXPORT_DIR}?)')
+    raise SystemExit('no crop produced for ${REF_SPEC} (not in ${PSEUDO_OUT_DIR}?)')
 d = dirs[0]
 upload_folder(folder_path=d, path_in_repo='crops/reference',
               repo_id='${HF_REPO_ID}', repo_type='dataset', revision='${HF_REVISION}',
