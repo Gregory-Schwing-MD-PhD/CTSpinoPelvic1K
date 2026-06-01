@@ -65,7 +65,7 @@ python -m reviewtool login --service <SERVICE_URL>
 ```
 You sign in with your own HuggingFace account — there's no separate reviewer
 key. `<SERVICE_URL>` comes from the maintainer (it looks like
-`https://<org>-ctspinopelvic1k-review.hf.space`).
+`https://<org>-ctspinopelvic1k-review-triaged.hf.space`).
 
 ### 4. Review a case
 ```bash
@@ -173,7 +173,7 @@ no per-reviewer keys to mint or distribute. `REVIEWER_KEYS` is still honored if
 set (legacy), but isn't needed.
 
 On boot it seeds one review case per `spine_only`/`pelvic_native` record from
-the v2 manifest. The Space URL (`https://<org>-ctspinopelvic1k-review.hf.space`)
+the v2 manifest. The Space URL (`https://<org>-ctspinopelvic1k-review-triaged.hf.space`)
 is the `--service` value you give reviewers; the dashboard is at `/`.
 
 ### 3. Onboard reviewers

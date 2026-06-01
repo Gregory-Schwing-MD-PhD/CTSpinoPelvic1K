@@ -4,11 +4,27 @@ Thanks for helping review the spine + pelvis segmentations! Each CT already has
 an AI-generated *draft* segmentation; your job is to open one case at a time in
 **ITK-SNAP**, fix **one** region, save, and quit. The tool handles the rest.
 
-## Open the guide for your computer
+## What's different now (triaged + fast)
 
-- **Windows** → **[REVIEWERS_WINDOWS.md](REVIEWERS_WINDOWS.md)**
+You only review cases that **automated quality checks flagged** as likely wrong
+— not all 800+. When the tool opens a case it prints a **`WHY FLAGGED:`** line
+telling you the suspected problem, and it downloads a small **cropped** region
+(a few seconds, not a 200 MB volume). Each case is quick and you know what to
+look for.
+
+## How to actually fix a case → **[REVIEWERS_FIXING.md](REVIEWERS_FIXING.md)**
+
+If you've never edited a segmentation, **read this first** — it covers the
+ITK-SNAP tools, how to tell bone from soft tissue on the CT, how to identify a
+vertebra level, and a fix recipe for each kind of flag.
+
+## Open the setup guide for your computer
+
+- **Windows** → **[REVIEWERS_WINDOWS.md](REVIEWERS_WINDOWS.md)**  *(recommended —
+  no WSL/Linux graphics headaches)*
 - **Mac** → **[REVIEWERS_MAC.md](REVIEWERS_MAC.md)**
 - **Linux / Windows WSL** → **[REVIEWERS_LINUX.md](REVIEWERS_LINUX.md)**
+  *(needs a one-time `libxcb-cursor0` step for ITK-SNAP)*
 
 ## How you sign in (all platforms)
 

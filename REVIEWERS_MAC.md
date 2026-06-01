@@ -35,7 +35,7 @@ git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git
 cd CTSpinoPelvic1K
 python3 -m pip install requests huggingface_hub numpy nibabel
 hf auth login
-python3 -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review.hf.space
+python3 -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review-triaged.hf.space
 ```
 
 > - `hf auth login` asks for the **Read** token you copied — paste it (it stays
@@ -54,7 +54,11 @@ Steps 1–2 are done **once**.
 python3 -m reviewtool next
 ```
 
-This claims a case, downloads its CT + draft, and opens ITK-SNAP. Then:
+This claims a **flagged** case, downloads a small **crop** (fast), and opens
+ITK-SNAP. The terminal prints a **`WHY FLAGGED:`** line with the suspected
+problem. **New to editing? Open [REVIEWERS_FIXING.md](REVIEWERS_FIXING.md)** —
+ITK-SNAP tools + a fix recipe per flag. (Add `--full` to also open the whole
+scan read-only for context.) Then:
 
 1. The terminal says **which region to review** — `spine` (L1–L6) **or** `pelvis`
    (sacrum + both hips). **Only edit that region**; the other is an expert manual

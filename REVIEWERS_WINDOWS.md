@@ -38,7 +38,7 @@ git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git
 cd CTSpinoPelvic1K
 py -m pip install requests huggingface_hub numpy nibabel
 hf auth login
-py -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review.hf.space
+py -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review-triaged.hf.space
 ```
 
 > - `hf auth login` asks for the **Read** token you copied — paste it (it stays
@@ -55,18 +55,26 @@ Steps 1–3 are done **once**.
 py -m reviewtool next
 ```
 
-This claims a case, downloads its CT + draft, and opens ITK-SNAP. Then:
+This claims a **flagged** case, downloads a small **crop** (a few MB, fast), and
+opens ITK-SNAP. Then:
 
-1. The terminal says **which region to review** — `spine` (L1–L6) **or** `pelvis`
-   (sacrum + both hips). **Only edit that region**; the other is an expert manual
-   annotation — don't touch it.
-2. Fix the draft with the brush / polygon tools. **Don't renumber or recolor
-   labels** — the palette is locked: `L1–L6 = 1–6`, `sacrum = 7`,
-   `left hip = 8`, `right hip = 9`.
-3. **Segmentation → Save Segmentation Image**, saving **over the file it opened**
+1. Read the **`WHY FLAGGED:`** line the terminal printed — it names the suspected
+   problem (a leak, a mixed-up vertebra, a stray piece). That's what to look for.
+   **New to editing? Keep [REVIEWERS_FIXING.md](REVIEWERS_FIXING.md) open** — it
+   has a step-by-step fix recipe for each kind of flag.
+2. The terminal also says **which region to review** — `spine` (L1–L6) **or**
+   `pelvis` (sacrum + both hips). **Only edit that region**; the other is an
+   expert manual annotation — don't touch it.
+3. Fix the draft with the brush / polygon / eraser tools (see the fixing guide).
+   **Don't renumber or recolor labels** — the palette is locked: `L1–L6 = 1–6`,
+   `sacrum = 7`, `left hip = 8`, `right hip = 9`.
+   *Want to see the whole scan for context?* `py -m reviewtool next --full` opens
+   the full CT read-only beside the crop.
+4. **Segmentation → Save Segmentation Image**, saving **over the file it opened**
    (`seg.nii.gz`). Then **quit ITK-SNAP**.
-4. On quit the tool uploads your result — you'll see `submitted -> ...`. Nothing
-   to fix? Just save and quit; that's a valid "accept".
+5. On quit the tool uploads your result — you'll see `submitted -> ...`. Nothing
+   actually wrong (the flag can be a false alarm)? Just save and quit; that's a
+   valid "accept".
 
 Repeat `py -m reviewtool next` for the next case. Check progress with:
 

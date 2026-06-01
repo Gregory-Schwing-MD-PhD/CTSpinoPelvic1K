@@ -88,7 +88,7 @@ python3 -m pip install requests huggingface_hub numpy nibabel
 
 ```bash
 hf auth login        # paste your Read token; answer "n" to git creds
-python3 -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review.hf.space
+python3 -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-review-triaged.hf.space
 ```
 
 Section 1 is done **once**.
@@ -102,7 +102,11 @@ there):
 python3 -m reviewtool next
 ```
 
-This claims a case, downloads its CT + draft, and opens ITK-SNAP. Then:
+This claims a **flagged** case, downloads a small **crop** (fast), and opens
+ITK-SNAP. The terminal prints a **`WHY FLAGGED:`** line with the suspected
+problem. **New to editing? Open [REVIEWERS_FIXING.md](REVIEWERS_FIXING.md)** —
+ITK-SNAP tools + a fix recipe per flag. (Add `--full` to also open the whole
+scan read-only for context.) Then:
 
 1. The terminal says **which region to review** — `spine` (L1–L6) **or** `pelvis`
    (sacrum + both hips). **Only edit that region**; the other is an expert manual
