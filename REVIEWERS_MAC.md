@@ -63,7 +63,8 @@ against. Then:
    [REVIEWERS_FIXING.md](REVIEWERS_FIXING.md)** — ITK-SNAP tools, video
    tutorials, and a fix recipe per flag.
 2. **Only edit the region named** — `spine` (L1–L6) **or** `pelvis` (sacrum +
-   hips); don't touch the other. **Don't renumber/recolor labels** —
+   hips); don't touch the other. *(If it says **"the WHOLE scan"** — a gold case
+   being re-checked — edit the whole label.)* **Don't renumber/recolor labels** —
    `L1–L6 = 1–6, sacrum = 7, left hip = 8, right hip = 9`.
 3. Fix it, then **Save Segmentation** (**⌘-S**). The terminal **re-runs the QC
    and shows progress** (`off-bone leak 0.072 -> 0.008 OK`). Keep editing and

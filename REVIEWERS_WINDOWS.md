@@ -65,9 +65,10 @@ downloads a small **crop** (a few MB, fast), opens it in ITK-SNAP, and opens a
    open** — it has a fix recipe for each kind of flag, and links to short video
    tutorials.
 2. **Only edit the region named** — `spine` (L1–L6) **or** `pelvis` (sacrum +
-   both hips). Don't touch the other region. **Don't renumber or recolor
-   labels** — locked: `L1–L6 = 1–6`, `sacrum = 7`, `left hip = 8`,
-   `right hip = 9`.
+   both hips). Don't touch the other region. *(If it says **"the WHOLE scan"** —
+   a radiologist gold case being re-checked — edit the whole label; both regions
+   are fair game.)* **Don't renumber or recolor labels** — locked:
+   `L1–L6 = 1–6`, `sacrum = 7`, `left hip = 8`, `right hip = 9`.
 3. Fix it, then **Save Segmentation** (**Ctrl-S**). The terminal **re-runs the QC
    and shows your progress** — e.g. `off-bone leak 0.072 -> 0.008 OK`. Keep
    editing and saving until the checks read **OK**: that's your measurable goal.

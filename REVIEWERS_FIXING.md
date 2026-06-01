@@ -44,9 +44,11 @@ only when the checks read `OK`.
 
 ## 0. The two things to remember
 
-1. **Only edit the region named in the terminal** — `spine` (L1–L6) **or**
+1. **Edit only the region named in the terminal** — `spine` (L1–L6) **or**
    `pelvis` (sacrum + both hips). The other region is expert manual annotation —
-   don't touch it.
+   don't touch it. **Exception:** if it says **"the WHOLE scan (radiologist gold
+   being re-checked)"**, this is a gold case the QC flagged — edit the **whole
+   label**; both regions are fair game.
 2. **Never renumber or recolor labels.** The palette is locked:
    `L1=1, L2=2, L3=3, L4=4, L5=5, L6=6, sacrum=7, left hip=8, right hip=9`.
    Always paint with the *correct existing label* from the list on the left.
