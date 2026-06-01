@@ -57,19 +57,27 @@ CLASS_NAMES = {1: "L1", 2: "L2", 3: "L3", 4: "L4", 5: "L5", 6: "L6",
 
 def bone_leak_metrics(label, ct, *, bone_hu: float = 150.0, bg_hu: float = -200.0,
                       fg_labels=BONE_CLASSES, tol: float = 0.02) -> Dict[str, float]:
-    """Off-bone label-leak metrics for one (label, CT) pair. See module doc.
+    """Off-bone label-leak AND in-envelope under-seg metrics for one (label, CT).
 
-    leak_c   = (label==c) AND NOT solid_fill((label==c) & CT>=bone_hu)
-               i.e. labelled voxels neither bone nor enclosed marrow.
-    bg_leak  = leak voxels with CT < bg_hu (bled into air).
+    OVER-seg (robust, GT-free):
+      leak_c   = (label==c) AND NOT solid_fill((label==c) & CT>=bone_hu)
+                 -> labelled voxels neither bone nor enclosed marrow (bled off
+                 the cortex). bg_leak = leak with CT < bg_hu (bled into air).
+    UNDER-seg (bounded proxy — see module doc / caveat):
+      under_c  = solid_fill(label==c) AND CT>=bone_hu AND label==0
+                 -> real bone INSIDE the label's own filled envelope that the
+                 label skipped (a moth-eaten / notched structure). This catches
+                 internal misses; it CANNOT catch a label that is uniformly too
+                 small (its envelope shrinks with it). Pure missed-bone vs a
+                 neighbour is not GT-free-decidable, so we scope to the envelope.
     """
     import numpy as np
     lab = np.asarray(label)
     ct = np.asarray(ct, dtype=np.float32)
+    is_bone = ct >= bone_hu
+    is_bg = lab == 0
 
-    total_fg = 0
-    total_leak = 0
-    total_bg_leak = 0
+    total_fg = total_leak = total_bg_leak = total_under = 0
     worst_class = 0
     worst_frac = 0.0
     for c in fg_labels:
@@ -77,25 +85,31 @@ def bone_leak_metrics(label, ct, *, bone_hu: float = 150.0, bg_hu: float = -200.
         n = int(m.sum())
         if n == 0:
             continue
-        bone = m & (ct >= bone_hu)
+        bone = m & is_bone
         solid = _solid_fill(bone)          # bone + enclosed marrow
-        leak = m & ~solid                  # exposed sub-bone-HU label = leak
+        leak = m & ~solid                  # exposed sub-bone-HU label = over-seg
+        env = _solid_fill(m)               # the label's own filled envelope
+        under = env & is_bone & is_bg      # bone inside envelope the label skipped
         lk = int(leak.sum())
         total_fg += n
         total_leak += lk
         total_bg_leak += int((leak & (ct < bg_hu)).sum())
+        total_under += int(under.sum())
         frac = lk / n if n else 0.0
         if frac > worst_frac:
             worst_frac, worst_class = frac, c
 
     off_bone_frac = (total_leak / total_fg) if total_fg else 0.0
     bg_leak_frac = (total_bg_leak / total_fg) if total_fg else 0.0
+    under_seg_frac = (total_under / total_fg) if total_fg else 0.0
     return {
         "fg_vox": total_fg,
         "off_bone_frac": round(off_bone_frac, 6),
         "bg_leak_frac": round(bg_leak_frac, 6),
+        "under_seg_frac": round(under_seg_frac, 6),
         "leak_vox": total_leak,
         "bg_leak_vox": total_bg_leak,
+        "under_seg_vox": total_under,
         "worst_class": CLASS_NAMES.get(worst_class, ""),
         "worst_class_frac": round(worst_frac, 6),
         "leak_flag": int(off_bone_frac > tol),
@@ -107,8 +121,8 @@ def bone_leak_metrics(label, ct, *, bone_hu: float = 150.0, bg_hu: float = -200.
 # ===========================================================================
 
 _FIELDS = ["token", "config", "fg_vox", "off_bone_frac", "bg_leak_frac",
-           "leak_vox", "bg_leak_vox", "worst_class", "worst_class_frac",
-           "leak_flag"]
+           "under_seg_frac", "leak_vox", "bg_leak_vox", "under_seg_vox",
+           "worst_class", "worst_class_frac", "leak_flag"]
 
 
 def _leak_one(task: dict) -> Optional[dict]:
@@ -141,6 +155,7 @@ def _summarize(rows: List[dict], name: str) -> dict:
         "off_bone_mean": round(float(np.mean(of)), 6),
         "off_bone_p95": round(float(np.percentile(of, 95)), 6),
         "bg_leak_mean": round(float(np.mean([r["bg_leak_frac"] for r in rows])), 6),
+        "under_seg_mean": round(float(np.mean([float(r["under_seg_frac"]) for r in rows])), 6),
     }
 
 
@@ -204,6 +219,7 @@ def main() -> int:
         for r in other:
             r["off_bone_frac"] = float(r["off_bone_frac"])
             r["bg_leak_frac"] = float(r["bg_leak_frac"])
+            r["under_seg_frac"] = float(r.get("under_seg_frac", 0.0))
             r["leak_flag"] = int(r["leak_flag"])
         log.info("-" * 64)
         _log_summary(_summarize(other, args.compare.stem))
@@ -216,8 +232,10 @@ def _log_summary(s: dict) -> None:
     if s.get("n", 0) == 0:
         log.info("  %s: no cases", s["name"]); return
     log.info("  %-22s n=%-4d  flagged=%.1f%%", s["name"], s["n"], s["pct_flagged"])
-    log.info("      off_bone_frac mean=%.4f p95=%.4f | bg(air)_leak mean=%.4f",
-             s["off_bone_mean"], s["off_bone_p95"], s["bg_leak_mean"])
+    log.info("      off_bone_frac mean=%.4f p95=%.4f | bg(air)_leak mean=%.4f | "
+             "under_seg(envelope) mean=%.4f",
+             s["off_bone_mean"], s["off_bone_p95"], s["bg_leak_mean"],
+             s["under_seg_mean"])
 
 
 if __name__ == "__main__":

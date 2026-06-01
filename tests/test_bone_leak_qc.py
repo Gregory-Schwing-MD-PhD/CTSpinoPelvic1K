@@ -46,6 +46,21 @@ def test_exposed_softtissue_label_is_leak():
     assert m["worst_class"] == "L5"
 
 
+def test_under_seg_internal_missed_bone():
+    # a bone voxel INSIDE the label's own envelope that the label skipped
+    # (moth-eaten) counts as under-seg, not as leak.
+    lab = np.zeros((1, 6, 6), dtype=np.int16)
+    ct = np.full((1, 6, 6), 400.0, dtype=np.float32)     # all bone
+    for i in (1, 2, 3):
+        for j in (1, 2, 3):
+            lab[0, i, j] = 4
+    lab[0, 2, 2] = 0                                      # skipped an interior bone voxel
+    m = bone_leak_metrics(lab, ct)
+    assert m["under_seg_vox"] == 1
+    assert m["under_seg_frac"] > 0.0
+    assert m["off_bone_frac"] == 0.0                     # not a leak
+
+
 def test_background_air_leak_counted():
     lab = np.zeros((1, 4, 8), dtype=np.int16)
     ct = np.full((1, 4, 8), 400.0, dtype=np.float32)
