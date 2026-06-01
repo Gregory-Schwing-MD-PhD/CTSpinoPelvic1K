@@ -165,9 +165,11 @@ LEAK_BONE_HU      := $(strip $(LEAK_BONE_HU))
 STRUCT_MANUAL_CSV ?=
 STRUCT_PSEUDO_CSV ?=
 STRUCT_FLIP_LR    ?= 0
+STRUCT_DUP_RATIO  ?= 0.2
 STRUCT_MANUAL_CSV := $(strip $(STRUCT_MANUAL_CSV))
 STRUCT_PSEUDO_CSV := $(strip $(STRUCT_PSEUDO_CSV))
 STRUCT_FLIP_LR    := $(strip $(STRUCT_FLIP_LR))
+STRUCT_DUP_RATIO  := $(strip $(STRUCT_DUP_RATIO))
 
 # ── Stage 4 control (TotalSegmentator benchmark) ─────────────────────────────
 TS_WINDOW_MM    ?= 40.0
@@ -417,7 +419,7 @@ bone-leak-qc: check-container  ## GT-free off-bone label-leak QC on manual vs ps
 structure-qc: check-container  ## GT-free structure QC (presence/dup/gap/L-R swap) manual vs pseudo (CPU)
 	@mkdir -p $(LOGS_DIR)
 	@echo "Submitting structure-qc (presence / duplication / gap / L-R swap)"
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),STRUCT_MANUAL_CSV=$(STRUCT_MANUAL_CSV),STRUCT_PSEUDO_CSV=$(STRUCT_PSEUDO_CSV),STRUCT_FLIP_LR=$(STRUCT_FLIP_LR),QC_LIMIT=$(QC_LIMIT) \
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),STRUCT_MANUAL_CSV=$(STRUCT_MANUAL_CSV),STRUCT_PSEUDO_CSV=$(STRUCT_PSEUDO_CSV),STRUCT_FLIP_LR=$(STRUCT_FLIP_LR),STRUCT_DUP_RATIO=$(STRUCT_DUP_RATIO),QC_LIMIT=$(QC_LIMIT) \
 	       slurm/structure_qc.sh
 
 

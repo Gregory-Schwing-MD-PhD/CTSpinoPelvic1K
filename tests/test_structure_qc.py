@@ -71,8 +71,19 @@ def test_pelvis_incomplete_flagged():
 
 def test_duplicated_structure_flagged():
     v = np.zeros((30, 12, 12), dtype=np.int16)
-    v[2:5, 4:7, 4:7] = 3                 # L3 component A
-    v[20:23, 4:7, 4:7] = 3              # L3 component B (duplicate, far away)
+    v[2:5, 4:7, 4:7] = 3                 # L3 component A (27 vox)
+    v[20:23, 4:7, 4:7] = 3              # L3 component B, comparable size -> real split
     m = structure_metrics(v, EYE, min_dup_vox=10)
     assert m["n_dup_classes"] == 1
     assert m["duplication_flag"] == 1
+
+
+def test_small_fragment_does_not_flag_duplication():
+    # a big structure with a tiny detached speck must NOT trip duplication
+    # (2nd component is below the size ratio).
+    v = np.zeros((30, 12, 12), dtype=np.int16)
+    v[2:10, 2:10, 2:10] = 3              # large component (512 vox)
+    v[20:21, 5:6, 5:6] = 3             # 1-voxel speck
+    m = structure_metrics(v, EYE, min_dup_vox=10, dup_ratio=0.2)
+    assert m["n_dup_classes"] == 0
+    assert m["duplication_flag"] == 0

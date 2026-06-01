@@ -60,7 +60,7 @@ def _world_x(affine, com):
 
 
 def structure_metrics(label, affine, *, min_dup_vox: int = 500,
-                      flip_lr: bool = False) -> Dict[str, float]:
+                      dup_ratio: float = 0.2, flip_lr: bool = False) -> Dict[str, float]:
     """Structure-level QC for one label map (+ affine). See module docstring."""
     import numpy as np
     from scipy.ndimage import (label as cc_label, generate_binary_structure,
@@ -70,14 +70,19 @@ def structure_metrics(label, affine, *, min_dup_vox: int = 500,
 
     present = [c for c in (*SPINE, SACRUM, LEFT_HIP, RIGHT_HIP) if np.any(lab == c)]
 
-    # ── duplication: classes with >=2 LARGE connected components ─────────────
+    # ── duplication: a class split into >=2 SUBSTANTIAL components ───────────
+    # A real duplicate/split has a second component that is both absolutely
+    # large (>= min_dup_vox) AND a meaningful FRACTION of the largest
+    # (>= dup_ratio). The fraction gate rejects small fragments/specks hanging
+    # off an otherwise-fine structure, which a pure size cutoff over-flags.
     n_dup = 0
     for c in present:
         cc, n = cc_label(lab == c, structure=struct)
         if n < 2:
             continue
-        sizes = np.bincount(cc.ravel())[1:]
-        if int((sizes >= min_dup_vox).sum()) >= 2:
+        sizes = np.sort(np.bincount(cc.ravel())[1:])[::-1]   # descending
+        largest, second = int(sizes[0]), int(sizes[1])
+        if second >= min_dup_vox and second >= dup_ratio * largest:
             n_dup += 1
 
     # ── vertebra gap: missing levels inside the present spine span ───────────
@@ -139,7 +144,8 @@ def _qc_one(task: dict) -> Optional[dict]:
     try:
         img = nib.load(task["label_path"])
         lab = np.asarray(img.dataobj)
-        m = structure_metrics(lab, img.affine, flip_lr=task["flip_lr"])
+        m = structure_metrics(lab, img.affine, dup_ratio=task["dup_ratio"],
+                              flip_lr=task["flip_lr"])
         return {"token": tok, "config": task["config"], **m}
     except Exception as exc:                 # noqa: BLE001
         log.warning("token=%s: structure QC failed (%s)", tok, exc)
@@ -166,6 +172,10 @@ def main() -> int:
     ap.add_argument("--tree", required=True, type=Path)
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--compare", type=Path, default=None)
+    ap.add_argument("--dup_ratio", type=float, default=0.2,
+                    help="flag duplication only when the 2nd-largest component "
+                         "is >= this fraction of the largest (default 0.2) — "
+                         "rejects specks, keeps real splits.")
     ap.add_argument("--flip_lr", action="store_true",
                     help="invert the L-R convention (use if the radiologist "
                          "baseline shows lr_swap ~100%)")
@@ -182,7 +192,7 @@ def main() -> int:
         records = records[:args.limit]
     tasks = [{"token": str(r.get("token")), "config": r.get("config"),
               "label_path": str(args.tree / r["label_file"]),
-              "flip_lr": args.flip_lr}
+              "dup_ratio": args.dup_ratio, "flip_lr": args.flip_lr}
              for r in records if (args.tree / r["label_file"]).exists()]
     log.info("structure_qc: %d label maps, %d workers", len(tasks), args.workers)
 

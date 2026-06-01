@@ -33,6 +33,7 @@ PSEUDO_OUT_DIR="${PSEUDO_OUT_DIR:-${DATA_DIR}/hf_export_v2}"
 STRUCT_MANUAL_CSV="${STRUCT_MANUAL_CSV:-${DATA_DIR}/struct_manual.csv}"
 STRUCT_PSEUDO_CSV="${STRUCT_PSEUDO_CSV:-${DATA_DIR}/struct_pseudo.csv}"
 STRUCT_FLIP_LR="${STRUCT_FLIP_LR:-0}"
+STRUCT_DUP_RATIO="${STRUCT_DUP_RATIO:-0.2}"   # 2nd-component size ratio for dup flag
 QC_WORKERS="${QC_WORKERS:-${SLURM_CPUS_PER_TASK:-8}}"
 QC_LIMIT="${QC_LIMIT:-0}"
 
@@ -69,6 +70,7 @@ stdbuf -oL -eL singularity exec \
     python3 -u /workspace/scripts/structure_qc.py \
         --tree    "/data/$(basename "${HF_EXPORT_DIR}")" \
         --out     "/data/$(basename "${STRUCT_MANUAL_CSV}")" \
+        --dup_ratio "${STRUCT_DUP_RATIO}" \
         --workers "${QC_WORKERS}" ${EXTRA}
 
 echo ""; echo "============= pseudo tree (with compare) ============="; echo ""
@@ -78,6 +80,7 @@ stdbuf -oL -eL singularity exec \
         --tree    "/data/$(basename "${PSEUDO_OUT_DIR}")" \
         --out     "/data/$(basename "${STRUCT_PSEUDO_CSV}")" \
         --compare "/data/$(basename "${STRUCT_MANUAL_CSV}")" \
+        --dup_ratio "${STRUCT_DUP_RATIO}" \
         --workers "${QC_WORKERS}" ${EXTRA}
 
 echo ""
