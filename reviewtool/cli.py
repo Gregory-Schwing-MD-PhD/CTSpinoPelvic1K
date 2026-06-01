@@ -32,6 +32,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(_ROOT / "scripts"))
 from review import diff, labels_descriptor  # noqa: E402
+from export_review_crops import crop_dirname  # noqa: E402
 
 CONFIG = Path.home() / ".reviewtool" / "config.json"
 
@@ -511,6 +512,23 @@ def _fixlist_rows(rows: list, only_flagged: bool = True) -> list:
             or _is_flag(r.get("struct_flag"))]
 
 
+def _paste_crop_to_full(crop_seg: Path, crop_json: Path, full_src: Path, dst: Path):
+    """Fold an edited ROI crop back into the full-res mask: start from the
+    original full label, overwrite the crop's voxel box with the edit, save."""
+    import json as _json
+    import numpy as np
+    import nibabel as nib
+    from export_review_crops import paste_back
+    meta = _json.loads(Path(crop_json).read_text())
+    full_img = nib.load(str(full_src))
+    full = np.asarray(full_img.dataobj)
+    crop = np.asarray(nib.load(str(crop_seg)).dataobj)
+    merged = paste_back(full, crop, meta["origin"])
+    Path(dst).parent.mkdir(parents=True, exist_ok=True)
+    nib.save(nib.Nifti1Image(merged.astype(full.dtype), full_img.affine,
+                             full_img.header), str(dst))
+
+
 def cmd_fix_list(a):
     """Walk a merged-QC CSV worst-first, open each flagged case in ITK-SNAP for
     a student to fix, and save the corrected label into a reviewed tree. LOCAL
@@ -555,10 +573,29 @@ def cmd_fix_list(a):
             print(f"[{i}/{len(rows)}] {key}: missing CT/label in tree — skip")
             n_skip += 1
             continue
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        _shutil.copy2(str(src_pseudo), str(dst))         # editable copy; SAVE here
         print(f"[{i}/{len(rows)}] token={key[0]}  {key[1]}")
         print(f"    WHY FLAGGED: {_flag_hint(row)}")
+
+        if a.crops:
+            # Open the small ROI crop; paste the edit back into the full-res mask.
+            cdir = Path(a.crops) / crop_dirname(key[0], key[1])
+            cj = cdir / "crop.json"
+            if not (cdir / "ct.nii.gz").exists() or not cj.exists():
+                print(f"    no crop in {cdir} — run export_review_crops.py; skip")
+                n_skip += 1
+                continue
+            crop_seg = cdir / "seg.nii.gz"
+            rc = _launch_itksnap(itksnap, cdir / "ct.nii.gz", crop_seg, cdir / "labels.txt")
+            if rc != 0:
+                print(f"    ITK-SNAP exited {rc}; not saving — rerun to redo.")
+                continue
+            _paste_crop_to_full(crop_seg, cj, src_pseudo, dst)
+            print(f"    saved full-res -> {dst}")
+            n_done += 1
+            continue
+
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        _shutil.copy2(str(src_pseudo), str(dst))         # editable copy; SAVE here
         rc = _launch_itksnap(itksnap, src_ct, dst, labels_txt)
         if rc != 0:
             print(f"    ITK-SNAP exited {rc}; left the unedited copy — rerun to redo.")
@@ -603,6 +640,9 @@ def main(argv=None) -> int:
                    help="pseudo tree on disk (manifest.json + ct/ + labels/)")
     p.add_argument("--out", default=None,
                    help="reviewed-tree output dir (default: <tree>_reviewed)")
+    p.add_argument("--crops", default=None,
+                   help="review the small ROI crops in this dir "
+                        "(from export_review_crops.py); edits paste back to full-res")
     p.add_argument("--itksnap", default=None)
     p.add_argument("--all", action="store_true",
                    help="open every row, not just flagged ones")
