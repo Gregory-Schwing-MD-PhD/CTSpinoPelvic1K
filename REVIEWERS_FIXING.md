@@ -35,9 +35,12 @@ pre-segmentation or AI).
   cortical bone, no spill onto gray/black. Pick the tool that gets you there
   fastest for that particular fix.
 
-After each save, the tool prints a **QC check** (draft → your edit) so you can
-see whether your correction actually cleared the flag — use it as feedback while
-you're learning which approach works best.
+After you save, the tool prints a **QC check** (draft → your edit) showing
+whether your correction actually cleared the flag — use it as feedback while
+you're learning which approach works best. **Tip:** run `reviewtool next
+--watch` to keep ITK-SNAP open and get a **fresh QC update every time you Save
+Segmentation (Ctrl-S)** — edit, save, glance at the terminal, repeat, and quit
+only when the checks read `OK`.
 
 ## 0. The two things to remember
 

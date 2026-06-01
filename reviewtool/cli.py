@@ -393,6 +393,35 @@ def _qc_feedback(ct_path, before_path, after_path) -> None:
           if elevated else "  OK - all automated checks pass on your edit.")
 
 
+def _watch_itksnap(itksnap, ct, seg, labels, *, qc_ct, before) -> int:
+    """Open ITK-SNAP NON-blocking and recompute the QC every time `seg` is saved,
+    so the reviewer sees progress live without closing. Returns ITK-SNAP's exit
+    code when they finally quit."""
+    print(f"\nOpening ITK-SNAP ({itksnap}) — WATCH mode.\n"
+          f"  Edit, then **Save Segmentation** (Ctrl-S) any time to see a live QC\n"
+          f"  update here. Quit ITK-SNAP when you're done — it submits then.\n")
+    proc = _launch_itksnap_bg(itksnap, ct, seg, labels)
+    if proc is None:
+        print(f"'{itksnap}' not found — install ITK-SNAP, add it to PATH, set "
+              f"REVIEWTOOL_ITKSNAP, or pass --itksnap /path/to/itksnap")
+        return -1
+    try:
+        last = Path(seg).stat().st_mtime if Path(seg).exists() else 0.0
+    except OSError:
+        last = 0.0
+    while proc.poll() is None:
+        time.sleep(1.5)
+        try:
+            m = Path(seg).stat().st_mtime if Path(seg).exists() else last
+        except OSError:
+            continue
+        if m > last + 1e-6:                     # a Save happened
+            last = m
+            print("  [saved] recomputing QC ...")
+            _qc_feedback(qc_ct, before, seg)
+    return proc.returncode if proc.returncode is not None else 0
+
+
 def cmd_next(a):
     s, base = _api()
     job = _claim(s, base)
@@ -431,7 +460,12 @@ def cmd_next(a):
         note = "review"
 
     print(f"case {job['case_id']}  ({note} — {job['region_to_review']} region)")
-    rc = _launch_itksnap(snap, snap_ct, snap_seg, labels)
+    before_qc = (work / "crop_seg.nii.gz") if crop else pseudo
+    if getattr(a, "watch", False):                      # live QC on every Save
+        rc = _watch_itksnap(snap, snap_ct, snap_seg, labels,
+                            qc_ct=snap_ct, before=before_qc)
+    else:
+        rc = _launch_itksnap(snap, snap_ct, snap_seg, labels)
     if ctx_proc is not None:
         ctx_proc.terminate()
     if rc != 0:
@@ -445,11 +479,9 @@ def cmd_next(a):
     if crop:                                            # fold the crop edit into full-res
         _paste_edit_to_full(snap_seg, crop["origin"], pseudo, seg)
 
-    if not getattr(a, "no_qc", False):                  # real-time QC: did the fix clear it?
-        if crop:
-            _qc_feedback(snap_ct, work / "crop_seg.nii.gz", snap_seg)
-        else:
-            _qc_feedback(snap_ct, pseudo, seg)
+    # watch mode already printed QC live on each save; otherwise show it once now.
+    if not getattr(a, "no_qc", False) and not getattr(a, "watch", False):
+        _qc_feedback(snap_ct, before_qc, snap_seg)
 
     decision, record = build_submission(
         _load(pseudo), _load(seg), job["region_to_review"], _sha256(pseudo))
@@ -798,6 +830,9 @@ def main(argv=None) -> int:
             p.add_argument("--no_qc", action="store_true",
                            help="skip the draft->edit QC check printed after each "
                                 "edit (needs scipy; on by default)")
+            p.add_argument("--watch", action="store_true",
+                           help="keep ITK-SNAP open and reprint the QC check every "
+                                "time you Save Segmentation (live progress; needs scipy)")
         if name == "adjudicate":
             p.add_argument("--notes", default="")
         p.set_defaults(fn=fn)
