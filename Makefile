@@ -171,6 +171,18 @@ STRUCT_PSEUDO_CSV := $(strip $(STRUCT_PSEUDO_CSV))
 STRUCT_FLIP_LR    := $(strip $(STRUCT_FLIP_LR))
 STRUCT_DUP_RATIO  := $(strip $(STRUCT_DUP_RATIO))
 
+# ── review crops + boundary decomposition ────────────────────────────────────
+QC_MASTER_CSV     ?=
+CROPS_OUT_DIR     ?=
+CROP_PAD          ?= 8
+DECOMP_CSV        ?=
+DECOMP_K          ?= 1
+QC_MASTER_CSV     := $(strip $(QC_MASTER_CSV))
+CROPS_OUT_DIR     := $(strip $(CROPS_OUT_DIR))
+CROP_PAD          := $(strip $(CROP_PAD))
+DECOMP_CSV        := $(strip $(DECOMP_CSV))
+DECOMP_K          := $(strip $(DECOMP_K))
+
 # ── Stage 4 control (TotalSegmentator benchmark) ─────────────────────────────
 TS_WINDOW_MM    ?= 40.0
 DOCKERHUB_USER  ?= gregoryschwingmdphd
@@ -421,6 +433,22 @@ structure-qc: check-container  ## GT-free structure QC (presence/dup/gap/L-R swa
 	@echo "Submitting structure-qc (presence / duplication / gap / L-R swap)"
 	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),STRUCT_MANUAL_CSV=$(STRUCT_MANUAL_CSV),STRUCT_PSEUDO_CSV=$(STRUCT_PSEUDO_CSV),STRUCT_FLIP_LR=$(STRUCT_FLIP_LR),STRUCT_DUP_RATIO=$(STRUCT_DUP_RATIO),QC_LIMIT=$(QC_LIMIT) \
 	       slurm/structure_qc.sh
+
+
+.PHONY: export-crops
+export-crops: check-container  ## Cut small ROI crops of the QC-flagged cases for fast review (CPU)
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting export-crops (ROI crops of flagged cases)"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),QC_MASTER_CSV=$(QC_MASTER_CSV),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),CROPS_OUT_DIR=$(CROPS_OUT_DIR),CROP_PAD=$(CROP_PAD),QC_LIMIT=$(QC_LIMIT) \
+	       slurm/export_crops.sh
+
+
+.PHONY: boundary-decomp
+boundary-decomp: check-container  ## Split the Dice gap into boundary (irreducible) vs interior (fixable) on fused GT (CPU)
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting boundary-decomp (needs fused preds: make pseudolabel PREDICT_FUSED=1)"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PRED_DIR=$(PRED_DIR),MODELS_CONFIG=$(MODELS_CONFIG),DECOMP_CSV=$(DECOMP_CSV),DECOMP_K=$(DECOMP_K),QC_LIMIT=$(QC_LIMIT) \
+	       slurm/boundary_decomp.sh
 
 
 .PHONY: refine-eval
