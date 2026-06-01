@@ -6,7 +6,30 @@ _SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
-from merge_qc import build_master  # noqa: E402
+from merge_qc import build_master, recalibrate, _pct  # noqa: E402
+
+
+def test_recalibrate_flags_relative_to_baseline():
+    # baseline (radiologist) off_bone_frac ~0.01-0.03; p95 ~0.03.
+    baseline = [{"token": str(i), "config": "c", "off_bone_frac": str(0.01 + i * 0.001),
+                 "off_main_frac": "0.0"} for i in range(20)]
+    master = [
+        {"token": "hi", "config": "c", "off_bone_frac": "0.06", "off_main_frac": "0.0",
+         "struct_flag": 0, "mixing_flag": 1, "leak_flag": 1},   # above baseline p95
+        {"token": "lo", "config": "c", "off_bone_frac": "0.015", "off_main_frac": "0.0",
+         "struct_flag": 0, "mixing_flag": 1, "leak_flag": 1},   # within baseline
+    ]
+    thr = recalibrate(master, baseline, pct=95)
+    by = {r["token"]: r for r in master}
+    assert by["hi"]["leak_flag"] == 1                 # genuinely leakier than gold
+    assert by["lo"]["leak_flag"] == 0                 # within gold range -> cleared
+    assert by["lo"]["needs_review"] == 0
+    assert thr["off_bone_frac"] < 0.06
+
+
+def test_pct_basic():
+    assert _pct([1, 2, 3, 4, 5], 50) == 3
+    assert _pct([], 95) == float("inf")
 
 
 def test_union_join_and_needs_review():

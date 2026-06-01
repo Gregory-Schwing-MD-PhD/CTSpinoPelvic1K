@@ -42,6 +42,48 @@ def _key(row: dict) -> Tuple[str, str]:
     return (str(row.get("token", "")), str(row.get("config", "")))
 
 
+def _to_float(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _pct(vals, p: float) -> float:
+    """Linear-interpolated p-th percentile of a list (ignores blanks)."""
+    xs = sorted(x for x in vals if x is not None)
+    if not xs:
+        return float("inf")
+    k = (len(xs) - 1) * p / 100.0
+    lo = int(k)
+    hi = min(lo + 1, len(xs) - 1)
+    return xs[lo] + (xs[hi] - xs[lo]) * (k - lo)
+
+
+# Continuous metrics that get a radiologist-percentile threshold, and which
+# per-source flag they drive.
+_BASELINED = {"off_main_frac": "mixing_flag", "off_bone_frac": "leak_flag"}
+
+
+def recalibrate(master: List[dict], baseline: List[dict], pct: float):
+    """Re-flag the continuous checks (mixing/leak) relative to the radiologist
+    baseline: a case trips the flag only if its metric exceeds the p-th
+    percentile of that metric over the baseline (gold) rows. Categorical checks
+    (struct: duplication / L-R swap / gap) are left as-is — they're already
+    discriminating. Recomputes needs_review + n_flags. Returns derived thresholds."""
+    thr = {col: _pct([_to_float(r.get(col)) for r in baseline], pct)
+           for col in _BASELINED}
+    for r in master:
+        for col, flag in _BASELINED.items():
+            v = _to_float(r.get(col))
+            r[flag] = int(v is not None and v > thr[col])
+        r["n_flags"] = sum(int(r.get(f, 0)) for f in
+                           ("mixing_flag", "leak_flag", "struct_flag"))
+        r["needs_review"] = int(r["n_flags"] > 0)
+    master.sort(key=lambda r: (r["needs_review"], r["n_flags"]), reverse=True)
+    return thr
+
+
 def build_master(sources: Dict[str, List[dict]]) -> List[dict]:
     """Join QC source rows on (token, config). `sources` maps a source name in
     PULL to its list of row dicts. Returns master rows with each source's flag +
@@ -106,6 +148,13 @@ def main() -> int:
     ap.add_argument("--leak", type=Path, default=None)
     ap.add_argument("--structure", type=Path, default=None)
     ap.add_argument("--out", required=True, type=Path)
+    ap.add_argument("--baseline", type=Path, default=None,
+                    help="a radiologist (manual) merged-QC CSV; re-flags the "
+                         "continuous checks at the --pct percentile of THIS set, "
+                         "so a flag means 'worse than a radiologist'.")
+    ap.add_argument("--pct", type=float, default=95.0,
+                    help="baseline percentile for the continuous thresholds "
+                         "(default 95).")
     args = ap.parse_args()
 
     sources = {k: _read(p) for k, p in
@@ -116,6 +165,13 @@ def main() -> int:
         return 1
 
     master = build_master(sources)
+    if args.baseline:
+        if not args.baseline.exists():
+            log.error("baseline CSV not found: %s", args.baseline)
+            return 1
+        thr = recalibrate(master, list(csv.DictReader(open(args.baseline))), args.pct)
+        log.info("calibrated to radiologist p%.0f: %s", args.pct,
+                 {k: round(v, 4) for k, v in thr.items()})
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with open(args.out, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=_FIELDS, extrasaction="ignore")
