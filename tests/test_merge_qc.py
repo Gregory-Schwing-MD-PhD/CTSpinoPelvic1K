@@ -15,9 +15,9 @@ def test_recalibrate_flags_relative_to_baseline():
                  "off_main_frac": "0.0"} for i in range(20)]
     master = [
         {"token": "hi", "config": "c", "off_bone_frac": "0.06", "off_main_frac": "0.0",
-         "struct_flag": 0, "mixing_flag": 1, "leak_flag": 1},   # above baseline p95
+         "struct_flag": 0, "mixing_flag": 0, "leak_flag": 1},   # above baseline p95
         {"token": "lo", "config": "c", "off_bone_frac": "0.015", "off_main_frac": "0.0",
-         "struct_flag": 0, "mixing_flag": 1, "leak_flag": 1},   # within baseline
+         "struct_flag": 0, "mixing_flag": 0, "leak_flag": 1},   # within baseline
     ]
     thr = recalibrate(master, baseline, pct=95)
     by = {r["token"]: r for r in master}

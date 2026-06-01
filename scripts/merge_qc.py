@@ -60,17 +60,20 @@ def _pct(vals, p: float) -> float:
     return xs[lo] + (xs[hi] - xs[lo]) * (k - lo)
 
 
-# Continuous metrics that get a radiologist-percentile threshold, and which
-# per-source flag they drive.
-_BASELINED = {"off_main_frac": "mixing_flag", "off_bone_frac": "leak_flag"}
+# Continuous metric(s) that get a radiologist-percentile threshold, and which
+# per-source flag they drive. Only LEAK is baselined: radiologists genuinely
+# leak ~0.02-0.05 at the cortex (partial volume), so a fixed tol mis-fires.
+# Mixing is NOT baselined — radiologists have ~zero label-islands, so p95≈0
+# would over-flag; its absolute 0.005 tol is already discriminating.
+_BASELINED = {"off_bone_frac": "leak_flag"}
 
 
 def recalibrate(master: List[dict], baseline: List[dict], pct: float):
-    """Re-flag the continuous checks (mixing/leak) relative to the radiologist
-    baseline: a case trips the flag only if its metric exceeds the p-th
-    percentile of that metric over the baseline (gold) rows. Categorical checks
-    (struct: duplication / L-R swap / gap) are left as-is — they're already
-    discriminating. Recomputes needs_review + n_flags. Returns derived thresholds."""
+    """Re-flag the LEAK check relative to the radiologist baseline: a case trips
+    leak_flag only if off_bone_frac exceeds the p-th percentile of the baseline
+    (gold) rows. Mixing keeps its absolute tol and the categorical struct checks
+    (duplication / L-R swap / gap) are left as-is — both already discriminate.
+    Recomputes needs_review + n_flags. Returns the derived threshold(s)."""
     thr = {col: _pct([_to_float(r.get(col)) for r in baseline], pct)
            for col in _BASELINED}
     for r in master:
