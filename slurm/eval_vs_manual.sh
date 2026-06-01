@@ -39,6 +39,7 @@ MODELS_CONFIG="${MODELS_CONFIG:-${PROJECT_ROOT}/configs/pseudolabel_models.json}
 EVAL_CSV="${EVAL_CSV:-${DATA_DIR}/eval_vs_manual.csv}"
 EVAL_WORKERS="${EVAL_WORKERS:-${SLURM_CPUS_PER_TASK:-8}}"
 EVAL_NO_ASSD="${EVAL_NO_ASSD:-0}"
+EVAL_INCLUDE_FUSED="${EVAL_INCLUDE_FUSED:-0}"   # 1 = full-scan eval on fused GT
 
 mkdir -p "${LOGS_DIR}"
 
@@ -68,7 +69,8 @@ echo "   Started   : $(date)"
 echo "======================================================================"
 
 EXTRA=""
-[[ "${EVAL_NO_ASSD}" == "1" ]] && EXTRA="--no_assd"
+[[ "${EVAL_NO_ASSD}" == "1" ]]       && EXTRA="${EXTRA} --no_assd"
+[[ "${EVAL_INCLUDE_FUSED}" == "1" ]] && EXTRA="${EXTRA} --include_fused"
 
 BINDS="${PROJECT_ROOT}:/workspace,${DATA_DIR}:/data"
 PPATH="/workspace/scripts:/workspace/src:/workspace"

@@ -49,6 +49,21 @@ CLASS_NAMES = {1: "L1", 2: "L2", 3: "L3", 4: "L4", 5: "L5", 6: "L6",
                7: "sacrum", 8: "left_hip", 9: "right_hip"}
 REGION_CANONICAL = {"spine": (1, 2, 3, 4, 5, 6), "pelvis": (7, 8, 9)}
 SCOPE_MANUAL_SIDE = {"spine_only": "spine", "pelvic_native": "pelvis"}
+ALL_CLASSES = (1, 2, 3, 4, 5, 6, 7, 8, 9)
+
+
+def classes_for_config(config: str, include_fused: bool = False):
+    """Canonical classes that have MANUAL ground truth for this config.
+
+    scoped (spine_only/pelvic_native) -> the manually-annotated region only;
+    `fused` (both regions manual) -> ALL 9 classes, so the diff is a true
+    FULL-SCAN model-vs-GT comparison (incl. the L5-S1 junction). Returns None
+    for configs we don't evaluate."""
+    if config in SCOPE_MANUAL_SIDE:
+        return REGION_CANONICAL[SCOPE_MANUAL_SIDE[config]]
+    if config == "fused" and include_fused:
+        return ALL_CLASSES
+    return None
 
 
 # ===========================================================================
@@ -227,6 +242,11 @@ def main() -> int:
     # Intensity refinement to ALSO evaluate against ground truth — same knobs
     # as intensity_refine. With these defaults the comparison answers
     # "does intensity refinement get CLOSER to ground truth than the raw model?"
+    ap.add_argument("--include_fused", action="store_true",
+                    help="ALSO evaluate fused cases (both regions manual) as a "
+                         "FULL-SCAN, all-9-class diff vs the complete GT. Needs "
+                         "their predictions cached — run pseudolabel "
+                         "--predict_fused first.")
     ap.add_argument("--refine_mode", choices=("clip", "resegment"), default="clip")
     ap.add_argument("--refine_grow", type=int, default=3)
     ap.add_argument("--refine_pctl", type=float, default=10.0)
@@ -239,7 +259,8 @@ def main() -> int:
         "checkpoints"]["label_remap"]
 
     records = _load_manifest(args.manual_from / "manifest.json")
-    scoped = [r for r in records if r.get("config") in SCOPE_MANUAL_SIDE
+    wanted = set(SCOPE_MANUAL_SIDE) | ({"fused"} if args.include_fused else set())
+    scoped = [r for r in records if r.get("config") in wanted
               and r.get("label_file")]
     if args.limit:
         scoped = scoped[:args.limit]
@@ -263,13 +284,13 @@ def main() -> int:
         if pred is None:
             n_missing_pred += 1
             continue
-        side = SCOPE_MANUAL_SIDE[rec["config"]]
+        classes = classes_for_config(rec["config"], args.include_fused)
         tasks.append({
             "token": rec.get("token", "?"), "config": rec["config"],
             "v1_path":   str(args.manual_from / rec["label_file"]),
             "ct_path":   str(args.manual_from / rec["ct_file"]),
             "pred_path": str(pred),
-            "classes": REGION_CANONICAL[side],
+            "classes": classes,
             "label_remap": label_remap, "assd": args.assd,
             "refine_mode":  args.refine_mode,
             "refine_grow":  args.refine_grow,
@@ -368,6 +389,23 @@ def main() -> int:
         log.info("  %-10s %6d   %7.3f %7.3f                       %+5.3f",
                  "ALL", len(all_raw), d_raw, d_ref,
                  (d_ref - d_raw) if all_ref else float("nan"))
+    if args.include_fused:
+        f_raw = [float(r["dice_raw"]) for r in rows
+                 if r["config"] == "fused" and r["dice_raw"] != ""]
+        f_ref = [float(r["dice_refined"]) for r in rows
+                 if r["config"] == "fused" and r["dice_refined"] != ""]
+        n_fused_cases = len({r["token"] for r in rows if r["config"] == "fused"})
+        if f_raw:
+            log.info("-" * 72)
+            log.info("FUSED FULL-SCAN (complete-GT scans, all 9 classes): "
+                     "%d cases  mean Dice raw=%.3f  refined=%.3f",
+                     n_fused_cases, st.mean(f_raw),
+                     st.mean(f_ref) if f_ref else float("nan"))
+            log.info("  ^ the cleanest single pseudolabel-quality number — both "
+                     "regions of the same scan, incl. the L5-S1 junction.")
+        else:
+            log.warning("--include_fused set but NO fused predictions found — run "
+                        "`pseudolabel --predict_fused` to cache them first.")
     log.info("=" * 72)
     log.info("Δ Dice > 0 = intensity refinement gets CLOSER to ground truth in "
              "that class (refinement is improving the model). Δ Dice < 0 = the "

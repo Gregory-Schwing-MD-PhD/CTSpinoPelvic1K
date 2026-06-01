@@ -83,6 +83,7 @@ TRAINER_DST="/opt/conda/lib/python3.11/site-packages/nnunetv2/training/nnUNetTra
 DRY_RUN="${DRY_RUN:-0}"
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
 PSEUDO_LIMIT="${PSEUDO_LIMIT:-0}"
+PREDICT_FUSED="${PREDICT_FUSED:-0}"   # 1 = also predict fused GT (cache for eval)
 
 mkdir -p "${LOGS_DIR}" "${PSEUDO_OUT_DIR}" "${NNUNET_RESULTS}"
 
@@ -196,6 +197,7 @@ if [[ "${DRY_RUN}" == "1" ]]; then
 fi
 [[ "${SKIP_DOWNLOAD}" == "1" ]] && EXTRA_ARGS="${EXTRA_ARGS} --skip_download"
 [[ "${PSEUDO_LIMIT}" != "0" ]] && EXTRA_ARGS="${EXTRA_ARGS} --limit ${PSEUDO_LIMIT}"
+[[ "${PREDICT_FUSED}" == "1" ]] && EXTRA_ARGS="${EXTRA_ARGS} --predict_fused"
 
 PPATH="/workspace/scripts:/workspace/src:/workspace"
 # nnUNet_results is bound at the SAME host path so the container writes

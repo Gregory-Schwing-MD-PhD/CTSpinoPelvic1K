@@ -81,6 +81,7 @@ HF_EXPORT_DIR  ?=        # v1 source tree   (default: data/hf_export)
 PSEUDO_OUT_DIR ?=        # v2 output tree   (default: data/hf_export_v2)
 MODELS_CONFIG  ?=        # default: configs/pseudolabel_models.json
 DRY_RUN        ?= 0
+PREDICT_FUSED  ?= 0
 SKIP_DOWNLOAD  ?= 0
 PSEUDO_LIMIT   ?= 0
 # Effective tree hf-push validates AND uploads: HF_EXPORT_DIR if set
@@ -347,7 +348,7 @@ pseudolabel:  ## Stage 3.5 — complete partial cases via out-of-fold nnU-Net (D
 	@echo "  -> then publish v2 to a branch:"
 	@echo "     HF_TOKEN=hf_xxx HF_REPO_ID=org/Name HF_REVISION=v2 \\"
 	@echo "       HF_EXPORT_DIR=\$$(pwd)/data/hf_export_v2 make hf-push"
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),NNUNET_SIF=$(NNUNET_SIF),NNUNET_RESULTS=$(NNUNET_RESULTS),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),MODELS_CONFIG=$(MODELS_CONFIG),DRY_RUN=$(DRY_RUN),SKIP_DOWNLOAD=$(SKIP_DOWNLOAD),PSEUDO_LIMIT=$(PSEUDO_LIMIT),HF_TOKEN=$(HF_TOKEN) \
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),NNUNET_SIF=$(NNUNET_SIF),NNUNET_RESULTS=$(NNUNET_RESULTS),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),MODELS_CONFIG=$(MODELS_CONFIG),DRY_RUN=$(DRY_RUN),SKIP_DOWNLOAD=$(SKIP_DOWNLOAD),PSEUDO_LIMIT=$(PSEUDO_LIMIT),PREDICT_FUSED=$(PREDICT_FUSED),HF_TOKEN=$(HF_TOKEN) \
 	       slurm/pseudolabel.sh
 
 
@@ -448,13 +449,15 @@ eval-vs-manual: check-container  ## Quantify model accuracy vs MANUAL ground tru
 	@echo "  v1 manual = $(if $(strip $(HF_EXPORT_DIR)),$(HF_EXPORT_DIR),$(DATA_DIR)/hf_export)"
 	@echo "  preds     = $(if $(strip $(PRED_DIR)),$(PRED_DIR),$(DATA_DIR)/hf_export_v2_work/preds)"
 	@echo "  csv       = $(if $(strip $(EVAL_CSV)),$(EVAL_CSV),$(DATA_DIR)/eval_vs_manual.csv)"
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PRED_DIR=$(PRED_DIR),MODELS_CONFIG=$(MODELS_CONFIG),EVAL_CSV=$(EVAL_CSV),EVAL_WORKERS=$(EVAL_WORKERS),EVAL_NO_ASSD=$(EVAL_NO_ASSD) \
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PRED_DIR=$(PRED_DIR),MODELS_CONFIG=$(MODELS_CONFIG),EVAL_CSV=$(EVAL_CSV),EVAL_WORKERS=$(EVAL_WORKERS),EVAL_NO_ASSD=$(EVAL_NO_ASSD),EVAL_INCLUDE_FUSED=$(EVAL_INCLUDE_FUSED) \
 	       slurm/eval_vs_manual.sh
 
 
 EVAL_CSV     ?=
 EVAL_WORKERS ?=
 EVAL_NO_ASSD ?= 0
+EVAL_INCLUDE_FUSED ?= 0
+EVAL_INCLUDE_FUSED := $(strip $(EVAL_INCLUDE_FUSED))
 PRED_DIR     ?=
 EVAL_CSV     := $(strip $(EVAL_CSV))
 EVAL_WORKERS := $(strip $(EVAL_WORKERS))

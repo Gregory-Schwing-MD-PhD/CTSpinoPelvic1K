@@ -370,6 +370,14 @@ def main() -> int:
     ap.add_argument("--nps", type=int, default=4,
                     help="nnU-Net segmentation-export workers (-nps).")
     ap.add_argument("--skip_download", action="store_true")
+    ap.add_argument("--predict_fused", action="store_true",
+                    help="ALSO run inference on fused cases (both regions already "
+                         "manual) and cache their predictions for "
+                         "eval_vs_manual --include_fused. Fused output stays "
+                         "passthrough (provenance unchanged); only the cached "
+                         "prediction is produced. Uses the same held-out fold, "
+                         "so it is leak-safe. Reuses the scoped cache "
+                         "(--continue_prediction skips already-done cases).")
     ap.add_argument("--copy_ct", action="store_true",
                     help="Copy CT volumes into the v2 tree instead of "
                          "hard-linking them to the v1 store (only for "
@@ -489,13 +497,20 @@ def main() -> int:
 
     n_fill = n_oof = n_ens = n_pass = n_fail = n_resume = 0
     new_records: List[dict] = []
-    scoped: List[tuple] = []   # (cid, rec, region, supplied, fold)
+    scoped: List[tuple] = []         # (cid, rec, region, supplied, fold, predict_only=False)
+    fused_predict: List[tuple] = []  # (cid, rec, "(full)", (), fold, predict_only=True)
 
     for rec in records:
         cfg_v = rec.get("config")
         ct_rel, lbl_rel = rec.get("ct_file"), rec.get("label_file")
         if not rec.get("ok", True) or cfg_v not in SCOPE_CONFIGS \
                 or not ct_rel or not lbl_rel:
+            # fused (or any non-scoped complete-GT) case: optionally PREDICT it
+            # (cache only, for eval) but still pass it through unchanged.
+            if (args.predict_fused and cfg_v == "fused" and ct_rel and lbl_rel
+                    and rec.get("ok", True)):
+                ffold = heldout.get(str(rec.get("token", "")))
+                fused_predict.append((_case_id(rec), rec, "(full)", (), ffold, True))
             _passthrough(rec); new_records.append(rec); n_pass += 1
             continue
         cid = _case_id(rec)
@@ -505,24 +520,29 @@ def main() -> int:
             continue
         region = MISSING_REGION[cfg_v]
         fold = heldout.get(str(rec.get("token", "")))
-        scoped.append((cid, rec, region, REGION_CANONICAL[region], fold))
+        scoped.append((cid, rec, region, REGION_CANONICAL[region], fold, False))
 
     if args.limit and len(scoped) > args.limit:
         for (_c, r, *_x) in scoped[args.limit:]:
             _passthrough(r); new_records.append(r); n_pass += 1
         scoped = scoped[:args.limit]
+        fused_predict = fused_predict[:args.limit]
         log.info("--limit %d: capping this run to %d scoped cases",
                  args.limit, len(scoped))
+    if fused_predict:
+        log.info("predict_fused: %d fused case(s) will be PREDICTED (cached for "
+                 "eval) but kept passthrough.", len(fused_predict))
 
-    # Group scoped cases by held-out fold → ONE predict per group (model
-    # loaded once per group instead of once per case).
+    # Group scoped + fused-predict cases by held-out fold → ONE predict per group
+    # (model loaded once per group instead of once per case).
+    n_fused_pred = 0
     groups: Dict[str, list] = defaultdict(list)
-    for item in scoped:
+    for item in scoped + fused_predict:
         fold = item[4]
         groups["ensemble" if fold is None else f"fold_{fold}"].append(item)
-    log.info("scoped=%d to fill across %d group(s): %s",
-             len(scoped), len(groups),
-             {k: len(v) for k, v in sorted(groups.items())})
+    log.info("to predict=%d (scoped=%d + fused=%d) across %d group(s): %s",
+             len(scoped) + len(fused_predict), len(scoped), len(fused_predict),
+             len(groups), {k: len(v) for k, v in sorted(groups.items())})
 
     for key, items in sorted(groups.items()):
         folds = (all_folds if key == "ensemble"
@@ -549,9 +569,17 @@ def main() -> int:
             nn, in_dir, pred_dir, folds, str(args.nnunet_results),
             args.device, args.npp, args.nps)
 
-        for (cid, rec, region, supplied, fold) in items:
+        for (cid, rec, region, supplied, fold, predict_only) in items:
             tok = rec.get("token", "?")
             pred_p = pred_dir / f"{cid}.nii.gz"
+            if predict_only:
+                # fused: the cached prediction is the deliverable (for eval).
+                # Output already passthrough'd; never merge into the manual GT.
+                if launched and pred_p.exists():
+                    n_fused_pred += 1
+                else:
+                    log.warning("token=%s cid=%s: fused prediction missing", tok, cid)
+                continue
             if not launched or not pred_p.exists():
                 _passthrough(rec); new_records.append(rec); n_fail += 1
                 log.warning("token=%s cid=%s: no prediction — passthrough",
@@ -599,6 +627,8 @@ def main() -> int:
     log.info("  resumed (prior run)  : %d", n_resume)
     log.info("  passthrough          : %d", n_pass)
     log.info("  failed (passthrough) : %d", n_fail)
+    if args.predict_fused:
+        log.info("  fused predicted (cached for eval, not merged) : %d", n_fused_pred)
     log.info("=" * 60)
     return 0
 
