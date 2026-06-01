@@ -536,7 +536,10 @@ def cmd_next(a):
         seg.write_bytes(pseudo.read_bytes())                          # edit a copy
         note = "review"
 
-    print(f"case {job['case_id']}  ({note} — {job['region_to_review']} region)")
+    region_note = ("the WHOLE scan (radiologist gold being re-checked)"
+                   if job.get("region_to_review") == "both"
+                   else f"the {job['region_to_review']} region")
+    print(f"case {job['case_id']}  ({note} — {region_note})")
     before_qc = (work / "crop_seg.nii.gz") if crop else pseudo
     if not getattr(a, "no_qc", False):                  # WHY FLAGGED / what to fix
         _qc_startup(snap_ct, before_qc)

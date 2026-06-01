@@ -40,3 +40,15 @@ def test_no_index_seeds_all_scoped(tmp_path):
     n = init_cases_from_manifest(store, _recs())   # no crops_index
     assert n == 2                                  # both scoped; fused excluded
     assert all("crop" not in c for c in store.list_cases())
+
+
+def test_flagged_fused_is_seeded_as_both(tmp_path):
+    store = ReviewStore(LocalBackend(tmp_path))
+    crops_index = {"labels/3.nii.gz": {"ct_crop": "crops/f/ct.nii.gz",
+                                       "seg_crop": "crops/f/seg.nii.gz",
+                                       "origin": [0, 0, 0]}}   # token 3 = fused
+    n = init_cases_from_manifest(store, _recs(), crops_index=crops_index)
+    assert n == 1
+    c = store.list_cases()[0]
+    assert c["token"] == "3" and c["region_to_review"] == "both"
+    assert "crop" in c

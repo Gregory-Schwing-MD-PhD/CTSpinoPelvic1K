@@ -244,9 +244,15 @@ def init_cases_from_manifest(store: ReviewStore, records: List[dict],
     new_cases = []
     for rec in records:
         cfg = rec.get("config")
-        region = {"spine_only": "pelvis", "pelvic_native": "spine"}.get(cfg)
-        if region is None:                       # fused / out of scope
+        # fused = radiologist gold on BOTH regions; "both" means re-check the whole
+        # label. We only enqueue fused cases that the QC FLAGGED (i.e. in a
+        # crops_index) — never the full gold set.
+        region = {"spine_only": "pelvis", "pelvic_native": "spine",
+                  "fused": "both"}.get(cfg)
+        if region is None:                       # out of scope
             continue
+        if cfg == "fused" and crops_index is None:
+            continue                             # don't review gold unless triaged
         if crops_index is not None and rec.get("label_file") not in crops_index:
             continue                             # triage: only the flagged worklist
         cid = schema.case_id(rec.get("token"), cfg)

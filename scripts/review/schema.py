@@ -88,7 +88,14 @@ def provenance_after(prov_before: Dict[str, Optional[str]],
     """
     out: Dict[str, Optional[str]] = {"spine": prov_before.get("spine"),
                                      "pelvis": prov_before.get("pelvis")}
-    if decision == "reject" or region not in REGIONS:
+    if decision == "reject":
+        return out
+    if region == "both":                         # fused gold case: re-check both
+        for r in REGIONS:
+            if out.get(r) == "pseudo":
+                out[r] = "pseudo_corrected"
+        return out
+    if region not in REGIONS:
         return out
     if out.get(region) == "pseudo":
         out[region] = "pseudo_corrected"
@@ -148,10 +155,11 @@ def validate_review_record(rec) -> List[str]:
         errs.append(f"role {d.get('role')!r} not in {ROLES}")
 
     region = d.get("region_reviewed")
-    if region is not None and region not in REGIONS:
-        errs.append(f"region_reviewed {region!r} not in {REGIONS}")
-    if d.get("decision") in ("accept", "corrected") and region not in REGIONS:
-        errs.append(f"region_reviewed {region!r} must be one of {REGIONS} "
+    valid_regions = REGIONS + ("both",)          # "both" = a fused gold re-review
+    if region is not None and region not in valid_regions:
+        errs.append(f"region_reviewed {region!r} not in {valid_regions}")
+    if d.get("decision") in ("accept", "corrected") and region not in valid_regions:
+        errs.append(f"region_reviewed {region!r} must be one of {valid_regions} "
                     f"for decision={d.get('decision')!r}")
 
     if d.get("decision") == "corrected":
