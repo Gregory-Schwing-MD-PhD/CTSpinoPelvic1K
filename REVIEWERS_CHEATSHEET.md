@@ -49,6 +49,7 @@ settles it.)
 ## Credit
 - **~210 cases total. A case is *done* when the QC reads `OK`.**
 - **Authorship:** **Gregory Schwing — first author**; **Loren Schwiebert — senior
-  (last) author**. **You earn 2nd, 3rd, 4th … authorship by contributing
-  QC-passing corrections — the more cases you complete, the higher your position.**
-  Your HuggingFace username is recorded with every case, so it's tracked and fair.
+  (last) author**. **Complete at least 10 QC-passing cases to qualify for
+  co-authorship**, then you earn 2nd, 3rd, 4th … position by volume — the more
+  cases you complete, the higher you rank. Your HuggingFace username is recorded
+  with every case, so it's tracked and fair.
