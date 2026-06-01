@@ -340,12 +340,20 @@ def cmd_next(a):
     labels = work / "labels.txt"
     labels.write_text(job.get("labels_descriptor")
                       or labels_descriptor.descriptor_text())
+    snap = a.itksnap or _default_itksnap()
+    ctx_proc = None
     if crop:
         snap_ct = _fetch(job, crop["ct_crop"], work / "ct.nii.gz")    # crop CT (few MB)
         snap_seg = work / "crop_edit.nii.gz"
         snap_seg.write_bytes(_fetch(job, crop["seg_crop"],
                                     work / "crop_seg.nii.gz").read_bytes())
         note = "crop review"
+        if getattr(a, "full", False):
+            # Pull the FULL scan from the original repo and open it read-only
+            # beside the crop, to verify the rest of the volume looks fine.
+            full_ct = _fetch(job, job["ct_file"], work / "full_ct.nii.gz")
+            print("  also opening the FULL scan (read-only) for context ...")
+            ctx_proc = _launch_itksnap_bg(snap, full_ct, pseudo, labels)
     else:
         snap_ct = _fetch(job, job["ct_file"], work / "ct.nii.gz")     # full CT
         snap_seg = seg
@@ -353,7 +361,9 @@ def cmd_next(a):
         note = "review"
 
     print(f"case {job['case_id']}  ({note} — {job['region_to_review']} region)")
-    rc = _launch_itksnap(a.itksnap or _default_itksnap(), snap_ct, snap_seg, labels)
+    rc = _launch_itksnap(snap, snap_ct, snap_seg, labels)
+    if ctx_proc is not None:
+        ctx_proc.terminate()
     if rc != 0:
         print(f"\nITK-SNAP exited with code {rc} — it failed to start or "
               f"crashed, so NO edit was captured. Not submitting.\n"
@@ -659,7 +669,13 @@ def cmd_fix_list(a):
                 n_skip += 1
                 continue
             crop_seg = cdir / "seg.nii.gz"
+            ctx = None
+            if a.full and src_ct.exists():
+                print("    opening FULL scan (read-only) for context ...")
+                ctx = _launch_itksnap_bg(itksnap, src_ct, src_pseudo, labels_txt)
             rc = _launch_itksnap(itksnap, cdir / "ct.nii.gz", crop_seg, cdir / "labels.txt")
+            if ctx is not None:
+                ctx.terminate()
             if rc != 0:
                 print(f"    not saving — rerun to redo.")
                 _itksnap_failure_hint(rc)
@@ -698,6 +714,11 @@ def main(argv=None) -> int:
         p.add_argument("--workdir", default=str(Path.home() / ".reviewtool" / "work"))
         p.add_argument("--itksnap", default=None,
                        help="ITK-SNAP executable (auto-detected if omitted)")
+        if name == "next":
+            p.add_argument("--full", action="store_true",
+                           help="for a crop case, ALSO pull the full scan from the "
+                                "original repo and open it read-only beside the crop "
+                                "(to verify the rest of the volume looks fine)")
         if name == "adjudicate":
             p.add_argument("--notes", default="")
         p.set_defaults(fn=fn)
@@ -725,6 +746,9 @@ def main(argv=None) -> int:
     p.add_argument("--reference", default=None,
                    help="a crop dir (ct/seg/labels) of a GOOD example to open in a "
                         "second ITK-SNAP window beside each case for comparison")
+    p.add_argument("--full", action="store_true",
+                   help="with --crops, ALSO open the full scan (read-only) beside "
+                        "the crop to verify the rest of the volume looks fine")
     p.add_argument("--itksnap", default=None)
     p.add_argument("--all", action="store_true",
                    help="open every row, not just flagged ones")
