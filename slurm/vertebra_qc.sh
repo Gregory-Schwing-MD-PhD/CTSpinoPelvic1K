@@ -3,9 +3,9 @@
 #SBATCH -q primary
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=24
-#SBATCH --mem=64G
-#SBATCH --time=06:00:00
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=01:00:00
 #SBATCH --output=logs/vertebra_qc_%j.out
 #SBATCH --error=logs/vertebra_qc_%j.out
 #SBATCH --mail-type=END,FAIL
