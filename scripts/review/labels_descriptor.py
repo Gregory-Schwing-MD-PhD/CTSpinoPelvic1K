@@ -22,12 +22,14 @@ from typing import Dict, Tuple
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import schema  # noqa: E402
 
-# RGB (0–255) per class. 0 = clear. Spine cool→warm, pelvis warm.
+# RGB (0–255) per class. 0 = clear. Sampled evenly from the JET colormap
+# (idx 1→9 = dark-blue → blue → cyan → green → yellow → orange → red → dark-red)
+# so adjacent vertebrae/structures are maximally distinguishable.
 _RGB: Dict[int, Tuple[int, int, int]] = {
     0: (0, 0, 0),
-    1: (38, 102, 204), 2: (64, 140, 217), 3: (89, 166, 230),
-    4: (115, 191, 235), 5: (26, 204, 217), 6: (191, 217, 51),
-    7: (217, 38, 38), 8: (242, 128, 26), 9: (242, 204, 13),
+    1: (0, 0, 128), 2: (0, 0, 255), 3: (0, 128, 255),
+    4: (21, 255, 226), 5: (123, 255, 123), 6: (226, 255, 21),
+    7: (255, 151, 0), 8: (255, 33, 0), 9: (128, 0, 0),
 }
 
 

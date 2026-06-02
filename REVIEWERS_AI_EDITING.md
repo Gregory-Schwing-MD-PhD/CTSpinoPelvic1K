@@ -11,19 +11,27 @@ has one and point ITK-SNAP at it. Three ways, easiest first.
 
 ## Option A — Google Colab (recommended; no GPU of your own needed)
 
-1. Open the official notebook:
-   <https://colab.research.google.com/drive/1AtB2yZgB6KUHb6e0LHVVE9pjsaLANVr5?usp=sharing>
+1. Open our notebook (package versions are already pinned, so it just works —
+   don't `pip install` anything yourself):
+   <https://colab.research.google.com/drive/14IHpQJtIxjnK2qdUcyxPmZjUXdH9F55n?usp=sharing>
 2. **Runtime → Change runtime type → GPU** (a free T4 is fine).
-3. The notebook uses a secure **ngrok** tunnel. Make a free account at
-   <https://dashboard.ngrok.com/signup>, copy your **authtoken**, and paste it
-   where the notebook asks.
-4. Run the cells top to bottom. When it's ready it prints a banner like
-   `Server: xxxx.ngrok-free.app   Port: 443` — keep that.
-5. Connect ITK-SNAP using that address + port (see **Connect ITK-SNAP** below).
+3. Make a free **ngrok** account at <https://dashboard.ngrok.com/signup>, copy
+   your **authtoken**, and paste it into the server cell where it says
+   `NGROK_AUTHTOKEN="..."`.
+4. Run the cells top to bottom. After the **install** cell finishes it will tell
+   you to restart — click **Runtime → Restart session** (required; don't skip
+   it), then run the remaining cells.
+5. When the server cell is ready it prints a banner like
+   `Server: xxxx.ngrok-free.dev   Port: 443` — keep that.
+6. Connect ITK-SNAP using that address + port **443** (see **Connect ITK-SNAP**
+   below).
 
+> The red pip "dependency conflict" lines in the install output are **expected** —
+> the notebook deliberately pins older, compatible versions. Ignore them.
+>
 > Colab disconnects when idle or after a few hours. If the AI stops responding,
-> re-run the notebook and reconnect — your review work is unaffected (it's saved
-> locally and submitted as usual).
+> re-run the notebook (install cell → restart → server cell) and reconnect — your
+> review work is unaffected (it's saved locally and submitted as usual).
 
 ## Option B — A local NVIDIA GPU (Windows/Linux only)
 
