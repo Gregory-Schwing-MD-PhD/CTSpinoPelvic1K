@@ -496,6 +496,29 @@ def _open_space_reference(job, snap, work):
     return _launch_itksnap_bg(snap, rct, rseg, rlbl)
 
 
+def _open_bone3d(snap, ct_path, work, bone_hu: int = 150):
+    """Threshold the CT to a bone mask and open it as the segmentation in a SECOND
+    ITK-SNAP window — click 'Update' in that window's 3D pane to render the bone
+    surface (no editing there; it's a reference view). Popen handle or None."""
+    try:
+        import numpy as np
+        import nibabel as nib
+        img = nib.load(str(ct_path))
+        ct = np.asarray(img.dataobj)
+        bone = (ct >= bone_hu).astype(np.uint8)
+        bp = work / "bone.nii.gz"
+        nib.save(nib.Nifti1Image(bone, img.affine), str(bp))
+    except Exception:
+        return None
+    bl = work / "bone_labels.txt"
+    bl.write_text('################################################\n'
+                  '    0     0    0    0        0  0  0    "Clear Label"\n'
+                  '    1   230  220  205        1  1  1    "bone"\n')
+    print(f"  opened a BONE-3D window (CT thresholded at {bone_hu} HU) — click "
+          f"**Update** in its 3D pane to see the bone surface.")
+    return _launch_itksnap_bg(snap, ct_path, bp, bl)
+
+
 _LSTV_NAMES = {0: "Normal (L1-L5 + sacrum)", 1: "Lumbarization (L6 present)",
                2: "Semi-sacralization (borderline)", 3: "Sacralization (L5 fused to sacrum)"}
 _LSTV_HINT = {
@@ -718,6 +741,9 @@ def cmd_next(a):
     ref_proc = None
     if not getattr(a, "no_reference", False):           # gold example beside the case
         ref_proc = _open_space_reference(job, snap, work)
+    bone_proc = None
+    if getattr(a, "bone3d", False):                     # CT bone-threshold 3D window
+        bone_proc = _open_bone3d(snap, snap_ct, work, getattr(a, "bone_hu", 150))
 
     # mtime of the seg the editor opens, BEFORE the session. A real save (an
     # edit OR a deliberate accept) advances it; if it never advances, ITK-SNAP
@@ -730,7 +756,7 @@ def cmd_next(a):
         rc = _watch_itksnap(snap, snap_ct, snap_seg, labels,
                             qc_ct=snap_ct, before=before_qc,
                             live_qc=getattr(a, "live_qc", False))
-    for p in (ctx_proc, ref_proc):
+    for p in (ctx_proc, ref_proc, bone_proc):
         if p is not None:
             p.terminate()
     if rc != 0:
@@ -909,11 +935,16 @@ def cmd_edit(a):
     def _startup_info():
         _show_startup(job, crop, work, snap_ct, before_qc, kind != "adjudicate")
     threading.Thread(target=_startup_info, daemon=True).start()
+    snap = a.itksnap or _default_itksnap()
+    bone_proc = None
+    if getattr(a, "bone3d", False):                     # CT bone-threshold 3D window
+        bone_proc = _open_bone3d(snap, snap_ct, work, getattr(a, "bone_hu", 150))
     pre_mtime = snap_seg.stat().st_mtime if snap_seg.exists() else 0.0
-    # watch: rerun the QC live on every save, exactly like `next`
-    rc = _watch_itksnap(a.itksnap or _default_itksnap(), snap_ct, snap_seg, labels,
+    rc = _watch_itksnap(snap, snap_ct, snap_seg, labels,
                         qc_ct=snap_ct, before=before_qc,
                         live_qc=getattr(a, "live_qc", False))
+    if bone_proc is not None:
+        bone_proc.terminate()
     if rc != 0:
         print(f"ITK-SNAP exited with code {rc} — no edit captured. "
               "Not submitting; your claim is kept.")
@@ -1183,6 +1214,12 @@ def main(argv=None) -> int:
                            help="re-run the QC on every Save (live progress to OK). "
                                 "Off by default — faster, since AI-assisted fixes "
                                 "rarely need re-verification.")
+            p.add_argument("--bone3d", action="store_true",
+                           help="open a 2nd window with the CT thresholded to a bone "
+                                "mask; click Update in its 3D pane to see the bone "
+                                "surface (great for spotting split vertebrae)")
+            p.add_argument("--bone_hu", type=int, default=150,
+                           help="bone HU threshold for --bone3d (default 150)")
         if name == "adjudicate":
             p.add_argument("--notes", default="")
         p.set_defaults(fn=fn)
@@ -1196,6 +1233,11 @@ def main(argv=None) -> int:
                    help="ITK-SNAP executable (auto-detected if omitted)")
     p.add_argument("--live_qc", action="store_true",
                    help="re-run QC on every Save (default off — faster)")
+    p.add_argument("--bone3d", action="store_true",
+                   help="open a 2nd window with the CT thresholded to bone; click "
+                        "Update in its 3D pane to see the bone surface")
+    p.add_argument("--bone_hu", type=int, default=150,
+                   help="bone HU threshold for --bone3d (default 150)")
     p.set_defaults(fn=cmd_edit)
 
     p = sub.add_parser("fix-list",
