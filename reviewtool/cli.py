@@ -175,12 +175,21 @@ def _default_itksnap() -> str:
               "executable; ignoring it and auto-detecting ITK-SNAP.",
               file=sys.stderr)
 
+    if sys.platform == "darwin":
+        # The .app GUI binary BLOCKS until its window closes; the bin/ wrapper
+        # (and `open -a`) DETACH and return immediately, which makes the watch
+        # loop think the reviewer quit the instant ITK-SNAP launches -> it
+        # auto-submits with no edit. Always prefer the blocking binary on Mac.
+        hit = _runnable("/Applications/ITK-SNAP.app/Contents/MacOS/ITK-SNAP")
+        if hit:
+            return hit
     for name in ("itksnap", "ITK-SNAP"):
         hit = _runnable(name)
         if hit:
             return hit
     candidates: list = []
     if sys.platform == "darwin":
+        candidates.append("/Applications/ITK-SNAP.app/Contents/MacOS/ITK-SNAP")
         candidates.append("/Applications/ITK-SNAP.app/Contents/bin/itksnap")
     elif sys.platform.startswith("win"):
         for base in (r"C:\Program Files", r"C:\Program Files (x86)"):
@@ -573,6 +582,11 @@ def cmd_next(a):
     if not getattr(a, "no_reference", False):           # gold example beside the case
         ref_proc = _open_space_reference(job, snap, work)
 
+    # mtime of the seg the editor opens, BEFORE the session. A real save (an
+    # edit OR a deliberate accept) advances it; if it never advances, ITK-SNAP
+    # detached/closed before the reviewer saved (the macOS bin/ wrapper bug) and
+    # we must NOT submit a phantom voxels_changed=0 'accept'.
+    pre_mtime = snap_seg.stat().st_mtime if snap_seg.exists() else 0.0
     if getattr(a, "no_watch", False):                   # watch is the default
         rc = _launch_itksnap(snap, snap_ct, snap_seg, labels)
     else:
@@ -588,6 +602,18 @@ def cmd_next(a):
               f"then re-open this case with:\n"
               f"  python -m reviewtool edit {job['case_id']}")
         _itksnap_failure_hint(rc)
+        return
+    saved = snap_seg.exists() and snap_seg.stat().st_mtime > pre_mtime + 1e-6
+    if not saved:
+        print("\nITK-SNAP closed but you never SAVED, so no edit was captured — "
+              "nothing was submitted. Your claim is kept.\n"
+              "  • Edit, then Save Segmentation (Ctrl-S / Cmd-S) at least once "
+              "before quitting (one save is also how you 'accept' a correct draft).\n"
+              "  • If ITK-SNAP opened then instantly closed/submitted, it "
+              "DETACHED instead of staying open — relaunch it directly:\n"
+              f"      python -m reviewtool edit {job['case_id']}"
+              + (" --itksnap /Applications/ITK-SNAP.app/Contents/MacOS/ITK-SNAP"
+                 if sys.platform == "darwin" else ""))
         return
     if crop:                                            # fold the crop edit into full-res
         _paste_edit_to_full(snap_seg, crop["origin"], pseudo, seg)
@@ -726,11 +752,21 @@ def cmd_edit(a):
 
     print(f"editing {work.name} ({kind}) — review the "
           f"{job['region_to_review']} region")
+    pre_mtime = seg.stat().st_mtime if seg.exists() else 0.0
     rc = _launch_itksnap(a.itksnap or _default_itksnap(), ct, seg, labels)
     if rc != 0:
         print(f"ITK-SNAP exited with code {rc} — no edit captured. "
               "Not submitting; your claim is kept.")
         _itksnap_failure_hint(rc)
+        return
+    if not (seg.exists() and seg.stat().st_mtime > pre_mtime + 1e-6):
+        print("ITK-SNAP closed but you never SAVED — no edit captured, nothing "
+              "submitted; your claim is kept.\n"
+              "  Edit, then Save Segmentation (Ctrl-S / Cmd-S) before quitting "
+              "(one save also 'accepts' a correct draft)."
+              + (" If it auto-closed, relaunch with --itksnap "
+                 "/Applications/ITK-SNAP.app/Contents/MacOS/ITK-SNAP"
+                 if sys.platform == "darwin" else ""))
         return
 
     if kind == "adjudicate":
