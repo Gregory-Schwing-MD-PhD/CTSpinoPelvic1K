@@ -340,7 +340,6 @@ def _qc_feedback(ct_path, before_path, after_path) -> None:
         import numpy as np
         import nibabel as nib
         from vertebra_topology_qc import vertebra_topology_metrics
-        from bone_leak_qc import bone_leak_metrics
         from structure_qc import structure_metrics
     except Exception:
         return
@@ -349,25 +348,16 @@ def _qc_feedback(ct_path, before_path, after_path) -> None:
         aff = bimg.affine
         before = np.asarray(bimg.dataobj)
         after = np.asarray(nib.load(str(after_path)).dataobj)
-        ct = None
-        if Path(ct_path).exists():
-            c = np.asarray(nib.load(str(ct_path)).dataobj).astype(np.float32)
-            if c.shape[:3] == before.shape[:3]:
-                ct = c
     except Exception:
         return
 
     def _metrics(lab):
         out = {}
+        # off-bone leak dropped from triage -> not computed (also the slow part)
         for fn in (lambda l: vertebra_topology_metrics(l, aff),
                    lambda l: structure_metrics(l, aff)):
             try:
                 out.update(fn(lab))
-            except Exception:
-                pass
-        if ct is not None:
-            try:
-                out.update(bone_leak_metrics(lab, ct))
             except Exception:
                 pass
         return out
@@ -377,8 +367,7 @@ def _qc_feedback(ct_path, before_path, after_path) -> None:
         return
     print("  QC check (draft -> your edit):")
     elevated = False
-    for key, name, thr in (("off_bone_frac", "off-bone leak", 0.058),
-                           ("off_main_frac", "vertebra mixing", 0.005)):
+    for key, name, thr in (("off_main_frac", "vertebra mixing", 0.005),):
         if key not in ma:
             continue
         vb, va = mb.get(key), ma.get(key)
@@ -439,7 +428,6 @@ def _qc_startup(ct_path, draft_path) -> None:
         import numpy as np
         import nibabel as nib
         from vertebra_topology_qc import vertebra_topology_metrics
-        from bone_leak_qc import bone_leak_metrics
         from structure_qc import structure_metrics
     except Exception:
         return
@@ -447,30 +435,21 @@ def _qc_startup(ct_path, draft_path) -> None:
         dimg = nib.load(str(draft_path))
         aff = dimg.affine
         draft = np.asarray(dimg.dataobj)
-        ct = None
-        if Path(ct_path).exists():
-            c = np.asarray(nib.load(str(ct_path)).dataobj).astype(np.float32)
-            if c.shape[:3] == draft.shape[:3]:
-                ct = c
     except Exception:
         return
     m = {}
+    # off-bone leak is intentionally NOT computed: leak was dropped from triage
+    # (too hard to fix by hand) and the fill-holes over a whole-scan CT is what
+    # made fused cases take minutes. Topology + structure only (fast).
     for fn in (lambda l: vertebra_topology_metrics(l, aff),
                lambda l: structure_metrics(l, aff)):
         try:
             m.update(fn(draft))
         except Exception:
             pass
-    if ct is not None:
-        try:
-            m.update(bone_leak_metrics(draft, ct))
-        except Exception:
-            pass
     if not m:
         return
     foci = []
-    if m.get("off_bone_frac", 0) > 0.058:
-        foci.append(f"OFF-BONE LEAK  (off_bone={m['off_bone_frac']:.3f}; target <= 0.058)")
     if m.get("off_main_frac", 0) > 0.005:
         foci.append(f"vertebra MIXING  (off_main={m['off_main_frac']:.3f}; target <= 0.005)")
     if m.get("n_order_inversions", 0):
@@ -576,7 +555,11 @@ def cmd_next(a):
     _print_lstv(crop)
     before_qc = (work / "crop_seg.nii.gz") if crop else pseudo
     if not getattr(a, "no_qc", False):                  # WHY FLAGGED / what to fix
-        _qc_startup(snap_ct, before_qc)
+        # Run async so ITK-SNAP opens immediately — on a fused WHOLE-scan crop the
+        # QC still takes a bit, and we don't want a blank terminal while it runs.
+        import threading
+        threading.Thread(target=_qc_startup, args=(snap_ct, before_qc),
+                         daemon=True).start()
 
     ref_proc = None
     if not getattr(a, "no_reference", False):           # gold example beside the case
