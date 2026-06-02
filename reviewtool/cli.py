@@ -480,8 +480,7 @@ def _open_space_reference(job, snap, work):
     except Exception:
         return None
     rlbl = work / "ref_labels.txt"
-    rlbl.write_text(job.get("labels_descriptor")
-                    or labels_descriptor.descriptor_text())
+    rlbl.write_text(labels_descriptor.descriptor_text())
     print("  opened a GOLD reference example in a second window "
           "(tile the two windows to compare).")
     return _launch_itksnap_bg(snap, rct, rseg, rlbl)
@@ -559,8 +558,9 @@ def cmd_next(a):
     pseudo = _fetch(job, job["label_file"], work / "pseudo.nii.gz")
     seg = work / "seg.nii.gz"
     labels = work / "labels.txt"
-    labels.write_text(job.get("labels_descriptor")
-                      or labels_descriptor.descriptor_text())
+    # always the LOCAL canonical palette (jet) — same idx↔structure as the
+    # server, so this just guarantees the current colours without a Space redeploy.
+    labels.write_text(labels_descriptor.descriptor_text())
     snap = a.itksnap or _default_itksnap()
     ctx_proc = None
     if crop:
@@ -665,8 +665,9 @@ def cmd_adjudicate(a):
     seg = work / "seg.nii.gz"
     seg.write_bytes(pseudo.read_bytes())
     labels = work / "labels.txt"
-    labels.write_text(job.get("labels_descriptor")
-                      or labels_descriptor.descriptor_text())
+    # always the LOCAL canonical palette (jet) — same idx↔structure as the
+    # server, so this just guarantees the current colours without a Space redeploy.
+    labels.write_text(labels_descriptor.descriptor_text())
     print(f"ADJUDICATE {job['case_id']}  IRR={job.get('irr')}\n"
           f"two reviewers disagreed on the {job['region_to_review']} region; "
           f"produce the deciding label.")
@@ -760,9 +761,8 @@ def cmd_edit(a):
     job, work = st["job"], Path(st["workdir"])
     kind = st.get("kind", "review")
     labels = work / "labels.txt"
-    if not labels.exists():
-        labels.write_text(job.get("labels_descriptor")
-                          or labels_descriptor.descriptor_text())
+    # rewrite every launch so palette updates (jet) take effect on resume too
+    labels.write_text(labels_descriptor.descriptor_text())
     pseudo = work / "pseudo.nii.gz"
     seg = work / "seg.nii.gz"                     # full-res output (built on save)
     crop = job.get("crop")
