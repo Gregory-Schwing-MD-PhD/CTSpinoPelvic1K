@@ -746,8 +746,16 @@ def cmd_edit(a):
 
     print(f"editing {work.name} ({kind}) — review the "
           f"{job['region_to_review']} region")
+    _print_lstv(crop)                            # LSTV STATUS (same as `next`)
+    before_qc = (work / "crop_seg.nii.gz") if crop else pseudo
+    if kind != "adjudicate":                     # WHY FLAGGED, async so ITK-SNAP opens now
+        import threading
+        threading.Thread(target=_qc_startup, args=(snap_ct, before_qc),
+                         daemon=True).start()
     pre_mtime = snap_seg.stat().st_mtime if snap_seg.exists() else 0.0
-    rc = _launch_itksnap(a.itksnap or _default_itksnap(), snap_ct, snap_seg, labels)
+    # watch: rerun the QC live on every save, exactly like `next`
+    rc = _watch_itksnap(a.itksnap or _default_itksnap(), snap_ct, snap_seg, labels,
+                        qc_ct=snap_ct, before=before_qc)
     if rc != 0:
         print(f"ITK-SNAP exited with code {rc} — no edit captured. "
               "Not submitting; your claim is kept.")
