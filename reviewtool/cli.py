@@ -499,6 +499,30 @@ def _open_space_reference(job, snap, work):
     return _launch_itksnap_bg(snap, rct, rseg, rlbl)
 
 
+_LSTV_NAMES = {0: "Normal (L1-L5 + sacrum)", 1: "Lumbarization (L6 present)",
+               2: "Semi-sacralization (borderline)", 3: "Sacralization (L5 fused to sacrum)"}
+_LSTV_HINT = {
+    1: "an L6 EXISTS. Count up from the sacrum and make sure L1-L6 are all "
+       "distinct — the draft often DUPLICATES or shifts the extra level.",
+    2: "the L5/S1 boundary is genuinely ambiguous. Label what the bone shows; "
+       "don't force a clean split. Unsure -> smallest safe edit, tell the lead.",
+    3: "L5 is fused to the sacrum. Check the L5<->sacrum boundary — the draft "
+       "tends to bleed between them.",
+}
+
+
+def _print_lstv(crop: dict) -> None:
+    """Print the case's LSTV phenotype so the reviewer counts levels carefully.
+    Only when the seed carried it (post-reseed); silent on older seeds."""
+    if not crop or "lstv_class" not in crop:
+        return
+    c = int(crop.get("lstv_class") or 0)
+    name = _LSTV_NAMES.get(c) or (crop.get("lstv_label") or "?")
+    print(f"  LSTV STATUS: {name}")
+    if c in _LSTV_HINT:
+        print(f"    -> {_LSTV_HINT[c]}")
+
+
 def cmd_next(a):
     s, base = _api()
     job = _claim(s, base)
@@ -540,6 +564,7 @@ def cmd_next(a):
                    if job.get("region_to_review") == "both"
                    else f"the {job['region_to_review']} region")
     print(f"case {job['case_id']}  ({note} — {region_note})")
+    _print_lstv(crop)
     before_qc = (work / "crop_seg.nii.gz") if crop else pseudo
     if not getattr(a, "no_qc", False):                  # WHY FLAGGED / what to fix
         _qc_startup(snap_ct, before_qc)
@@ -894,6 +919,39 @@ def cmd_fix_list(a):
     print(f"\ndone: {n_done} opened, {n_skip} skipped. Reviewed tree: {out}")
 
 
+# Approx sizes of the v2 dataset tree (measured June 2026) so `download` can
+# warn before a huge pull. ct/ dominates; labels + manifest are tiny.
+_DL = {
+    "full":   (262.0, None,                                 "v2",   "everything in v2 (ct + labels + crops + manifest)"),
+    "ct":     (241.0, ["ct/*", "manifest.*", "splits_*.json"], "v2", "full-res CT volumes only (+ manifest/splits)"),
+    "labels": (1.9,   ["labels/*", "manifest.*", "splits_*.json"], "v2", "label maps + manifest/splits (tiny; pair with CTs you already have)"),
+    "crops":  (19.2,  ["crops/*"],                          "v2",   "the small review ROI crops only"),
+    "sample": (10.7,  None,                                 "main", "the anonymized review sample (main branch)"),
+}
+
+
+def cmd_download(a):
+    """Download the dataset from HuggingFace. `--what` picks how much."""
+    from huggingface_hub import snapshot_download
+    approx, patterns, default_rev, desc = _DL[a.what]
+    rev = a.revision or default_rev
+    out = Path(a.out).expanduser()
+    print(f"download '{a.what}': {desc}")
+    print(f"  repo={a.repo}@{rev}  ->  {out}")
+    print(f"  approx size: ~{approx:.0f} GB")
+    if approx >= 50 and not a.yes:
+        print(f"\n  This is LARGE (~{approx:.0f} GB) and may take a long time / lots "
+              f"of disk.\n  If you really want it, re-run with --yes. (Most users "
+              f"want --what labels or --what crops.)")
+        return 1
+    out.mkdir(parents=True, exist_ok=True)
+    snapshot_download(repo_id=a.repo, repo_type="dataset", revision=rev,
+                      local_dir=str(out), allow_patterns=patterns,
+                      max_workers=a.workers)
+    print(f"\ndone -> {out}")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="reviewtool", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -963,6 +1021,22 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("status"); p.set_defaults(fn=cmd_status)
     p = sub.add_parser("resume"); p.set_defaults(fn=cmd_resume)
+
+    p = sub.add_parser("download",
+                       help="download the dataset from HuggingFace "
+                            "(full ~262GB / ct ~241GB / labels ~2GB / crops ~19GB / sample ~11GB)")
+    p.add_argument("--what", choices=list(_DL), default="labels",
+                   help="how much to pull (default: labels — tiny)")
+    p.add_argument("--out", default=str(Path.home() / "CTSpinoPelvic1K_data"),
+                   help="destination dir")
+    p.add_argument("--repo", default="gregoryschwingmdphd/CTSpinoPelvic1K",
+                   help="HuggingFace dataset repo id")
+    p.add_argument("--revision", default=None,
+                   help="branch/tag (default: v2, or main for --what sample)")
+    p.add_argument("--workers", type=int, default=8)
+    p.add_argument("--yes", action="store_true",
+                   help="confirm a large (>=50 GB) download")
+    p.set_defaults(fn=cmd_download)
 
     args = ap.parse_args(argv)
     return args.fn(args) or 0

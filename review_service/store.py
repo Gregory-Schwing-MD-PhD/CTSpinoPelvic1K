@@ -276,7 +276,11 @@ def init_cases_from_manifest(store: ReviewStore, records: List[dict],
         if crops_index is not None:
             e = crops_index[rec["label_file"]]
             case["crop"] = {"ct_crop": e["ct_crop"], "seg_crop": e["seg_crop"],
-                            "origin": e["origin"]}
+                            "origin": e["origin"],
+                            # LSTV phenotype -> reviewtool warns to count levels
+                            # (transitional vertebra is where the draft duplicates).
+                            "lstv_class": int(rec.get("lstv_class") or 0),
+                            "lstv_label": rec.get("lstv_label") or "normal"}
         new_cases.append(case)
     store.put_cases(new_cases)                   # single commit (no-op if empty)
     return len(new_cases)

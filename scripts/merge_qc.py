@@ -37,6 +37,11 @@ PULL = {
                    "pelvis_incomplete", "duplication_flag"], "struct_flag"),
 }
 
+# source name -> its overall flag column. Lets --exclude name a CHECK to keep
+# measuring (its columns stay) but drop from the review trigger (needs_review).
+_SRC_TO_FLAG = {name: flag for name, (_cols, flag) in PULL.items()}
+_ALL_FLAGS = ("mixing_flag", "leak_flag", "struct_flag")
+
 
 def _key(row: dict) -> Tuple[str, str]:
     return (str(row.get("token", "")), str(row.get("config", "")))
@@ -68,29 +73,34 @@ def _pct(vals, p: float) -> float:
 _BASELINED = {"off_bone_frac": "leak_flag"}
 
 
-def recalibrate(master: List[dict], baseline: List[dict], pct: float):
+def recalibrate(master: List[dict], baseline: List[dict], pct: float,
+                exclude_flags=frozenset()):
     """Re-flag the LEAK check relative to the radiologist baseline: a case trips
     leak_flag only if off_bone_frac exceeds the p-th percentile of the baseline
     (gold) rows. Mixing keeps its absolute tol and the categorical struct checks
     (duplication / L-R swap / gap) are left as-is — both already discriminate.
-    Recomputes needs_review + n_flags. Returns the derived threshold(s)."""
+    Recomputes needs_review + n_flags. `exclude_flags` (flag-column names) are
+    still measured but do NOT contribute to needs_review. Returns thresholds."""
     thr = {col: _pct([_to_float(r.get(col)) for r in baseline], pct)
            for col in _BASELINED}
+    counted = [f for f in _ALL_FLAGS if f not in exclude_flags]
     for r in master:
         for col, flag in _BASELINED.items():
             v = _to_float(r.get(col))
             r[flag] = int(v is not None and v > thr[col])
-        r["n_flags"] = sum(int(r.get(f, 0)) for f in
-                           ("mixing_flag", "leak_flag", "struct_flag"))
+        r["n_flags"] = sum(int(r.get(f, 0)) for f in counted)
         r["needs_review"] = int(r["n_flags"] > 0)
     master.sort(key=lambda r: (r["needs_review"], r["n_flags"]), reverse=True)
     return thr
 
 
-def build_master(sources: Dict[str, List[dict]]) -> List[dict]:
+def build_master(sources: Dict[str, List[dict]],
+                 exclude_flags=frozenset()) -> List[dict]:
     """Join QC source rows on (token, config). `sources` maps a source name in
     PULL to its list of row dicts. Returns master rows with each source's flag +
-    pulled columns, a combined needs_review, and n_flags, sorted worst-first."""
+    pulled columns, a combined needs_review, and n_flags, sorted worst-first.
+    `exclude_flags` (flag-column names) stay as columns but don't count toward
+    needs_review (e.g. keep leak measured but not a review trigger)."""
     keys: List[Tuple[str, str]] = []
     indexed: Dict[str, Dict[Tuple[str, str], dict]] = {}
     for name, rows in sources.items():
@@ -111,7 +121,7 @@ def build_master(sources: Dict[str, List[dict]]) -> List[dict]:
             flag = int(float(row[flag_col])) if (row and row.get(flag_col) not in
                                                  (None, "")) else 0
             out[flag_col] = flag
-            n_flags += 1 if flag else 0
+            n_flags += 1 if (flag and flag_col not in exclude_flags) else 0
             for c in cols:
                 out[c] = (row.get(c, "") if row else "")
         out["n_flags"] = n_flags
@@ -158,7 +168,21 @@ def main() -> int:
     ap.add_argument("--pct", type=float, default=95.0,
                     help="baseline percentile for the continuous thresholds "
                          "(default 95).")
+    ap.add_argument("--exclude", default="",
+                    help="comma list of CHECKS to keep measuring but drop from "
+                         "the review trigger: any of mixing,leak,structure "
+                         "(e.g. --exclude leak — off-bone leak is too hard to fix, "
+                         "so record it but don't put leak-only cases on the worklist).")
     args = ap.parse_args()
+
+    bad = [n for n in (s.strip() for s in args.exclude.split(",") if s.strip())
+           if n not in _SRC_TO_FLAG]
+    if bad:
+        log.error("--exclude: unknown check(s) %s (choose from %s)",
+                  bad, list(_SRC_TO_FLAG))
+        return 1
+    exclude_flags = frozenset(_SRC_TO_FLAG[n] for n in
+                              (s.strip() for s in args.exclude.split(",")) if n)
 
     sources = {k: _read(p) for k, p in
                (("mixing", args.mixing), ("leak", args.leak),
@@ -167,12 +191,16 @@ def main() -> int:
         log.error("no QC CSVs provided/found — nothing to merge")
         return 1
 
-    master = build_master(sources)
+    master = build_master(sources, exclude_flags=exclude_flags)
+    if exclude_flags:
+        log.info("excluded from review trigger (still measured): %s",
+                 sorted(exclude_flags))
     if args.baseline:
         if not args.baseline.exists():
             log.error("baseline CSV not found: %s", args.baseline)
             return 1
-        thr = recalibrate(master, list(csv.DictReader(open(args.baseline))), args.pct)
+        thr = recalibrate(master, list(csv.DictReader(open(args.baseline))),
+                          args.pct, exclude_flags=exclude_flags)
         log.info("calibrated to radiologist p%.0f: %s", args.pct,
                  {k: round(v, 4) for k, v in thr.items()})
     args.out.parent.mkdir(parents=True, exist_ok=True)

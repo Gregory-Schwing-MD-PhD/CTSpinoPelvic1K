@@ -105,6 +105,10 @@ def _export_one(task: dict) -> dict:
             "origin": [int(s.start) for s in bbox],
             "crop_shape": [int(s.stop - s.start) for s in bbox],
             "full_shape": [int(x) for x in lab.shape],
+            # LSTV phenotype so the reviewer is warned to count levels carefully
+            # (the draft often duplicates/mislabels the transitional vertebra).
+            "lstv_class": int(task.get("lstv_class") or 0),
+            "lstv_label": task.get("lstv_label") or "",
         }
         (out_dir / "crop.json").write_text(json.dumps(entry, indent=2))
         mb = sum(f.stat().st_size for f in out_dir.glob("*.nii.gz")) / 1e6
@@ -167,6 +171,8 @@ def main() -> int:
             "ct_path": str(ct), "label_path": str(lbl),
             "label_file": rec["label_file"], "pad": args.pad,
             "labels_txt": labels_txt,
+            "lstv_class": rec.get("lstv_class"),
+            "lstv_label": rec.get("lstv_label"),
             "out_dir": str(args.out / crop_dirname(r["token"], r["config"])),
         })
     log.info("exporting %d flagged crops -> %s (pad=%d, %d workers)",
