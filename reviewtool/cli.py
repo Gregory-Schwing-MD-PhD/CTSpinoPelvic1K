@@ -499,14 +499,47 @@ _LSTV_HINT = {
 }
 
 
-def _print_lstv(crop: dict) -> None:
+_LSTV_MANIFEST_CACHE: dict = {}
+
+
+def _lstv_lookup(job: dict, work):
+    """LSTV (class, label) for this case from the v2 manifest — so it shows even
+    when the seeded crop predates the lstv field. Cached per v2_repo per process
+    (manifest.json is ~1 MB and HF-cached, so this is cheap)."""
+    repo = job.get("v2_repo")
+    if repo not in _LSTV_MANIFEST_CACHE:
+        table: dict = {}
+        try:
+            p = _fetch(job, "manifest.json", Path(work) / "v2_manifest.json")
+            recs = json.loads(Path(p).read_text())
+            if isinstance(recs, dict):
+                recs = recs.get("records") or recs.get("cases") or []
+            for r in recs:
+                t = str(r.get("token"))
+                if t and t not in table:
+                    table[t] = (int(r.get("lstv_class") or 0),
+                                r.get("lstv_label") or "")
+        except Exception:
+            pass
+        _LSTV_MANIFEST_CACHE[repo] = table
+    tok = str(job.get("token") or str(job.get("case_id", "")).split("__")[0])
+    return _LSTV_MANIFEST_CACHE[repo].get(tok)
+
+
+def _print_lstv(job: dict, crop: dict, work) -> None:
     """Print the case's LSTV phenotype so the reviewer counts levels carefully.
-    Only when the seed carried it (post-reseed); silent on older seeds."""
-    if not crop or "lstv_class" not in crop:
+    Prefers the seeded crop value; falls back to the v2 manifest so it ALWAYS
+    prints (including 'Normal'). Silent only if the manifest can't be read."""
+    c = label = None
+    if crop and "lstv_class" in crop:
+        c, label = int(crop.get("lstv_class") or 0), crop.get("lstv_label")
+    else:
+        hit = _lstv_lookup(job, work)
+        if hit:
+            c, label = hit
+    if c is None:
         return
-    c = int(crop.get("lstv_class") or 0)
-    name = _LSTV_NAMES.get(c) or (crop.get("lstv_label") or "?")
-    print(f"  LSTV STATUS: {name}")
+    print(f"  LSTV STATUS: {_LSTV_NAMES.get(c) or label or '?'}")
     if c in _LSTV_HINT:
         print(f"    -> {_LSTV_HINT[c]}")
 
@@ -552,14 +585,16 @@ def cmd_next(a):
                    if job.get("region_to_review") == "both"
                    else f"the {job['region_to_review']} region")
     print(f"case {job['case_id']}  ({note} — {region_note})")
-    _print_lstv(crop)
     before_qc = (work / "crop_seg.nii.gz") if crop else pseudo
-    if not getattr(a, "no_qc", False):                  # WHY FLAGGED / what to fix
-        # Run async so ITK-SNAP opens immediately — on a fused WHOLE-scan crop the
-        # QC still takes a bit, and we don't want a blank terminal while it runs.
-        import threading
-        threading.Thread(target=_qc_startup, args=(snap_ct, before_qc),
-                         daemon=True).start()
+    # Print LSTV + WHY FLAGGED in the background so ITK-SNAP opens immediately —
+    # the manifest lookup and QC scan must not delay the window.
+    import threading
+
+    def _startup_info():
+        _print_lstv(job, crop, work)
+        if not getattr(a, "no_qc", False):
+            _qc_startup(snap_ct, before_qc)
+    threading.Thread(target=_startup_info, daemon=True).start()
 
     ref_proc = None
     if not getattr(a, "no_reference", False):           # gold example beside the case
@@ -746,12 +781,15 @@ def cmd_edit(a):
 
     print(f"editing {work.name} ({kind}) — review the "
           f"{job['region_to_review']} region")
-    _print_lstv(crop)                            # LSTV STATUS (same as `next`)
     before_qc = (work / "crop_seg.nii.gz") if crop else pseudo
-    if kind != "adjudicate":                     # WHY FLAGGED, async so ITK-SNAP opens now
-        import threading
-        threading.Thread(target=_qc_startup, args=(snap_ct, before_qc),
-                         daemon=True).start()
+    # LSTV + WHY FLAGGED in the background so ITK-SNAP opens immediately.
+    import threading
+
+    def _startup_info():
+        _print_lstv(job, crop, work)
+        if kind != "adjudicate":
+            _qc_startup(snap_ct, before_qc)
+    threading.Thread(target=_startup_info, daemon=True).start()
     pre_mtime = snap_seg.stat().st_mtime if snap_seg.exists() else 0.0
     # watch: rerun the QC live on every save, exactly like `next`
     rc = _watch_itksnap(a.itksnap or _default_itksnap(), snap_ct, snap_seg, labels,
