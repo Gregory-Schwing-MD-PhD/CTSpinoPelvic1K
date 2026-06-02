@@ -728,6 +728,10 @@ def cmd_next(a):
                       not getattr(a, "no_qc", False))
     threading.Thread(target=_startup_info, daemon=True).start()
 
+    ref_proc = None
+    if getattr(a, "reference", False):                  # opt-in: gold example window
+        ref_proc = _open_space_reference(job, snap, work)
+
     # mtime of the seg the editor opens, BEFORE the session. A real save (an
     # edit OR a deliberate accept) advances it; if it never advances, ITK-SNAP
     # detached/closed before the reviewer saved (the macOS bin/ wrapper bug) and
@@ -739,8 +743,9 @@ def cmd_next(a):
         rc = _watch_itksnap(snap, snap_ct, snap_seg, labels,
                             qc_ct=snap_ct, before=before_qc,
                             live_qc=getattr(a, "live_qc", False))
-    if ctx_proc is not None:
-        ctx_proc.terminate()
+    for p in (ctx_proc, ref_proc):
+        if p is not None:
+            p.terminate()
     if rc != 0:
         print(f"\nITK-SNAP exited with code {rc} — it failed to start or "
               f"crashed, so NO edit was captured. Not submitting.\n"
@@ -940,10 +945,14 @@ def cmd_edit(a):
         _show_startup(job, crop, work, snap_ct, before_qc, kind != "adjudicate")
     threading.Thread(target=_startup_info, daemon=True).start()
     snap = a.itksnap or _default_itksnap()
+    ref_proc = (_open_space_reference(job, snap, work)
+                if getattr(a, "reference", False) else None)
     pre_mtime = snap_seg.stat().st_mtime if snap_seg.exists() else 0.0
     rc = _watch_itksnap(snap, snap_ct, snap_seg, labels,
                         qc_ct=snap_ct, before=before_qc,
                         live_qc=getattr(a, "live_qc", False))
+    if ref_proc is not None:
+        ref_proc.terminate()
     if rc != 0:
         print(f"ITK-SNAP exited with code {rc} — no edit captured. "
               "Not submitting; your claim is kept.")
@@ -1207,6 +1216,9 @@ def main(argv=None) -> int:
             p.add_argument("--no_watch", action="store_true",
                            help="don't keep ITK-SNAP open for live QC; use the "
                                 "old quit-to-submit behaviour")
+            p.add_argument("--reference", action="store_true",
+                           help="also open the gold reference example in a 2nd "
+                                "window (off by default)")
             p.add_argument("--live_qc", action="store_true",
                            help="re-run the QC on every Save (live progress to OK). "
                                 "Off by default — faster, since AI-assisted fixes "
@@ -1222,6 +1234,8 @@ def main(argv=None) -> int:
                    help="case id of a saved claim (omit if only one is saved)")
     p.add_argument("--itksnap", default=None,
                    help="ITK-SNAP executable (auto-detected if omitted)")
+    p.add_argument("--reference", action="store_true",
+                   help="also open the gold reference example in a 2nd window")
     p.add_argument("--live_qc", action="store_true",
                    help="re-run QC on every Save (default off — faster)")
     p.set_defaults(fn=cmd_edit)
