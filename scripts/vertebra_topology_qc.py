@@ -81,17 +81,22 @@ def vertebra_topology_metrics(label, affine, *, vert_labels=VERT_LABELS,
     total_vox = 0
     offmain_vox = 0
     n_fragmented = 0
+    split_classes: List[str] = []      # which vertebrae are split, + the %/% of their two biggest pieces
     for c in present:
         m = lab == c
         cc, n = cc_label(m, structure=struct)
         if n == 0:
             continue
-        sizes = np.bincount(cc.ravel())[1:]        # drop background count
+        sizes = np.sort(np.bincount(cc.ravel())[1:])[::-1]   # descending
         tot = int(sizes.sum())
         total_vox += tot
-        offmain_vox += tot - int(sizes.max())
+        offmain_vox += tot - int(sizes[0])
         if n > 1:
             n_fragmented += 1
+            # a REAL split (vs a speck): 2nd piece >= 10% of the class
+            if len(sizes) > 1 and sizes[1] >= 0.10 * tot:
+                split_classes.append("L%d(%d/%d)" % (
+                    c, round(100 * sizes[0] / tot), round(100 * sizes[1] / tot)))
     off_main_frac = (offmain_vox / total_vox) if total_vox else 0.0
 
     # ── craniocaudal ordering + adjacent overlap (along si_axis) ────────────
@@ -148,6 +153,7 @@ def vertebra_topology_metrics(label, affine, *, vert_labels=VERT_LABELS,
         "adj_overlap_frac": round(adj_overlap_frac, 6),
         "n_nonadjacent_touch": n_nonadjacent_touch,
         "nonadjacent_touch_vox": int(nonadjacent_touch_vox),
+        "split_classes": ";".join(split_classes),   # e.g. "L3(63/37);L4(70/31)"
         "mixing_flag": mixing_flag,
     }
 
@@ -180,7 +186,7 @@ def _touch_voxels(lab, a, b, boxes, struct) -> int:
 
 _FIELDS = ["token", "config", "n_vertebrae", "off_main_frac", "n_fragmented",
            "n_order_inversions", "adj_overlap_frac", "n_nonadjacent_touch",
-           "nonadjacent_touch_vox", "mixing_flag"]
+           "nonadjacent_touch_vox", "split_classes", "mixing_flag"]
 
 
 def _qc_one(task: dict) -> Optional[dict]:

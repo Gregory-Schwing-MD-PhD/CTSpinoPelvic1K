@@ -75,7 +75,10 @@ def structure_metrics(label, affine, *, min_dup_vox: int = 500,
     # large (>= min_dup_vox) AND a meaningful FRACTION of the largest
     # (>= dup_ratio). The fraction gate rejects small fragments/specks hanging
     # off an otherwise-fine structure, which a pure size cutoff over-flags.
+    _NAME = {1: "L1", 2: "L2", 3: "L3", 4: "L4", 5: "L5", 6: "L6",
+             7: "sacrum", 8: "left_hip", 9: "right_hip"}
     n_dup = 0
+    dup_classes: List[str] = []          # which structures are duplicated
     for c in present:
         cc, n = cc_label(lab == c, structure=struct)
         if n < 2:
@@ -84,6 +87,7 @@ def structure_metrics(label, affine, *, min_dup_vox: int = 500,
         largest, second = int(sizes[0]), int(sizes[1])
         if second >= min_dup_vox and second >= dup_ratio * largest:
             n_dup += 1
+            dup_classes.append(_NAME.get(c, str(c)))
 
     # ── vertebra gap: missing levels inside the present spine span ───────────
     sp = [c for c in SPINE if c in present]
@@ -117,6 +121,7 @@ def structure_metrics(label, affine, *, min_dup_vox: int = 500,
         "vertebra_gap": int(vertebra_gap),
         "pelvis_incomplete": pelvis_incomplete,
         "n_dup_classes": n_dup,
+        "dup_classes": ",".join(dup_classes),    # e.g. "L3,L4"
         "duplication_flag": int(n_dup > 0),
         "lr_known": lr_known,
         "lr_swap": lr_swap,
@@ -133,7 +138,7 @@ def structure_metrics(label, affine, *, min_dup_vox: int = 500,
 # ===========================================================================
 
 _FIELDS = ["token", "config", "n_present", "vertebra_gap", "pelvis_incomplete",
-           "n_dup_classes", "duplication_flag", "lr_known", "lr_swap",
+           "n_dup_classes", "dup_classes", "duplication_flag", "lr_known", "lr_swap",
            "lr_same_side", "left_hip_x", "sacrum_x", "right_hip_x", "struct_flag"]
 
 

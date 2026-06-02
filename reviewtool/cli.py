@@ -451,11 +451,15 @@ def _qc_startup(ct_path, draft_path) -> None:
         return
     foci = []
     if m.get("off_main_frac", 0) > 0.005:
-        foci.append(f"vertebra MIXING  (off_main={m['off_main_frac']:.3f}; target <= 0.005)")
+        sc = (m.get("split_classes") or "")
+        foci.append(f"vertebra MIXING  (off_main={m['off_main_frac']:.3f}; target <= 0.005)"
+                    + (f"  [split: {sc.replace(';', ', ')}]" if sc else ""))
     if m.get("n_order_inversions", 0):
         foci.append("level ORDER wrong (a vertebra is out of sequence)")
     if m.get("duplication_flag", 0):
-        foci.append("DUPLICATED structure (a stray disconnected piece)")
+        dc = (m.get("dup_classes") or "")
+        foci.append("DUPLICATED structure" + (f"  [{dc}]" if dc else
+                                              " (a stray disconnected piece)"))
     if m.get("lr_swap", 0):
         foci.append("L/R HIP SWAP")
     if m.get("vertebra_gap", 0):
@@ -580,13 +584,17 @@ def _precomputed_focus(job: dict, work):
         return []
     foci = []
     if _is_flag(row.get("mixing_flag")):
+        sc = (row.get("split_classes") or "").strip()
+        detail = f"  [split: {sc.replace(';', ', ')}]" if sc else ""
         foci.append(f"vertebra MIXING  (off_main={row.get('off_main_frac', '?')}; "
-                    "target <= 0.005)")
+                    f"target <= 0.005){detail}")
     if str(row.get("n_order_inversions", "0")).strip() not in ("", "0", "0.0"):
         foci.append("level ORDER wrong (a vertebra is out of sequence)")
     if _is_flag(row.get("struct_flag")):
         if _is_flag(row.get("duplication_flag")):
-            foci.append("DUPLICATED structure (a stray disconnected piece)")
+            dc = (row.get("dup_classes") or "").strip()
+            foci.append("DUPLICATED structure"
+                        + (f"  [{dc}]" if dc else " (a stray disconnected piece)"))
         if _is_flag(row.get("lr_swap")):
             foci.append("L/R HIP SWAP")
         if str(row.get("vertebra_gap", "0")).strip() not in ("", "0", "0.0"):
@@ -594,6 +602,37 @@ def _precomputed_focus(job: dict, work):
         if _is_flag(row.get("pelvis_incomplete")):
             foci.append("pelvis INCOMPLETE")
     return foci
+
+
+def _class_split_lines(label_path):
+    """Cheap LOCAL per-class split/duplication detail from one label map, e.g.
+    ['L3 (63/37)', 'L4 (70/31)'] — the two biggest pieces of any class that's
+    split >=10%. Used to show which levels to fix when the precomputed CSV
+    predates the split_classes column. None on any error."""
+    try:
+        import numpy as np
+        import nibabel as nib
+        from scipy.ndimage import label as _cc, generate_binary_structure
+        lab = np.asarray(nib.load(str(label_path)).dataobj)
+    except Exception:
+        return None
+    names = {1: "L1", 2: "L2", 3: "L3", 4: "L4", 5: "L5", 6: "L6",
+             7: "sacrum", 8: "left hip", 9: "right hip"}
+    st = generate_binary_structure(lab.ndim, lab.ndim)
+    out = []
+    for c in range(1, 10):
+        m = lab == c
+        n = int(m.sum())
+        if n == 0:
+            continue
+        arr, k = _cc(m, structure=st)
+        if k < 2:
+            continue
+        sizes = np.sort(np.bincount(arr.ravel())[1:])[::-1]
+        if sizes[1] >= 0.10 * n:                       # real split, not a speck
+            out.append("%s (%d/%d)" % (names[c], round(100 * sizes[0] / n),
+                                       round(100 * sizes[1] / n)))
+    return out or None
 
 
 def _show_startup(job: dict, crop: dict, work, qc_ct, before, run_qc: bool):
@@ -610,6 +649,11 @@ def _show_startup(job: dict, crop: dict, work, qc_ct, before, run_qc: bool):
     for f in (foci or ["nothing obvious in the metrics — give the structure a "
                        "quick look."]):
         print(f"    * {f}")
+    # If the published CSV predates the split/dup detail, fill it in locally (cheap).
+    if foci and not any("[" in f for f in foci):
+        detail = _class_split_lines(before)
+        if detail:
+            print("    split/duplicated levels: " + ", ".join(detail))
     print("  (edit, Save (Ctrl-S), and watch these clear to OK above.)")
 
 

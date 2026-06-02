@@ -30,11 +30,12 @@ log = logging.getLogger("ctspinopelvic1k.merge_qc")
 # Which columns to carry from each source (besides token/config), and the
 # per-source overall flag column.
 PULL = {
-    "mixing": (["off_main_frac", "n_order_inversions", "n_nonadjacent_touch"],
-               "mixing_flag"),
+    "mixing": (["off_main_frac", "n_order_inversions", "n_nonadjacent_touch",
+                "split_classes"], "mixing_flag"),
     "leak": (["off_bone_frac", "bg_leak_frac", "under_seg_frac"], "leak_flag"),
     "structure": (["lr_swap", "lr_same_side", "vertebra_gap",
-                   "pelvis_incomplete", "duplication_flag"], "struct_flag"),
+                   "pelvis_incomplete", "duplication_flag", "dup_classes"],
+                  "struct_flag"),
 }
 
 # source name -> its overall flag column. Lets --exclude name a CHECK to keep
