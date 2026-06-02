@@ -48,6 +48,10 @@ python3 -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1
 
 Steps 1–2 are done **once**.
 
+> **Already cloned this before?** Update first — a recent fix stops ITK-SNAP from
+> closing/auto-submitting before you can edit:
+> `cd CTSpinoPelvic1K && git pull`
+
 ## 3. Review a case
 
 ```bash
@@ -79,6 +83,11 @@ Repeat `python3 -m reviewtool next` for the next case. Check progress with:
 python3 -m reviewtool status
 ```
 
+> **Optional — download every case at once:** normally each case downloads as you
+> go. To pull the whole review set locally (just the flagged crops, ~10 GB):
+> `python3 -m reviewtool download --what crops` (lands in `~/CTSpinoPelvic1K_data`;
+> `--out DIR` to change). You still submit via `reviewtool next`.
+
 > **Optional — faster editing with AI:** if a draft needs heavy re-drawing, you
 > can use ITK-SNAP's nnInteractive AI tool (runs on free Google Colab — no GPU
 > needed, which matters on a Mac). Entirely optional; see
@@ -108,8 +117,13 @@ Safe to run anytime, even if everything already went through.
   <https://www.python.org/downloads/>, then reopen Terminal.
 - **`invalid credentials` / `401`** → you're not signed in to HuggingFace (or the
   token expired). Run `hf auth login` again with a valid **Read** token.
+- **ITK-SNAP opens then instantly closes / "auto-submits" before you can edit** →
+  you're on an old copy of the tool. Update it: `cd CTSpinoPelvic1K && git pull`.
+  If it still happens, point at the GUI binary that stays open:
+  `--itksnap /Applications/ITK-SNAP.app/Contents/MacOS/ITK-SNAP`. (Nothing is
+  submitted unless you actually **Save** — so a stray close costs you nothing.)
 - **`itksnap not found`** → ITK-SNAP isn't in Applications; reinstall it there, or
-  add `--itksnap /Applications/ITK-SNAP.app/Contents/bin/itksnap` to the `next`
+  add `--itksnap /Applications/ITK-SNAP.app/Contents/MacOS/ITK-SNAP` to the `next`
   command.
 - **macOS won't open ITK-SNAP ("unidentified developer")** → right-click the app
   in Applications → **Open** → **Open** once to approve it.

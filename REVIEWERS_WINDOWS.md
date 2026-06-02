@@ -49,6 +49,9 @@ py -m reviewtool login --service https://gregoryschwingmdphd-ctspinopelvic1k-rev
 
 Steps 1–3 are done **once**.
 
+> **Already cloned this before?** Update first (recent reviewer-tool fixes):
+> `cd CTSpinoPelvic1K; git pull`
+
 ## 4. Review a case
 
 ```powershell
@@ -83,6 +86,11 @@ Repeat `py -m reviewtool next` for the next case. Check progress with:
 ```powershell
 py -m reviewtool status
 ```
+
+> **Optional — download every case at once:** normally each case downloads as you
+> go. To pull the whole review set locally (just the flagged crops, ~10 GB):
+> `py -m reviewtool download --what crops` (lands in `%USERPROFILE%\CTSpinoPelvic1K_data`;
+> `--out DIR` to change). You still submit via `reviewtool next`.
 
 > **Optional — faster editing with AI:** if a draft needs heavy re-drawing, you
 > can use ITK-SNAP's nnInteractive AI tool (runs on free Google Colab — no GPU

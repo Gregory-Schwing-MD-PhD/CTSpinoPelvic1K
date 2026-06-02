@@ -49,6 +49,31 @@ Once you're logged in to HuggingFace, the review tool knows who you are — that
 all most reviewers need. **If you'll be a senior adjudicator**, send the project
 lead your HuggingFace **username** so they can enable adjudication for you.
 
+## Already set up from before? Update first
+
+If you cloned this earlier, **update before reviewing** — a recent fix stops Mac
+ITK-SNAP from closing/auto-submitting before you can edit:
+
+```bash
+cd CTSpinoPelvic1K && git pull
+```
+
+## Optional: download every case at once (offline / bulk)
+
+Normally `reviewtool next` downloads each case as you go — you don't need this.
+But if you'd rather pull the whole review set locally (to work offline or skim
+them), grab the **crops** subset — only the flagged cases, ~10 GB, nothing you
+don't need:
+
+```bash
+python -m reviewtool download --what crops          # Windows: py -m reviewtool ...
+```
+
+It lands in `~/CTSpinoPelvic1K_data` (override with `--out DIR`). You still
+**submit through `reviewtool next`** — bulk download is just for having the data
+on hand. **Don't download the full dataset** — it's 253 GB of full CTs you don't
+need; the crops are all you review.
+
 ## Optional: faster editing with AI
 
 If a draft needs heavy re-drawing, you can speed it up with ITK-SNAP's

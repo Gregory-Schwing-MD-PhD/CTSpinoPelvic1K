@@ -958,10 +958,10 @@ def cmd_fix_list(a):
 # Approx sizes of the v2 dataset tree (measured June 2026) so `download` can
 # warn before a huge pull. ct/ dominates; labels + manifest are tiny.
 _DL = {
-    "full":   (262.0, None,                                 "v2",   "everything in v2 (ct + labels + crops + manifest)"),
+    "full":   (253.0, None,                                 "v2",   "everything in v2 (ct + labels + crops + manifest)"),
     "ct":     (241.0, ["ct/*", "manifest.*", "splits_*.json"], "v2", "full-res CT volumes only (+ manifest/splits)"),
     "labels": (1.9,   ["labels/*", "manifest.*", "splits_*.json"], "v2", "label maps + manifest/splits (tiny; pair with CTs you already have)"),
-    "crops":  (19.2,  ["crops/*"],                          "v2",   "the small review ROI crops only"),
+    "crops":  (10.0,  ["crops/*"],                          "v2",   "the review ROI crops only (the flagged worklist)"),
     "sample": (10.7,  None,                                 "main", "the anonymized review sample (main branch)"),
 }
 
@@ -1060,9 +1060,9 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("download",
                        help="download the dataset from HuggingFace "
-                            "(full ~262GB / ct ~241GB / labels ~2GB / crops ~19GB / sample ~11GB)")
-    p.add_argument("--what", choices=list(_DL), default="labels",
-                   help="how much to pull (default: labels — tiny)")
+                            "(full ~253GB / ct ~241GB / labels ~2GB / crops ~10GB / sample ~11GB)")
+    p.add_argument("--what", choices=list(_DL), default="crops",
+                   help="how much to pull (default: crops — the review worklist, ~10GB)")
     p.add_argument("--out", default=str(Path.home() / "CTSpinoPelvic1K_data"),
                    help="destination dir")
     p.add_argument("--repo", default="gregoryschwingmdphd/CTSpinoPelvic1K",

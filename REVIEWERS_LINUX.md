@@ -127,6 +127,11 @@ Repeat `python3 -m reviewtool next` for the next case. Check progress with:
 python3 -m reviewtool status
 ```
 
+> **Optional — download every case at once:** normally each case downloads as you
+> go. To pull the whole review set locally (just the flagged crops, ~10 GB):
+> `python3 -m reviewtool download --what crops` (lands in `~/CTSpinoPelvic1K_data`;
+> `--out DIR` to change). You still submit via `reviewtool next`.
+
 > **Optional — faster editing with AI:** if a draft needs heavy re-drawing, you
 > can use ITK-SNAP's nnInteractive AI tool (free Google Colab, a local NVIDIA
 > GPU, or a GPU server). Entirely optional; see
