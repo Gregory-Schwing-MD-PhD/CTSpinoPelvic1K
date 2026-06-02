@@ -25,6 +25,11 @@ def main() -> int:
     ap.add_argument("--repo_id", required=True, help="v2 dataset repo, e.g. ORG/Name")
     ap.add_argument("--revision", default="v2", help="branch/revision (default v2)")
     ap.add_argument("--token", default=os.environ.get("HF_TOKEN"))
+    ap.add_argument("--clean", action="store_true",
+                    help="MIRROR: also delete remote crops/ files that aren't in "
+                         "this upload (removes stale/orphaned crops, e.g. cases "
+                         "dropped from the worklist). NOTE: this also removes "
+                         "crops/reference — run push-reference AFTER a clean push.")
     args = ap.parse_args()
 
     if not (args.crops / "crops_index.json").exists():
@@ -33,10 +38,17 @@ def main() -> int:
         sys.exit("no HF token — set HF_TOKEN or pass --token")
 
     from huggingface_hub import upload_folder
-    print(f"uploading {args.crops} -> {args.repo_id}@{args.revision}:crops/ ...")
+    mode = "MIRROR (delete remote orphans)" if args.clean else "add/update"
+    print(f"uploading {args.crops} -> {args.repo_id}@{args.revision}:crops/  [{mode}] ...")
     upload_folder(folder_path=str(args.crops), path_in_repo="crops",
                   repo_id=args.repo_id, repo_type="dataset", revision=args.revision,
-                  token=args.token, commit_message="add review crops + crops_index")
+                  token=args.token,
+                  delete_patterns=["*"] if args.clean else None,
+                  commit_message="sync review crops + crops_index"
+                                 + (" (mirror)" if args.clean else ""))
+    if args.clean:
+        print("NOTE: a clean push removes crops/reference — run "
+              "'make push-reference' now to restore the gold example.")
     print("done. Restart the review Space to triage to the flagged worklist.")
     return 0
 

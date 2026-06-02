@@ -20,6 +20,8 @@
 #   PSEUDO_OUT_DIR pseudo tree            (default: data/hf_export_v2)
 #   CROPS_OUT_DIR  crops output dir       (default: data/review_crops)
 #   CROP_PAD       voxel pad around bbox  (default: 8)
+#   CROPS_CLEAN    1 = wipe CROPS_OUT_DIR first, so it holds ONLY the current
+#                  worklist (no stale crops from a previous run) (default: 0)
 #   QC_LIMIT       cap cases (debug)
 # =============================================================================
 set -euo pipefail
@@ -32,10 +34,15 @@ QC_MASTER_CSV="${QC_MASTER_CSV:-${DATA_DIR}/qc_master.csv}"
 PSEUDO_OUT_DIR="${PSEUDO_OUT_DIR:-${DATA_DIR}/hf_export_v2}"
 CROPS_OUT_DIR="${CROPS_OUT_DIR:-${DATA_DIR}/review_crops}"
 CROP_PAD="${CROP_PAD:-8}"
+CROPS_CLEAN="${CROPS_CLEAN:-0}"
 QC_WORKERS="${QC_WORKERS:-${SLURM_CPUS_PER_TASK:-8}}"
 QC_LIMIT="${QC_LIMIT:-0}"
 
 mkdir -p "${LOGS_DIR}" "${CROPS_OUT_DIR}"
+if [[ "${CROPS_CLEAN}" != "0" ]]; then
+    echo "CROPS_CLEAN=1 -> wiping ${CROPS_OUT_DIR} before export (fresh worklist only)"
+    rm -rf "${CROPS_OUT_DIR:?}"/* 2>/dev/null || true
+fi
 
 if [[ ! -f "${SIF_PATH}" ]]; then
     echo "ERROR: container missing.  Run: make build-container"; exit 1

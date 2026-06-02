@@ -183,6 +183,8 @@ QC_EXCLUDE        := $(strip $(QC_EXCLUDE))
 QC_MASTER_CSV     ?=
 CROPS_OUT_DIR     ?=
 CROP_PAD          ?= 8
+CROPS_CLEAN       ?= 0
+PUSH_CLEAN        ?= 0
 DECOMP_CSV        ?=
 DECOMP_K          ?= 1
 REF_TOKEN         ?=
@@ -190,6 +192,8 @@ REF_TOKEN         := $(strip $(REF_TOKEN))
 QC_MASTER_CSV     := $(strip $(QC_MASTER_CSV))
 CROPS_OUT_DIR     := $(strip $(CROPS_OUT_DIR))
 CROP_PAD          := $(strip $(CROP_PAD))
+CROPS_CLEAN       := $(strip $(CROPS_CLEAN))
+PUSH_CLEAN        := $(strip $(PUSH_CLEAN))
 DECOMP_CSV        := $(strip $(DECOMP_CSV))
 DECOMP_K          := $(strip $(DECOMP_K))
 
@@ -457,7 +461,7 @@ merge-qc: check-container  ## Join the QC CSVs into one triage worklist (qc_mast
 export-crops: check-container  ## Cut small ROI crops of the QC-flagged cases for fast review (CPU)
 	@mkdir -p $(LOGS_DIR)
 	@echo "Submitting export-crops (ROI crops of flagged cases)"
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),QC_MASTER_CSV=$(QC_MASTER_CSV),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),CROPS_OUT_DIR=$(CROPS_OUT_DIR),CROP_PAD=$(CROP_PAD),QC_LIMIT=$(QC_LIMIT) \
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),QC_MASTER_CSV=$(QC_MASTER_CSV),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),CROPS_OUT_DIR=$(CROPS_OUT_DIR),CROP_PAD=$(CROP_PAD),CROPS_CLEAN=$(CROPS_CLEAN),QC_LIMIT=$(QC_LIMIT) \
 	       slurm/export_crops.sh
 
 
@@ -465,7 +469,7 @@ export-crops: check-container  ## Cut small ROI crops of the QC-flagged cases fo
 push-crops: check-container  ## Upload review crops to the v2 dataset under crops/ (network). HF_TOKEN + HF_REPO_ID required.
 	@mkdir -p $(LOGS_DIR)
 	@echo "Submitting push-crops -> $(HF_REPO_ID)@$(if $(strip $(HF_REVISION)),$(HF_REVISION),v2):crops/"
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),HF_REPO_ID=$(HF_REPO_ID),HF_REVISION=$(HF_REVISION),CROPS_OUT_DIR=$(CROPS_OUT_DIR) \
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),HF_REPO_ID=$(HF_REPO_ID),HF_REVISION=$(HF_REVISION),CROPS_OUT_DIR=$(CROPS_OUT_DIR),PUSH_CLEAN=$(PUSH_CLEAN) \
 	       slurm/push_crops.sh
 
 

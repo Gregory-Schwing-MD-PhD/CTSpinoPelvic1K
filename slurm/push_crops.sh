@@ -20,6 +20,9 @@
 #   HF_REPO_ID     dataset repo, e.g. gregoryschwingmdphd/CTSpinoPelvic1K  (REQUIRED)
 #   HF_REVISION    branch/revision                    (default: v2)
 #   CROPS_OUT_DIR  local crops dir                    (default: data/review_crops)
+#   PUSH_CLEAN     1 = mirror (delete remote orphans, e.g. dropped leak crops);
+#                  also removes crops/reference, so run push-reference after.
+#                  (default: 0 = add/update only)
 # =============================================================================
 set -euo pipefail
 
@@ -31,6 +34,7 @@ HF_TOKEN="${HF_TOKEN:-}"
 HF_REPO_ID="${HF_REPO_ID:-}"
 HF_REVISION="${HF_REVISION:-v2}"
 CROPS_OUT_DIR="${CROPS_OUT_DIR:-${DATA_DIR}/review_crops}"
+PUSH_CLEAN="${PUSH_CLEAN:-0}"
 
 mkdir -p "${LOGS_DIR}"
 
@@ -54,22 +58,31 @@ echo " push_crops — upload crops to the v2 dataset"
 echo "   Job ID    : ${SLURM_JOB_ID:-local}   Node: $(hostname)"
 echo "   crops     : ${CROPS_OUT_DIR}"
 echo "   repo      : ${HF_REPO_ID}  @ ${HF_REVISION}  (under crops/)"
+echo "   mode      : $([[ "${PUSH_CLEAN}" != "0" ]] && echo 'MIRROR (delete remote orphans; reference removed)' || echo 'add/update')"
 echo "   Started   : $(date)"
 echo "======================================================================"
 
 BINDS="${PROJECT_ROOT}:/workspace,${DATA_DIR}:/data"
 ENV_VARS="PYTHONPATH=/workspace/scripts:/workspace,PYTHONUNBUFFERED=1,HF_TOKEN=${HF_TOKEN}"
 
+CLEAN_ARG=""
+[[ "${PUSH_CLEAN}" != "0" ]] && CLEAN_ARG="--clean"
+
+# shellcheck disable=SC2086
 stdbuf -oL -eL singularity exec \
     --env "${ENV_VARS}" --bind "${BINDS}" --pwd /workspace "${SIF_PATH}" \
     python3 -u /workspace/scripts/push_crops.py \
         --crops    "/data/$(basename "${CROPS_OUT_DIR}")" \
         --repo_id  "${HF_REPO_ID}" \
-        --revision "${HF_REVISION}"
+        --revision "${HF_REVISION}" ${CLEAN_ARG}
 
 echo ""
 echo "======================================================================"
 echo " push_crops done at $(date)"
 echo "   crops are now at ${HF_REPO_ID}@${HF_REVISION}:crops/"
+if [[ "${PUSH_CLEAN}" != "0" ]]; then
+    echo "   MIRROR push: stale crops removed. crops/reference was deleted —"
+    echo "   run: HF_TOKEN=... HF_REPO_ID=${HF_REPO_ID} make push-reference"
+fi
 echo "   restart the review Space to triage to the flagged worklist."
 echo "======================================================================"
