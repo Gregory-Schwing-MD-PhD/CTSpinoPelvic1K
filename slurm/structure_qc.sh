@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
-#SBATCH --time=01:00:00
+#SBATCH --time=08:00:00
 #SBATCH --output=logs/structure_qc_%j.out
 #SBATCH --error=logs/structure_qc_%j.out
 #SBATCH --mail-type=END,FAIL
