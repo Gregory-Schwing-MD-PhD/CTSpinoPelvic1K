@@ -724,25 +724,36 @@ def cmd_edit(a):
     st = json.loads(match[0].read_text())
     job, work = st["job"], Path(st["workdir"])
     kind = st.get("kind", "review")
-    ct, seg, labels = work / "ct.nii.gz", work / "seg.nii.gz", work / "labels.txt"
-    if not ct.exists() or not seg.exists():
-        print(f"workdir incomplete ({work}): missing ct/seg — re-claim with "
-              "`reviewtool next`.")
-        return
+    labels = work / "labels.txt"
     if not labels.exists():
         labels.write_text(job.get("labels_descriptor")
                           or labels_descriptor.descriptor_text())
+    pseudo = work / "pseudo.nii.gz"
+    seg = work / "seg.nii.gz"                     # full-res output (built on save)
+    crop = job.get("crop")
+
+    if crop:                                      # crop review: open the CROP ct+mask
+        snap_ct = work / "ct.nii.gz"              # crop CT (matches crop mask dims)
+        snap_seg = work / "crop_edit.nii.gz"      # the crop mask the reviewer edits
+        need = [snap_ct, snap_seg, pseudo]
+    else:                                         # full-scan review
+        snap_ct, snap_seg, need = work / "ct.nii.gz", seg, [work / "ct.nii.gz", seg]
+    missing = [p.name for p in need if not p.exists()]
+    if missing:
+        print(f"workdir incomplete ({work}): missing {', '.join(missing)} — "
+              "re-claim with `reviewtool next`.")
+        return
 
     print(f"editing {work.name} ({kind}) — review the "
           f"{job['region_to_review']} region")
-    pre_mtime = seg.stat().st_mtime if seg.exists() else 0.0
-    rc = _launch_itksnap(a.itksnap or _default_itksnap(), ct, seg, labels)
+    pre_mtime = snap_seg.stat().st_mtime if snap_seg.exists() else 0.0
+    rc = _launch_itksnap(a.itksnap or _default_itksnap(), snap_ct, snap_seg, labels)
     if rc != 0:
         print(f"ITK-SNAP exited with code {rc} — no edit captured. "
               "Not submitting; your claim is kept.")
         _itksnap_failure_hint(rc)
         return
-    if not (seg.exists() and seg.stat().st_mtime > pre_mtime + 1e-6):
+    if not (snap_seg.exists() and snap_seg.stat().st_mtime > pre_mtime + 1e-6):
         print("ITK-SNAP closed but you never SAVED — no edit captured, nothing "
               "submitted; your claim is kept.\n"
               "  Edit, then Save Segmentation (Ctrl-S / Cmd-S) before quitting "
@@ -752,10 +763,12 @@ def cmd_edit(a):
                  if sys.platform == "darwin" else ""))
         return
 
+    if crop:                                      # fold the crop edit into full-res
+        _paste_edit_to_full(snap_seg, crop["origin"], pseudo, seg)
+
     if kind == "adjudicate":
         _submit_adjudication(s, base, job, work, seg, st.get("notes", ""))
     else:
-        pseudo = work / "pseudo.nii.gz"
         _, record = build_submission(
             _load(pseudo), _load(seg), job["region_to_review"], _sha256(pseudo))
         print(f"decision={record['decision']}  "
