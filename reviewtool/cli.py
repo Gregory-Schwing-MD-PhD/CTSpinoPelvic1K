@@ -224,12 +224,23 @@ def _itksnap_failure_hint(rc: int) -> None:
               "  or set the REVIEWTOOL_ITKSNAP env var to the .exe path.")
 
 
+def _itksnap_env():
+    """ITK-SNAP launch env that silences the harmless macOS Qt trackpad/gesture
+    spam (qt.pointer.dispatch / QGestureManager 'no target window'). Cosmetic —
+    ITK-SNAP works regardless; this just keeps the terminal readable."""
+    import os
+    e = dict(os.environ)
+    rules = e.get("QT_LOGGING_RULES", "")
+    e["QT_LOGGING_RULES"] = (rules + ";qt.pointer.*=false;qt.gui.*=false").lstrip(";")
+    return e
+
+
 def _launch_itksnap_bg(itksnap: str, ct: Path, seg: Path, labels: Path):
     """Open ITK-SNAP NON-blocking (for a persistent reference window). Returns a
     Popen handle (or None if it couldn't launch)."""
     try:
         return subprocess.Popen([itksnap, "-g", str(ct), "-s", str(seg),
-                                 "-l", str(labels)])
+                                 "-l", str(labels)], env=_itksnap_env())
     except (FileNotFoundError, OSError):
         return None
 
@@ -242,7 +253,7 @@ def _launch_itksnap(itksnap: str, ct: Path, seg: Path, labels: Path) -> int:
           f"Segmentation to:\n  {seg}\nthen quit ITK-SNAP to continue.\n")
     try:
         proc = subprocess.run([itksnap, "-g", str(ct), "-s", str(seg),
-                               "-l", str(labels)], check=False)
+                               "-l", str(labels)], check=False, env=_itksnap_env())
     except FileNotFoundError:
         sys.exit(f"'{itksnap}' not found — install ITK-SNAP, add it to PATH, "
                  f"set REVIEWTOOL_ITKSNAP, or pass --itksnap /path/to/itksnap")
