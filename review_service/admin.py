@@ -134,6 +134,33 @@ def cmd_reset_slot(a) -> int:
     return 0
 
 
+def cmd_set_priority(a) -> int:
+    """Set a case's claim priority. The server serves UNASSIGNED cases highest-
+    priority-first, so a big number makes `reviewtool next` hand out that case
+    next — handy to force a specific case for a demo/tutorial."""
+    repo = a.repo or os.environ.get("REVIEW_REPO")
+    token = a.token or os.environ.get("HF_TOKEN")
+    if not repo or not token:
+        sys.exit("need --repo/REVIEW_REPO and --token/HF_TOKEN (the WRITE token).")
+    backend = store_mod.HFBackend(repo_id=repo, token=token)
+    store = store_mod.ReviewStore(backend)
+    for cid in a.cases:
+        case = store.get_case(cid)
+        if case is None:
+            print(f"[skip] {cid}: no such case in {repo}")
+            continue
+        old = case.get("priority", 0)
+        print(f"{cid}: priority {old} -> {a.priority}  "
+              f"[status now: {schema.derive_status(case)}]")
+        if a.apply:
+            case["priority"] = a.priority
+            store.put_case(case)
+            print(f"  committed (it will be served next while UNASSIGNED)")
+    if not a.apply:
+        print("\nDRY RUN — nothing written. Re-run with --apply to commit.")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="review_service.admin", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -151,6 +178,19 @@ def main(argv=None) -> int:
     p.add_argument("--apply", action="store_true",
                    help="actually commit (default is a dry run)")
     p.set_defaults(fn=cmd_reset_slot)
+
+    p = sub.add_parser("set-priority",
+                       help="set a case's claim priority (higher = served sooner; "
+                            "force a specific case for a demo)")
+    p.add_argument("cases", nargs="+", help="case ids, e.g. 103__fused")
+    p.add_argument("--priority", type=int, default=1_000_000,
+                   help="priority value (default 1000000 — served first)")
+    p.add_argument("--repo", default=None, help="review repo (or REVIEW_REPO env)")
+    p.add_argument("--token", default=None, help="HF write token (or HF_TOKEN env)")
+    p.add_argument("--apply", action="store_true",
+                   help="actually commit (default is a dry run)")
+    p.set_defaults(fn=cmd_set_priority)
+
     args = ap.parse_args(argv)
     return args.fn(args) or 0
 
