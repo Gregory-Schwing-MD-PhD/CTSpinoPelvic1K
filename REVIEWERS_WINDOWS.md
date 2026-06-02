@@ -87,10 +87,30 @@ Repeat `py -m reviewtool next` for the next case. Check progress with:
 py -m reviewtool status
 ```
 
-> **Optional — download every case at once:** normally each case downloads as you
-> go. To pull the whole review set locally (just the flagged crops, ~10 GB):
-> `py -m reviewtool download --what crops` (lands in `$HOME\CTSpinoPelvic1K_data`;
-> `--out DIR` to change). You still submit via `reviewtool next`.
+## Optional: download all cases at once (browse / offline)
+
+To pull every flagged case in one go instead of one-by-one, download just the
+crops (~10 GB — only the review set):
+
+```powershell
+py -m reviewtool download --what crops
+```
+
+They land in `$HOME\CTSpinoPelvic1K_data\crops\`, one folder per case
+(`<token>__<config>\`) with `ct.nii.gz`, `seg.nii.gz`, and `labels.txt`. To look
+at one, open ITK-SNAP → **File ▸ Open Main Image** → that case's `ct.nii.gz`,
+then **Segmentation ▸ Open Segmentation** → its `seg.nii.gz`. Or from PowerShell
+(adjust the ITK-SNAP version in the path):
+
+```powershell
+& "C:\Program Files\ITK-SNAP 4.2\bin\ITK-SNAP.exe" `
+  -g $HOME\CTSpinoPelvic1K_data\crops\<case>\ct.nii.gz `
+  -s $HOME\CTSpinoPelvic1K_data\crops\<case>\seg.nii.gz `
+  -l $HOME\CTSpinoPelvic1K_data\crops\<case>\labels.txt
+```
+
+Bulk download is for browsing/offline. To submit corrections that count toward
+the dataset, still use `py -m reviewtool next` (it claims + uploads).
 
 > **Optional — faster editing with AI:** if a draft needs heavy re-drawing, you
 > can use ITK-SNAP's nnInteractive AI tool (runs on free Google Colab — no GPU

@@ -69,10 +69,16 @@ don't need:
 python -m reviewtool download --what crops          # Windows: py -m reviewtool ...
 ```
 
-It lands in `~/CTSpinoPelvic1K_data` (override with `--out DIR`). You still
-**submit through `reviewtool next`** — bulk download is just for having the data
-on hand. **Don't download the full dataset** — it's 253 GB of full CTs you don't
-need; the crops are all you review.
+It lands in `~/CTSpinoPelvic1K_data/crops/`, one folder per case
+(`<token>__<config>/`) with `ct.nii.gz`, `seg.nii.gz`, and `labels.txt`. To look
+at any one, open ITK-SNAP, load that case's `ct.nii.gz` as the main image and its
+`seg.nii.gz` as the segmentation (exact menu steps are in your platform guide
+below).
+
+Bulk download is for **browsing / offline review**. To submit corrections that
+count toward the dataset, still use `reviewtool next` (it claims the case and
+uploads your edit). **Don't download the full dataset** — it's 253 GB of full CTs
+you don't need; the crops are all you review.
 
 ## Optional: faster editing with AI
 
