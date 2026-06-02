@@ -89,7 +89,7 @@ py -m reviewtool status
 
 > **Optional — download every case at once:** normally each case downloads as you
 > go. To pull the whole review set locally (just the flagged crops, ~10 GB):
-> `py -m reviewtool download --what crops` (lands in `%USERPROFILE%\CTSpinoPelvic1K_data`;
+> `py -m reviewtool download --what crops` (lands in `$HOME\CTSpinoPelvic1K_data`;
 > `--out DIR` to change). You still submit via `reviewtool next`.
 
 > **Optional — faster editing with AI:** if a draft needs heavy re-drawing, you
