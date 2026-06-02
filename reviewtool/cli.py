@@ -543,6 +543,76 @@ def _print_lstv(job: dict, crop: dict, work) -> None:
         print(f"    -> {_LSTV_HINT[c]}")
 
 
+_QC_CSV_CACHE: dict = {}
+
+
+def _qc_table(job: dict, work):
+    """(token,config) -> precomputed qc_master row, from crops/qc_master.csv on
+    the v2 repo (cached per repo). Returns None if it isn't published — the
+    signal to fall back to a local QC scan."""
+    repo = job.get("v2_repo")
+    if repo not in _QC_CSV_CACHE:
+        table = None
+        try:
+            import csv as _csv
+            p = _fetch(job, "crops/qc_master.csv", Path(work) / "qc_master.csv")
+            table = {(str(r.get("token")), str(r.get("config"))): r
+                     for r in _csv.DictReader(open(p))}
+        except Exception:
+            table = None
+        _QC_CSV_CACHE[repo] = table
+    return _QC_CSV_CACHE[repo]
+
+
+def _precomputed_focus(job: dict, work):
+    """WHY-FLAGGED lines straight from the published qc_master.csv (no local
+    compute). None => not published (fall back to a local scan). Leak is omitted
+    (dropped from triage)."""
+    table = _qc_table(job, work)
+    if table is None:
+        return None
+    cid = str(job.get("case_id", ""))
+    tok = str(job.get("token") or (cid.split("__", 1)[0] if "__" in cid else cid))
+    cfg = str(job.get("config") or (cid.split("__", 1)[1] if "__" in cid else ""))
+    row = table.get((tok, cfg)) or next(
+        (v for (t, _c), v in table.items() if t == tok), None)
+    if row is None:
+        return []
+    foci = []
+    if _is_flag(row.get("mixing_flag")):
+        foci.append(f"vertebra MIXING  (off_main={row.get('off_main_frac', '?')}; "
+                    "target <= 0.005)")
+    if str(row.get("n_order_inversions", "0")).strip() not in ("", "0", "0.0"):
+        foci.append("level ORDER wrong (a vertebra is out of sequence)")
+    if _is_flag(row.get("struct_flag")):
+        if _is_flag(row.get("duplication_flag")):
+            foci.append("DUPLICATED structure (a stray disconnected piece)")
+        if _is_flag(row.get("lr_swap")):
+            foci.append("L/R HIP SWAP")
+        if str(row.get("vertebra_gap", "0")).strip() not in ("", "0", "0.0"):
+            foci.append("MISSING level (a gap in the sequence)")
+        if _is_flag(row.get("pelvis_incomplete")):
+            foci.append("pelvis INCOMPLETE")
+    return foci
+
+
+def _show_startup(job: dict, crop: dict, work, qc_ct, before, run_qc: bool):
+    """Print LSTV + WHY FLAGGED at case open. Uses the precomputed qc_master.csv
+    if it's published on v2 (instant, no compute); else a local QC scan."""
+    _print_lstv(job, crop, work)
+    if not run_qc:
+        return
+    foci = _precomputed_focus(job, work)
+    if foci is None:                                  # not published -> local scan
+        _qc_startup(qc_ct, before)
+        return
+    print("  WHY FLAGGED - focus your edit here:")
+    for f in (foci or ["nothing obvious in the metrics — give the structure a "
+                       "quick look."]):
+        print(f"    * {f}")
+    print("  (edit, Save (Ctrl-S), and watch these clear to OK above.)")
+
+
 def cmd_next(a):
     s, base = _api()
     job = _claim(s, base)
@@ -591,9 +661,8 @@ def cmd_next(a):
     import threading
 
     def _startup_info():
-        _print_lstv(job, crop, work)
-        if not getattr(a, "no_qc", False):
-            _qc_startup(snap_ct, before_qc)
+        _show_startup(job, crop, work, snap_ct, before_qc,
+                      not getattr(a, "no_qc", False))
     threading.Thread(target=_startup_info, daemon=True).start()
 
     ref_proc = None
@@ -786,9 +855,7 @@ def cmd_edit(a):
     import threading
 
     def _startup_info():
-        _print_lstv(job, crop, work)
-        if kind != "adjudicate":
-            _qc_startup(snap_ct, before_qc)
+        _show_startup(job, crop, work, snap_ct, before_qc, kind != "adjudicate")
     threading.Thread(target=_startup_info, daemon=True).start()
     pre_mtime = snap_seg.stat().st_mtime if snap_seg.exists() else 0.0
     # watch: rerun the QC live on every save, exactly like `next`

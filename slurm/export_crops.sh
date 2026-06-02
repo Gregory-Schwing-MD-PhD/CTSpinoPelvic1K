@@ -78,6 +78,11 @@ stdbuf -oL -eL singularity exec \
         --pad     "${CROP_PAD}" \
         --workers "${QC_WORKERS}" ${EXTRA}
 
+# stage the precomputed QC worklist alongside the crops so push-crops uploads it
+# to crops/qc_master.csv — reviewtool reads it for the WHY-FLAGGED reason/stats
+# instead of recomputing QC locally at every case open.
+cp -f "${QC_MASTER_CSV}" "${CROPS_OUT_DIR}/qc_master.csv" 2>/dev/null || true
+
 echo ""
 echo "======================================================================"
 echo " export_crops done at $(date)"
