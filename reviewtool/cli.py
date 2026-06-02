@@ -496,27 +496,6 @@ def _open_space_reference(job, snap, work):
     return _launch_itksnap_bg(snap, rct, rseg, rlbl)
 
 
-def _open_bone3d(snap, ct_path, work, bone_hu: int = 150):
-    """Threshold the CT to a bone mask and open it as the segmentation in a SECOND
-    ITK-SNAP window — click 'Update' in that window's 3D pane to render the bone
-    surface (no editing there; it's a reference view). Popen handle or None."""
-    try:
-        import numpy as np
-        import nibabel as nib
-        img = nib.load(str(ct_path))
-        ct = np.asarray(img.dataobj)
-        bone = (ct >= bone_hu).astype(np.uint8)
-        bp = work / "bone.nii.gz"
-        nib.save(nib.Nifti1Image(bone, img.affine), str(bp))
-    except Exception:
-        return None
-    bl = work / "bone_labels.txt"
-    bl.write_text('################################################\n'
-                  '    0     0    0    0        0  0  0    "Clear Label"\n'
-                  '    1   230  220  205        1  1  1    "bone"\n')
-    print(f"  opened a BONE-3D window (CT thresholded at {bone_hu} HU) — click "
-          f"**Update** in its 3D pane to see the bone surface.")
-    return _launch_itksnap_bg(snap, ct_path, bp, bl)
 
 
 _LSTV_NAMES = {0: "Normal (L1-L5 + sacrum)", 1: "Lumbarization (L6 present)",
@@ -738,13 +717,6 @@ def cmd_next(a):
                       not getattr(a, "no_qc", False))
     threading.Thread(target=_startup_info, daemon=True).start()
 
-    ref_proc = None
-    if not getattr(a, "no_reference", False):           # gold example beside the case
-        ref_proc = _open_space_reference(job, snap, work)
-    bone_proc = None
-    if getattr(a, "bone3d", False):                     # CT bone-threshold 3D window
-        bone_proc = _open_bone3d(snap, snap_ct, work, getattr(a, "bone_hu", 150))
-
     # mtime of the seg the editor opens, BEFORE the session. A real save (an
     # edit OR a deliberate accept) advances it; if it never advances, ITK-SNAP
     # detached/closed before the reviewer saved (the macOS bin/ wrapper bug) and
@@ -756,9 +728,8 @@ def cmd_next(a):
         rc = _watch_itksnap(snap, snap_ct, snap_seg, labels,
                             qc_ct=snap_ct, before=before_qc,
                             live_qc=getattr(a, "live_qc", False))
-    for p in (ctx_proc, ref_proc, bone_proc):
-        if p is not None:
-            p.terminate()
+    if ctx_proc is not None:
+        ctx_proc.terminate()
     if rc != 0:
         print(f"\nITK-SNAP exited with code {rc} — it failed to start or "
               f"crashed, so NO edit was captured. Not submitting.\n"
@@ -833,6 +804,28 @@ def cmd_status(a):
     r = s.get(base + "/status", timeout=60)
     r.raise_for_status()
     print(json.dumps(r.json(), indent=2))
+
+
+def cmd_reference(a):
+    """Open the published gold reference example in ITK-SNAP (standalone — not
+    tied to a claimed case). Downloads crops/reference/ from the v2 dataset."""
+    from huggingface_hub import hf_hub_download
+    work = Path(a.workdir) / "_reference"
+    work.mkdir(parents=True, exist_ok=True)
+    try:
+        ct = hf_hub_download(repo_id=a.repo, repo_type="dataset", revision=a.revision,
+                             filename="crops/reference/ct.nii.gz", local_dir=str(work))
+        seg = hf_hub_download(repo_id=a.repo, repo_type="dataset", revision=a.revision,
+                              filename="crops/reference/seg.nii.gz", local_dir=str(work))
+    except Exception:
+        print(f"no gold reference is published (crops/reference/ not found on "
+              f"{a.repo}@{a.revision}).")
+        return
+    lbl = work / "reference_labels.txt"
+    lbl.write_text(labels_descriptor.descriptor_text())
+    print("opening the gold reference example — close it when done.")
+    _launch_itksnap(a.itksnap or _default_itksnap(), Path(ct), Path(seg), lbl)
+    return 0
 
 
 def cmd_resume(a):
@@ -936,15 +929,10 @@ def cmd_edit(a):
         _show_startup(job, crop, work, snap_ct, before_qc, kind != "adjudicate")
     threading.Thread(target=_startup_info, daemon=True).start()
     snap = a.itksnap or _default_itksnap()
-    bone_proc = None
-    if getattr(a, "bone3d", False):                     # CT bone-threshold 3D window
-        bone_proc = _open_bone3d(snap, snap_ct, work, getattr(a, "bone_hu", 150))
     pre_mtime = snap_seg.stat().st_mtime if snap_seg.exists() else 0.0
     rc = _watch_itksnap(snap, snap_ct, snap_seg, labels,
                         qc_ct=snap_ct, before=before_qc,
                         live_qc=getattr(a, "live_qc", False))
-    if bone_proc is not None:
-        bone_proc.terminate()
     if rc != 0:
         print(f"ITK-SNAP exited with code {rc} — no edit captured. "
               "Not submitting; your claim is kept.")
@@ -1208,18 +1196,10 @@ def main(argv=None) -> int:
             p.add_argument("--no_watch", action="store_true",
                            help="don't keep ITK-SNAP open for live QC; use the "
                                 "old quit-to-submit behaviour")
-            p.add_argument("--no_reference", action="store_true",
-                           help="don't open the gold reference example window")
             p.add_argument("--live_qc", action="store_true",
                            help="re-run the QC on every Save (live progress to OK). "
                                 "Off by default — faster, since AI-assisted fixes "
                                 "rarely need re-verification.")
-            p.add_argument("--bone3d", action="store_true",
-                           help="open a 2nd window with the CT thresholded to a bone "
-                                "mask; click Update in its 3D pane to see the bone "
-                                "surface (great for spotting split vertebrae)")
-            p.add_argument("--bone_hu", type=int, default=150,
-                           help="bone HU threshold for --bone3d (default 150)")
         if name == "adjudicate":
             p.add_argument("--notes", default="")
         p.set_defaults(fn=fn)
@@ -1233,11 +1213,6 @@ def main(argv=None) -> int:
                    help="ITK-SNAP executable (auto-detected if omitted)")
     p.add_argument("--live_qc", action="store_true",
                    help="re-run QC on every Save (default off — faster)")
-    p.add_argument("--bone3d", action="store_true",
-                   help="open a 2nd window with the CT thresholded to bone; click "
-                        "Update in its 3D pane to see the bone surface")
-    p.add_argument("--bone_hu", type=int, default=150,
-                   help="bone HU threshold for --bone3d (default 150)")
     p.set_defaults(fn=cmd_edit)
 
     p = sub.add_parser("fix-list",
@@ -1267,6 +1242,17 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("status"); p.set_defaults(fn=cmd_status)
     p = sub.add_parser("resume"); p.set_defaults(fn=cmd_resume)
+
+    p = sub.add_parser("reference",
+                       help="open the published GOLD reference example in ITK-SNAP "
+                            "(separate window, on demand)")
+    p.add_argument("--workdir", default=str(Path.home() / ".reviewtool" / "work"))
+    p.add_argument("--itksnap", default=None,
+                   help="ITK-SNAP executable (auto-detected if omitted)")
+    p.add_argument("--repo", default="gregoryschwingmdphd/CTSpinoPelvic1K",
+                   help="HuggingFace dataset repo id")
+    p.add_argument("--revision", default="v2", help="branch/revision (default v2)")
+    p.set_defaults(fn=cmd_reference)
 
     p = sub.add_parser("download",
                        help="download the dataset from HuggingFace "
