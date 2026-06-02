@@ -171,6 +171,14 @@ STRUCT_PSEUDO_CSV := $(strip $(STRUCT_PSEUDO_CSV))
 STRUCT_FLIP_LR    := $(strip $(STRUCT_FLIP_LR))
 STRUCT_DUP_RATIO  := $(strip $(STRUCT_DUP_RATIO))
 
+# ── merge QC -> single triage worklist ───────────────────────────────────────
+QC_BASELINE       ?=
+QC_PCT            ?= 95
+QC_EXCLUDE        ?= leak
+QC_BASELINE       := $(strip $(QC_BASELINE))
+QC_PCT            := $(strip $(QC_PCT))
+QC_EXCLUDE        := $(strip $(QC_EXCLUDE))
+
 # ── review crops + boundary decomposition ────────────────────────────────────
 QC_MASTER_CSV     ?=
 CROPS_OUT_DIR     ?=
@@ -435,6 +443,14 @@ structure-qc: check-container  ## GT-free structure QC (presence/dup/gap/L-R swa
 	@echo "Submitting structure-qc (presence / duplication / gap / L-R swap)"
 	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),STRUCT_MANUAL_CSV=$(STRUCT_MANUAL_CSV),STRUCT_PSEUDO_CSV=$(STRUCT_PSEUDO_CSV),STRUCT_FLIP_LR=$(STRUCT_FLIP_LR),STRUCT_DUP_RATIO=$(STRUCT_DUP_RATIO),QC_LIMIT=$(QC_LIMIT) \
 	       slurm/structure_qc.sh
+
+
+.PHONY: merge-qc
+merge-qc: check-container  ## Join the QC CSVs into one triage worklist (qc_master.csv); QC_EXCLUDE=leak drops bleed from the trigger (CPU)
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting merge-qc (worklist; exclude='$(QC_EXCLUDE)', pct=$(QC_PCT))"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),QC_PSEUDO_CSV=$(QC_PSEUDO_CSV),LEAK_PSEUDO_CSV=$(LEAK_PSEUDO_CSV),STRUCT_PSEUDO_CSV=$(STRUCT_PSEUDO_CSV),QC_MANUAL_CSV=$(QC_MANUAL_CSV),LEAK_MANUAL_CSV=$(LEAK_MANUAL_CSV),STRUCT_MANUAL_CSV=$(STRUCT_MANUAL_CSV),QC_BASELINE=$(QC_BASELINE),QC_MASTER_CSV=$(QC_MASTER_CSV),QC_PCT=$(QC_PCT),QC_EXCLUDE=$(QC_EXCLUDE) \
+	       slurm/merge_qc.sh
 
 
 .PHONY: export-crops
