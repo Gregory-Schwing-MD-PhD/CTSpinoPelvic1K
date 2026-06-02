@@ -391,13 +391,16 @@ def _qc_feedback(ct_path, before_path, after_path) -> None:
           if elevated else "  OK - all automated checks pass on your edit.")
 
 
-def _watch_itksnap(itksnap, ct, seg, labels, *, qc_ct, before) -> int:
-    """Open ITK-SNAP NON-blocking and recompute the QC every time `seg` is saved,
-    so the reviewer sees progress live without closing. Returns ITK-SNAP's exit
-    code when they finally quit."""
+def _watch_itksnap(itksnap, ct, seg, labels, *, qc_ct, before, live_qc=False) -> int:
+    """Open ITK-SNAP NON-blocking and wait for the reviewer to quit. With
+    live_qc=True, re-runs the QC on every Save so they see progress without
+    closing; by default it just notes the save (no recompute — faster, which
+    matters with AI-assisted fixes). Returns ITK-SNAP's exit code."""
+    extra = ("  Edit, then **Save Segmentation** (Ctrl-S) any time to see a live\n"
+             "  QC update here. " if live_qc else "  Edit, **Save Segmentation** "
+             "(Ctrl-S), then ")
     print(f"\nOpening ITK-SNAP ({itksnap}) — WATCH mode.\n"
-          f"  Edit, then **Save Segmentation** (Ctrl-S) any time to see a live QC\n"
-          f"  update here. Quit ITK-SNAP when you're done — it submits then.\n")
+          f"{extra}Quit ITK-SNAP when you're done — it submits then.\n")
     proc = _launch_itksnap_bg(itksnap, ct, seg, labels)
     if proc is None:
         print(f"'{itksnap}' not found — install ITK-SNAP, add it to PATH, set "
@@ -415,8 +418,11 @@ def _watch_itksnap(itksnap, ct, seg, labels, *, qc_ct, before) -> int:
             continue
         if m > last + 1e-6:                     # a Save happened
             last = m
-            print("  [saved] recomputing QC ...")
-            _qc_feedback(qc_ct, before, seg)
+            if live_qc:
+                print("  [saved] recomputing QC ...")
+                _qc_feedback(qc_ct, before, seg)
+            else:
+                print("  [saved]")
     return proc.returncode if proc.returncode is not None else 0
 
 
@@ -722,7 +728,8 @@ def cmd_next(a):
         rc = _launch_itksnap(snap, snap_ct, snap_seg, labels)
     else:
         rc = _watch_itksnap(snap, snap_ct, snap_seg, labels,
-                            qc_ct=snap_ct, before=before_qc)
+                            qc_ct=snap_ct, before=before_qc,
+                            live_qc=getattr(a, "live_qc", False))
     for p in (ctx_proc, ref_proc):
         if p is not None:
             p.terminate()
@@ -749,8 +756,9 @@ def cmd_next(a):
     if crop:                                            # fold the crop edit into full-res
         _paste_edit_to_full(snap_seg, crop["origin"], pseudo, seg)
 
-    # watch (default) already printed QC live on each save; in --no_watch show once.
-    if not getattr(a, "no_qc", False) and getattr(a, "no_watch", False):
+    # only recompute QC at the end if the reviewer explicitly asked for live QC
+    # (default is no recompute — fix, save, quit, submit; fast for AI-assisted edits)
+    if getattr(a, "live_qc", False) and getattr(a, "no_watch", False):
         _qc_feedback(snap_ct, before_qc, snap_seg)
 
     decision, record = build_submission(
@@ -904,7 +912,8 @@ def cmd_edit(a):
     pre_mtime = snap_seg.stat().st_mtime if snap_seg.exists() else 0.0
     # watch: rerun the QC live on every save, exactly like `next`
     rc = _watch_itksnap(a.itksnap or _default_itksnap(), snap_ct, snap_seg, labels,
-                        qc_ct=snap_ct, before=before_qc)
+                        qc_ct=snap_ct, before=before_qc,
+                        live_qc=getattr(a, "live_qc", False))
     if rc != 0:
         print(f"ITK-SNAP exited with code {rc} — no edit captured. "
               "Not submitting; your claim is kept.")
@@ -1170,6 +1179,10 @@ def main(argv=None) -> int:
                                 "old quit-to-submit behaviour")
             p.add_argument("--no_reference", action="store_true",
                            help="don't open the gold reference example window")
+            p.add_argument("--live_qc", action="store_true",
+                           help="re-run the QC on every Save (live progress to OK). "
+                                "Off by default — faster, since AI-assisted fixes "
+                                "rarely need re-verification.")
         if name == "adjudicate":
             p.add_argument("--notes", default="")
         p.set_defaults(fn=fn)
@@ -1181,6 +1194,8 @@ def main(argv=None) -> int:
                    help="case id of a saved claim (omit if only one is saved)")
     p.add_argument("--itksnap", default=None,
                    help="ITK-SNAP executable (auto-detected if omitted)")
+    p.add_argument("--live_qc", action="store_true",
+                   help="re-run QC on every Save (default off — faster)")
     p.set_defaults(fn=cmd_edit)
 
     p = sub.add_parser("fix-list",
