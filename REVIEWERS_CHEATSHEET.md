@@ -3,24 +3,24 @@
 
 ## The loop (one case, ~20–30 min)
 1. **`python -m reviewtool next`**  *(Windows: `py -m reviewtool next`)*
-2. Read the **`WHY FLAGGED`** list — that's exactly what to fix.
-3. Edit in ITK-SNAP → **Save (Ctrl-S / ⌘-S)** → the terminal re-runs the QC.
-4. Repeat *edit → save* until **every check reads `OK`**.
-5. **Quit ITK-SNAP** → it submits automatically. Run `next` for the next case.
+2. Read the **`WHY FLAGGED`** list — that's exactly what to fix (it names the
+   split levels).
+3. Edit in ITK-SNAP → **Save (Ctrl-S / ⌘-S)** → **Quit** → it submits. Run
+   `next` for the next case.
+
+**Options** (add to `next`): `--reference` = open a gold example beside it ·
+`--live_qc` = re-run the checks on every Save and watch them clear to **OK**.
+Standalone gold example: `reviewtool reference`.
 
 ## Reading the terminal
 ```
+LSTV STATUS: Normal (L1-L5 + sacrum)
 WHY FLAGGED - focus your edit here:
-  * OFF-BONE LEAK  (off_bone=0.072; target <= 0.058)   <- fix this
+  * vertebra MIXING  (off_main=0.088; target <= 0.005)  [split: L3(63/37), L4(70/31)]
+  * DUPLICATED structure  [L3,L4]
 ```
-After each **Save**:
-```
-  off-bone leak   0.072 -> 0.008   OK        (draft -> your edit)
-OK - all automated checks pass on your edit.  <- DONE: quit ITK-SNAP
-```
-`STILL HIGH` / `STILL FLAGGED` = keep going. (Occasionally a true case can't fully
-clear — if you're sure it's right, quit anyway; the second reviewer/adjudicator
-settles it.)
+The `[split: …]` / `[L3,L4]` tags tell you **which levels** to fix. With
+`--live_qc`, each Save reprints them clearing toward `OK`.
 
 ## Flag → fix (in ITK-SNAP)
 | Terminal says | What to do |
@@ -42,7 +42,8 @@ settles it.)
   none, and tell the lead. A careful "I left this because X" beats a wrong fix.
 
 ## Helpers
-- A **gold reference example** opens in a second window — tile the two windows to compare.
+- Want a **gold reference example** beside your case? Add `--reference` to `next`
+  (or run `reviewtool reference`), then tile the two windows to compare.
 - Full guide + 3 short video tutorials: **[REVIEWERS_FIXING.md](REVIEWERS_FIXING.md)**.
 - Saved but upload failed (crash / rate-limit)? `reviewtool resume`. Progress: `reviewtool status`.
 

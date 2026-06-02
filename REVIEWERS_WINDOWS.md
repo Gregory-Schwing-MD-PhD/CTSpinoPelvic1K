@@ -59,27 +59,29 @@ py -m reviewtool next
 ```
 
 This claims a **flagged** case and prints a **`WHY FLAGGED - focus your edit
-here`** list (what the automated checks think is wrong — that's your target). It
-downloads a small **crop** (a few MB, fast), opens it in ITK-SNAP, and opens a
-**gold reference example** in a second window to compare against. Then:
+here`** list (what the automated checks think is wrong — that's your target; it
+even names the split levels, e.g. `L3(63/37)`). It downloads a small **crop** (a
+few MB, fast) and opens it in ITK-SNAP — **one window**. Then:
 
-1. **Read the `WHY FLAGGED` focus list** — a leak, a mixed-up vertebra, a stray
-   piece, etc. **New to editing? Keep [REVIEWERS_FIXING.md](REVIEWERS_FIXING.md)
-   open** — it has a fix recipe for each kind of flag, and links to short video
-   tutorials.
+1. **Read the `WHY FLAGGED` focus list** — a mixed-up vertebra, a stray piece,
+   etc. **New to editing? Keep [REVIEWERS_FIXING.md](REVIEWERS_FIXING.md) open** —
+   a fix recipe for each kind of flag, plus short video tutorials.
 2. **Only edit the region named** — `spine` (L1–L6) **or** `pelvis` (sacrum +
    both hips). Don't touch the other region. *(If it says **"the WHOLE scan"** —
    a radiologist gold case being re-checked — edit the whole label; both regions
    are fair game.)* **Don't renumber or recolor labels** — locked:
    `L1–L6 = 1–6`, `sacrum = 7`, `left hip = 8`, `right hip = 9`.
-3. Fix it, then **Save Segmentation** (**Ctrl-S**). The terminal **re-runs the QC
-   and shows your progress** — e.g. `off-bone leak 0.072 -> 0.008 OK`. Keep
-   editing and saving until the checks read **OK**: that's your measurable goal.
-4. **Quit ITK-SNAP** when the checks are OK — it uploads your result
-   (`submitted -> ...`).
-   - **Tile the two windows** (your case + the gold example) to compare.
-   - Nothing actually wrong (the flag can be a false alarm)? Just save once and
-     quit — that's a valid "accept".
+3. Fix it, then **Save Segmentation** (**Ctrl-S**) and **quit ITK-SNAP** — it
+   uploads your result (`submitted -> ...`). Nothing actually wrong (the flag can
+   be a false alarm)? Just save once and quit — that's a valid "accept".
+
+> **Optional helpers** (add to the `next` command):
+> - **`--reference`** — also open a **gold example** in a second window to compare to.
+> - **`--live_qc`** — re-run the checks on every Save and watch them clear to **OK**
+>   (off by default; with AI-assisted fixes you usually don't need it).
+>
+> e.g. `py -m reviewtool next --reference --live_qc`. You can also open the gold
+> example on its own anytime: `py -m reviewtool reference`.
 
 Repeat `py -m reviewtool next` for the next case. Check progress with:
 

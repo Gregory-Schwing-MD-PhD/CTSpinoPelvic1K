@@ -59,9 +59,8 @@ python3 -m reviewtool next
 ```
 
 This claims a **flagged** case and prints a **`WHY FLAGGED - focus your edit
-here`** list (your target). It downloads a small **crop** (fast), opens it in
-ITK-SNAP, and opens a **gold reference example** in a second window to compare
-against. Then:
+here`** list (your target — it even names the split levels, e.g. `L3(63/37)`). It
+downloads a small **crop** (fast) and opens it in ITK-SNAP — **one window**. Then:
 
 1. **Read the `WHY FLAGGED` focus list. New to editing? Open
    [REVIEWERS_FIXING.md](REVIEWERS_FIXING.md)** — ITK-SNAP tools, video
@@ -70,12 +69,17 @@ against. Then:
    hips); don't touch the other. *(If it says **"the WHOLE scan"** — a gold case
    being re-checked — edit the whole label.)* **Don't renumber/recolor labels** —
    `L1–L6 = 1–6, sacrum = 7, left hip = 8, right hip = 9`.
-3. Fix it, then **Save Segmentation** (**⌘-S**). The terminal **re-runs the QC
-   and shows progress** (`off-bone leak 0.072 -> 0.008 OK`). Keep editing and
-   saving until the checks read **OK** — that's your goal. (Tile the two windows
-   to compare against the gold example.)
-4. **Quit ITK-SNAP** when OK — it uploads (`submitted -> ...`). Nothing wrong?
-   Save once and quit (a valid "accept").
+3. Fix it, then **Save Segmentation** (**⌘-S**) and **quit ITK-SNAP** — it uploads
+   (`submitted -> ...`). Nothing wrong with the draft? Just save once and quit
+   (a valid "accept").
+
+> **Optional helpers** (add to the `next` command):
+> - **`--reference`** — also open a **gold example** in a second window to compare to.
+> - **`--live_qc`** — re-run the checks on every Save and watch them clear to **OK**
+>   (off by default; with AI-assisted fixes you usually don't need it).
+>
+> e.g. `python3 -m reviewtool next --reference --live_qc`. You can also open the
+> gold example on its own anytime: `python3 -m reviewtool reference`.
 
 Repeat `python3 -m reviewtool next` for the next case. Check progress with:
 

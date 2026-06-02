@@ -12,7 +12,9 @@ likely wrong — not all 800+. Each case is fast and gives you a measurable goal
 - On open, the terminal prints **`WHY FLAGGED - focus your edit here:`** — the
   specific problem(s) to fix (a leak, a mixed-up vertebra, a stray piece, …).
 - It downloads a small **crop** (seconds, not a 200 MB volume) and opens it in
-  ITK-SNAP, with a **gold reference example** in a second window to compare to.
+  ITK-SNAP — **one window**. Want the gold example beside it? Add `--reference`
+  (or open it anytime with `reviewtool reference`). Want the checks to re-run
+  live as you save? Add `--live_qc`.
 - **Every time you Save (Ctrl-S), the terminal re-runs the checks** and shows
   `off-bone leak 0.07 -> 0.01 OK`. **A case is "done" when the checks read
   `OK`.** Edit → save → watch them clear → quit when OK.
