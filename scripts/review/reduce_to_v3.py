@@ -99,6 +99,10 @@ def main() -> int:
                          "against (e.g. a pulled review repo).")
     ap.add_argument("--out", required=True, type=Path,
                     help="v3 tree to create (data/hf_export_v3).")
+    ap.add_argument("--labels_only", action="store_true",
+                    help="skip copying CT volumes — labels + manifest only "
+                         "(fast, and enough to run QC on the corrected labels; "
+                         "do a full run before pushing the release).")
     args = ap.parse_args()
 
     import nibabel as nib  # noqa: F401  (validate availability early)
@@ -122,7 +126,9 @@ def main() -> int:
 
     n_ct = n_lbl = n_swap = 0
     for rec in new_records:
-        for rel in (rec.get("ct_file"), rec.get("label_file")):
+        rels = ([rec.get("label_file")] if args.labels_only
+                else [rec.get("ct_file"), rec.get("label_file")])
+        for rel in rels:
             if rel and (v2 / rel).exists() and not (out / rel).exists():
                 (out / rel).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(str(v2 / rel), str(out / rel))

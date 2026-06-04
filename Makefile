@@ -179,6 +179,16 @@ QC_BASELINE       := $(strip $(QC_BASELINE))
 QC_PCT            := $(strip $(QC_PCT))
 QC_EXCLUDE        := $(strip $(QC_EXCLUDE))
 
+# ── post-review: pull finalized reviews -> corrected v3 tree ──────────────────
+REVIEW_REPO       ?=
+REVIEWS_PULL_DIR  ?=
+V3_OUT_DIR        ?=
+V3_LABELS_ONLY    ?= 1
+REVIEW_REPO       := $(strip $(REVIEW_REPO))
+REVIEWS_PULL_DIR  := $(strip $(REVIEWS_PULL_DIR))
+V3_OUT_DIR        := $(strip $(V3_OUT_DIR))
+V3_LABELS_ONLY    := $(strip $(V3_LABELS_ONLY))
+
 # ── review crops + boundary decomposition ────────────────────────────────────
 QC_MASTER_CSV     ?=
 CROPS_OUT_DIR     ?=
@@ -479,6 +489,22 @@ push-reference: check-container  ## Crop a clean gold case and upload it to crop
 	@echo "Submitting push-reference -> $(HF_REPO_ID)@$(if $(strip $(HF_REVISION)),$(HF_REVISION),v2):crops/reference/"
 	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),HF_REPO_ID=$(HF_REPO_ID),HF_REVISION=$(HF_REVISION),REF_TOKEN=$(REF_TOKEN),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR) \
 	       slurm/push_reference.sh
+
+
+.PHONY: pull-reviews
+pull-reviews: check-container  ## Pull finalized student reviews from REVIEW_REPO -> finals.json + status report (network). HF_TOKEN + REVIEW_REPO required.
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting pull-reviews <- $(REVIEW_REPO)"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_TOKEN=$(HF_TOKEN),REVIEW_REPO=$(REVIEW_REPO),REVIEWS_PULL_DIR=$(REVIEWS_PULL_DIR) \
+	       slurm/pull_reviews.sh
+
+
+.PHONY: reduce-v3
+reduce-v3: check-container  ## Fold finalized reviews into the corrected v3 tree (CPU). Run pull-reviews first. V3_LABELS_ONLY=0 for a full pushable tree.
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting reduce-v3 (labels_only=$(V3_LABELS_ONLY))"
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),REVIEWS_PULL_DIR=$(REVIEWS_PULL_DIR),V3_OUT_DIR=$(V3_OUT_DIR),V3_LABELS_ONLY=$(V3_LABELS_ONLY) \
+	       slurm/reduce_v3.sh
 
 
 .PHONY: boundary-decomp
