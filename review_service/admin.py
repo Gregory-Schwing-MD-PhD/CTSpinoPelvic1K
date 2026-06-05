@@ -64,7 +64,14 @@ def plan_reset(case: dict, reviewer: Optional[str], slot: Optional[str]):
                             "review_id": s.get("review_id")})
             del slots[k]
 
+    removed_adj = any(r["slot"] == schema.ADJ_SLOT for r in removed)
     adj_done = slots.get(schema.ADJ_SLOT, {}).get("done")
+    # Removing the adjudicator slot invalidates the `final` it produced — drop it
+    # so the case reverts to needs_adjudication (the primaries' agree/irr stand).
+    if removed_adj:
+        case.pop("final", None)
+    # Removing a primary below the double-review floor (with no adjudication)
+    # invalidates the agreement basis too.
     if len(schema.primary_done(case)) < schema.N_PRIMARY and not adj_done:
         for k in ("agree", "irr", "final"):
             case.pop(k, None)
