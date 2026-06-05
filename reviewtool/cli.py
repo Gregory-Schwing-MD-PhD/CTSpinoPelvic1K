@@ -275,8 +275,9 @@ def cmd_login(a):
               "run `hf auth login` before `reviewtool next`.")
 
 
-def _claim(s, base, path="/claim"):
-    r = s.post(base + path, timeout=60)
+def _claim(s, base, path="/claim", method="post"):
+    # /claim is POST; /adjudication/next is GET — use the matching verb.
+    r = (s.get if method == "get" else s.post)(base + path, timeout=60)
     if r.status_code == 204:
         return None
     r.raise_for_status()
@@ -787,7 +788,7 @@ def cmd_next(a):
 
 def cmd_adjudicate(a):
     s, base = _api()
-    job = _claim(s, base, "/adjudication/next")
+    job = _claim(s, base, "/adjudication/next", method="get")
     if job is None:
         print("nothing to adjudicate.")
         return
