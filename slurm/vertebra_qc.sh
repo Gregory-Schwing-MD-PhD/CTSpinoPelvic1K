@@ -3,7 +3,7 @@
 #SBATCH -q primary
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=48
 #SBATCH --mem=16G
 #SBATCH --time=08:00:00
 #SBATCH --output=logs/vertebra_qc_%j.out
@@ -34,6 +34,11 @@ QC_MANUAL_CSV="${QC_MANUAL_CSV:-${DATA_DIR}/qc_manual.csv}"
 QC_PSEUDO_CSV="${QC_PSEUDO_CSV:-${DATA_DIR}/qc_pseudo.csv}"
 QC_WORKERS="${QC_WORKERS:-${SLURM_CPUS_PER_TASK:-8}}"
 QC_LIMIT="${QC_LIMIT:-0}"
+# The manual/radiologist tree never changes between QC runs, so on a re-run
+# (e.g. QC-ing a corrected v3 tree) recomputing it is pure waste. Set
+# QC_SKIP_MANUAL=1 to reuse an existing QC_MANUAL_CSV and only score the pseudo
+# tree against it — roughly halves the job.
+QC_SKIP_MANUAL="${QC_SKIP_MANUAL:-0}"
 
 mkdir -p "${LOGS_DIR}"
 
@@ -62,13 +67,18 @@ ENV_VARS="PYTHONPATH=/workspace/scripts:/workspace,PYTHONUNBUFFERED=1"
 EXTRA=""
 [[ "${QC_LIMIT}" != "0" ]] && EXTRA="--limit ${QC_LIMIT}"
 
-echo ""; echo "============= manual tree ============="; echo ""
-stdbuf -oL -eL singularity exec \
-    --env "${ENV_VARS}" --bind "${BINDS}" --pwd /workspace "${SIF_PATH}" \
-    python3 -u /workspace/scripts/vertebra_topology_qc.py \
-        --tree    "/data/$(basename "${HF_EXPORT_DIR}")" \
-        --out     "/data/$(basename "${QC_MANUAL_CSV}")" \
-        --workers "${QC_WORKERS}" ${EXTRA}
+if [[ "${QC_SKIP_MANUAL}" == "1" && -f "${QC_MANUAL_CSV}" ]]; then
+    echo ""; echo "============= manual tree (SKIPPED — reusing ${QC_MANUAL_CSV}) ============="; echo ""
+else
+    [[ "${QC_SKIP_MANUAL}" == "1" ]] && echo "QC_SKIP_MANUAL=1 but ${QC_MANUAL_CSV} missing — computing it."
+    echo ""; echo "============= manual tree ============="; echo ""
+    stdbuf -oL -eL singularity exec \
+        --env "${ENV_VARS}" --bind "${BINDS}" --pwd /workspace "${SIF_PATH}" \
+        python3 -u /workspace/scripts/vertebra_topology_qc.py \
+            --tree    "/data/$(basename "${HF_EXPORT_DIR}")" \
+            --out     "/data/$(basename "${QC_MANUAL_CSV}")" \
+            --workers "${QC_WORKERS}" ${EXTRA}
+fi
 
 echo ""; echo "============= pseudo tree (with compare) ============="; echo ""
 stdbuf -oL -eL singularity exec \

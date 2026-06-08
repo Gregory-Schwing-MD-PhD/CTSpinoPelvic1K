@@ -31,7 +31,7 @@ from typing import Optional, Tuple
 _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(_ROOT / "scripts"))
-from review import diff, labels_descriptor  # noqa: E402
+from review import diff, labels_descriptor, schema  # noqa: E402
 from export_review_crops import crop_dirname  # noqa: E402
 
 CONFIG = Path.home() / ".reviewtool" / "config.json"
@@ -845,6 +845,111 @@ def cmd_reference(a):
     return 0
 
 
+def cmd_final_pass(a):
+    """Local final QC pass over the flagged (finalized) cases.
+
+    Reads straight from HuggingFace — the review ledger (REVIEW_REPO) for the
+    finalized worklist + each case's corrected (final) label, and the v2 dataset
+    for the matching crop CT — so no review Space is involved. Opens each crop
+    CT with its corrected label in ITK-SNAP, one at a time, and records an
+    approve/flag verdict. Resumable: re-running skips cases already logged
+    (pass --redo to re-review them). The flag list is your kick-back worklist.
+    """
+    from huggingface_hub import hf_hub_download, snapshot_download
+
+    work = Path(a.workdir).expanduser()
+    work.mkdir(parents=True, exist_ok=True)
+    log_path = Path(a.log).expanduser() if a.log else work / "verdicts.json"
+    verdicts = json.loads(log_path.read_text()) if log_path.exists() else {}
+
+    # 1) pull just the ledger's tiny case files and derive the finalized worklist
+    print(f"loading the review ledger from {a.review_repo} ...")
+    ledger = snapshot_download(repo_id=a.review_repo, repo_type="dataset",
+                               revision=a.review_revision,
+                               allow_patterns=["cases/*"])
+    cases = []
+    for cf in sorted((Path(ledger) / "cases").glob("*.json")):
+        try:
+            cases.append(json.loads(cf.read_text()))
+        except Exception as exc:                       # noqa: BLE001
+            print(f"  skip {cf.name}: {exc}")
+    flagged = [c for c in cases
+               if schema.derive_status(c) == "finalized" and c.get("final")]
+    if a.only == "corrected":
+        flagged = [c for c in flagged
+                   if c["final"].get("decision") == "corrected"]
+    flagged.sort(key=lambda c: c["case_id"])
+    todo = [c for c in flagged if a.redo or c["case_id"] not in verdicts]
+    print(f"{len(flagged)} flagged case(s); {len(todo)} to review "
+          f"({len(flagged) - len(todo)} already logged in {log_path.name}).")
+    if not todo:
+        print(f"nothing left — every flagged case has a verdict. log: {log_path}")
+        return _final_pass_summary(verdicts, log_path)
+
+    itksnap = a.itksnap or _default_itksnap()
+    labels = work / "labels.txt"
+    labels.write_text(labels_descriptor.descriptor_text())
+    print("per case, after ITK-SNAP closes: [Enter]=approve  f=flag  s=skip  q=quit\n")
+
+    for i, c in enumerate(todo, 1):
+        cid, fin = c["case_id"], c["final"]
+        ct_rel = c.get("ct_file")
+        lbl_rel = fin.get("label_rel")
+        print(f"[{i}/{len(todo)}] {cid}   decision={fin.get('decision')}")
+        if not ct_rel or not lbl_rel:
+            print("  missing ct_file or final label_rel — skipping.")
+            continue
+        cdir = work / "cases" / cid
+        try:
+            ct = hf_hub_download(repo_id=a.v2_repo, repo_type="dataset",
+                                 revision=a.revision, filename=ct_rel,
+                                 local_dir=str(cdir))
+            seg = hf_hub_download(repo_id=a.review_repo, repo_type="dataset",
+                                  revision=a.review_revision, filename=lbl_rel,
+                                  local_dir=str(cdir))
+        except Exception as exc:                       # noqa: BLE001
+            print(f"  download failed ({exc}); skipping.")
+            continue
+        rc = _launch_itksnap(itksnap, Path(ct), Path(seg), labels)
+        if rc != 0:
+            print(f"  ITK-SNAP exited {rc} — no verdict recorded.")
+            _itksnap_failure_hint(rc)
+            if input("  [q]uit / anything else = continue: ").strip().lower() \
+                    in ("q", "quit"):
+                break
+            continue
+        ans = input("  verdict [Enter=approve / f=flag / s=skip / q=quit]: ") \
+            .strip().lower()
+        if ans in ("q", "quit"):
+            print("  stopping; progress saved.")
+            break
+        if ans in ("s", "skip"):
+            continue
+        note = ""
+        if ans in ("f", "flag"):
+            verdict, note = "flag", input("  what's wrong (short note): ").strip()
+        else:
+            verdict = "approve"
+        verdicts[cid] = {"verdict": verdict, "note": note,
+                         "decision": fin.get("decision"),
+                         "label_rel": lbl_rel}
+        log_path.write_text(json.dumps(verdicts, indent=2))   # save after each
+
+    return _final_pass_summary(verdicts, log_path)
+
+
+def _final_pass_summary(verdicts: dict, log_path: Path) -> int:
+    appr = [k for k, v in verdicts.items() if v["verdict"] == "approve"]
+    flg = [k for k, v in verdicts.items() if v["verdict"] == "flag"]
+    print("\n=== final pass ===")
+    print(f"  approved : {len(appr)}")
+    print(f"  flagged  : {len(flg)}")
+    for k in flg:
+        print(f"    - {k}: {verdicts[k].get('note', '')}")
+    print(f"  log: {log_path}")
+    return 0
+
+
 def cmd_resume(a):
     """Re-upload any edits whose submit didn't confirm (crash / 429 / network).
     The edited seg.nii.gz + downloaded pseudo are still in each workdir, so the
@@ -1279,6 +1384,33 @@ def main(argv=None) -> int:
                    help="HuggingFace dataset repo id")
     p.add_argument("--revision", default="v2", help="branch/revision (default v2)")
     p.set_defaults(fn=cmd_reference)
+
+    p = sub.add_parser("final-pass",
+                       help="local final QC pass over the flagged (finalized) "
+                            "cases: open each crop CT + its corrected label in "
+                            "ITK-SNAP, record approve/flag (resumable)")
+    p.add_argument("--workdir",
+                   default=str(Path.home() / ".reviewtool" / "final_pass"),
+                   help="where crop CT + label downloads and the verdict log live")
+    p.add_argument("--log", default=None,
+                   help="verdict log path (default: <workdir>/verdicts.json)")
+    p.add_argument("--only", choices=("all", "corrected"), default="all",
+                   help="'all' = every finalized case (default); 'corrected' = "
+                        "only those whose decision actually changed a label")
+    p.add_argument("--redo", action="store_true",
+                   help="re-review cases already in the log (default: skip them)")
+    p.add_argument("--review-repo",
+                   default="gregoryschwingmdphd/CTSpinoPelvic1K-reviews-triaged",
+                   help="the review ledger dataset (cases/ + reviews/)")
+    p.add_argument("--review-revision", default="main",
+                   help="branch/tag of the review ledger (default main)")
+    p.add_argument("--v2-repo", default="gregoryschwingmdphd/CTSpinoPelvic1K",
+                   help="dataset repo holding the crop CTs")
+    p.add_argument("--revision", default="v2",
+                   help="branch/tag for the crop CTs (default v2)")
+    p.add_argument("--itksnap", default=None,
+                   help="ITK-SNAP executable (auto-detected if omitted)")
+    p.set_defaults(fn=cmd_final_pass)
 
     p = sub.add_parser("download",
                        help="download the dataset from HuggingFace "

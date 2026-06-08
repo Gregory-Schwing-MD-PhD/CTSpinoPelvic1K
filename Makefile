@@ -149,9 +149,11 @@ REVIEW_NO_PNGS    := $(strip $(REVIEW_NO_PNGS))
 QC_MANUAL_CSV     ?=
 QC_PSEUDO_CSV     ?=
 QC_LIMIT          ?= 0
+QC_SKIP_MANUAL    ?= 0
 QC_MANUAL_CSV     := $(strip $(QC_MANUAL_CSV))
 QC_PSEUDO_CSV     := $(strip $(QC_PSEUDO_CSV))
 QC_LIMIT          := $(strip $(QC_LIMIT))
+QC_SKIP_MANUAL    := $(strip $(QC_SKIP_MANUAL))
 
 # ── bone-leak QC (label bled off bone) ───────────────────────────────────────
 LEAK_MANUAL_CSV   ?=
@@ -439,7 +441,7 @@ sweep-refine: check-container  ## Sweep (pctl, grow), pick best, build refined t
 vertebra-qc: check-container  ## GT-free neighbour-mixing QC on manual vs pseudo trees (CPU)
 	@mkdir -p $(LOGS_DIR)
 	@echo "Submitting vertebra-qc (manual vs pseudo neighbour-mixing metrics)"
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),QC_MANUAL_CSV=$(QC_MANUAL_CSV),QC_PSEUDO_CSV=$(QC_PSEUDO_CSV),QC_LIMIT=$(QC_LIMIT) \
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),QC_MANUAL_CSV=$(QC_MANUAL_CSV),QC_PSEUDO_CSV=$(QC_PSEUDO_CSV),QC_LIMIT=$(QC_LIMIT),QC_SKIP_MANUAL=$(QC_SKIP_MANUAL) \
 	       slurm/vertebra_qc.sh
 
 
@@ -455,7 +457,7 @@ bone-leak-qc: check-container  ## GT-free off-bone label-leak QC on manual vs ps
 structure-qc: check-container  ## GT-free structure QC (presence/dup/gap/L-R swap) manual vs pseudo (CPU)
 	@mkdir -p $(LOGS_DIR)
 	@echo "Submitting structure-qc (presence / duplication / gap / L-R swap)"
-	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),STRUCT_MANUAL_CSV=$(STRUCT_MANUAL_CSV),STRUCT_PSEUDO_CSV=$(STRUCT_PSEUDO_CSV),STRUCT_FLIP_LR=$(STRUCT_FLIP_LR),STRUCT_DUP_RATIO=$(STRUCT_DUP_RATIO),QC_LIMIT=$(QC_LIMIT) \
+	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),STRUCT_MANUAL_CSV=$(STRUCT_MANUAL_CSV),STRUCT_PSEUDO_CSV=$(STRUCT_PSEUDO_CSV),STRUCT_FLIP_LR=$(STRUCT_FLIP_LR),STRUCT_DUP_RATIO=$(STRUCT_DUP_RATIO),QC_LIMIT=$(QC_LIMIT),QC_SKIP_MANUAL=$(QC_SKIP_MANUAL) \
 	       slurm/structure_qc.sh
 
 

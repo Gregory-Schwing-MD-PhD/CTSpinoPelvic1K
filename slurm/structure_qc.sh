@@ -3,7 +3,7 @@
 #SBATCH -q primary
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=48
 #SBATCH --mem=16G
 #SBATCH --time=08:00:00
 #SBATCH --output=logs/structure_qc_%j.out
@@ -36,6 +36,11 @@ STRUCT_FLIP_LR="${STRUCT_FLIP_LR:-0}"
 STRUCT_DUP_RATIO="${STRUCT_DUP_RATIO:-0.2}"   # 2nd-component size ratio for dup flag
 QC_WORKERS="${QC_WORKERS:-${SLURM_CPUS_PER_TASK:-8}}"
 QC_LIMIT="${QC_LIMIT:-0}"
+# The manual/radiologist tree never changes between QC runs, so on a re-run
+# (e.g. QC-ing a corrected v3 tree) recomputing it is pure waste. Set
+# QC_SKIP_MANUAL=1 to reuse an existing STRUCT_MANUAL_CSV and only score the
+# pseudo tree against it — roughly halves the job.
+QC_SKIP_MANUAL="${QC_SKIP_MANUAL:-0}"
 
 mkdir -p "${LOGS_DIR}"
 
@@ -64,14 +69,19 @@ EXTRA=""
 [[ "${QC_LIMIT}" != "0" ]]      && EXTRA="${EXTRA} --limit ${QC_LIMIT}"
 [[ "${STRUCT_FLIP_LR}" == "1" ]] && EXTRA="${EXTRA} --flip_lr"
 
-echo ""; echo "============= manual tree ============="; echo ""
-stdbuf -oL -eL singularity exec \
-    --env "${ENV_VARS}" --bind "${BINDS}" --pwd /workspace "${SIF_PATH}" \
-    python3 -u /workspace/scripts/structure_qc.py \
-        --tree    "/data/$(basename "${HF_EXPORT_DIR}")" \
-        --out     "/data/$(basename "${STRUCT_MANUAL_CSV}")" \
-        --dup_ratio "${STRUCT_DUP_RATIO}" \
-        --workers "${QC_WORKERS}" ${EXTRA}
+if [[ "${QC_SKIP_MANUAL}" == "1" && -f "${STRUCT_MANUAL_CSV}" ]]; then
+    echo ""; echo "============= manual tree (SKIPPED — reusing ${STRUCT_MANUAL_CSV}) ============="; echo ""
+else
+    [[ "${QC_SKIP_MANUAL}" == "1" ]] && echo "QC_SKIP_MANUAL=1 but ${STRUCT_MANUAL_CSV} missing — computing it."
+    echo ""; echo "============= manual tree ============="; echo ""
+    stdbuf -oL -eL singularity exec \
+        --env "${ENV_VARS}" --bind "${BINDS}" --pwd /workspace "${SIF_PATH}" \
+        python3 -u /workspace/scripts/structure_qc.py \
+            --tree    "/data/$(basename "${HF_EXPORT_DIR}")" \
+            --out     "/data/$(basename "${STRUCT_MANUAL_CSV}")" \
+            --dup_ratio "${STRUCT_DUP_RATIO}" \
+            --workers "${QC_WORKERS}" ${EXTRA}
+fi
 
 echo ""; echo "============= pseudo tree (with compare) ============="; echo ""
 stdbuf -oL -eL singularity exec \
