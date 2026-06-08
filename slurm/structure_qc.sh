@@ -3,7 +3,7 @@
 #SBATCH -q primary
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=48
+#SBATCH --cpus-per-task=24
 #SBATCH --mem=16G
 #SBATCH --time=08:00:00
 #SBATCH --output=logs/structure_qc_%j.out
