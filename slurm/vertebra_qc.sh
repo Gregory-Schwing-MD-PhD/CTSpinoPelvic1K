@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=24
-#SBATCH --mem=16G
+#SBATCH --mem-per-cpu=4G
 #SBATCH --time=08:00:00
 #SBATCH --output=logs/vertebra_qc_%j.out
 #SBATCH --error=logs/vertebra_qc_%j.out
