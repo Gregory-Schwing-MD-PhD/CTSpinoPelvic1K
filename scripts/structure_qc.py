@@ -203,13 +203,15 @@ def main() -> int:
 
     from concurrent.futures import ProcessPoolExecutor, as_completed
     rows: List[dict] = []
+    step = max(1, len(tasks) // 40)            # ~40 progress lines, regardless of N
     with ProcessPoolExecutor(max_workers=args.workers) as ex:
         futs = [ex.submit(_qc_one, t) for t in tasks]
+        log.info("  pool live, %d tasks submitted — waiting on results ...", len(futs))
         for i, fut in enumerate(as_completed(futs), 1):
             r = fut.result()
             if r:
                 rows.append(r)
-            if i % 100 == 0 or i == len(futs):
+            if i == 1 or i % step == 0 or i == len(futs):
                 log.info("  %d/%d processed", i, len(futs))
 
     rows.sort(key=lambda r: (int(r["struct_flag"]), int(r["lr_swap"])), reverse=True)
