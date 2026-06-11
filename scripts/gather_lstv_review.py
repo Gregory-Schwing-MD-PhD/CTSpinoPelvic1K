@@ -56,7 +56,12 @@ def _tokens_from_file(p: Path) -> Set[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--hf_dir", required=True, type=Path)
+    ap.add_argument("--hf_dir", required=True, type=Path,
+                    help="tree holding the LABELS + manifest (e.g. v3)")
+    ap.add_argument("--ct_hf_dir", type=Path, default=None,
+                    help="tree holding the CT volumes, if different from "
+                         "--hf_dir (e.g. data/hf_export_v2 when v3 is "
+                         "labels-only). Default: same as --hf_dir.")
     ap.add_argument("--manifest", type=Path, default=None,
                     help="default <hf_dir>/manifest.json")
     ap.add_argument("--splits", type=Path, default=None,
@@ -72,6 +77,7 @@ def main() -> int:
     args = ap.parse_args()
 
     manifest_path = args.manifest or (args.hf_dir / "manifest.json")
+    ct_root = args.ct_hf_dir or args.hf_dir
     out = args.out or (args.hf_dir / "_lstv_review")
     records = _load_records(manifest_path)
     subs_map: Dict[str, str] = {}
@@ -93,6 +99,7 @@ def main() -> int:
         how = f"non-normal subtypes in {splits_path.name}"
 
     print(f"selection: {how} -> {len(selected)} token(s)")
+    print(f"labels from: {args.hf_dir}   CT from: {ct_root}")
     out.mkdir(parents=True, exist_ok=True)
 
     index: List[dict] = []
@@ -106,10 +113,15 @@ def main() -> int:
         lb_rel = rec.get("label_file") or rec.get("label")
         if not ct_rel or not lb_rel:
             continue
-        ct_src = (args.hf_dir / ct_rel).resolve()
+        ct_src = (ct_root / ct_rel).resolve()
         lb_src = (args.hf_dir / lb_rel).resolve()
-        if not ct_src.exists() or not lb_src.exists():
-            print(f"  WARN missing files for {tok}__{cfg}")
+        missing_which = []
+        if not ct_src.exists():
+            missing_which.append(f"ct:{ct_src}")
+        if not lb_src.exists():
+            missing_which.append(f"label:{lb_src}")
+        if missing_which:
+            print(f"  WARN {tok}__{cfg} missing -> {'; '.join(missing_which)}")
             n_missing += 1
             continue
         dst_dir = out / f"{tok}__{cfg}"
