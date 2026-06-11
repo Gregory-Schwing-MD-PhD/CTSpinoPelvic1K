@@ -1,0 +1,178 @@
+"""
+refresh_lstv_from_labels.py — recompute has_l6 / n_lumbar_labels from the
+ACTUAL label voxels and (optionally) rewrite the manifest.
+
+Why this exists
+---------------
+has_l6 / n_lumbar_labels are computed ONLY at the original export_hf.py run
+(export_hf.py: `uniq = {v in label if 1<=v<=6}`; has_l6 = 6 in uniq;
+n_lumbar_labels = len(uniq)). Neither reduce_to_v3.py (which swaps in
+corrected/pseudolabelled labels) nor refresh_hf_manifests.py (which updates
+lstv_class from placed_manifest) recomputes these from the new label voxels.
+
+So if an L6 first appears in a corrected/pseudolabelled label (e.g. the extra
+L6 cases that arose in review), the manifest still says has_l6=False — and a
+later generate_5fold_splits run would then mislabel those cases as `normal`.
+This script re-reads each label NIfTI and fixes has_l6 / n_lumbar_labels.
+
+Report-first: a DRY RUN by default. It prints exactly which tokens flip
+False->True (the newly-found L6 cases) and, if given the finalized-reviews
+index (--finals), whether each came from a reviewer correction. Re-run with
+--write to apply and rewrite manifest.json/csv + manifest_{train,val,test}.json
++ splits (via export_hf's own writers, so output matches an end-to-end run).
+
+Usage
+-----
+  # 1) audit v3 (dry run) — does NOT modify anything
+  python scripts/refresh_lstv_from_labels.py --hf_dir data/hf_export_v3 \
+      --finals reviews/finalized_index.json
+
+  # 2) apply the fix, then re-split
+  python scripts/refresh_lstv_from_labels.py --hf_dir data/hf_export_v3 --write
+  python scripts/generate_5fold_splits.py --hf_dir data/hf_export_v3 \
+      --out data/hf_export_v3/splits_5fold.json
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import sys
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s  %(levelname)-8s  %(message)s",
+                    datefmt="%H:%M:%S")
+log = logging.getLogger("refresh_lstv_from_labels")
+
+
+def lumbar_from_label(label_path: Path) -> Tuple[int, bool, List[int]]:
+    """Mirror export_hf.py:855-857 exactly."""
+    import nibabel as nib
+    arr = np.asarray(nib.load(str(label_path)).dataobj)
+    uniq = {int(v) for v in np.unique(arr) if 1 <= v <= 6}
+    return len(uniq), (6 in uniq), sorted(uniq)
+
+
+def _load_records(manifest_path: Path) -> List[dict]:
+    data = json.loads(manifest_path.read_text())
+    if isinstance(data, dict):
+        data = data.get("records", data.get("cases", []))
+    return [r for r in data if isinstance(r, dict)]
+
+
+def _finals_by_token(finals_path: Optional[Path]) -> Dict[str, List[Tuple[str, str]]]:
+    """token -> [(config, decision), ...] from a finalized-reviews index keyed
+    by '<token>__<config>'."""
+    out: Dict[str, List[Tuple[str, str]]] = {}
+    if not finals_path:
+        return out
+    finals = json.loads(finals_path.read_text())
+    for case_id, entry in finals.items():
+        tok, _, cfg = case_id.partition("__")
+        out.setdefault(tok, []).append((cfg, str(entry.get("decision", "?"))))
+    return out
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--hf_dir", required=True, type=Path,
+                    help="export tree (e.g. data/hf_export_v3) — labels resolve under it")
+    ap.add_argument("--manifest", type=Path, default=None,
+                    help="manifest.json (default <hf_dir>/manifest.json)")
+    ap.add_argument("--finals", type=Path, default=None,
+                    help="finalized-reviews index JSON, to attribute flips to corrections")
+    ap.add_argument("--write", action="store_true",
+                    help="apply the fix and rewrite manifest + splits (default: dry run)")
+    args = ap.parse_args()
+
+    manifest_path = args.manifest or (args.hf_dir / "manifest.json")
+    if not manifest_path.exists():
+        log.error("manifest not found: %s", manifest_path)
+        return 1
+    records = _load_records(manifest_path)
+    finals = _finals_by_token(args.finals)
+    log.info("scanning %d records under %s", len(records), args.hf_dir)
+
+    flips_true:  List[Tuple[str, str, List[int]]] = []   # has_l6 False -> True
+    flips_false: List[Tuple[str, str, List[int]]] = []   # True -> False
+    nlumb_changes: List[Tuple[str, int, int]] = []
+    n_scanned = n_missing = 0
+
+    for i, rec in enumerate(records):
+        tok = str(rec.get("token") or rec.get("patient_token") or "")
+        cfg = str(rec.get("config", ""))
+        lf = rec.get("label_file") or rec.get("label")
+        if not lf:
+            continue
+        p = args.hf_dir / lf
+        if not p.exists():
+            log.warning("label missing for token=%s: %s", tok, p)
+            n_missing += 1
+            continue
+        n_new, has_new, uniq = lumbar_from_label(p)
+        has_old = bool(rec.get("has_l6", False))
+        n_old = int(rec.get("n_lumbar_labels", 0) or 0)
+        if has_new and not has_old:
+            flips_true.append((tok, cfg, uniq))
+        elif has_old and not has_new:
+            flips_false.append((tok, cfg, uniq))
+        if n_new != n_old:
+            nlumb_changes.append((tok, n_old, n_new))
+        if args.write:
+            rec["has_l6"] = has_new
+            rec["n_lumbar_labels"] = n_new
+        n_scanned += 1
+        if n_scanned % 200 == 0:
+            log.info("  scanned %d/%d ...", n_scanned, len(records))
+
+    log.info("=" * 64)
+    log.info("scanned=%d  missing_labels=%d", n_scanned, n_missing)
+    log.info("has_l6 False->True : %d   <-- newly-found L6 (the cases in question)",
+             len(flips_true))
+    log.info("has_l6 True->False : %d", len(flips_false))
+    log.info("n_lumbar_labels changed on %d records", len(nlumb_changes))
+    if flips_true:
+        log.info("-" * 64)
+        log.info("Newly-found L6 cases:")
+        for tok, cfg, uniq in flips_true:
+            attribution = ""
+            if finals:
+                decs = finals.get(tok, [])
+                if decs:
+                    attribution = "  reviews=" + ",".join(f"{c}:{d}" for c, d in decs)
+                else:
+                    attribution = "  reviews=<none for token>"
+            log.info("  token=%s config=%s lumbar_labels=%s%s",
+                     tok, cfg, uniq, attribution)
+        if finals:
+            n_corrected = sum(1 for tok, _, _ in flips_true
+                              if any(d == "corrected" for _, d in finals.get(tok, [])))
+            log.info("-> %d/%d of the newly-found L6 cases were reviewer-CORRECTED",
+                     n_corrected, len(flips_true))
+            log.info("   (confirms whether these arose from review label corrections)")
+
+    if not args.write:
+        log.info("=" * 64)
+        log.info("DRY RUN -- nothing written. Re-run with --write to apply, then:")
+        log.info("  python scripts/generate_5fold_splits.py --hf_dir %s --out %s/splits_5fold.json",
+                 args.hf_dir, args.hf_dir)
+        return 0
+
+    # Apply: rewrite manifest + splits using export_hf's own writers.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from export_hf import write_manifest, write_splits
+    out_records = [{**r, "ok": r.get("ok", True)} for r in records]
+    log.info("re-writing manifest.json/csv + manifest_{train,val,test}.json + splits")
+    write_manifest(out_records, args.hf_dir)
+    write_splits(out_records, args.hf_dir)
+    log.info("done. NEXT: re-run generate_5fold_splits.py on %s", args.hf_dir)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
