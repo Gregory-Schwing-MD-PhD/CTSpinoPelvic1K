@@ -177,13 +177,16 @@ def main() -> int:
         if ok:
             by_tok[tok].append((cfg.lower(), has_new, idx))
 
+    redundant: List[str] = []        # spine already has L6 AND pelvic has L6
     conflicts: List[str] = []        # has spine record, spine=no-L6 but pelvic=L6
     pelvic_only_l6: List[str] = []   # pelvic-only patient, pseudolabel drew L6
     for tok, items in by_tok.items():
         spine = [h for c, h, _ in items if c in ("fused", "spine_only")]
         pelv  = [h for c, h, _ in items if c == "pelvic_native"]
         if spine:
-            if any(pelv) and not any(spine):
+            if any(pelv) and any(spine):
+                redundant.append(tok)
+            elif any(pelv) and not any(spine):
                 conflicts.append(tok)
         elif any(pelv):
             pelvic_only_l6.append(tok)
@@ -234,9 +237,15 @@ def main() -> int:
 
     n_missing = len(missing)
     if args.spine_authoritative:
-        log.info("spine-authoritative: neutralised %d pelvic_native pseudolabel "
-                 "L6(s); kept %d confirmed via --keep_pelvic",
+        log.info("spine-authoritative: %d pelvic-view pseudolabel L6 flag(s) "
+                 "dropped from patient subtyping (kept %d via --keep_pelvic):",
                  n_neutralised, len(keep_pelvic))
+        log.info("  %d REDUNDANT  -- patient already has L6 in the spine mask "
+                 "(already lumb; nothing lost)", len(redundant))
+        log.info("  %d CONFLICT   -- spine mask has NO L6 but pelvic pseudolabel "
+                 "drew one  -> REVIEW (see list)", len(conflicts))
+        log.info("  %d PELVIC-ONLY-- no spine mask; pseudolabel is the only "
+                 "source -> REVIEW (see list)", len(pelvic_only_l6))
     if missing:
         log.warning("%d record(s) had missing/unreadable labels: %s",
                     n_missing, ", ".join(missing[:10]) + (" ..." if n_missing > 10 else ""))
@@ -267,20 +276,25 @@ def main() -> int:
                      n_corrected, len(flips_true))
             log.info("   (confirms whether these arose from review label corrections)")
 
+    def _sk(t):
+        return (0, int(t)) if t.isdigit() else (1, t)
+
     if args.spine_authoritative:
         log.info("-" * 64)
-        if pelvic_only_l6:
-            log.info("PELVIC-ONLY patients with a pseudolabel L6 (EXTRA LSTV "
-                     "candidates -- review, then include the real ones with "
-                     "--keep_pelvic): %d", len(pelvic_only_l6))
-            for tok in sorted(pelvic_only_l6,
-                              key=lambda t: (0, int(t)) if t.isdigit() else (1, t)):
-                log.info("  token=%s%s", tok, "  [KEPT]" if tok in keep_pelvic else "")
-        else:
-            log.info("no pelvic-only L6 candidates.")
-        if conflicts:
-            log.info("spine vs pelvic DISAGREE (spine=no-L6, pelvic=L6) -- rare; "
-                     "trusting spine GT: %s", ",".join(sorted(conflicts)))
+        log.info("REVIEW QUEUE (these did NOT auto-update; eyeball them):")
+        log.info("  PELVIC-ONLY L6 candidates (no spine mask; pseudolabel only): %d",
+                 len(pelvic_only_l6))
+        for tok in sorted(pelvic_only_l6, key=_sk):
+            log.info("    token=%s%s  -> if a real L6, include with --keep_pelvic",
+                     tok, "  [KEPT]" if tok in keep_pelvic else "")
+        log.info("  CONFLICTS (spine mask=no-L6, pelvic pseudolabel=L6): %d",
+                 len(conflicts))
+        for tok in sorted(conflicts, key=_sk):
+            log.info("    token=%s  -> if the radiologist MISSED an L6, correct the "
+                     "spine_only label (then re-run; has_l6 follows). else leave.",
+                     tok)
+        if not pelvic_only_l6 and not conflicts:
+            log.info("  (empty -- nothing to review)")
         if exclude_tokens:
             log.info("excluded (left unchanged): %s", ",".join(sorted(exclude_tokens)))
 
