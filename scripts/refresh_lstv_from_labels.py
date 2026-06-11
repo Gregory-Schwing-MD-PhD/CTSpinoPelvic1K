@@ -37,15 +37,22 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import multiprocessing as mp
+import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+try:
+    sys.stdout.reconfigure(line_buffering=True)   # stream progress in real time
+except (AttributeError, ValueError):
+    pass
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s  %(levelname)-8s  %(message)s",
-                    datefmt="%H:%M:%S")
+                    datefmt="%H:%M:%S",
+                    stream=sys.stdout)             # land in the SLURM .out file
 log = logging.getLogger("refresh_lstv_from_labels")
 
 
@@ -55,6 +62,20 @@ def lumbar_from_label(label_path: Path) -> Tuple[int, bool, List[int]]:
     arr = np.asarray(nib.load(str(label_path)).dataobj)
     uniq = {int(v) for v in np.unique(arr) if 1 <= v <= 6}
     return len(uniq), (6 in uniq), sorted(uniq)
+
+
+def _scan_task(task: Tuple[int, str, str, str]):
+    """Worker: (idx, token, config, label_path) -> result tuple. Module-level
+    so it is picklable for multiprocessing. Each label is independent, so the
+    scan is embarrassingly parallel."""
+    idx, tok, cfg, path = task
+    try:
+        if not os.path.exists(path):
+            return (idx, tok, cfg, 0, False, [], False)
+        n, has6, uniq = lumbar_from_label(Path(path))
+        return (idx, tok, cfg, n, has6, uniq, True)
+    except Exception:
+        return (idx, tok, cfg, 0, False, [], False)
 
 
 def _load_records(manifest_path: Path) -> List[dict]:
@@ -88,6 +109,8 @@ def main() -> int:
                     help="finalized-reviews index JSON, to attribute flips to corrections")
     ap.add_argument("--write", action="store_true",
                     help="apply the fix and rewrite manifest + splits (default: dry run)")
+    ap.add_argument("--workers", type=int, default=0,
+                    help="parallel label-scan workers (0 = min(8, cpu_count))")
     args = ap.parse_args()
 
     manifest_path = args.manifest or (args.hf_dir / "manifest.json")
@@ -98,23 +121,42 @@ def main() -> int:
     finals = _finals_by_token(args.finals)
     log.info("scanning %d records under %s", len(records), args.hf_dir)
 
-    flips_true:  List[Tuple[str, str, List[int]]] = []   # has_l6 False -> True
-    flips_false: List[Tuple[str, str, List[int]]] = []   # True -> False
-    nlumb_changes: List[Tuple[str, int, int]] = []
-    n_scanned = n_missing = 0
-
+    # Build the scan task list (records that have a label file).
+    tasks: List[Tuple[int, str, str, str]] = []
     for i, rec in enumerate(records):
         tok = str(rec.get("token") or rec.get("patient_token") or "")
         cfg = str(rec.get("config", ""))
         lf = rec.get("label_file") or rec.get("label")
-        if not lf:
+        if lf:
+            tasks.append((i, tok, cfg, str(args.hf_dir / lf)))
+
+    workers = args.workers if args.workers > 0 else min(8, mp.cpu_count() or 1)
+    log.info("scanning %d labels with %d worker(s) ...", len(tasks), workers)
+
+    results = []
+    if workers > 1:
+        with mp.Pool(workers) as pool:
+            for j, r in enumerate(pool.imap_unordered(_scan_task, tasks, chunksize=8), 1):
+                results.append(r)
+                if j % 200 == 0:
+                    log.info("  scanned %d/%d ...", j, len(tasks))
+    else:
+        for j, t in enumerate(tasks, 1):
+            results.append(_scan_task(t))
+            if j % 200 == 0:
+                log.info("  scanned %d/%d ...", j, len(tasks))
+
+    flips_true:  List[Tuple[str, str, List[int]]] = []   # has_l6 False -> True
+    flips_false: List[Tuple[str, str, List[int]]] = []   # True -> False
+    nlumb_changes: List[Tuple[str, int, int]] = []
+    missing: List[str] = []
+    n_scanned = 0
+
+    for (idx, tok, cfg, n_new, has_new, uniq, ok) in results:
+        if not ok:
+            missing.append(f"{tok}__{cfg}")
             continue
-        p = args.hf_dir / lf
-        if not p.exists():
-            log.warning("label missing for token=%s: %s", tok, p)
-            n_missing += 1
-            continue
-        n_new, has_new, uniq = lumbar_from_label(p)
+        rec = records[idx]
         has_old = bool(rec.get("has_l6", False))
         n_old = int(rec.get("n_lumbar_labels", 0) or 0)
         if has_new and not has_old:
@@ -127,8 +169,11 @@ def main() -> int:
             rec["has_l6"] = has_new
             rec["n_lumbar_labels"] = n_new
         n_scanned += 1
-        if n_scanned % 200 == 0:
-            log.info("  scanned %d/%d ...", n_scanned, len(records))
+
+    n_missing = len(missing)
+    if missing:
+        log.warning("%d record(s) had missing/unreadable labels: %s",
+                    n_missing, ", ".join(missing[:10]) + (" ..." if n_missing > 10 else ""))
 
     log.info("=" * 64)
     log.info("scanned=%d  missing_labels=%d", n_scanned, n_missing)

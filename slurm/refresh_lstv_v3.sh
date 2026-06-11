@@ -3,8 +3,8 @@
 #SBATCH -q primary
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=16G
+#SBATCH --cpus-per-task=24
+#SBATCH --mem=32G
 #SBATCH --time=02:00:00
 #SBATCH --output=logs/refresh_lstv_v3_%j.out
 #SBATCH --error=logs/refresh_lstv_v3_%j.err
@@ -69,12 +69,18 @@ export SINGULARITY_TMPDIR="/tmp/${USER}_refresh_${SLURM_JOB_ID:-$$}"
 mkdir -p "${SINGULARITY_TMPDIR}"
 trap 'rm -rf "${SINGULARITY_TMPDIR}"' EXIT
 
-BINDS="${PROJECT_ROOT}:/workspace,${DATA_DIR}:/data"
+# Tight bind so the ONLY writable data path is the v3 tree itself: the repo is
+# mounted read-only (just for the scripts) and only ${HF_DIR} is mounted rw at
+# /hf. The v2 tree and the canonical hf_export are not mounted at all, so this
+# job physically cannot modify anything outside ${HF_DIR}. --no-home drops the
+# home auto-mount for the same reason.
+BINDS="${PROJECT_ROOT}:/workspace:ro,${HF_DIR}:/hf"
 PPATH="/workspace/scripts:/workspace"
-C_HF="/data/$(basename "${HF_DIR}")"
+C_HF="/hf"
+WORKERS="${SLURM_CPUS_PER_TASK:-8}"
 
 _run() {
-    singularity exec --env "PYTHONPATH=${PPATH}" --bind "${BINDS}" \
+    singularity exec --no-home --env "PYTHONPATH=${PPATH}" --bind "${BINDS}" \
         --pwd /workspace "${SIF_PATH}" "$@"
 }
 
@@ -87,16 +93,17 @@ echo "   container: ${SIF_PATH}"
 echo "   started  : $(date)"
 echo "======================================================================"
 
-ARGS=( --hf_dir "${C_HF}" )
+ARGS=( --hf_dir "${C_HF}" --workers "${WORKERS}" )
 [[ -n "${FINALS}" ]] && ARGS+=( --finals "/workspace/${FINALS}" )
 [[ "${WRITE}" == "1" ]] && ARGS+=( --write )
 
-_run python scripts/refresh_lstv_from_labels.py "${ARGS[@]}"
+echo "   workers  : ${WORKERS}"
+_run python -u scripts/refresh_lstv_from_labels.py "${ARGS[@]}"
 
 if [[ "${WRITE}" == "1" && "${RESPLIT}" == "1" ]]; then
     echo ""
     echo "----- re-splitting ${C_HF} (generate_5fold_splits) -----"
-    _run python scripts/generate_5fold_splits.py \
+    _run python -u scripts/generate_5fold_splits.py \
         --hf_dir "${C_HF}" --out "${C_HF}/splits_5fold.json" \
         --n_folds 5 --seed 42
 elif [[ "${WRITE}" == "1" ]]; then
