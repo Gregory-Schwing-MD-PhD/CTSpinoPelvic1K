@@ -48,6 +48,13 @@ HF_DIR="${HF_DIR:-${DATA_DIR}/hf_export_v3}"
 FINALS="${FINALS:-}"
 WRITE="${WRITE:-0}"
 RESPLIT="${RESPLIT:-0}"
+# Spine-authoritative on by default for v3: trust the spine-bearing record's v3
+# label for has_l6 (reviewer corrections included), neutralise pelvic_native
+# pseudolabels. KEEP_PELVIC = confirmed pelvic-only L6 tokens to include;
+# EXCLUDE_TOKENS = tokens to leave untouched (e.g. a known bad label).
+SPINE_AUTH="${SPINE_AUTH:-1}"
+KEEP_PELVIC="${KEEP_PELVIC:-}"
+EXCLUDE_TOKENS="${EXCLUDE_TOKENS:-}"
 
 mkdir -p "${LOGS_DIR:-logs}"
 
@@ -96,8 +103,11 @@ echo "======================================================================"
 ARGS=( --hf_dir "${C_HF}" --workers "${WORKERS}" )
 [[ -n "${FINALS}" ]] && ARGS+=( --finals "/workspace/${FINALS}" )
 [[ "${WRITE}" == "1" ]] && ARGS+=( --write )
+[[ "${SPINE_AUTH}" == "1" ]] && ARGS+=( --spine_authoritative )
+[[ -n "${KEEP_PELVIC}" ]] && ARGS+=( --keep_pelvic "${KEEP_PELVIC}" )
+[[ -n "${EXCLUDE_TOKENS}" ]] && ARGS+=( --exclude_tokens "${EXCLUDE_TOKENS}" )
 
-echo "   workers  : ${WORKERS}"
+echo "   workers  : ${WORKERS}   spine_auth: ${SPINE_AUTH}   keep_pelvic: ${KEEP_PELVIC:-<none>}   exclude: ${EXCLUDE_TOKENS:-<none>}"
 _run python -u scripts/refresh_lstv_from_labels.py "${ARGS[@]}"
 
 if [[ "${WRITE}" == "1" && "${RESPLIT}" == "1" ]]; then

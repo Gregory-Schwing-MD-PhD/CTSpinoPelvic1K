@@ -111,7 +111,30 @@ def main() -> int:
                     help="apply the fix and rewrite manifest + splits (default: dry run)")
     ap.add_argument("--workers", type=int, default=0,
                     help="parallel label-scan workers (0 = min(8, cpu_count))")
+    ap.add_argument("--spine_authoritative", action="store_true",
+                    help="trust the SPINE-bearing record (fused/spine_only) for "
+                         "has_l6; NEUTRALISE pelvic_native pseudolabels "
+                         "(has_l6=False, n_lumbar=0) so they can't promote a "
+                         "patient to lumb on an unreliable pelvic-view count. "
+                         "Pelvic-ONLY patients whose pseudolabel drew an L6 are "
+                         "listed for review (and kept out of lumb unless you "
+                         "confirm them via --keep_pelvic).")
+    ap.add_argument("--keep_pelvic", default="",
+                    help="comma-separated pelvic-only tokens you CONFIRMED have a "
+                         "real L6 (after review) — promote these to has_l6=True "
+                         "despite spine-authoritative neutralisation. e.g. "
+                         "--keep_pelvic 140,46")
+    ap.add_argument("--exclude_tokens", default="",
+                    help="comma-separated tokens to LEAVE UNCHANGED (don't write "
+                         "has_l6 for them) — e.g. a known class-mixing GT error "
+                         "whose stray value-6 voxels are a mislabel, not a real "
+                         "L6. Correct the label instead; this just keeps the "
+                         "bogus L6 out of the manifest meanwhile. e.g. "
+                         "--exclude_tokens 103")
     args = ap.parse_args()
+
+    keep_pelvic = {t.strip() for t in args.keep_pelvic.split(",") if t.strip()}
+    exclude_tokens = {t.strip() for t in args.exclude_tokens.split(",") if t.strip()}
 
     manifest_path = args.manifest or (args.hf_dir / "manifest.json")
     if not manifest_path.exists():
@@ -146,11 +169,31 @@ def main() -> int:
             if j % 200 == 0:
                 log.info("  scanned %d/%d ...", j, len(tasks))
 
+    # Per-patient label-derived L6 from spine-bearing vs pelvic records, used by
+    # spine-authoritative mode + conflict detection.
+    from collections import defaultdict as _dd
+    by_tok: Dict[str, list] = _dd(list)
+    for (idx, tok, cfg, n_new, has_new, uniq, ok) in results:
+        if ok:
+            by_tok[tok].append((cfg.lower(), has_new, idx))
+
+    conflicts: List[str] = []        # has spine record, spine=no-L6 but pelvic=L6
+    pelvic_only_l6: List[str] = []   # pelvic-only patient, pseudolabel drew L6
+    for tok, items in by_tok.items():
+        spine = [h for c, h, _ in items if c in ("fused", "spine_only")]
+        pelv  = [h for c, h, _ in items if c == "pelvic_native"]
+        if spine:
+            if any(pelv) and not any(spine):
+                conflicts.append(tok)
+        elif any(pelv):
+            pelvic_only_l6.append(tok)
+
     flips_true:  List[Tuple[str, str, List[int]]] = []   # has_l6 False -> True
     flips_false: List[Tuple[str, str, List[int]]] = []   # True -> False
     nlumb_changes: List[Tuple[str, int, int]] = []
     missing: List[str] = []
     n_scanned = 0
+    n_neutralised = 0
 
     for (idx, tok, cfg, n_new, has_new, uniq, ok) in results:
         if not ok:
@@ -159,18 +202,41 @@ def main() -> int:
         rec = records[idx]
         has_old = bool(rec.get("has_l6", False))
         n_old = int(rec.get("n_lumbar_labels", 0) or 0)
-        if has_new and not has_old:
+
+        if tok in exclude_tokens:
+            n_scanned += 1   # leave has_l6/n_lumbar exactly as they are
+            continue
+
+        # Resolve the value to WRITE. Default = factual (v3 label content, which
+        # already includes reviewer corrections to spine masks). Spine-
+        # authoritative mode neutralises pelvic_native pseudolabels so they
+        # can't promote a patient to lumb on an unreliable pelvic-view count,
+        # unless the token was confirmed via --keep_pelvic.
+        write_has, write_n = has_new, n_new
+        if args.spine_authoritative and cfg.lower() == "pelvic_native":
+            if tok in keep_pelvic:
+                write_has, write_n = True, max(6, n_new)
+            else:
+                write_has, write_n = False, 0
+                if has_new:
+                    n_neutralised += 1
+
+        if write_has and not has_old:
             flips_true.append((tok, cfg, uniq))
-        elif has_old and not has_new:
+        elif has_old and not write_has:
             flips_false.append((tok, cfg, uniq))
-        if n_new != n_old:
-            nlumb_changes.append((tok, n_old, n_new))
+        if write_n != n_old:
+            nlumb_changes.append((tok, n_old, write_n))
         if args.write:
-            rec["has_l6"] = has_new
-            rec["n_lumbar_labels"] = n_new
+            rec["has_l6"] = write_has
+            rec["n_lumbar_labels"] = write_n
         n_scanned += 1
 
     n_missing = len(missing)
+    if args.spine_authoritative:
+        log.info("spine-authoritative: neutralised %d pelvic_native pseudolabel "
+                 "L6(s); kept %d confirmed via --keep_pelvic",
+                 n_neutralised, len(keep_pelvic))
     if missing:
         log.warning("%d record(s) had missing/unreadable labels: %s",
                     n_missing, ", ".join(missing[:10]) + (" ..." if n_missing > 10 else ""))
@@ -200,6 +266,23 @@ def main() -> int:
             log.info("-> %d/%d of the newly-found L6 cases were reviewer-CORRECTED",
                      n_corrected, len(flips_true))
             log.info("   (confirms whether these arose from review label corrections)")
+
+    if args.spine_authoritative:
+        log.info("-" * 64)
+        if pelvic_only_l6:
+            log.info("PELVIC-ONLY patients with a pseudolabel L6 (EXTRA LSTV "
+                     "candidates -- review, then include the real ones with "
+                     "--keep_pelvic): %d", len(pelvic_only_l6))
+            for tok in sorted(pelvic_only_l6,
+                              key=lambda t: (0, int(t)) if t.isdigit() else (1, t)):
+                log.info("  token=%s%s", tok, "  [KEPT]" if tok in keep_pelvic else "")
+        else:
+            log.info("no pelvic-only L6 candidates.")
+        if conflicts:
+            log.info("spine vs pelvic DISAGREE (spine=no-L6, pelvic=L6) -- rare; "
+                     "trusting spine GT: %s", ",".join(sorted(conflicts)))
+        if exclude_tokens:
+            log.info("excluded (left unchanged): %s", ",".join(sorted(exclude_tokens)))
 
     if not args.write:
         log.info("=" * 64)
