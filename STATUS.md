@@ -60,3 +60,10 @@
    for boundaries.
 4. Train next model: real + synthetic, validate on synthetic / test on real
    (per Martinson — synthetic for val, real for train+test).
+5. **Extend `review_service` for the rib-anchor segmentation task** so OSC
+   members can request/claim cases through the Space (claim -> segment -> submit)
+   instead of manual Drive/email hand-offs. Reuse the existing claim/slot/submit
+   machinery; swap the 31-landmark template for "segment last_thoracic + rib"
+   (see `docs/RIB_ANCHOR_REVIEW_GUIDE.md`). Distribution exists today only for the
+   LSTV landmark/Castellvi review, not for dense-segmentation tasks. Promised as
+   "upcoming" in the OSC/BIBM email.
