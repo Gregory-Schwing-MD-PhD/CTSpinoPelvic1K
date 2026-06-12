@@ -72,10 +72,24 @@ lumbosacral FOV). Docs written: `docs/STUDENT_ANNOTATION_PROTOCOL.md` (master),
    for boundaries.
 4. Train next model: real + synthetic, validate on synthetic / test on real
    (per Martinson — synthetic for val, real for train+test).
-5. **Extend `review_service` for the rib-anchor segmentation task** so OSC
-   members can request/claim cases through the Space (claim -> segment -> submit)
-   instead of manual Drive/email hand-offs. Reuse the existing claim/slot/submit
-   machinery; swap the 31-landmark template for "segment last_thoracic + rib"
-   (see `docs/RIB_ANCHOR_REVIEW_GUIDE.md`). Distribution exists today only for the
-   LSTV landmark/Castellvi review, not for dense-segmentation tasks. Promised as
-   "upcoming" in the OSC/BIBM email.
+5. **Rib-anchor serving via the Space — DONE (code), one deploy knob open.**
+   Correction to an earlier assumption: the review Space was never a
+   "31-landmark" tool — it is already a generic dense-seg correction pipeline
+   (claim → edit volume in ITK-SNAP → submit → per-class-Dice IRR → adjudicate).
+   So serving the v4 rib-anchor pass was mostly config:
+   - Label scheme extended: `11 last_rib_vertebra`, `12 rib` (above IGNORE=10, so
+     the 0–9 path is untouched); ITK-SNAP palette auto-derives from CLASS_NAMES.
+   - `rib_anchor` is a first-class region (provenance leaves spine/pelvis source
+     unchanged — the pass *adds* 11/12, recorded via decision+diff).
+   - `store.init_rib_anchor_cases` seeds one case per spine-bearing record
+     (fused + spine_only; pelvic_native skipped — no rib in FOV), serving the
+     **existing v3 label** as the editable base.
+   - `app.py` `TASK=rib_anchor` env picks the seeder + source revision at boot.
+   - `reviewtool` shows the find-the-anchor instructions; its no-crop path already
+     downloads full CT + v3 label. Tests green (49 review + reviewtool).
+   - **OPEN deploy knob:** the claim serves CT *and* label from one repo@revision.
+     So publish the **v3 revision WITH CTs** (run `reduce_to_v3` *without*
+     `--labels_only`, push to `CTSpinoPelvic1K@v3`) and set `V2_REPO=…CTSpinoPelvic1K`,
+     `SOURCE_REVISION=v3`, `TASK=rib_anchor`, `REVIEW_REPO=…-reviews-rib`. If v3
+     stays labels-only, the claim would need a separate CT-repo field (extra code);
+     publishing v3 with CTs avoids that.
