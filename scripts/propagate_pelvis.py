@@ -174,9 +174,34 @@ def gate_case(per_bone: Dict[int, dict], *, min_fit: float, max_jac_bad: float,
 # SimpleITK registration (guarded import)
 # ===========================================================================
 
+def _attach_reg_logging(method, token, tag, every: int):
+    """Stream ITK optimizer progress: per-resolution-level changes always, and the
+    metric value every `every` iterations (0 = off). Token-prefixed so the lines
+    from parallel workers stay attributable."""
+    import SimpleITK as sitk
+    def _on_level():
+        try:
+            log.info("  token=%s [%s] -> resolution level %d", token, tag,
+                     method.GetCurrentLevel())
+        except Exception:                                       # noqa: BLE001
+            pass
+    method.AddCommand(sitk.sitkMultiResolutionIterationEvent, _on_level)
+    if every and every > 0:
+        def _on_iter():
+            it = method.GetOptimizerIteration()
+            if it % every == 0:
+                try:
+                    log.info("  token=%s [%s] it=%d  metric=%.5f", token, tag, it,
+                             method.GetMetricValue())
+                except Exception:                               # noqa: BLE001
+                    pass
+        method.AddCommand(sitk.sitkIterationEvent, _on_iter)
+
+
 def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
-                      moving_label_img, *,
-                      flow_sigma: float, bspline_iters: int, affine_iters: int):
+                      moving_label_img, *, token: str = "",
+                      flow_sigma: float, bspline_iters: int, affine_iters: int,
+                      log_every: int = 10):
     """Bone-masked rigid+affine init then COARSE B-spline deformable, moving CT
     -> fixed CT; warp the moving label (NN) into the fixed grid. Returns
     (warped_label_np, jacobian_np, fixed_ct_np, warped_label_sitk).
@@ -212,7 +237,12 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
     reg.SetSmoothingSigmasPerLevel([4, 2, 1, 0])
     reg.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
     reg.SetInitialTransform(initial, inPlace=False)
+    _attach_reg_logging(reg, token, "rigid", log_every)
+    log.info("  token=%s [rigid] starting (4 levels, <=%d its)...", token,
+             int(affine_iters))
     rigid = reg.Execute(fixed, moving)
+    log.info("  token=%s [rigid] done: metric=%.5f stop='%s'", token,
+             reg.GetMetricValue(), reg.GetOptimizerStopConditionDescription())
 
     # --- COARSE B-spline deformable (stiff; bone-masked) ----------------------
     # flow_sigma is the control-point SPACING in mm: LARGE => few control points
@@ -238,7 +268,12 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
     rb.SetShrinkFactorsPerLevel([2, 1])
     rb.SetSmoothingSigmasPerLevel([1, 0])
     rb.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
+    _attach_reg_logging(rb, token, "bspline", log_every)
+    log.info("  token=%s [bspline] starting (mesh=%s, <=%d its)...", token,
+             mesh, int(bspline_iters))
     rb.Execute(fixed, moving)
+    log.info("  token=%s [bspline] done: metric=%.5f stop='%s'", token,
+             rb.GetMetricValue(), rb.GetOptimizerStopConditionDescription())
 
     full = sitk.CompositeTransform([rigid, bspline])
 
@@ -348,7 +383,7 @@ def process_patient(case: dict, *, nifti_dir: Path, pelvic_dir: Path,
     canon_img.CopyInformation(lab_img)
 
     warped, jac, fixed_np, warped_img, moving_np = register_and_warp(
-        fixed_ct, moving_ct, canon_img, **reg_kw)
+        fixed_ct, moving_ct, canon_img, token=tok, **reg_kw)
     src_lab = src_arr                                # for per-bone source counts
 
     per_bone: Dict[int, dict] = {}
@@ -520,6 +555,9 @@ def main() -> int:
                     help="B-spline control-grid spacing (mm); larger = stiffer.")
     ap.add_argument("--affine_iters", type=int, default=None)
     ap.add_argument("--bspline_iters", type=int, default=None)
+    ap.add_argument("--reg_log_every", type=int, default=10,
+                    help="log the ITK optimizer metric every N iterations "
+                         "(0 = only level changes + stage start/done).")
     # gate thresholds
     ap.add_argument("--min_fit", type=float, default=0.80,
                     help="reject if a warped bone is <this fraction on bone-HU.")
@@ -565,7 +603,7 @@ def main() -> int:
         return 0
 
     reg_kw = dict(flow_sigma=flow_sigma, affine_iters=affine_iters,
-                  bspline_iters=bspline_iters)
+                  bspline_iters=bspline_iters, log_every=args.reg_log_every)
     gate_kw = dict(min_fit=args.min_fit, max_jac_bad=args.max_jac_bad,
                    jac_tol=args.jac_tol, vol_lo=args.vol_lo, vol_hi=args.vol_hi,
                    drop_target=args.drop_target, gate_on_drop=args.gate_on_drop)

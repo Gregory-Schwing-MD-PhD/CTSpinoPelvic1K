@@ -45,6 +45,7 @@ PROP_OUT_DIR="${PROP_OUT_DIR:-${DATA_DIR}/placed/pelvic_propagated}"
 PROP_WORKERS="${PROP_WORKERS:-$(( ${SLURM_CPUS_PER_TASK:-8} > 2 ? ${SLURM_CPUS_PER_TASK:-8} - 2 : 1 ))}"
 DROP_TARGET="${DROP_TARGET:-1.0}"
 GATE_ON_DROP="${GATE_ON_DROP:-0}"
+REG_LOG_EVERY="${REG_LOG_EVERY:-10}"
 PROP_LIMIT="${PROP_LIMIT:-0}"
 
 mkdir -p "${LOGS_DIR}" "${PROP_OUT_DIR}"
@@ -56,6 +57,7 @@ ARGS=( --manifest "/data/$(realpath --relative-to="${DATA_DIR}" "${MANIFEST}")"
        --pelvic_dir "/data/$(realpath --relative-to="${DATA_DIR}" "${PELVIC_DIR}")"
        --out_dir "/data/$(realpath --relative-to="${DATA_DIR}" "${PROP_OUT_DIR}")"
        --mode "${MODE}" --workers "${PROP_WORKERS}"
+       --reg_log_every "${REG_LOG_EVERY}"
        --drop_target "${DROP_TARGET}" )
 [[ "${GATE_ON_DROP}" == "1" ]] && ARGS+=( --gate_on_drop )
 [[ "${PROP_LIMIT}" != "0" ]] && ARGS+=( --limit "${PROP_LIMIT}" )
