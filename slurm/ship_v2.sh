@@ -45,6 +45,9 @@ HF_PRIVATE="${HF_PRIVATE:-0}"
 SKIP_QC="${SKIP_QC:-0}"
 NO_PIR="${NO_PIR:-0}"
 DRY_RUN="${DRY_RUN:-0}"
+# WIPE=1 (default): clear each target branch's files on HF before pushing it
+# (v1 in step 1, v2 in step 3), so no stale files survive. Set WIPE=0 to skip.
+WIPE="${WIPE:-1}"
 MANIFEST_FILE="${MANIFEST_FILE:-placed_manifest_orientation_fixed.json}"
 
 [[ -f "${SIF_PATH}" ]] || { echo "ERROR: project container missing at ${SIF_PATH}"; exit 1; }
@@ -72,7 +75,7 @@ else
     rm -rf "${HF_EXPORT_DIR}"/labels "${HF_EXPORT_DIR}"/qc "${HF_EXPORT_DIR}"/manifest.json
     echo "[ship_v2] (1/3) export the v1 base (ALL configs + anchor) + PUSH @v1 [CPU]"
     J1=$(sbatch --parsable \
-      --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=0,SKIP_QC=${SKIP_QC},NO_PIR=${NO_PIR},WIPE_REMOTE=0,HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v1,HF_EXPORT_DIR=${HF_EXPORT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
+      --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=0,SKIP_QC=${SKIP_QC},NO_PIR=${NO_PIR},WIPE_REMOTE=${WIPE},HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v1,HF_EXPORT_DIR=${HF_EXPORT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
       slurm/export_dataset.sh)
     DEP="--dependency=afterok:${J1}"
 fi
@@ -90,7 +93,7 @@ J2=$(sbatch --parsable ${DEP} \
 # (3) push the v2 tree (export step skipped — it already exists from step 2) [CPU].
 echo "[ship_v2] (3/3) push ${PSEUDO_OUT_DIR} -> ${HF_REPO_ID}@v2 [CPU]  after ${J2}"
 J3=$(sbatch --parsable --dependency=afterok:${J2} \
-  --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=1,WIPE_REMOTE=0,HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v2,HF_EXPORT_DIR=${PSEUDO_OUT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
+  --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=1,WIPE_REMOTE=${WIPE},HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v2,HF_EXPORT_DIR=${PSEUDO_OUT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
   slurm/export_dataset.sh)
 
 echo "[ship_v2] submitted:  v1 build+push ${J1:-<skipped>}  ->  pseudolabel ${J2}  ->  v2 push ${J3}"

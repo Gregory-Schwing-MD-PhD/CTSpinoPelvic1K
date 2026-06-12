@@ -30,6 +30,10 @@ HF_WORKERS="${HF_WORKERS:-8}"
 HF_PRIVATE="${HF_PRIVATE:-0}"
 SKIP_QC="${SKIP_QC:-0}"
 NO_PIR="${NO_PIR:-0}"
+# WIPE=1 (default): clear the target branch's files on HF before pushing, so no
+# stale files from a previous release survive (repo/URL/history are preserved).
+# Set WIPE=0 for an incremental push.
+WIPE="${WIPE:-1}"
 MANIFEST_FILE="${MANIFEST_FILE:-placed_manifest_orientation_fixed.json}"
 
 [[ -f "${SIF_PATH}" ]] || { echo "ERROR: container missing at ${SIF_PATH}"; exit 1; }
@@ -41,7 +45,7 @@ rm -rf "${HF_EXPORT_DIR}"/labels "${HF_EXPORT_DIR}"/qc "${HF_EXPORT_DIR}"/manife
 
 echo "[ship_v1] submitting export(ALL configs + anchor) + push -> ${HF_REPO_ID}@v1"
 JID=$(sbatch --parsable \
-  --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=0,SKIP_QC=${SKIP_QC},NO_PIR=${NO_PIR},WIPE_REMOTE=0,HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v1,HF_EXPORT_DIR=${HF_EXPORT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
+  --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=0,SKIP_QC=${SKIP_QC},NO_PIR=${NO_PIR},WIPE_REMOTE=${WIPE},HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v1,HF_EXPORT_DIR=${HF_EXPORT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
   slurm/export_dataset.sh)
 
 echo "[ship_v1] submitted job ${JID}"
