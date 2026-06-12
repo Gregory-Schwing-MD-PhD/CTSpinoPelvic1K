@@ -3,9 +3,9 @@
 #SBATCH -q primary
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=32G
-#SBATCH --time=02:00:00
+#SBATCH --cpus-per-task=48
+#SBATCH --mem=64G
+#SBATCH --time=01:00:00
 #SBATCH --output=logs/check_spine_labels_%j.out
 #SBATCH --error=logs/check_spine_labels_%j.out
 #SBATCH --mail-type=END,FAIL
@@ -28,7 +28,7 @@ cd "${PROJECT_ROOT}"
 source configs/default.env
 
 SPINE_DIR="${SPINE_DIR:-${PLACED_DIR}/spine}"
-WORKERS="${WORKERS:-16}"
+WORKERS="${WORKERS:-${SLURM_CPUS_PER_TASK:-16}}"
 
 mkdir -p "${LOGS_DIR}"
 [[ -f "${SIF_PATH}" ]]  || { echo "ERROR: container missing.  Run: make build-container"; exit 1; }

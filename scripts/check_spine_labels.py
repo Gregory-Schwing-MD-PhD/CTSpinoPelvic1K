@@ -31,7 +31,9 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import logging
+import os
 import sys
+import time
 from collections import Counter
 from pathlib import Path
 from typing import Optional, Tuple
@@ -47,13 +49,13 @@ VERSE_NAMES = {19: "T12 (anchor)", 28: "T13", 20: "L1", 24: "L5",
                25: "L6", 26: "sacrum"}
 
 
-def _labels_in(path: Path) -> Optional[Tuple[str, set]]:
+def _labels_in(path_str: str) -> Optional[Tuple[str, list]]:
+    """Worker (process-pool, so it takes/returns picklable plain types)."""
     try:
-        arr = np.asarray(nib.load(str(path)).dataobj)
-        vals = {int(v) for v in np.unique(arr) if v != 0}
-        return path.name, vals
-    except Exception as exc:                              # noqa: BLE001
-        log.debug("read failed %s: %s", path.name, exc)
+        arr = np.asarray(nib.load(path_str).dataobj)
+        vals = sorted(int(v) for v in np.unique(arr) if v != 0)
+        return Path(path_str).name, vals
+    except Exception:                                    # noqa: BLE001
         return None
 
 
@@ -64,7 +66,9 @@ def main() -> int:
                     help="dir of placed spine masks (e.g. data/placed/spine).")
     ap.add_argument("--glob", default="*_seg_placed.nii.gz",
                     help="filename glob (default placed spine masks).")
-    ap.add_argument("--workers", type=int, default=16)
+    ap.add_argument("--workers", type=int,
+                    default=int(os.environ.get("SLURM_CPUS_PER_TASK", 0) or os.cpu_count() or 16),
+                    help="process-pool size (default: $SLURM_CPUS_PER_TASK or all cores).")
     a = ap.parse_args()
 
     files = sorted(a.spine_dir.glob(a.glob))
@@ -73,26 +77,42 @@ def main() -> int:
     if not files:
         log.error("no masks under %s", a.spine_dir)
         return 1
-    log.info("scanning %d spine masks under %s", len(files), a.spine_dir)
+    total = len(files)
+    log.info("scanning %d spine masks under %s  (workers=%d)",
+             total, a.spine_dir, a.workers)
 
     hist: Counter = Counter()          # label value -> # masks containing it
     n_ok = 0
     n_t12 = n_t13 = n_l6 = n_l1 = 0
     remapped_seen = False
-    with concurrent.futures.ThreadPoolExecutor(max_workers=a.workers) as ex:
-        for res in ex.map(_labels_in, files):
-            if res is None:
-                continue
-            _, vals = res
-            n_ok += 1
-            for v in vals:
-                hist[v] += 1
-            n_t12 += int(19 in vals)
-            n_t13 += int(28 in vals)
-            n_l6 += int(25 in vals)
-            n_l1 += int(20 in vals)
-            if vals and max(vals) <= 10:
-                remapped_seen = True
+    t0 = time.time()
+    step = max(1, total // 40)         # ~40 progress lines
+    done = 0
+    # Processes, not threads: nib load + np.unique is CPU-bound (GIL). Stream
+    # results as they finish so progress is visible on a long pool.
+    with concurrent.futures.ProcessPoolExecutor(max_workers=a.workers) as ex:
+        futs = [ex.submit(_labels_in, str(p)) for p in files]
+        for fut in concurrent.futures.as_completed(futs):
+            done += 1
+            res = fut.result()
+            if res is not None:
+                _, vals = res
+                n_ok += 1
+                for v in vals:
+                    hist[v] += 1
+                n_t12 += int(19 in vals)
+                n_t13 += int(28 in vals)
+                n_l6 += int(25 in vals)
+                n_l1 += int(20 in vals)
+                if vals and max(vals) <= 10:
+                    remapped_seen = True
+            if done % step == 0 or done == total:
+                el = time.time() - t0
+                rate = done / max(el, 1e-6)
+                eta = (total - done) / max(rate, 1e-6)
+                log.info("  %5d/%-5d (%4.1f%%)  %.1f/s  elapsed %.0fs  eta %.0fs"
+                         "   [T12 so far %d]",
+                         done, total, 100 * done / total, rate, el, eta, n_t12)
 
     log.info("=" * 60)
     log.info("SPINE-LABEL CHECK   masks read: %d / %d", n_ok, len(files))
