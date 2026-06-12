@@ -42,13 +42,15 @@ indistinguishable from a wrong-level plan. Four decisions shape this dataset:
    the single most important property: the L1–L6 / L6 / sacrum calls are not a
    model's guess.
 2. **A built-in counting anchor.** Numbering is a *non-local counting* problem —
-   you cannot tell L5 from L6 by looking at one vertebra. We retain the **last
-   rib-bearing vertebra (T12)** as an explicit class (`last_rib_vertebra`, 11):
-   the vertebra directly above ground-truth L1. With a fixed cranial anchor in
-   the field of view and the sacrum as the caudal anchor, the lumbar count — and
-   therefore L5-vs-L6 — becomes deterministic. This anchor is **free from the
-   ground truth**: CTSpine1K already segments T12 on 783/784 abdominopelvic
-   studies; earlier exports simply discarded it.
+   you cannot tell L5 from L6 by looking at one vertebra. The **last rib-bearing
+   vertebra (T12)** is the cranial anchor: the vertebra directly above
+   ground-truth L1. It is **not a separate class** — it is just the last thoracic
+   vertebra (T12 = class 31) in the native column, which CTSpine1K already segments
+   on 783/784 abdominopelvic studies; earlier exports simply discarded the thoracic
+   column. With a fixed cranial anchor in the field of view and the sacrum as the
+   caudal anchor, the lumbar count — and therefore L5-vs-L6 — becomes
+   deterministic, and the model learns rib-bearing-ness from the
+   thoracic-versus-lumbar distinction itself.
 3. **LSTV is captured from both ends, and graded.** Transitional status is read
    *independently* from the vertebral count (CTSpine1K) **and** the pelvic/sacral
    annotation (CTPelvic1K), then expert **Castellvi**-graded (see below).
@@ -92,18 +94,21 @@ documented reduction, provided as a conversion script):
 | 8  | left hip            | CTPelvic1K (dataset2 2 → 8)                          |
 | 9  | right hip           | CTPelvic1K (dataset2 3 → 9)                          |
 | 10 | **ignore**          | partial-annotation only — un-traced region, NOT bg  |
-| 11 | **last_rib_vertebra** | CTSpine1K (VerSe **19 = T12** → 11) — the counting anchor |
-| 12 | **rib** *(reserved)*  | v3 student annotation of the anchor's rib — not yet populated |
+| 13–19 | **C1–C7**        | CTSpine1K (VerSe 1–7 → 13–19), native contiguous     |
+| 20–32 | **T1–T13**       | CTSpine1K (VerSe 8–19, 28 → 20–32); **T12 = 31** is the counting anchor |
+| 35–60 | **rib cage** *(reserved)* | rib_left/right 1–13 — reserved, not yet populated |
 
 CTPelvic1K's sacrum takes priority over CTSpine1K's sacrum (VerSe 26) so the two
 labelling conventions don't collide at the lumbosacral junction.
 
-**Class 12 (`rib`) is reserved now and left empty** so a future v3 (student-
-annotated rib of the anchor vertebra) is purely additive — no renumbering.
+The vertebral column is **native and contiguous** (C1–C7 = 13–19, T1–T13 =
+20–32); the counting anchor is **not** a stored class but the last thoracic
+vertebra (T12 = 31). The **rib cage IDs (35+) are reserved and left empty** so a
+future release is purely additive — no renumbering.
 
 ---
 
-## The counting anchor (class 11) — the point of the dataset
+## The counting anchor (T12 = class 31) — the point of the dataset
 
 You cannot number the spine from local appearance; you must **count from a fixed
 landmark**. The **last rib-bearing vertebra** is that landmark: the vertebra
@@ -122,15 +127,15 @@ forward pass, on exactly the patients where the stakes are highest. See
 - **v1** — the **partial-annotation** artifact (all configs, `ignore` protocol):
   **the input used to train the pseudolabeller**, now carrying the T12 anchor.
   `pelvic_native` keeps `ignore` on the un-traced spine (an honest absence, never
-  a faked label). The only change from the original export is that class 11 (the
-  anchor) is no longer discarded.
+  a faked label). The only change from the original export is that the thoracic
+  column (incl. the T12 anchor) is no longer discarded.
 - **v2** — the **clean, densely-labelled** release: CTSpine1K spine ground truth +
   pelvis (real where fused, pseudolabelled on `spine_only`), **fused + spine_only**
   only. `pelvic_native` (real pelvis, *pseudo* spine) is dropped from the ship and
   held back as the **pelvis-pseudolabel validation set**. No `ignore` voxels
   remain on the shipped cases — this is the LSTV-segmenter training artifact.
-- **v3** *(roadmap)* — adds the student-annotated **rib** (class 12) of the anchor
-  vertebra. The scheme is already reserved for it.
+- **v3** *(roadmap)* — adds the student-annotated **rib cage** (classes 35+). The
+  scheme is already reserved for it.
 
 ---
 

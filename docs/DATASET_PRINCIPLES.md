@@ -16,18 +16,21 @@ Treat it as **write-once**.
 
 2. **Additive, never destructive.** A new version is a **superset** of the
    labels in the previous one. If a structure was labelled once, it stays
-   labelled. The roadmap is purely additive: pelvis (done) → last rib-bearing
-   vertebra / counting anchor (done) → rib (reserved, class 12) → **all available
-   thoracic levels** → **all available cervical levels** → … We keep every
-   labelled vertebra the radiologists drew, however rare (e.g. the handful of
-   cases with C1 or upper-thoracic labels) — rarity is not disposability.
+   labelled. The roadmap is purely additive: pelvis (done) → full vertebral
+   column, cervical + thoracic, in native contiguous numbering (done) → rib cage
+   (reserved at 35+) → … We keep every labelled vertebra the radiologists drew,
+   however rare (e.g. the handful of cases with C1 or upper-thoracic labels) —
+   rarity is not disposability. The counting anchor is **not** a stored class: it
+   is the last rib-bearing (last thoracic) vertebra, already present in the native
+   GT (T12 = 31), and the model learns rib-bearing-ness from the
+   thoracic-versus-lumbar distinction.
 
 3. **Class IDs are reserved forward, never renumbered.** Once an ID means a
-   thing it means that thing forever (e.g. `11 = last_rib_vertebra`,
-   `12 = rib`). New structures take new IDs **above the current maximum**, keyed
-   to VerSe identity so each level has a stable, recoverable ID. The lumbosacral
-   core (1–9), the anchor (11), and the rib (12) never move. This is what makes
-   every version a drop-in superset.
+   thing it means that thing forever. New structures take new IDs **above the
+   current maximum**, keyed to VerSe identity so each level has a stable,
+   recoverable ID. The lumbosacral core (1–9), the vertebral column (13–32), and
+   the reserved rib cage (35+) never move. This is what makes every version a
+   drop-in superset.
 
    **`ignore = 10` is a permanently-reserved sentinel.** It is no longer "the
    next free number"; it is the ignore value, forever. It sits in the middle of
@@ -37,7 +40,7 @@ Treat it as **write-once**.
    *around* 10 (new anatomy at 13+), never reshuffles to absorb it. (If a
    perfectly contiguous anatomical range is ever wanted, the only lawful route is
    the canonical-vs-view split in invariant 6: a lossless master in native VerSe
-   numbering, with the compact 0–12 scheme as a derived training view.)
+   numbering, with the compact lumbosacral scheme as a derived training view.)
 
 4. **The master is lossless; releases are filtered *views*.** The master
    retains every mask and the native source labelling. A named release (v1, v2,

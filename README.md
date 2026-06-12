@@ -38,12 +38,14 @@ spine and pelvic labels target different prone/supine acquisitions
 1. **Vertebrae are radiologist ground truth, full stop** — we never ship a
    pseudolabelled spine. The L1–L6 / L6 / sacrum calls and the transitional
    adjudications come from CTSpine1K's radiologists.
-2. **A built-in counting anchor** — the **last rib-bearing vertebra** (T12 →
-   class 11), the vertebra directly above ground-truth L1. You can't tell L5
-   from L6 locally; with a fixed cranial anchor + the sacrum, the lumbar count
-   (hence L5-vs-L6) is deterministic. The anchor is free from GT (present on
-   783/784 abdominopelvic studies; earlier exports just dropped it). See
-   [docs/RIB_ANCHOR_RATIONALE.md](docs/RIB_ANCHOR_RATIONALE.md).
+2. **A built-in counting anchor** — the **last rib-bearing vertebra** (T12 =
+   class 31), the vertebra directly above ground-truth L1. It is **not a separate
+   class**, just the last thoracic vertebra in the native column. You can't tell
+   L5 from L6 locally; with a fixed cranial anchor + the sacrum, the lumbar count
+   (hence L5-vs-L6) is deterministic, and the model learns rib-bearing-ness from
+   the thoracic-vs-lumbar distinction. The anchor is free from GT (present on
+   783/784 abdominopelvic studies; earlier exports just dropped the thoracic
+   column). See [docs/RIB_ANCHOR_RATIONALE.md](docs/RIB_ANCHOR_RATIONALE.md).
 3. **LSTV captured from both ends, and graded** — vertebral count (CTSpine1K)
    *and* pelvic annotation (CTPelvic1K), expert Castellvi-graded (see below).
 4. **Honest about the pelvis** — real where fused, pseudolabelled (leak-safe)
@@ -58,7 +60,7 @@ Versions:
   pelvis (real where fused, pseudolabelled on `spine_only`), `fused + spine_only`
   only. `pelvic_native` is dropped (held out for pelvis validation). This is the
   LSTV-segmenter training artifact, with no `ignore` voxels on the shipped cases.
-- **v3** *(roadmap)* — adds the student-annotated rib (class 12, reserved now).
+- **v3** *(roadmap)* — adds the student-annotated rib cage (classes 35+, reserved now).
 
 > **Reviewing segmentations?** If you were asked to help correct the AI-drafted
 > labels, see **[docs/REVIEW.md](docs/REVIEW.md)** — account/token setup,
@@ -80,12 +82,16 @@ Versions:
 | 8  | left hip              | CTPelvic1K (dataset2 2 → 8)                        |
 | 9  | right hip             | CTPelvic1K (dataset2 3 → 9)                        |
 | 10 | **ignore**            | partial-annotation only — un-traced region, NOT bg |
-| 11 | **last_rib_vertebra** | CTSpine1K (VerSe **19 = T12** → 11) — counting anchor |
-| 12 | **rib** *(reserved)*  | v3 student annotation — not yet populated          |
+| 13–19 | **C1–C7**          | CTSpine1K (VerSe 1–7 → 13–19), native contiguous   |
+| 20–32 | **T1–T13**         | CTSpine1K (VerSe 8–19, 28 → 20–32); **T12 = 31** is the counting anchor |
+| 35–60 | **rib cage** *(reserved)* | rib_left/right 1–13 — reserved, not yet populated |
 
 CTPelvic1K's sacrum takes priority over CTSpine1K's sacrum (VerSe label 26)
 to avoid the two labelling conventions colliding on lumbosacral transitional
-vertebrae. Class 12 (`rib`) is **reserved and empty** so v3 is purely additive.
+vertebrae. The vertebral column is native and contiguous (C1–C7 = 13–19,
+T1–T13 = 20–32); the counting anchor is the last thoracic vertebra (T12 = 31),
+not a stored class. The rib-cage IDs (35+) are **reserved and empty** so v3 is
+purely additive.
 
 ## LSTV — captured from both ends, expert-graded
 
