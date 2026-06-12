@@ -89,14 +89,17 @@ TCIA_DIR       ?=        # raw COLONOG (default: data/tcia)
 SPINE_DIR      ?=        # CTSpine1K masks (default: data/ctspine1k)
 PELVIC_DIR     ?=        # CTPelvic1K masks (default: data/ctpelvic1k)
 SAMPLE         ?=        # cap masks per source (default: 0 = all)
-# propagate-pelvis (real-GT pelvis carried across acquisitions by registration)
-MODE           ?= production  # test = fast smoke on a few cases; production = full run
-MANIFEST       ?=        # placed_manifest.json (default: data/placed/placed_manifest.json)
-NIFTI_DIR      ?=        # TCIA NIfTIs (default: data/tcia_nifti)
-PROP_OUT_DIR   ?=        # propagated pelves + qc (default: data/placed/pelvic_propagated)
-PROP_WORKERS   ?=        # parallel registrations (default: SLURM cpus - 2)
-MAX_BONE_DROP  ?= 1.0    # reject if bone-HU overlap drops >this many pp vs native
-PROP_LIMIT     ?= 0      # cap cases (debug)
+# propagate-pelvis (real-GT pelvis carried across acquisitions by registration).
+# NOTE: no inline comments on value-bearing vars — Make keeps the spaces before
+# '#' in the value, which breaks the comma-separated sbatch --export list.
+# MODE: test = fast smoke on a few cases; production = full run.
+MODE           ?= production
+MANIFEST       ?=
+NIFTI_DIR      ?=
+PROP_OUT_DIR   ?=
+PROP_WORKERS   ?=
+MAX_BONE_DROP  ?= 1.0
+PROP_LIMIT     ?= 0
 MODELS_CONFIG  ?=        # default: configs/pseudolabel_models.json
 DRY_RUN        ?= 0
 PREDICT_FUSED  ?= 0
@@ -482,8 +485,8 @@ structure-qc: check-container  ## GT-free structure QC (presence/dup/gap/L-R swa
 .PHONY: propagate-pelvis
 propagate-pelvis: check-container  ## Carry each separate patient's REAL pelvis GT onto the spine scan by deterministic deformable registration (real GT replaces the model pelvis); MODE=test|production (CPU)
 	@mkdir -p $(LOGS_DIR)
-	@echo "Submitting propagate-pelvis (MODE=$(MODE) — real-GT pelvis across acquisitions)"
-	sbatch $(DEP) --export=ALL,SIF_PATH=$(CONTAINER),MODE=$(MODE),MANIFEST=$(MANIFEST),NIFTI_DIR=$(NIFTI_DIR),PELVIC_DIR=$(PELVIC_DIR),PROP_OUT_DIR=$(PROP_OUT_DIR),PROP_WORKERS=$(PROP_WORKERS),MAX_BONE_DROP=$(MAX_BONE_DROP),PROP_LIMIT=$(PROP_LIMIT) \
+	@echo "Submitting propagate-pelvis (MODE=$(strip $(MODE)) — real-GT pelvis across acquisitions)"
+	sbatch $(DEP) --export=ALL,SIF_PATH=$(strip $(CONTAINER)),MODE=$(strip $(MODE)),MANIFEST=$(strip $(MANIFEST)),NIFTI_DIR=$(strip $(NIFTI_DIR)),PELVIC_DIR=$(strip $(PELVIC_DIR)),PROP_OUT_DIR=$(strip $(PROP_OUT_DIR)),PROP_WORKERS=$(strip $(PROP_WORKERS)),MAX_BONE_DROP=$(strip $(MAX_BONE_DROP)),PROP_LIMIT=$(strip $(PROP_LIMIT)) \
 	       slurm/propagate_pelvis.sh
 
 
