@@ -715,10 +715,24 @@ def cmd_next(a):
         seg.write_bytes(pseudo.read_bytes())                          # edit a copy
         note = "review"
 
-    region_note = ("the WHOLE scan (radiologist gold being re-checked)"
-                   if job.get("region_to_review") == "both"
-                   else f"the {job['region_to_review']} region")
+    region = job.get("region_to_review")
+    if region == "both":
+        region_note = "the WHOLE scan (radiologist gold being re-checked)"
+    elif region == "rib_anchor":
+        region_note = "ADD the counting anchor"
+    else:
+        region_note = f"the {region} region"
     print(f"case {job['case_id']}  ({note} — {region_note})")
+    if region == "rib_anchor":
+        print("  TASK: scroll up, find the lowest vertebra with a TRUE "
+              "articulating rib.\n"
+              "  Paint it as 11=last_rib_vertebra and its proximal rib as "
+              "12=rib (AI-assisted).\n"
+              "  The vertebra just below it (no rib) is L1; count down to the "
+              "sacrum.\n"
+              "  Also fix any class-mixing / partly-coloured vertebra you see. "
+              "Save when done.\n"
+              "  Full guide: docs/STUDENT_ANNOTATION_PROTOCOL.md")
     before_qc = (work / "crop_seg.nii.gz") if crop else pseudo
     # Print LSTV + WHY FLAGGED in the background so ITK-SNAP opens immediately —
     # the manifest lookup and QC scan must not delay the window.
