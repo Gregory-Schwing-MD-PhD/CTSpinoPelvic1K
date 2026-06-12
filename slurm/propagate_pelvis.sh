@@ -31,7 +31,7 @@
 #   PROP_OUT_DIR propagated pelves + qc            (default: data/placed/pelvic_propagated)
 #   PROP_WORKERS parallel registrations            (default: $SLURM_CPUS_PER_TASK - 2)
 #   DROP_TARGET  bone-HU overlap report ref (pp)   (default: 1.0, report-only)
-#   GATE_ON_DROP 1 = ALSO drop to model if drop > DROP_TARGET (default: off)
+#   FAIL_DROP    fall back to model if bone-HU drop > this many pp (default: 8.0)
 #   PROP_LIMIT   cap cases (debug)                 (default: 0 = all in production)
 # =============================================================================
 set -euo pipefail
@@ -47,7 +47,7 @@ PELVIC_DIR="${PELVIC_DIR:-${DATA_DIR}/placed/pelvic}"
 PROP_OUT_DIR="${PROP_OUT_DIR:-${DATA_DIR}/placed/pelvic_propagated}"
 PROP_WORKERS="${PROP_WORKERS:-$(( ${SLURM_CPUS_PER_TASK:-8} > 2 ? ${SLURM_CPUS_PER_TASK:-8} - 2 : 1 ))}"
 DROP_TARGET="${DROP_TARGET:-1.0}"
-GATE_ON_DROP="${GATE_ON_DROP:-0}"
+FAIL_DROP="${FAIL_DROP:-8.0}"
 REG_LOG_EVERY="${REG_LOG_EVERY:-10}"
 PROP_LIMIT="${PROP_LIMIT:-0}"
 
@@ -62,7 +62,7 @@ ARGS=( --manifest "/data/$(realpath --relative-to="${DATA_DIR}" "${MANIFEST}")"
        --mode "${MODE}" --workers "${PROP_WORKERS}"
        --reg_log_every "${REG_LOG_EVERY}"
        --drop_target "${DROP_TARGET}" )
-[[ "${GATE_ON_DROP}" == "1" ]] && ARGS+=( --gate_on_drop )
+ARGS+=( --fail_drop "${FAIL_DROP}" )
 [[ "${PROP_LIMIT}" != "0" ]] && ARGS+=( --limit "${PROP_LIMIT}" )
 
 echo "======================================================================"
@@ -71,7 +71,7 @@ echo "   Job ID    : ${SLURM_JOB_ID:-local}   Node: $(hostname)"
 echo "   mode      : ${MODE}    workers: ${PROP_WORKERS}"
 echo "   manifest  : ${MANIFEST}"
 echo "   out_dir   : ${PROP_OUT_DIR}"
-echo "   bone-drop report ref (pp) : ${DROP_TARGET}   gate_on_drop: ${GATE_ON_DROP}"
+echo "   bone-drop report ref (pp) : ${DROP_TARGET}   fail_drop (pp): ${FAIL_DROP}"
 echo "   Started   : $(date)"
 echo "======================================================================"
 

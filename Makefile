@@ -99,9 +99,12 @@ NIFTI_DIR      ?=
 PROP_OUT_DIR   ?=
 PROP_WORKERS   ?=
 DROP_TARGET    ?= 1.0
-GATE_ON_DROP   ?= 0
+FAIL_DROP      ?= 8.0
 REG_LOG_EVERY  ?= 10
 PROP_LIMIT     ?= 0
+# viz-propagation (overlay propagated pelves on the spine CT)
+VIZ_OUT_DIR    ?=
+VIZ_TOKENS     ?=
 MODELS_CONFIG  ?=        # default: configs/pseudolabel_models.json
 DRY_RUN        ?= 0
 PREDICT_FUSED  ?= 0
@@ -488,8 +491,16 @@ structure-qc: check-container  ## GT-free structure QC (presence/dup/gap/L-R swa
 propagate-pelvis: check-container  ## Carry each separate patient's REAL pelvis GT onto the spine scan by deterministic deformable registration (real GT replaces the model pelvis); MODE=test|production (CPU)
 	@mkdir -p $(LOGS_DIR)
 	@echo "Submitting propagate-pelvis (MODE=$(strip $(MODE)) — real-GT pelvis across acquisitions)"
-	sbatch $(DEP) --export=ALL,SIF_PATH=$(strip $(CONTAINER)),MODE=$(strip $(MODE)),MANIFEST=$(strip $(MANIFEST)),NIFTI_DIR=$(strip $(NIFTI_DIR)),PELVIC_DIR=$(strip $(PELVIC_DIR)),PROP_OUT_DIR=$(strip $(PROP_OUT_DIR)),PROP_WORKERS=$(strip $(PROP_WORKERS)),DROP_TARGET=$(strip $(DROP_TARGET)),GATE_ON_DROP=$(strip $(GATE_ON_DROP)),REG_LOG_EVERY=$(strip $(REG_LOG_EVERY)),PROP_LIMIT=$(strip $(PROP_LIMIT)) \
+	sbatch $(DEP) --export=ALL,SIF_PATH=$(strip $(CONTAINER)),MODE=$(strip $(MODE)),MANIFEST=$(strip $(MANIFEST)),NIFTI_DIR=$(strip $(NIFTI_DIR)),PELVIC_DIR=$(strip $(PELVIC_DIR)),PROP_OUT_DIR=$(strip $(PROP_OUT_DIR)),PROP_WORKERS=$(strip $(PROP_WORKERS)),DROP_TARGET=$(strip $(DROP_TARGET)),FAIL_DROP=$(strip $(FAIL_DROP)),REG_LOG_EVERY=$(strip $(REG_LOG_EVERY)),PROP_LIMIT=$(strip $(PROP_LIMIT)) \
 	       slurm/propagate_pelvis.sh
+
+
+.PHONY: viz-propagation
+viz-propagation: check-container  ## Overlay each propagated pelvis on its spine CT (PNG/case, titled with accept/drop/overlap) for eyeballing placement (CPU)
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting viz-propagation (propagated pelvis overlays)"
+	sbatch $(DEP) --export=ALL,SIF_PATH=$(strip $(CONTAINER)),PROP_OUT_DIR=$(strip $(PROP_OUT_DIR)),NIFTI_DIR=$(strip $(NIFTI_DIR)),VIZ_OUT_DIR=$(strip $(VIZ_OUT_DIR)),VIZ_TOKENS=$(strip $(VIZ_TOKENS)) \
+	       slurm/viz_propagation.sh
 
 
 .PHONY: pelvis-opposing-qc
