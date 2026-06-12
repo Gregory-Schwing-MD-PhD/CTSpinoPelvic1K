@@ -359,8 +359,10 @@ def process_patient(case: dict, *, nifti_dir: Path, pelvic_dir: Path,
     warped_img, fixed_img, moving_img = register_and_warp(
         fixed_ct, moving_ct, canon_img, token=tok, **reg_kw)
     warped = sitk.GetArrayFromImage(warped_img).astype("int16")    # fixed grid
-    fixed_np = sitk.GetArrayFromImage(fixed_img).astype("float32")
-    moving_np = sitk.GetArrayFromImage(moving_img).astype("float32")
+    # QC only needs the HU threshold (CT > 200), and HU fits in int16 — half the
+    # memory of float32 per worker (matters at high worker counts).
+    fixed_np = sitk.GetArrayFromImage(fixed_img).astype("int16")
+    moving_np = sitk.GetArrayFromImage(moving_img).astype("int16")
     # rigid is exactly volume-preserving -> det J == 1 everywhere (no bone-warp).
     jac = np.ones(warped.shape, dtype="float32")
 

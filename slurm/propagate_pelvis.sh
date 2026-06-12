@@ -4,7 +4,10 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=24
-#SBATCH --mem=96G
+# ~7 GB/worker: a 512^3 rigid registration peaks at ~5-6 GB (the float32 CT pair +
+# SimpleITK pyramid buffers), and we run cpus-2 (=22) of them concurrently. 96G
+# (=4.4 GB/worker) OOM-kills; 160G keeps all workers with headroom.
+#SBATCH --mem=160G
 #SBATCH --time=12:00:00
 #SBATCH --output=logs/propagate_pelvis_%j.out
 #SBATCH --error=logs/propagate_pelvis_%j.out
