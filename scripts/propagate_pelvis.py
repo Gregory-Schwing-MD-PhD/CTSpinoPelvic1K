@@ -90,6 +90,10 @@ PELVIC_TO_CANONICAL = {1: 7, 2: 8, 3: 9}
 SACRUM, LEFT_HIP, RIGHT_HIP = 7, 8, 9
 PELVIS = {SACRUM: "sacrum", LEFT_HIP: "left_hip", RIGHT_HIP: "right_hip"}
 BONE_HU = 200
+# Resolution (mm) the rigid registration runs at. A 6-DOF rigid pelvis fit is fully
+# determined at ~2-3mm; registering at the native 512^3 was needless minutes of
+# single-threaded smoothing + memory. Overlap is still scored at full res.
+REG_MM = 2.5
 # Fixed RNG seed for the metric sampler -> the registration is bit-for-bit
 # reproducible (NEVER seed from the wall clock here). Determinism is a property
 # of the released dataset, not a convenience: same inputs -> same pelvis, always.
@@ -232,40 +236,49 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
         mv_pelvis = sitk.BinaryDilate(mv_pelvis, [int(dilate_vox)] * 3)
     mv_pelvis = sitk.Cast(mv_pelvis, sitk.sitkUInt8)
 
+    # Register at REG_MM (a rigid 6-DOF pelvis fit is fully determined at ~2-3mm;
+    # full 512^3 is needless minutes of single-threaded smoothing and memory). The
+    # resulting transform is resolution-independent and is applied to the FULL-res
+    # mask below; the bone-HU overlap is scored at full res by the caller.
+    def _iso(img, interp, default):
+        isz, isp = img.GetSize(), img.GetSpacing()
+        osz = [max(1, int(round(sz * sp / REG_MM))) for sz, sp in zip(isz, isp)]
+        return sitk.Resample(img, osz, sitk.Transform(), interp, img.GetOrigin(),
+                             [REG_MM] * 3, img.GetDirection(), float(default),
+                             img.GetPixelID())
+    fixed_lo = _iso(fixed, sitk.sitkLinear, -1000.0)
+    moving_lo = _iso(moving, sitk.sitkLinear, -1000.0)
+    mask_lo = _iso(mv_pelvis, sitk.sitkNearestNeighbor, 0)
+
     # GEOMETRY init, NOT MOMENTS: CT air is -1000, so an intensity-weighted center
     # of mass is meaningless and leaves the scans non-overlapping ("all samples map
     # outside moving image buffer"). GEOMETRY aligns the physical image centers.
     initial = sitk.CenteredTransformInitializer(
-        fixed, moving, sitk.Euler3DTransform(),
+        fixed_lo, moving_lo, sitk.Euler3DTransform(),
         sitk.CenteredTransformInitializerFilter.GEOMETRY)
 
-    # --- RIGID, pelvis-masked, wide multi-resolution pyramid -------------------
-    # The heavily down-sampled top level (shrink 8 + 4mm smoothing) gives a wide
-    # capture range so the partially-overlapping spine/pelvic scans lock together.
+    # --- RIGID, pelvis-masked, multi-resolution pyramid (on the downsampled CTs) -
     reg = sitk.ImageRegistrationMethod()
     reg.SetMetricAsMattesMutualInformation(numberOfHistogramBins=32)
-    reg.SetMetricMovingMask(mv_pelvis)
+    reg.SetMetricMovingMask(mask_lo)
     reg.SetMetricSamplingStrategy(reg.RANDOM)
     reg.SetMetricSamplingPercentage(0.2, seed=SEED)
     reg.SetInterpolator(sitk.sitkLinear)
     reg.SetOptimizerAsRegularStepGradientDescent(
         learningRate=2.0, minStep=1e-4, numberOfIterations=int(rigid_iters))
     reg.SetOptimizerScalesFromPhysicalShift()
-    # 3 levels down to shrink 2 (NOT full 512^3 — the finest level cost ~half the
-    # runtime for sub-voxel precision a rigid pelvis does not need; overlap is
-    # scored at full res afterwards regardless).
-    reg.SetShrinkFactorsPerLevel([8, 4, 2])
-    reg.SetSmoothingSigmasPerLevel([4, 2, 1])
+    reg.SetShrinkFactorsPerLevel([4, 2, 1])
+    reg.SetSmoothingSigmasPerLevel([4, 2, 0])
     reg.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
     reg.SetInitialTransform(initial, inPlace=False)
     _attach_reg_logging(reg, token, "rigid", log_every)
-    log.info("  token=%s [rigid] starting (pelvis-masked, 3 levels, <=%d its)...",
-             token, int(rigid_iters))
-    full = reg.Execute(fixed, moving)
+    log.info("  token=%s [rigid] starting (pelvis-masked @%.1fmm, 3 levels, "
+             "<=%d its)...", token, REG_MM, int(rigid_iters))
+    full = reg.Execute(fixed_lo, moving_lo)
     log.info("  token=%s [rigid] done: metric=%.5f stop='%s'", token,
              reg.GetMetricValue(), reg.GetOptimizerStopConditionDescription())
 
-    # --- warp the label (NN) into the fixed grid -----------------------------
+    # --- warp the FULL-res label (NN) into the full-res fixed grid -------------
     warped_img = sitk.Resample(moving_label_img, fixed, full,
                                sitk.sitkNearestNeighbor, 0.0, sitk.sitkInt16)
     return warped_img, fixed, moving
@@ -542,8 +555,10 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--rigid_iters", type=int, default=None,
                     help="cap the rigid optimizer iterations (per level).")
-    ap.add_argument("--dilate_vox", type=int, default=5,
-                    help="dilate the moving pelvic metric mask by this many voxels.")
+    ap.add_argument("--dilate_vox", type=int, default=2,
+                    help="dilate the moving pelvic metric mask by this many voxels "
+                         "(small margin; radius 5 on a 512^3 volume is ~10x slower "
+                         "for no benefit).")
     ap.add_argument("--reg_log_every", type=int, default=10,
                     help="log the ITK optimizer metric every N iterations "
                          "(0 = only level changes + stage start/done).")
