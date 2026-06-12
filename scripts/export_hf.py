@@ -329,29 +329,59 @@ _POSTWRITE_MIN_HIP_VOXELS    = 1000
 IGNORE_LABEL = 10
 
 VERSE_TO_10CLASS: Dict[int, int] = {
+    # cervical C1-C7 (VerSe 1-7) -> 13-19. Previously DROPPED; now retained from
+    # CTSpine1K GT (present on a handful of cases — see DATASET_PRINCIPLES.md).
+    1: 13, 2: 14, 3: 15, 4: 16, 5: 17, 6: 18, 7: 19,
+    # thoracic T1-T11 (VerSe 8-18) -> 20-30. Previously DROPPED; now retained.
+    8: 20, 9: 21, 10: 22, 11: 23, 12: 24, 13: 25,
+    14: 26, 15: 27, 16: 28, 17: 29, 18: 30,
     19: 11,                       # T12 = the vertebra above L1 = the RIB ANCHOR
     20: 1, 21: 2, 22: 3, 23: 4, 24: 5,
     25: 6,
     26: 7,
+    28: 32,                       # T13 (supernumerary) -> per-level T13
 }
-# VerSe 19 (T12) is "the vertebra directly above L1" — our counting anchor
-# (last_rib_vertebra=11). CTSpine1K labels it on ~all cases (783/784), so the
-# anchor flows straight from radiologist GT; we just stopped dropping it. Note:
-# a genuine T13 (VerSe 28) does NOT occur in this (COLONOG) data; if a source
-# with T13 is added, the anchor is the label directly above L1 (28 then), which
-# needs per-case logic rather than this static value map.
+# Append-only law (DATASET_PRINCIPLES.md): the existing 0-12 scheme is FROZEN;
+# everything above is purely additive and never renumbers a published value.
+#
+# - VerSe 19 (T12) = "the vertebra directly above L1" stays mapped to the
+#   counting anchor (last_rib_vertebra=11), unchanged. Slot 31 (T12 per-level)
+#   is reserved as the *absolute* view of the same vertebra; the export
+#   populates T12 as the anchor (11), so 31 is defined but not emitted here.
+# - Cervical (13-19) and thoracic T1-T11 (20-30) are now retained from the
+#   CTSpine1K radiologist GT instead of being dropped. They are the spine
+#   annotator's word and are written authoritatively by merge_labels.
+# - T13 (VerSe 28) -> 32 (no COLONOG case has it yet; reserved-and-ready).
+# - Classes 33-62 (femur, full rib cage, sternum, costal cartilages) are
+#   RESERVED names only — not in this map (no GT source yet), future annotation.
+# - ignore stays 10; this change is decoupled from the pseudolabeller, which
+#   only fills bg/ignore voxels and never touches these foreground labels.
 PELVIC_TO_10CLASS: Dict[int, int] = {1: 7, 2: 8, 3: 9}
 
 CLASS_NAMES = {
+    # ── FROZEN core (0-12) — never renumber (DATASET_PRINCIPLES.md) ──────────
     0: "background", 1: "L1", 2: "L2", 3: "L3", 4: "L4", 5: "L5",
     6: "L6", 7: "sacrum", 8: "left_hip", 9: "right_hip",
-    11: "last_rib_vertebra",      # the rib anchor (T12), retained from GT
-    12: "rib",                    # RESERVED for v3: student-annotated rib of the
-                                  # anchor vertebra. Not in CTSpine1K GT, so v1/v2
-                                  # never emit it — but the value is allocated NOW
-                                  # so v3 is purely additive (no renumbering). The
-                                  # export paints it via the optional --rib_dir
-                                  # overlay (dormant until v3 rib masks exist).
+    # 10 = ignore (IGNORE_LABEL), a frozen sentinel — never an anatomical class.
+    11: "last_rib_vertebra",      # the rib anchor (T12), relational view
+    12: "rib",                    # the anchor's rib (relational; --rib_dir overlay)
+    # ── Appended: full vertebral column, retained from CTSpine1K GT ──────────
+    13: "C1", 14: "C2", 15: "C3", 16: "C4", 17: "C5", 18: "C6", 19: "C7",
+    20: "T1", 21: "T2", 22: "T3", 23: "T4", 24: "T5", 25: "T6", 26: "T7",
+    27: "T8", 28: "T9", 29: "T10", 30: "T11",
+    31: "T12",                    # absolute view (T12 is exported as anchor 11)
+    32: "T13",
+    # ── Reserved for future annotation (no GT source yet) ────────────────────
+    33: "femur_left", 34: "femur_right",
+    35: "rib_left_1", 36: "rib_left_2", 37: "rib_left_3", 38: "rib_left_4",
+    39: "rib_left_5", 40: "rib_left_6", 41: "rib_left_7", 42: "rib_left_8",
+    43: "rib_left_9", 44: "rib_left_10", 45: "rib_left_11", 46: "rib_left_12",
+    47: "rib_left_13",
+    48: "rib_right_1", 49: "rib_right_2", 50: "rib_right_3", 51: "rib_right_4",
+    52: "rib_right_5", 53: "rib_right_6", 54: "rib_right_7", 55: "rib_right_8",
+    56: "rib_right_9", 57: "rib_right_10", 58: "rib_right_11", 59: "rib_right_12",
+    60: "rib_right_13",
+    61: "sternum", 62: "costal_cartilages",
 }
 RIB_CLASS = 12
 
@@ -1331,6 +1361,47 @@ def _wipe_remote_repo(api, repo_id: str, repo_type: str, token: str,
     log.info("  repo contents cleared; repo / URL / git history intact")
 
 
+def hf_write_preflight(repo_id, token, revision, private=False) -> None:
+    """Fail fast — BEFORE the multi-hour export — if the token cannot write the
+    target repo. A 403 after the export is pure waste. Also catches the silent
+    trap where an EMPTY HF_TOKEN env makes HfApi fall back to a cached login
+    token (often read-only or the wrong account)."""
+    from huggingface_hub import HfApi, create_repo
+    token = token or os.environ.get("HF_TOKEN")
+    if not token:
+        raise SystemExit(
+            "HF preflight: no token. Set HF_TOKEN (or pass --hf_token). "
+            "An EMPTY env var would silently fall back to a cached login token, "
+            "so confirm your WRITE token actually reached this process.")
+    api = HfApi(token=token)
+    try:
+        who = (api.whoami() or {}).get("name", "?")
+    except Exception as e:                                # noqa: BLE001
+        raise SystemExit(f"HF preflight: token invalid / not reaching HF: {e}")
+    log.info("HF preflight: authenticated as '%s'.", who)
+    try:
+        create_repo(repo_id=repo_id, repo_type=HF_REPO_TYPE, private=private,
+                    exist_ok=True, token=token)
+        if revision:
+            api.create_branch(repo_id=repo_id, repo_type=HF_REPO_TYPE,
+                              branch=revision, token=token, exist_ok=True)
+        log.info("HF preflight: WRITE access to %s@%s confirmed.",
+                 repo_id, revision or "main")
+    except Exception as e:                                # noqa: BLE001
+        org = repo_id.split("/")[0]
+        raise SystemExit(
+            f"HF preflight: '{who}' authenticated but CANNOT WRITE to {repo_id}"
+            f"@{revision or 'main'}. This is a permissions problem, not a script "
+            f"bug:\n"
+            f"  1. the token must be a WRITE token (fine-grained tokens need "
+            f"'Write' access to this repo) — a read token cannot push;\n"
+            f"  2. account '{who}' must have write membership in the '{org}' "
+            f"org/namespace.\n"
+            f"  Check: python -c \"from huggingface_hub import HfApi; "
+            f"print(HfApi(token='$HF_TOKEN').whoami())\"\n"
+            f"  HF said: {e}")
+
+
 def push_to_hub(
     out_dir:          Path,
     repo_id:          Optional[str] = HF_REPO_ID,
@@ -1510,6 +1581,12 @@ def main():
         log.error("--wipe_remote requires --push_to_hub. Refusing to "
                   "clear the HF repo without re-pushing.")
         sys.exit(2)
+
+    # Verify HF write access BEFORE the (multi-hour) export, so a permission /
+    # token problem aborts in seconds instead of after all the work.
+    if args.push_to_hub:
+        hf_write_preflight(args.hf_repo_id, args.hf_token, args.hf_revision,
+                           args.hf_private)
 
     if not args.skip_export:
         for d in [args.out_dir/"ct", args.out_dir/"labels", args.out_dir/"qc"]:
