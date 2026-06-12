@@ -19,6 +19,10 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${PROJECT_ROOT}"
+# This launcher runs on the login node (no SLURM_JOB_ID); default.env references
+# it for the singularity tmpdir. Give it a placeholder so `set -u` + source is
+# happy — the actual sbatch jobs get real SLURM_JOB_IDs.
+export SLURM_JOB_ID="${SLURM_JOB_ID:-launcher$$}"
 source configs/default.env
 
 : "${HF_TOKEN:?paste your token -> HF_TOKEN=hf_xxx HF_REPO_ID=<org>/Name bash slurm/ship_v1.sh}"
