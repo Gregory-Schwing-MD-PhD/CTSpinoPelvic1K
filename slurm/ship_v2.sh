@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 # =============================================================================
-# ship_v2.sh — build + push the v2 release in one shot.
+# ship_v2.sh — build + push BOTH releases in one shot (v1 on the way, then v2).
 #
+# v1 = the partial-annotation base (ALL configs + T12 anchor): the input that
+#      trained the pseudolabeller. Built and pushed @v1 in step 1.
 # v2 = the LSTV-segmenter training artifact: fused + spine_only ONLY (every case
-# has a radiologist spine + T12 anchor), with the spine_only pelves pseudolabelled.
-# pelvic_native is EXCLUDED (real pelvis but pseudo spine — held out for the
-# pelvis-pseudolabel Dice). REUSES the cached preds in hf_export_v2_work (no GPU
-# inference) — that dir is protected, never deleted.
+#      has a radiologist spine + T12 anchor), spine_only pelves pseudolabelled,
+#      pelvic_native dropped at the pseudolabel step (held out for the pelvis
+#      Dice). REUSES the cached preds in hf_export_v2_work (no GPU inference) —
+#      that dir is protected, never deleted.
+#
+# So a single run ships v1 AND v2. SKIP_BASE=1 reuses an existing base and skips
+# the v1 build+push (just refresh v2).
 #
 # Run as a LAUNCHER (bash, not sbatch). It clears stale labels, then submits a
 # 3-job chain with dependencies, threading your token through:
@@ -65,9 +70,9 @@ if [[ "${SKIP_BASE}" == "1" ]]; then
 else
     echo "[ship_v2] clearing stale base labels  ${HF_EXPORT_DIR}/{labels,qc,manifest.json}"
     rm -rf "${HF_EXPORT_DIR}"/labels "${HF_EXPORT_DIR}"/qc "${HF_EXPORT_DIR}"/manifest.json
-    echo "[ship_v2] (1/3) export the v1 base (ALL configs + anchor) [CPU]"
+    echo "[ship_v2] (1/3) export the v1 base (ALL configs + anchor) + PUSH @v1 [CPU]"
     J1=$(sbatch --parsable \
-      --export=ALL,SIF_PATH=${SIF_PATH},PUSH=0,SKIP_EXPORT=0,SKIP_QC=${SKIP_QC},NO_PIR=${NO_PIR},HF_REPO_ID=,HF_EXPORT_DIR=${HF_EXPORT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
+      --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=0,SKIP_QC=${SKIP_QC},NO_PIR=${NO_PIR},WIPE_REMOTE=0,HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v1,HF_EXPORT_DIR=${HF_EXPORT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
       slurm/export_dataset.sh)
     DEP="--dependency=afterok:${J1}"
 fi
@@ -88,7 +93,7 @@ J3=$(sbatch --parsable --dependency=afterok:${J2} \
   --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=1,WIPE_REMOTE=0,HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v2,HF_EXPORT_DIR=${PSEUDO_OUT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
   slurm/export_dataset.sh)
 
-echo "[ship_v2] submitted chain:  base ${J1:-<skipped>}  ->  pseudolabel ${J2}  ->  push ${J3}"
+echo "[ship_v2] submitted:  v1 build+push ${J1:-<skipped>}  ->  pseudolabel ${J2}  ->  v2 push ${J3}"
 echo "[ship_v2]   monitor:  tail -f logs/*${J1:-}* logs/*${J2}* logs/*${J3}*"
-echo "[ship_v2]   the base (data/hf_export) stays ALL configs = the v1 base;"
-echo "[ship_v2]   v2 is derived by DROPPING pelvic_native at the pseudolabel step."
+echo "[ship_v2]   one run ships BOTH: v1 = all-configs partial base (step 1),"
+echo "[ship_v2]   v2 = derived by DROPPING pelvic_native at the pseudolabel step."
