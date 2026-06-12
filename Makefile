@@ -79,6 +79,16 @@ NNUNET_SIF     ?=        # nnU-Net+CUDA container (REQUIRED unless DRY_RUN=1)
 NNUNET_RESULTS ?=        # checkpoint download dir (default: nnunet/results)
 HF_EXPORT_DIR  ?=        # v1 source tree   (default: data/hf_export)
 PSEUDO_OUT_DIR ?=        # v2 output tree   (default: data/hf_export_v2)
+# pelvis-opposing-qc (pseudo pelvis vs same-patient opposing-position GT)
+PSEUDO_TREE    ?=        # dense tree w/ pseudo pelves (default: data/hf_export_v2)
+GT_TREE        ?=        # base tree w/ GT pelves      (default: data/hf_export)
+OPP_CSV        ?=        # default: data/pelvis_opposing_qc.csv
+OPP_TOL_PCT    ?=        # flag threshold %% (default: 15)
+# verify-mask-seriesuid (masks lack a SeriesInstanceUID?)
+TCIA_DIR       ?=        # raw COLONOG (default: data/tcia)
+SPINE_DIR      ?=        # CTSpine1K masks (default: data/ctspine1k)
+PELVIC_DIR     ?=        # CTPelvic1K masks (default: data/ctpelvic1k)
+SAMPLE         ?=        # cap masks per source (default: 0 = all)
 MODELS_CONFIG  ?=        # default: configs/pseudolabel_models.json
 DRY_RUN        ?= 0
 PREDICT_FUSED  ?= 0
@@ -459,6 +469,22 @@ structure-qc: check-container  ## GT-free structure QC (presence/dup/gap/L-R swa
 	@echo "Submitting structure-qc (presence / duplication / gap / L-R swap)"
 	sbatch --export=ALL,SIF_PATH=$(CONTAINER),HF_EXPORT_DIR=$(HF_EXPORT_DIR),PSEUDO_OUT_DIR=$(PSEUDO_OUT_DIR),STRUCT_MANUAL_CSV=$(STRUCT_MANUAL_CSV),STRUCT_PSEUDO_CSV=$(STRUCT_PSEUDO_CSV),STRUCT_FLIP_LR=$(STRUCT_FLIP_LR),STRUCT_DUP_RATIO=$(STRUCT_DUP_RATIO),QC_LIMIT=$(QC_LIMIT),QC_SKIP_MANUAL=$(QC_SKIP_MANUAL) \
 	       slurm/structure_qc.sh
+
+
+.PHONY: pelvis-opposing-qc
+pelvis-opposing-qc: check-container  ## Validate pseudo pelves vs same-patient OPPOSING-position GT via pose-invariant descriptors; catches class mixing + L/R swaps (CPU)
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting pelvis-opposing-qc (pseudo pelvis vs opposing-position GT)"
+	sbatch $(DEP) --export=ALL,SIF_PATH=$(CONTAINER),PSEUDO_TREE=$(PSEUDO_TREE),GT_TREE=$(GT_TREE),OPP_CSV=$(OPP_CSV),OPP_TOL_PCT=$(OPP_TOL_PCT) \
+	       slurm/pelvis_opposing_qc.sh
+
+
+.PHONY: verify-mask-seriesuid
+verify-mask-seriesuid: check-container  ## Empirically confirm masks carry NO SeriesInstanceUID (only PatientID) -> bone-HU search required (CPU)
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting verify-mask-seriesuid (masks lack a series identifier?)"
+	sbatch $(DEP) --export=ALL,SIF_PATH=$(CONTAINER),TCIA_DIR=$(TCIA_DIR),SPINE_DIR=$(SPINE_DIR),PELVIC_DIR=$(PELVIC_DIR),SAMPLE=$(SAMPLE) \
+	       slurm/verify_mask_seriesuid.sh
 
 
 .PHONY: merge-qc

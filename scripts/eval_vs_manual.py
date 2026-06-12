@@ -47,6 +47,10 @@ log = logging.getLogger("ctspinopelvic1k.eval_vs_manual")
 
 CLASS_NAMES = {1: "L1", 2: "L2", 3: "L3", 4: "L4", 5: "L5", 6: "L6",
                7: "sacrum", 8: "left_hip", 9: "right_hip"}
+
+
+def _cname(i: int) -> str:
+    return "bg" if i == 0 else CLASS_NAMES.get(i, str(i))
 REGION_CANONICAL = {"spine": (1, 2, 3, 4, 5, 6), "pelvis": (7, 8, 9)}
 SCOPE_MANUAL_SIDE = {"spine_only": "spine", "pelvic_native": "pelvis"}
 ALL_CLASSES = (1, 2, 3, 4, 5, 6, 7, 8, 9)
@@ -83,6 +87,27 @@ def remap_prediction_array(pred, label_remap: Dict[str, int]) -> "object":
     for src, dst in label_remap.items():
         out[pred == int(src)] = int(dst)
     return out
+
+
+def confusion_counts(pred, v1, gt_classes):
+    """For each GT class g in gt_classes, tally how the model labelled those
+    TRUE voxels across canonical ids 0..9.
+
+    This pinpoints CLASS MIXING that per-class Dice only implies: an off-diagonal
+    sacrum->ilium (or 7<->8<->9) entry is the sacroiliac-joint class bleed, and a
+    left_hip<->right_hip entry (8<->9) is voxel-level L/R mixing (complementary to
+    structure_qc's whole-structure lr_swap). =bg (0) is under-segmentation; a
+    pelvis voxel landing on a spine id (1..6) is a gross error."""
+    import numpy as np
+    conf = {}
+    for g in gt_classes:
+        m = v1 == int(g)
+        if not m.any():
+            conf[int(g)] = [0] * 10
+            continue
+        conf[int(g)] = np.bincount(np.clip(pred[m], 0, 9).astype(np.int64),
+                                   minlength=10).astype(np.int64).tolist()
+    return conf
 
 
 def _refine_pred_for_eval(pred, v1, ct, manual_classes, *,
@@ -217,7 +242,8 @@ def _eval_one(task: dict) -> dict:
                 "thr":        thr if thr is not None else float("nan"),
             }
         return {"token": tok, "status": "ok", "config": task["config"],
-                "per_class": per_class}
+                "per_class": per_class,
+                "confusion": confusion_counts(pred, v1, task["classes"])}
     except Exception as exc:                                # noqa: BLE001
         return {"token": tok, "status": "fail", "error": str(exc)}
 
@@ -308,6 +334,7 @@ def main() -> int:
     per_class_dice_ref: Dict[int, list] = {}
     per_class_assd_raw: Dict[int, list] = {}
     per_class_assd_ref: Dict[int, list] = {}
+    agg_conf: Dict[int, List[int]] = {}        # true class -> summed pred 0..9
 
     import time
     t0 = time.time()
@@ -343,6 +370,10 @@ def main() -> int:
                     per_class_assd_raw.setdefault(c, []).append(m["assd_raw"])
                 if m["assd_ref"] == m["assd_ref"]:
                     per_class_assd_ref.setdefault(c, []).append(m["assd_ref"])
+            for g, vec in r.get("confusion", {}).items():
+                cur = agg_conf.setdefault(int(g), [0] * 10)
+                for p, x in enumerate(vec):
+                    cur[p] += int(x)
             elapsed = time.time() - t0
             rate = i / max(elapsed, 1.0)
             eta = (len(tasks) - i) / rate if rate > 0 else 0.0
@@ -360,6 +391,43 @@ def main() -> int:
         w.writeheader()
         w.writerows(rows)
     log.info("wrote %d rows -> %s", len(rows), args.out_csv)
+
+    # ---- class-mixing confusion (true class -> how the model labelled it) ----
+    if agg_conf:
+        conf_csv = args.out_csv.with_name(args.out_csv.stem + "_confusion.csv")
+        with open(conf_csv, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["true_class", "true_name", "n_true_vox"]
+                       + [f"pred_{_cname(p)}" for p in range(10)]
+                       + ["self_frac", "top_offdiag_class", "top_offdiag_frac"])
+            for g in sorted(agg_conf):
+                vec = agg_conf[g]
+                tot = sum(vec)
+                off = sorted(((vec[p], p) for p in range(10) if p != g),
+                             reverse=True)
+                top_n, top_p = off[0] if off else (0, -1)
+                w.writerow([g, _cname(g), tot] + vec
+                           + ([round(vec[g] / tot, 4),
+                               _cname(top_p) if top_p >= 0 else "",
+                               round(top_n / tot, 4)] if tot else ["", "", ""]))
+        log.info("wrote class-mixing confusion -> %s", conf_csv)
+        log.info("-" * 72)
+        log.info("CLASS-MIXING confusion (row-normalized; how the model labelled "
+                 "each TRUE voxel)")
+        log.info("  %-10s %8s  %7s   %s", "true class", "n_vox", "self",
+                 "largest off-diagonal leaks")
+        for g in sorted(agg_conf):
+            vec = agg_conf[g]
+            tot = sum(vec)
+            if not tot:
+                continue
+            off = sorted(((vec[p] / tot, p) for p in range(10)
+                          if p != g and vec[p] > 0), reverse=True)[:3]
+            leaks = ", ".join(f"{_cname(p)}={fr:.3f}" for fr, p in off) or "—"
+            log.info("  %-10s %8d  %7.3f   %s", _cname(g), tot, vec[g] / tot, leaks)
+        log.info("  ^ off-diagonal to a neighbour = class mixing; "
+                 "left_hip<->right_hip = voxel-level L/R bleed; "
+                 "=bg = under-segmentation; =L1..L6 = gross spine/pelvis error.")
 
     log.info("=" * 72)
     log.info("model-vs-MANUAL accuracy (per manual-side class; raw model vs "
