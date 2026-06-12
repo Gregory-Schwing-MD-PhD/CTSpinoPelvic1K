@@ -39,8 +39,14 @@ if str(_HERE) not in sys.path:
 _VIEWS = (("coronal", 0), ("axial", 1), ("sagittal", 2))
 
 
-def _disp(arr2d, dim):
-    return arr2d.T if dim == 2 else arr2d
+def _disp(arr, dim):
+    """Sagittal (dim 2) is transposed so the head is up. For an RGB image
+    (H, W, 3), transpose ONLY the two spatial axes — a plain .T would move the
+    colour channel to the front and break imshow."""
+    if dim != 2:
+        return arr
+    import numpy as np
+    return np.swapaxes(arr, 0, 1) if arr.ndim == 3 else arr.T
 
 
 def _render_case(spine_ct: Path, mask_path: Path, out_png: Path, title: str):
@@ -64,10 +70,9 @@ def _render_case(spine_ct: Path, mask_path: Path, out_png: Path, title: str):
     fig, axes = plt.subplots(1, 3, figsize=(13, 5))
     for ax, (name, dim) in zip(axes, _VIEWS):
         idx = centers[dim]
-        sl = np.take(bg, idx, axis=dim)
-        ls = np.take(lbl, idx, axis=dim)
-        ax.imshow(_disp(np.stack([sl] * 3, -1), dim), interpolation="nearest",
-                  aspect="auto")
+        sl = np.take(bg, idx, axis=dim)               # (H,W) grayscale [0,1]
+        ls = np.take(lbl, idx, axis=dim)              # (H,W) labels
+        # _overlay already blends the CT background with the coloured labels.
         ax.imshow(_disp(_overlay(sl, ls), dim), interpolation="nearest",
                   aspect="auto")
         ax.set_title(f"{name} @ {idx}", fontsize=9)
