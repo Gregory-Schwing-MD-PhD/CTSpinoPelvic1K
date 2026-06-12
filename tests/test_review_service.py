@@ -133,6 +133,73 @@ def test_accept_path_finalizes_as_pseudo_corrected(tmp_path):
     assert case["final"]["prov_after"]["pelvis"] == "pseudo_corrected"
 
 
+# ── v4 rib-anchor task ───────────────────────────────────────────────────────
+
+def _anchor_label(anchor_voxels: int):
+    """A v3-style base label (spine+sacrum) with the rib anchor ADDED: class 11
+    (last_rib_vertebra) of `anchor_voxels` and class 12 (rib) fixed, so IRR
+    varies with how the two reviewers place the anchor."""
+    a = np.zeros((6, 6, 6), dtype=np.int16)
+    a[0:4, 0, 0] = 5            # existing last lumbar (unchanged by both)
+    a[0:4, 1, 0] = 7            # existing sacrum (unchanged)
+    a[0:anchor_voxels, 2, 0] = 11   # last_rib_vertebra (the added anchor)
+    a[0:2, 3, 0] = 12               # rib
+    return a
+
+
+def _rib_service(tmp_path, recs=None, **kw):
+    st = store_mod.ReviewStore(store_mod.LocalBackend(tmp_path / "repo"))
+    if recs is None:
+        # single spine-bearing case, so both reviewers claim the SAME case
+        recs = [{"token": "7", "config": "fused", "prov_spine": "manual",
+                 "prov_pelvis": "manual", "ct_file": "ct/0007_ct.nii.gz",
+                 "label_file": "labels/0007_label.nii.gz",
+                 "lstv_label": "lumbarization"}]
+    store_mod.init_rib_anchor_cases(st, recs)
+    return svc.ReviewService(st, v2_repo="org/CTSpinoPelvic1K",
+                             source_revision="v3", **kw), st
+
+
+def test_rib_anchor_seed_skips_pelvic_native_and_sets_region(tmp_path):
+    s, st = _rib_service(tmp_path, recs=[
+        {"token": "6", "config": "spine_only", "prov_spine": "manual",
+         "prov_pelvis": None, "ct_file": "ct/0006_spine_ct.nii.gz",
+         "label_file": "labels/0006_spine_label.nii.gz", "lstv_label": "normal"},
+        {"token": "8", "config": "pelvic_native", "prov_spine": None,
+         "prov_pelvis": "manual", "ct_file": "ct/0008_pel_ct.nii.gz",
+         "label_file": "labels/0008_pel_label.nii.gz"},   # no rib in FOV -> skip
+    ])
+    assert st.get_case("8__pelvic_native") is None        # pelvis-only -> no rib
+    c = st.get_case("6__spine_only")
+    assert c["region_to_review"] == "rib_anchor"
+    assert c["task"] == "rib_anchor"
+    # the v3 label is the editable base, not a fresh pseudo
+    assert c["pseudo_label_file"] == "labels/0006_spine_label.nii.gz"
+
+
+def test_rib_anchor_double_review_finalizes_without_touching_spine_prov(tmp_path):
+    s, st = _rib_service(tmp_path)
+    a = s.claim("rev_a"); b = s.claim("rev_b")
+    lab = _anchor_label(4)
+    s.submit(a["claim_token"], _rec(changed=12), _npy(lab), "label.npy")
+    out = s.submit(b["claim_token"], _rec(changed=12), _npy(lab), "label.npy")
+    assert out["status"] == "finalized"
+    assert out["irr"]["agree"] is True
+    case = st.get_case(out["case_id"])
+    # the add-the-anchor pass leaves spine/pelvis source provenance unchanged
+    assert case["final"]["prov_after"]["spine"] == "manual"
+
+
+def test_rib_anchor_disagreement_routes_to_adjudication(tmp_path):
+    s, st = _rib_service(tmp_path)
+    a = s.claim("rev_a"); b = s.claim("rev_b")
+    # the two reviewers place the anchor very differently -> low Dice on class 11
+    s.submit(a["claim_token"], _rec(), _npy(_anchor_label(4)), "label.npy")
+    out = s.submit(b["claim_token"], _rec(), _npy(_anchor_label(1)), "label.npy")
+    assert out["status"] == "needs_adjudication"
+    assert out["irr"]["agree"] is False
+
+
 def test_submit_rejects_bad_token(tmp_path):
     s, _ = _service(tmp_path)
     s.claim("rev_a")

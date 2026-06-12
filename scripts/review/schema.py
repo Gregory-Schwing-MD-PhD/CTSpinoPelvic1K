@@ -42,6 +42,11 @@ REGION_CLASSES: Dict[str, frozenset] = {"spine": SPINE_CLASSES,
                                         "pelvis": PELVIC_CLASSES,
                                         "rib_anchor": RIB_ANCHOR_CLASSES}
 REGIONS = ("spine", "pelvis")
+# Regions a review record may name. "both" = a fused gold re-review (re-checks
+# spine+pelvis); "rib_anchor" = the v4 pass that ADDS the counting anchor
+# (classes 11/12) to an already-good v3 label and opportunistically fixes
+# class-mixing/partial vertebrae.
+VALID_REGIONS = REGIONS + ("both", "rib_anchor")
 
 PROV_VALUES = ("manual", "pseudo", "pseudo_corrected", None)
 DECISIONS = ("accept", "corrected", "reject")
@@ -100,6 +105,12 @@ def provenance_after(prov_before: Dict[str, Optional[str]],
         for r in REGIONS:
             if out.get(r) == "pseudo":
                 out[r] = "pseudo_corrected"
+        return out
+    if region == "rib_anchor":
+        # The rib-anchor pass adds NEW structures (11/12) and may tidy
+        # class-mixing, but it is not a re-correction of the spine/pelvis
+        # source provenance — those axes are unchanged. The addition itself is
+        # recorded in the decision + label diff (classes 11/12 appear there).
         return out
     if region not in REGIONS:
         return out
@@ -161,7 +172,7 @@ def validate_review_record(rec) -> List[str]:
         errs.append(f"role {d.get('role')!r} not in {ROLES}")
 
     region = d.get("region_reviewed")
-    valid_regions = REGIONS + ("both",)          # "both" = a fused gold re-review
+    valid_regions = VALID_REGIONS
     if region is not None and region not in valid_regions:
         errs.append(f"region_reviewed {region!r} not in {valid_regions}")
     if d.get("decision") in ("accept", "corrected") and region not in valid_regions:

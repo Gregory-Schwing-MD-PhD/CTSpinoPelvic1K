@@ -284,3 +284,57 @@ def init_cases_from_manifest(store: ReviewStore, records: List[dict],
         new_cases.append(case)
     store.put_cases(new_cases)                   # single commit (no-op if empty)
     return len(new_cases)
+
+
+# rib-anchor (v4) seeding ----------------------------------------------------
+RIB_ANCHOR_CONFIGS = frozenset({"fused", "spine_only"})
+
+
+def init_rib_anchor_cases(store: ReviewStore, records: List[dict],
+                          source_revision: str = "v3",
+                          include_configs: frozenset = RIB_ANCHOR_CONFIGS) -> int:
+    """Seed the v4 rib-anchor task: one case per spine-bearing record.
+
+    Unlike the pseudo-label review (init_cases_from_manifest), this serves the
+    EXISTING v3 label as the editable base — students ADD the counting anchor
+    (`last_rib_vertebra` 11 + `rib` 12) and may tidy class-mixing / partly
+    coloured vertebrae (docs/RIB_ANCHOR_RATIONALE.md). region_to_review is
+    "rib_anchor" so IRR/provenance treat it as the add-the-anchor pass.
+
+    Only spine-bearing configs are enqueued — a `pelvic_native` scan images the
+    pelvis and never captures the thoracolumbar rib, so it cannot carry the
+    anchor. Idempotent: never clobbers a case that already has claims/reviews.
+    All new cases land in a SINGLE commit (store.put_cases).
+    """
+    existing = {p[len("cases/"):-len(".json")]
+                for p in store.b.list("cases/")
+                if p.startswith("cases/") and p.endswith(".json")}
+    new_cases = []
+    for rec in records:
+        cfg = rec.get("config")
+        if cfg not in include_configs:
+            continue
+        if not rec.get("ct_file") or not rec.get("label_file"):
+            continue                             # need both to serve + edit
+        cid = schema.case_id(rec.get("token"), cfg)
+        if cid in existing:                      # don't overwrite live state
+            continue
+        new_cases.append({
+            "case_id": cid,
+            "token": str(rec.get("token")),
+            "config": cfg,
+            "task": "rib_anchor",
+            "stratum": rec.get("lstv_label") or "normal",
+            "priority": 0,
+            "source_revision": source_revision,
+            "ct_file": rec.get("ct_file"),
+            # the v3 label IS the base the student edits (adds 11/12 onto)
+            "pseudo_label_file": rec.get("label_file"),
+            "region_to_review": "rib_anchor",
+            "prov_before": {"spine": rec.get("prov_spine"),
+                            "pelvis": rec.get("prov_pelvis")},
+            "slots": {},
+            "final": None,
+        })
+    store.put_cases(new_cases)                   # single commit (no-op if empty)
+    return len(new_cases)

@@ -87,16 +87,23 @@ SERVICE: Optional[svc.ReviewService] = None
 _LOCK = threading.Lock()       # serialize writes (single-worker Space)
 
 
+# TASK selects what this Space serves:
+#   "lstv"       (default) — correct v2 pseudo-labels (init_cases_from_manifest,
+#                 optional crops/crops_index triage). SOURCE_REVISION defaults v2.
+#   "rib_anchor" — the v4 pass: ADD the counting anchor (11/12) onto v3 labels
+#                 (init_rib_anchor_cases). Point SOURCE_REVISION at v3.
+TASK = os.environ.get("TASK", "lstv").strip().lower()
+
+
 @app.on_event("startup")
 def _startup():
     global SERVICE
     SERVICE = _build_service()
-    # Seed / gap-fill from the v2 manifest on EVERY boot. init_cases_from_manifest
-    # is idempotent and cheap (one repo LIST + a single batched commit of ONLY
-    # the missing cases, or a no-op if none). Running it unconditionally
-    # self-heals a partial seed — e.g. a first seed truncated by HF's
-    # commit-rate limit — which a "seed only if the store is empty" guard would
-    # silently leave incomplete forever.
+    # Seed / gap-fill from the manifest on EVERY boot. Both seeders are
+    # idempotent and cheap (one repo LIST + a single batched commit of ONLY the
+    # missing cases, or a no-op if none). Running it unconditionally self-heals
+    # a partial seed — e.g. a first seed truncated by HF's commit-rate limit —
+    # which a "seed only if the store is empty" guard would leave incomplete.
     try:
         from huggingface_hub import hf_hub_download
         mp = hf_hub_download(
@@ -104,25 +111,33 @@ def _startup():
             filename="manifest.json", revision=SERVICE.source_revision)
         data = json.loads(Path(mp).read_text())
         recs = data if isinstance(data, list) else data.get("records", [])
-        # TRIAGE: if the v2 repo carries crops/crops_index.json (the QC-flagged
-        # worklist), seed ONLY those cases and attach their review-crop info.
-        crops_index = None
-        try:
-            cp = hf_hub_download(repo_id=SERVICE.v2_repo, repo_type="dataset",
-                                 filename="crops/crops_index.json",
-                                 revision=SERVICE.source_revision)
-            crops_index = {e["label_file"]: e
-                           for e in json.loads(Path(cp).read_text())}
-            print(f"[startup] crops_index: triaging to {len(crops_index)} flagged case(s)")
-        except Exception:
-            print("[startup] no crops/crops_index.json — seeding the full manifest")
-        n = store_mod.init_cases_from_manifest(
-            SERVICE.store, recs, source_revision=SERVICE.source_revision,
-            crops_index=crops_index)
-        if n:
-            print(f"[startup] seeded {n} new review case(s) from {SERVICE.v2_repo}")
+
+        if TASK == "rib_anchor":
+            n = store_mod.init_rib_anchor_cases(
+                SERVICE.store, recs, source_revision=SERVICE.source_revision)
+            tag = f"rib-anchor (v4) case(s) from {SERVICE.v2_repo}@{SERVICE.source_revision}"
         else:
-            print("[startup] all review cases already present; nothing to seed")
+            # TRIAGE: if the repo carries crops/crops_index.json (the QC-flagged
+            # worklist), seed ONLY those cases and attach their review-crop info.
+            crops_index = None
+            try:
+                cp = hf_hub_download(repo_id=SERVICE.v2_repo, repo_type="dataset",
+                                     filename="crops/crops_index.json",
+                                     revision=SERVICE.source_revision)
+                crops_index = {e["label_file"]: e
+                               for e in json.loads(Path(cp).read_text())}
+                print(f"[startup] crops_index: triaging to {len(crops_index)} flagged case(s)")
+            except Exception:
+                print("[startup] no crops/crops_index.json — seeding the full manifest")
+            n = store_mod.init_cases_from_manifest(
+                SERVICE.store, recs, source_revision=SERVICE.source_revision,
+                crops_index=crops_index)
+            tag = f"review case(s) from {SERVICE.v2_repo}"
+
+        if n:
+            print(f"[startup] task={TASK}: seeded {n} new {tag}")
+        else:
+            print(f"[startup] task={TASK}: all cases already present; nothing to seed")
     except Exception as e:                           # noqa: BLE001
         print(f"[startup] could not seed/gap-fill cases: {e}")
 
