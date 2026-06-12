@@ -256,6 +256,7 @@ _MANIFEST_SCHEMA = [
     ("lstv_confusion_zone",    bool,  False),
     ("has_l6",                 bool,  False),
     ("n_lumbar_labels",        int,   False),
+    ("has_anchor",             bool,  False),   # T12 rib anchor (class 11) present
     ("alignment_ok",           bool,  False),
     ("ct_resampled_to_mask",   bool,  False),
     ("postwrite_hip_bone_pct", float, True),
@@ -327,15 +328,23 @@ _POSTWRITE_MIN_HIP_VOXELS    = 1000
 IGNORE_LABEL = 10
 
 VERSE_TO_10CLASS: Dict[int, int] = {
+    19: 11,                       # T12 = the vertebra above L1 = the RIB ANCHOR
     20: 1, 21: 2, 22: 3, 23: 4, 24: 5,
     25: 6,
     26: 7,
 }
+# VerSe 19 (T12) is "the vertebra directly above L1" — our counting anchor
+# (last_rib_vertebra=11). CTSpine1K labels it on ~all cases (783/784), so the
+# anchor flows straight from radiologist GT; we just stopped dropping it. Note:
+# a genuine T13 (VerSe 28) does NOT occur in this (COLONOG) data; if a source
+# with T13 is added, the anchor is the label directly above L1 (28 then), which
+# needs per-case logic rather than this static value map.
 PELVIC_TO_10CLASS: Dict[int, int] = {1: 7, 2: 8, 3: 9}
 
 CLASS_NAMES = {
     0: "background", 1: "L1", 2: "L2", 3: "L3", 4: "L4", 5: "L5",
     6: "L6", 7: "sacrum", 8: "left_hip", 9: "right_hip",
+    11: "last_rib_vertebra",      # the rib anchor (T12), retained from GT
 }
 
 
@@ -363,6 +372,7 @@ _SEG_COLORS = {
     5: (0.10, 0.80, 0.85, 0.55), 6: (0.75, 0.85, 0.20, 0.65),
     7: (0.85, 0.15, 0.15, 0.55), 8: (0.95, 0.50, 0.10, 0.55),
     9: (0.95, 0.80, 0.05, 0.55),
+    11: (1.00, 0.00, 1.00, 0.65),     # last_rib_vertebra — magenta
 }
 
 # -- Small helpers ------------------------------------------------------------
@@ -546,10 +556,7 @@ def merge_labels(spine_path, pelvic_path, ref_shape):
         mn = tuple(min(a, b) for a, b in zip(ref_shape, sp.shape))
         sl = tuple(slice(0, m) for m in mn)
         for vid, cls in VERSE_TO_10CLASS.items():
-            if cls in (1, 2, 3, 4, 5, 6):
-                # Lumbar L1-L6: spine annotator's word is authoritative.
-                result[sl][sp[sl] == vid] = cls
-            elif cls == 7:
+            if cls == 7:
                 # Sacrum from VerSe id 26: only fill where pelvic didn't
                 # already claim it (fused mode -> result==0) or where
                 # the slot is still unassigned (partial mode -> result==IGNORE).
@@ -559,6 +566,11 @@ def merge_labels(spine_path, pelvic_path, ref_shape):
                     (result[sl] == 0) | (result[sl] == IGNORE_LABEL)
                 )
                 result[sl][fill_mask] = cls
+            else:
+                # Lumbar L1-L6 AND the rib anchor (last_rib_vertebra=11): the
+                # spine annotator's word is authoritative. These regions are
+                # disjoint from the pelvic classes, so a direct write is safe.
+                result[sl][sp[sl] == vid] = cls
 
     return result
 
@@ -725,7 +737,7 @@ def _export_one(args: dict) -> dict:
         slice_thickness=args.get("slice_thickness"),
         kvp=args.get("kvp"),
         prov_spine=prov_spine, prov_pelvis=prov_pelvis,
-        alignment_ok=False, has_l6=False, n_lumbar_labels=0,
+        alignment_ok=False, has_l6=False, n_lumbar_labels=0, has_anchor=False,
         ct_file=rel_ct_file, label_file=rel_lbl_file, qc_file=rel_qc_file,
         lstv_pelvic=args.get("lstv_pelvic", ""),
         lstv_vertebral=args.get("lstv_vertebral", ""),
@@ -852,9 +864,11 @@ def _export_one(args: dict) -> dict:
         except Exception as _exc:
             log.debug("[token=%s] post-write sanity skipped: %s", token, _exc)
 
-        uniq = {int(v) for v in np.unique(lbl_arr) if 1 <= v <= 6}
+        all_vals = {int(v) for v in np.unique(lbl_arr)}
+        uniq = {v for v in all_vals if 1 <= v <= 6}
         result["n_lumbar_labels"] = len(uniq)
         result["has_l6"]          = 6 in uniq
+        result["has_anchor"]      = 11 in all_vals
 
         if not args.get("skip_qc"):
             ct_arr = np.asarray(ct_r.dataobj, dtype=np.float32)
