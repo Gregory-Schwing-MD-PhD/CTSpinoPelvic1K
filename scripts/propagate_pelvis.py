@@ -9,17 +9,22 @@ scan. Instead of asking a model to guess the pelvis, we warp the real GT from th
 pelvic-side scan onto the spine-side scan. It is the identical bone, so this is
 strictly higher-fidelity than a population model's completion.
 
-Deformable, done safely for bone
---------------------------------
-The transform is a global deformable (bone-masked rigid+affine init, then a
-coarse-grid B-spline), so the metric is driven by cortical bone, NOT soft tissue /
-bowel. A free-form warp CAN squash rigid bone to chase intensity, so we make that
-failure MEASURABLE
-rather than silent: we compute the warp's Jacobian determinant inside each warped
-bone (a rigid bone must not change local volume -> det J ~ 1) and reject the case
-to the model fallback when the field deforms bone (|det J - 1| large), when the
-warped bone does not sit on actual target bone-HU (a bad fit), or when the bone is
-FOV-truncated on the target scan (vol ratio far below 1 -> no data to propagate).
+Rigid, masked to the pelvis
+---------------------------
+The bony pelvis (sacrum + both hemipelves) moves prone<->supine essentially as ONE
+rigid unit — it rocks, tilts and translates, but does not deform (the SI joints
+give a degree or two at most). So the transform is a single RIGID transform (3
+rotations + 3 translations), which is the exact mathematical description of "the
+pelvis as one solid object." We mask the registration metric to the moving pelvic
+mask, so the optimizer aligns the PELVIS specifically and is not pulled off by the
+differently-articulated spine in the same scan.
+
+A rigid transform is volume-preserving by construction (det J == 1 everywhere), so
+there is no bone-squashing failure mode and no Jacobian gate is needed. A case
+still falls back to the model only on a real failure: the warped bone does not sit
+on target bone-HU (bad fit) or it is FOV-truncated (vol ratio far below 1 -> no
+data to propagate). The bone-HU overlap before vs after is reported so the rigid
+carry-over can be shown not to degrade placement quality.
 
 Where this runs
 ---------------
@@ -45,11 +50,10 @@ Output (placed-space, native spine-scan grid — a drop-in placed mask)
                              vs propagated bone-HU overlap, and the accept flag.
   propagate_qc.csv           the same metrics, flat, one row per case.
 
-Registration uses SimpleITK (already in the container — no rebuild): a bone-masked
-rigid+affine init followed by a COARSE-grid B-spline deformable. The coarse control
-grid is inherently stiff (it cannot introduce high-frequency intra-bone warping),
-and the Jacobian-determinant gate catches any residual bone deformation. The
-QC/gating math is pure numpy and is unit-tested without SimpleITK.
+Registration uses SimpleITK (already in the container — no rebuild): a GEOMETRY-
+initialized, multi-resolution RIGID registration with the metric masked to the
+moving pelvic mask. The QC/gating math is pure numpy and is unit-tested without
+SimpleITK.
 
 Usage
 -----
@@ -200,20 +204,29 @@ def _attach_reg_logging(method, token, tag, every: int):
 
 def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
                       moving_label_img, *, token: str = "",
-                      flow_sigma: float, bspline_iters: int, affine_iters: int,
+                      rigid_iters: int, dilate_vox: int = 5,
                       log_every: int = 10):
-    """Bone-masked rigid+affine init then COARSE B-spline deformable, moving CT
-    -> fixed CT; warp the moving label (NN) into the fixed grid. Returns
-    (warped_label_np, jacobian_np, fixed_ct_np, warped_label_sitk).
+    """GEOMETRY-init, multi-resolution RIGID registration with the metric masked to
+    the moving pelvis, moving CT -> fixed CT; warp the moving label (NN) into the
+    fixed grid. Returns (warped_label_np, jacobian_np, fixed_ct_np,
+    warped_label_sitk, moving_ct_np).
 
-    `flow_sigma` sets the B-spline control-point spacing in mm (LARGER = fewer
-    control points = stiffer); `bspline_iters` caps the deformable optimizer and
-    `affine_iters` the rigid optimizer. Defaults err stiff (test lowers iters)."""
+    The pelvis moves prone<->supine as one rigid unit, so one rigid transform (6
+    DOF) seats it exactly — no bending, hence no Jacobian gate (det J == 1). The
+    moving mask = the (dilated) pelvic GT keeps the optimizer on the pelvis and off
+    the differently-articulated spine. `rigid_iters` caps the optimizer."""
     import numpy as np
     import SimpleITK as sitk
 
     fixed = sitk.ReadImage(str(fixed_ct_path), sitk.sitkFloat32)
     moving = sitk.ReadImage(str(moving_ct_path), sitk.sitkFloat32)
+
+    # moving metric mask = the pelvic GT (dilated a few voxels for a margin), so
+    # the registration is driven by the pelvis, not the spine in the same scan.
+    mv_pelvis = sitk.BinaryThreshold(moving_label_img, 1, 32000, 1, 0)
+    if dilate_vox > 0:
+        mv_pelvis = sitk.BinaryDilate(mv_pelvis, [int(dilate_vox)] * 3)
+    mv_pelvis = sitk.Cast(mv_pelvis, sitk.sitkUInt8)
 
     # GEOMETRY init, NOT MOMENTS: CT air is -1000, so an intensity-weighted center
     # of mass is meaningless and leaves the scans non-overlapping ("all samples map
@@ -222,75 +235,36 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
         fixed, moving, sitk.Euler3DTransform(),
         sitk.CenteredTransformInitializerFilter.GEOMETRY)
 
-    # --- RIGID: full-image MI, wide multi-resolution pyramid (NO mask) --------
-    # Unmasked + heavily down-sampled top level gives a wide capture range so the
-    # partially-overlapping spine/pelvic scans lock together before any masking.
+    # --- RIGID, pelvis-masked, wide multi-resolution pyramid -------------------
+    # The heavily down-sampled top level (shrink 8 + 4mm smoothing) gives a wide
+    # capture range so the partially-overlapping spine/pelvic scans lock together.
     reg = sitk.ImageRegistrationMethod()
     reg.SetMetricAsMattesMutualInformation(numberOfHistogramBins=32)
+    reg.SetMetricMovingMask(mv_pelvis)
     reg.SetMetricSamplingStrategy(reg.RANDOM)
     reg.SetMetricSamplingPercentage(0.2, seed=SEED)
     reg.SetInterpolator(sitk.sitkLinear)
     reg.SetOptimizerAsRegularStepGradientDescent(
-        learningRate=2.0, minStep=1e-4, numberOfIterations=int(affine_iters))
+        learningRate=2.0, minStep=1e-4, numberOfIterations=int(rigid_iters))
     reg.SetOptimizerScalesFromPhysicalShift()
     reg.SetShrinkFactorsPerLevel([8, 4, 2, 1])
     reg.SetSmoothingSigmasPerLevel([4, 2, 1, 0])
     reg.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
     reg.SetInitialTransform(initial, inPlace=False)
     _attach_reg_logging(reg, token, "rigid", log_every)
-    log.info("  token=%s [rigid] starting (4 levels, <=%d its)...", token,
-             int(affine_iters))
-    rigid = reg.Execute(fixed, moving)
+    log.info("  token=%s [rigid] starting (pelvis-masked, 4 levels, <=%d its)...",
+             token, int(rigid_iters))
+    full = reg.Execute(fixed, moving)
     log.info("  token=%s [rigid] done: metric=%.5f stop='%s'", token,
              reg.GetMetricValue(), reg.GetOptimizerStopConditionDescription())
-
-    # --- COARSE B-spline deformable (stiff; bone-masked) ----------------------
-    # flow_sigma is the control-point SPACING in mm: LARGE => few control points
-    # => stiff (cannot warp within a bone). ~40-50mm gives ~5-8 points per axis.
-    fixed_bone = sitk.BinaryThreshold(fixed, BONE_HU, 1e6, 1, 0)
-    grid_mm = max(float(flow_sigma), 20.0)
-    size_mm = [sz * sp for sz, sp in zip(fixed.GetSize(), fixed.GetSpacing())]
-    mesh = [max(1, int(round(extent / grid_mm))) for extent in size_mm]
-    bspline = sitk.BSplineTransformInitializer(fixed, mesh, order=3)
-
-    rb = sitk.ImageRegistrationMethod()
-    rb.SetMetricAsMattesMutualInformation(numberOfHistogramBins=32)
-    rb.SetMetricFixedMask(fixed_bone)
-    rb.SetMetricSamplingStrategy(rb.RANDOM)
-    rb.SetMetricSamplingPercentage(0.2, seed=SEED)
-    rb.SetInterpolator(sitk.sitkLinear)
-    rb.SetMovingInitialTransform(rigid)
-    rb.SetInitialTransform(bspline, inPlace=True)
-    rb.SetOptimizerAsLBFGSB(gradientConvergenceTolerance=1e-5,
-                            numberOfIterations=int(bspline_iters),
-                            maximumNumberOfCorrections=5,
-                            maximumNumberOfFunctionEvaluations=2000)
-    rb.SetShrinkFactorsPerLevel([2, 1])
-    rb.SetSmoothingSigmasPerLevel([1, 0])
-    rb.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
-    _attach_reg_logging(rb, token, "bspline", log_every)
-    log.info("  token=%s [bspline] starting (mesh=%s, <=%d its)...", token,
-             mesh, int(bspline_iters))
-    rb.Execute(fixed, moving)
-    log.info("  token=%s [bspline] done: metric=%.5f stop='%s'", token,
-             rb.GetMetricValue(), rb.GetOptimizerStopConditionDescription())
-
-    full = sitk.CompositeTransform([rigid, bspline])
 
     # --- warp the label (NN) into the fixed grid -----------------------------
     warped_img = sitk.Resample(moving_label_img, fixed, full,
                                sitk.sitkNearestNeighbor, 0.0, sitk.sitkInt16)
     warped = sitk.GetArrayFromImage(warped_img).astype("int16")
 
-    # --- Jacobian determinant of the deformable part inside the fixed grid ----
-    try:
-        disp = sitk.TransformToDisplacementField(
-            full, sitk.sitkVectorFloat64, fixed.GetSize(), fixed.GetOrigin(),
-            fixed.GetSpacing(), fixed.GetDirection())
-        jac_img = sitk.DisplacementFieldJacobianDeterminant(disp)
-        jac = sitk.GetArrayFromImage(jac_img).astype("float32")
-    except Exception:                                           # noqa: BLE001
-        jac = np.ones(warped.shape, dtype="float32")
+    # rigid is exactly volume-preserving -> det J == 1 everywhere (no bone-warp).
+    jac = np.ones(warped.shape, dtype="float32")
 
     fixed_np = sitk.GetArrayFromImage(fixed).astype("float32")
     moving_np = sitk.GetArrayFromImage(moving).astype("float32")
@@ -530,10 +504,9 @@ def _worker(task: dict) -> dict:
 
 
 # test = fast end-to-end smoke (few cases, low iters); production = full quality.
-# flow_sigma is the B-spline control-point SPACING in mm (LARGE = stiff coarse grid).
 MODE_PRESETS = {
-    "test":       dict(limit=5,  affine_iters=100, bspline_iters=30,  flow_sigma=50.0),
-    "production": dict(limit=0,  affine_iters=250, bspline_iters=120, flow_sigma=40.0),
+    "test":       dict(limit=5, rigid_iters=200),
+    "production": dict(limit=0, rigid_iters=500),
 }
 
 
@@ -551,10 +524,10 @@ def main() -> int:
                     help="parallel registration processes (each sitk single-thread).")
     # explicit overrides (default None -> take the mode preset)
     ap.add_argument("--limit", type=int, default=None)
-    ap.add_argument("--flow_sigma", type=float, default=None,
-                    help="B-spline control-grid spacing (mm); larger = stiffer.")
-    ap.add_argument("--affine_iters", type=int, default=None)
-    ap.add_argument("--bspline_iters", type=int, default=None)
+    ap.add_argument("--rigid_iters", type=int, default=None,
+                    help="cap the rigid optimizer iterations (per level).")
+    ap.add_argument("--dilate_vox", type=int, default=5,
+                    help="dilate the moving pelvic metric mask by this many voxels.")
     ap.add_argument("--reg_log_every", type=int, default=10,
                     help="log the ITK optimizer metric every N iterations "
                          "(0 = only level changes + stage start/done).")
@@ -579,14 +552,11 @@ def main() -> int:
 
     preset = MODE_PRESETS[args.mode]
     limit = args.limit if args.limit is not None else preset["limit"]
-    flow_sigma = args.flow_sigma if args.flow_sigma is not None else preset["flow_sigma"]
-    affine_iters = (args.affine_iters if args.affine_iters is not None
-                    else preset["affine_iters"])
-    bspline_iters = (args.bspline_iters if args.bspline_iters is not None
-                     else preset["bspline_iters"])
-    log.info("mode=%s  limit=%s  flow_sigma=%s  affine_iters=%d  bspline_iters=%d  "
-             "seed=%d (deterministic)", args.mode, limit or "all", flow_sigma,
-             affine_iters, bspline_iters, SEED)
+    rigid_iters = (args.rigid_iters if args.rigid_iters is not None
+                   else preset["rigid_iters"])
+    log.info("mode=%s  limit=%s  rigid_iters=%d  dilate_vox=%d  seed=%d "
+             "(deterministic, pelvis-masked rigid)", args.mode, limit or "all",
+             rigid_iters, args.dilate_vox, SEED)
 
     data = json.loads(args.manifest.read_text())
     cases = data.get("cases", data) if isinstance(data, dict) else data
@@ -602,8 +572,8 @@ def main() -> int:
                     args.manifest)
         return 0
 
-    reg_kw = dict(flow_sigma=flow_sigma, affine_iters=affine_iters,
-                  bspline_iters=bspline_iters, log_every=args.reg_log_every)
+    reg_kw = dict(rigid_iters=rigid_iters, dilate_vox=args.dilate_vox,
+                  log_every=args.reg_log_every)
     gate_kw = dict(min_fit=args.min_fit, max_jac_bad=args.max_jac_bad,
                    jac_tol=args.jac_tol, vol_lo=args.vol_lo, vol_hi=args.vol_hi,
                    drop_target=args.drop_target, gate_on_drop=args.gate_on_drop)
@@ -712,10 +682,10 @@ def main() -> int:
             log.info("  AFTER per-bone %-10s: mean %5.1f  median %5.1f %%",
                      name, _mean(pb), _med(pb))
     log.info("=" * 72)
-    log.info("Deterministic (seed=%d), bone-masked deformable carry-over of the "
+    log.info("Deterministic (seed=%d), pelvis-masked RIGID carry-over of the "
              "patient's OWN radiologist pelvis onto the spine scan — the highest-"
              "fidelity pelvis the data allows, no model guess. Cases drop to the "
-             "model only on a genuine registration failure (off-bone / bone-warp / "
+             "model only on a genuine registration failure (off-bone / "
              "FOV-truncation)%s. wrote -> %s  (+%s)",
              SEED, (" or >%.1f pp bone-HU drop" % args.drop_target)
              if args.gate_on_drop else "", out_csv, manifest_out.name)
