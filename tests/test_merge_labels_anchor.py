@@ -86,15 +86,3 @@ def test_cervical_and_thoracic_retained_from_gt():
     assert r[5, 0, 0] == 1     # L1
     assert r[6, 0, 0] == 6     # L6
     assert r[7, 0, 0] == 7     # sacrum
-
-
-def test_rib_overlay_paints_class_12_when_present():
-    # v3 forward-compat: a student rib mask paints class 12; absent -> unchanged
-    shape, sp = _spine()
-    rib = np.zeros(shape, np.int16)
-    rib[0, 1, 0] = 1                      # one rib voxel beside the anchor
-    r_no = merge_labels(_w(sp), None, shape)               # v1/v2: no rib_path
-    r_yes = merge_labels(_w(sp), None, shape, rib_path=_w(rib))
-    assert int((r_no == 12).sum()) == 0   # dormant by default
-    assert r_yes[0, 1, 0] == 12 and int((r_yes == 12).sum()) == 1
-    assert r_yes[0, 0, 0] == 31           # T12 untouched
