@@ -106,6 +106,8 @@ PROP_LIMIT     ?= 0
 # viz-propagation (overlay propagated pelves on the spine CT)
 VIZ_OUT_DIR    ?=
 VIZ_TOKENS     ?=
+# qc-dashboard (dataset QC summary figures)
+DASH_OUT_DIR   ?=
 MODELS_CONFIG  ?=        # default: configs/pseudolabel_models.json
 DRY_RUN        ?= 0
 PREDICT_FUSED  ?= 0
@@ -502,6 +504,14 @@ viz-propagation: check-container  ## Overlay each propagated pelvis on its spine
 	@echo "Submitting viz-propagation (propagated pelvis overlays)"
 	sbatch $(DEP) --export=ALL,SIF_PATH=$(strip $(CONTAINER)),PROP_OUT_DIR=$(strip $(PROP_OUT_DIR)),NIFTI_DIR=$(strip $(NIFTI_DIR)),VIZ_OUT_DIR=$(strip $(VIZ_OUT_DIR)),VIZ_TOKENS=$(strip $(VIZ_TOKENS)) \
 	       slurm/viz_propagation.sh
+
+
+.PHONY: qc-dashboard
+qc-dashboard: check-container  ## Aggregate propagation/completion QC CSVs into dataset summary figures (placement drop, before/after, GT-vs-model Dice, completeness) (CPU)
+	@mkdir -p $(LOGS_DIR)
+	@echo "Submitting qc-dashboard (dataset QC figures)"
+	sbatch $(DEP) --export=ALL,SIF_PATH=$(strip $(CONTAINER)),PROP_OUT_DIR=$(strip $(PROP_OUT_DIR)),PSEUDO_OUT_DIR=$(strip $(PSEUDO_OUT_DIR)),DASH_OUT_DIR=$(strip $(DASH_OUT_DIR)) \
+	       slurm/qc_dashboard.sh
 
 
 .PHONY: pelvis-opposing-qc
