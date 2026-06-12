@@ -84,6 +84,7 @@ log = logging.getLogger("ctspinopelvic1k.pseudolabel")
 IGNORE_LABEL = 10
 CANONICAL_SPINE  = frozenset({1, 2, 3, 4, 5, 6})
 CANONICAL_PELVIS = frozenset({7, 8, 9})
+CLASS_NAMES_PELVIS = {7: "sacrum", 8: "left_hip", 9: "right_hip"}
 REGION_CANONICAL = {"spine": CANONICAL_SPINE, "pelvis": CANONICAL_PELVIS}
 
 # Which region a scoped record is MISSING (and therefore which canonical
@@ -135,6 +136,43 @@ def merge_pseudo_into_manual(manual, pred_canonical) -> "object":
     merged[take] = pred_canonical[take].astype(np.int16)
     merged[merged == IGNORE_LABEL] = 0
     return merged
+
+
+def complete_pelvis_with_model(manual_plus, pred_canon, ct=None, *,
+                               bone_hu: int = 200, complete: bool = True):
+    """The GT-first union: `manual_plus` already holds the spine GT + the propagated
+    REAL pelvis GT. Optionally COMPLETE the pelvis with the model wherever the GT
+    left background/ignore AND (if `ct` given) the voxel is actual bone (CT>bone_hu)
+    AND the model calls it a pelvis class. A manual voxel is NEVER overwritten — the
+    radiologist border / junction / LSTV semantics are preserved; the model only
+    fills the parts of the bone the (sometimes partial) annotation missed.
+
+    Returns (merged, metrics). metrics[c] per pelvis class: gt_vox, pred_vox, the
+    voxel Dice of the propagated GT vs the model (now that they are co-registered),
+    and added_vox = the model completion = how INCOMPLETE the GT was for that bone.
+    """
+    import numpy as np
+    merged = np.array(manual_plus, dtype=np.int16, copy=True)
+    fillable = (merged == 0) | (merged == IGNORE_LABEL)
+    take = fillable & (pred_canon > 0)
+    if ct is not None:
+        take = take & (np.asarray(ct) > bone_hu)        # complete only real bone
+    if complete:
+        merged[take] = pred_canon[take].astype(np.int16)
+    merged[merged == IGNORE_LABEL] = 0
+
+    metrics = {}
+    for c in sorted(CANONICAL_PELVIS):
+        gt_c = manual_plus == c
+        pr_c = pred_canon == c
+        gv, pv = int(gt_c.sum()), int(pr_c.sum())
+        inter = int((gt_c & pr_c).sum())
+        dice = (2.0 * inter / (gv + pv)) if (gv + pv) else float("nan")
+        added = int((take & (pred_canon == c)).sum())
+        completeness = gv / (gv + added) if (gv + added) else float("nan")
+        metrics[c] = {"gt_vox": gv, "pred_vox": pv, "dice": dice,
+                      "added_vox": added, "completeness": completeness}
+    return merged, metrics
 
 
 def updated_record(record: dict, filled_region: str, merged,
@@ -441,6 +479,15 @@ def main() -> int:
     ap.add_argument("--propagated_dir", type=Path, default=None,
                     help="dir of <spine_uid>_pelvic_propagated.nii.gz, used to "
                          "resolve a manifest path that isn't present at read time.")
+    ap.add_argument("--complete_propagated", dest="complete_propagated",
+                    action="store_true", default=True,
+                    help="(default) for propagated cases, also let the model COMPLETE "
+                         "the bone the (sometimes partial) GT missed — bone-HU, never "
+                         "overwriting GT. The GT-vs-model overlap + completion is "
+                         "always measured to propagated_completion_qc.csv.")
+    ap.add_argument("--no_complete_propagated", dest="complete_propagated",
+                    action="store_false",
+                    help="ship the propagated GT pelvis as-is (measure only).")
     args = ap.parse_args()
     _inc = args.include_configs or os.environ.get("INCLUDE_CONFIGS", "")
     include_configs = {c.strip() for c in _inc.split(",") if c.strip()} or None
@@ -568,9 +615,12 @@ def main() -> int:
 
     n_fill = n_oof = n_ens = n_pass = n_fail = n_resume = n_prop = 0
     new_records: List[dict] = []
-    scoped: List[tuple] = []         # (cid, rec, region, supplied, fold, predict_only=False)
-    fused_predict: List[tuple] = []  # (cid, rec, "(full)", (), fold, predict_only=True)
-    prop_items: List[tuple] = []     # (cid, rec, prop_path) — real-GT pelvis, no model
+    # tuple: (cid, rec, region, supplied, fold, predict_only, prop_path)
+    # prop_path != None -> the pelvis is laid down from the propagated REAL GT and
+    # the model only COMPLETES the bone the GT missed (GT-first union).
+    scoped: List[tuple] = []
+    fused_predict: List[tuple] = []
+    prop_metrics: List[dict] = []    # per-case GT-vs-model overlap + completion
 
     for rec in records:
         cfg_v = rec.get("config")
@@ -582,7 +632,8 @@ def main() -> int:
             if (args.predict_fused and cfg_v == "fused" and ct_rel and lbl_rel
                     and rec.get("ok", True)):
                 ffold = heldout.get(str(rec.get("token", "")))
-                fused_predict.append((_case_id(rec), rec, "(full)", (), ffold, True))
+                fused_predict.append((_case_id(rec), rec, "(full)", (), ffold,
+                                      True, None))
             _passthrough(rec); new_records.append(rec); n_pass += 1
             continue
         cid = _case_id(rec)
@@ -590,15 +641,15 @@ def main() -> int:
             _link_ct(ct_rel)                  # ensure CT present (idempotent)
             new_records.append(done[cid]); n_resume += 1
             continue
-        # Real-GT pelvis available for this separate-cohort spine scan? Use it
-        # instead of the model (pelvis-missing spine_only records only).
-        tok = str(rec.get("token", ""))
-        if cfg_v == "spine_only" and tok in prop_map:
-            prop_items.append((cid, rec, prop_map[tok]["path"]))
-            continue
         region = MISSING_REGION[cfg_v]
         fold = heldout.get(str(rec.get("token", "")))
-        scoped.append((cid, rec, region, REGION_CANONICAL[region], fold, False))
+        # Real-GT pelvis for this separate-cohort spine scan? Lay it down as GT and
+        # let the model only complete the rest (still predicted, for the union+QC).
+        tok = str(rec.get("token", ""))
+        prop_path = (prop_map[tok]["path"]
+                     if cfg_v == "spine_only" and tok in prop_map else None)
+        scoped.append((cid, rec, region, REGION_CANONICAL[region], fold, False,
+                       prop_path))
 
     if args.limit and len(scoped) > args.limit:
         for (_c, r, *_x) in scoped[args.limit:]:
@@ -610,39 +661,11 @@ def main() -> int:
     if fused_predict:
         log.info("predict_fused: %d fused case(s) will be PREDICTED (cached for "
                  "eval) but kept passthrough.", len(fused_predict))
-
-    # ---- real-GT propagated pelves: fill WITHOUT the model (no GPU) -----------
-    if prop_items:
-        log.info("propagated REAL-GT pelvis fill: %d separate-cohort spine scans "
-                 "(skipping the model for these)", len(prop_items))
-    for j, (cid, rec, prop_path) in enumerate(prop_items, 1):
-        tok = rec.get("token", "?")
-        try:
-            ref = nib.load(str(src / rec["label_file"]))
-            if not Path(prop_path).exists():
-                raise FileNotFoundError(prop_path)
-            prop_arr = _align_to(ref, nib.load(str(prop_path)))
-            # already canonical 7/8/9; restrict to the pelvis region defensively.
-            prop_canon = np.where(np.isin(prop_arr, list(CANONICAL_PELVIS)),
-                                  prop_arr, 0).astype(np.int16)
-            manual = np.asarray(ref.dataobj).astype(np.int16)
-            merged = merge_pseudo_into_manual(manual, prop_canon)
-            _link_ct(rec["ct_file"])
-            nib.save(nib.Nifti1Image(merged, ref.affine, ref.header),
-                     str(out / rec["label_file"]))
-            urec = updated_record(rec, "pelvis", merged, prov="manual_propagated")
-            (done_dir / f"{cid}.json").write_text(json.dumps(urec))
-            new_records.append(urec); n_prop += 1
-            log.info("[prop %d/%d] token=%s cid=%s: pelvis <- REAL GT (propagated, "
-                     "%d fg vox)", j, len(prop_items), tok, cid,
-                     int(((merged > 0) & (merged != IGNORE_LABEL)).sum()))
-        except Exception as exc:
-            # fall back to the model path for this case
-            region = MISSING_REGION[rec["config"]]
-            fold = heldout.get(str(rec.get("token", "")))
-            scoped.append((cid, rec, region, REGION_CANONICAL[region], fold, False))
-            log.warning("token=%s cid=%s: propagated pelvis unusable (%s) — "
-                        "falling back to model", tok, cid, exc)
+    n_prop_cases = sum(1 for it in scoped if it[6] is not None)
+    if n_prop_cases:
+        log.info("propagated REAL-GT pelves: %d (spine GT + propagated pelvis GT; "
+                 "model %s the bone the GT missed)", n_prop_cases,
+                 "completes" if args.complete_propagated else "measured-only on")
 
     # Group scoped + fused-predict cases by held-out fold → ONE predict per group
     # (model loaded once per group instead of once per case).
@@ -680,7 +703,7 @@ def main() -> int:
             nn, in_dir, pred_dir, folds, str(args.nnunet_results),
             args.device, args.npp, args.nps)
 
-        for (cid, rec, region, supplied, fold, predict_only) in items:
+        for (cid, rec, region, supplied, fold, predict_only, prop_path) in items:
             tok = rec.get("token", "?")
             pred_p = pred_dir / f"{cid}.nii.gz"
             if predict_only:
@@ -702,24 +725,82 @@ def main() -> int:
                 pred_canon = remap_prediction(
                     pred_arr, cfg["label_remap"], supplied)
                 manual = np.asarray(ref.dataobj).astype(np.int16)
-                merged = merge_pseudo_into_manual(manual, pred_canon)
+
+                if prop_path is not None and Path(prop_path).exists():
+                    # GT-first union: lay the propagated REAL pelvis GT onto the
+                    # manual, then let the model COMPLETE the bone it missed (never
+                    # overwriting GT). Records the GT-vs-model overlap + completion.
+                    prop_arr = _align_to(ref, nib.load(str(prop_path)))
+                    prop_canon = np.where(np.isin(prop_arr, list(CANONICAL_PELVIS)),
+                                          prop_arr, 0).astype(np.int16)
+                    manual_plus = merge_pseudo_into_manual(manual, prop_canon)
+                    ct_arr = np.asarray(nib.load(str(src / rec["ct_file"])).dataobj)
+                    merged, mtr = complete_pelvis_with_model(
+                        manual_plus, pred_canon, ct_arr,
+                        complete=args.complete_propagated)
+                    prov = ("manual_propagated_completed"
+                            if args.complete_propagated else "manual_propagated")
+                    row = {"token": tok, "cid": cid}
+                    for c in sorted(CANONICAL_PELVIS):
+                        m = mtr[c]
+                        row[f"{CLASS_NAMES_PELVIS[c]}_dice"] = round(m["dice"], 4) \
+                            if m["dice"] == m["dice"] else ""
+                        row[f"{CLASS_NAMES_PELVIS[c]}_added_vox"] = m["added_vox"]
+                        row[f"{CLASS_NAMES_PELVIS[c]}_completeness"] = \
+                            round(m["completeness"], 4) \
+                            if m["completeness"] == m["completeness"] else ""
+                    prop_metrics.append(row)
+                    n_prop += 1
+                    log.info("token=%s cid=%s: pelvis <- REAL GT + model-complete "
+                             "(added %d vox, sacrum dice=%.3f) [%s]", tok, cid,
+                             sum(mtr[c]["added_vox"] for c in CANONICAL_PELVIS),
+                             mtr[7]["dice"] if mtr[7]["dice"] == mtr[7]["dice"]
+                             else float("nan"), key)
+                else:
+                    merged = merge_pseudo_into_manual(manual, pred_canon)
+                    prov = "pseudo"
+
                 _link_ct(rec["ct_file"])                  # CT into v2 (one copy)
                 nib.save(nib.Nifti1Image(merged, ref.affine, ref.header),
                          str(out / rec["label_file"]))    # merged label
-                urec = updated_record(rec, region, merged)
+                urec = updated_record(rec, region, merged, prov=prov)
                 (done_dir / f"{cid}.json").write_text(json.dumps(urec))
                 new_records.append(urec)
-                n_fill += 1
-                n_oof += int(fold is not None)
-                n_ens += int(fold is None)
-                log.info("token=%s cid=%s: filled %s (%d fg vox)  "
-                         "[group %s done %d/%d]", tok, cid, region,
-                         int(((merged > 0) & (merged != IGNORE_LABEL)).sum()),
-                         key, n_fill, len(scoped))
+                n_fill += int(prop_path is None)
+                n_oof += int(fold is not None and prop_path is None)
+                n_ens += int(fold is None and prop_path is None)
+                if prop_path is None:
+                    log.info("token=%s cid=%s: filled %s (%d fg vox)  "
+                             "[group %s done %d/%d]", tok, cid, region,
+                             int(((merged > 0) & (merged != IGNORE_LABEL)).sum()),
+                             key, n_fill, len(scoped))
             except Exception as exc:
                 _passthrough(rec); new_records.append(rec); n_fail += 1
                 log.warning("token=%s cid=%s: merge failed (%s) — "
                             "passthrough", tok, cid, exc)
+
+    # propagated GT-vs-model overlap + completion (incompleteness), per case.
+    if prop_metrics:
+        import csv as _csv
+        cols = ["token", "cid"]
+        for c in sorted(CANONICAL_PELVIS):
+            nm = CLASS_NAMES_PELVIS[c]
+            cols += [f"{nm}_dice", f"{nm}_added_vox", f"{nm}_completeness"]
+        qc_csv = out / "propagated_completion_qc.csv"
+        with open(qc_csv, "w", newline="") as f:
+            w = _csv.DictWriter(f, fieldnames=cols, extrasaction="ignore", restval="")
+            w.writeheader(); w.writerows(prop_metrics)
+        def _avg(key):
+            vals = [r[key] for r in prop_metrics
+                    if isinstance(r.get(key), (int, float))]
+            return sum(vals) / len(vals) if vals else float("nan")
+        log.info("propagated completion QC -> %s", qc_csv)
+        for c in sorted(CANONICAL_PELVIS):
+            nm = CLASS_NAMES_PELVIS[c]
+            log.info("  %-10s mean GT-vs-model Dice=%.3f  mean completeness=%.3f  "
+                     "total added(completed) vox=%d", nm, _avg(f"{nm}_dice"),
+                     _avg(f"{nm}_completeness"),
+                     sum(r.get(f"{nm}_added_vox", 0) or 0 for r in prop_metrics))
 
     log.info("writing v2 manifest (%d records) ...", len(new_records))
     sys.path.insert(0, str(Path(__file__).parent))
@@ -735,8 +816,9 @@ def main() -> int:
     log.info("pseudolabel v2 tree -> %s", out)
     log.info("  pseudo-filled (new)  : %d  (out-of-fold=%d  ensemble=%d)",
              n_fill, n_oof, n_ens)
-    log.info("  REAL-GT propagated   : %d  (pelvis carried across acquisitions, "
-             "no model)", n_prop)
+    log.info("  REAL-GT propagated   : %d  (spine GT + propagated pelvis GT; model "
+             "%s the bone the GT missed)", n_prop,
+             "completed" if args.complete_propagated else "measured-only on")
     log.info("  resumed (prior run)  : %d", n_resume)
     log.info("  passthrough          : %d", n_pass)
     log.info("  failed (passthrough) : %d", n_fail)
