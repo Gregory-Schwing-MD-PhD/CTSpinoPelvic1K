@@ -211,7 +211,10 @@ if [[ -f "${PROPAGATED_MANIFEST}" ]]; then
     C_PROP_MAN="/data/$(realpath --relative-to="${DATA_DIR}" "${PROPAGATED_MANIFEST}")"
     C_PROP_DIR="/data/$(realpath --relative-to="${DATA_DIR}" "${PROPAGATED_DIR}")"
     EXTRA_ARGS="${EXTRA_ARGS} --propagated_manifest ${C_PROP_MAN} --propagated_dir ${C_PROP_DIR}"
-    echo "Using propagated REAL-GT pelves: ${PROPAGATED_MANIFEST}"
+    # COMPLETE_PROPAGATED=0 ships the propagated GT as-is (still measured); default
+    # (1) lets the model complete the bone the GT missed (GT-first union).
+    [[ "${COMPLETE_PROPAGATED:-1}" == "0" ]] && EXTRA_ARGS="${EXTRA_ARGS} --no_complete_propagated"
+    echo "Using propagated REAL-GT pelves: ${PROPAGATED_MANIFEST}  (complete=${COMPLETE_PROPAGATED:-1})"
 else
     echo "NOTE: no propagated manifest at ${PROPAGATED_MANIFEST} — all pelves via model"
 fi
