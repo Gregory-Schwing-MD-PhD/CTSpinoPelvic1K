@@ -50,10 +50,15 @@ spine and pelvic labels target different prone/supine acquisitions
    for `spine_only`, with quality reported as held-out Dice on the
    `pelvic_native` scans.
 
-Versions: **v1** = the full release (all configs), with the T12 anchor class ·
-**v2** = fused + spine_only (the LSTV-segmenter artifact; `pelvic_native` held
-out for pelvis validation) · **v3** = adds the student-annotated rib (class 12,
-reserved now).
+Versions:
+- **v1** — the **partial-annotation** artifact (all configs, `ignore` protocol),
+  i.e. **the input used to train the pseudolabeller**, now carrying the T12
+  anchor. `pelvic_native` keeps `ignore` on the spine (never a faked label).
+- **v2** — the **clean, densely-labelled** release: CTSpine1K spine ground truth +
+  pelvis (real where fused, pseudolabelled on `spine_only`), `fused + spine_only`
+  only. `pelvic_native` is dropped (held out for pelvis validation). This is the
+  LSTV-segmenter training artifact, with no `ignore` voxels on the shipped cases.
+- **v3** *(roadmap)* — adds the student-annotated rib (class 12, reserved now).
 
 > **Reviewing segmentations?** If you were asked to help correct the AI-drafted
 > labels, see **[docs/REVIEW.md](docs/REVIEW.md)** — account/token setup,

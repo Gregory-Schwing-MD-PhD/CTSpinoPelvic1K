@@ -386,7 +386,16 @@ def main() -> int:
     ap.add_argument("--dry_run", action="store_true",
                     help="Plan only: copy v1→v2 verbatim, log the per-case "
                          "held-out fold, run no download/inference.")
+    ap.add_argument("--include_configs", default=None,
+                    help="comma-separated configs to KEEP in the v2 tree (e.g. "
+                         "'fused,spine_only', which drops pelvic_native). This is "
+                         "where v2 diverges from the all-configs v1 base — we "
+                         "filter HERE, not by re-exporting a filtered base. Env "
+                         "INCLUDE_CONFIGS honoured if the flag is absent; empty "
+                         "= keep all configs.")
     args = ap.parse_args()
+    _inc = args.include_configs or os.environ.get("INCLUDE_CONFIGS", "")
+    include_configs = {c.strip() for c in _inc.split(",") if c.strip()} or None
 
     # Line-buffer stdout/stderr so logs stream live through Singularity /
     # SLURM redirection instead of appearing only at exit.
@@ -420,6 +429,13 @@ def main() -> int:
 
     records = _load_manifest(man_path)
     total = len(records)
+    if include_configs:
+        kept = [r for r in records if r.get("config") in include_configs]
+        log.info("include_configs %s: %d -> %d records (dropped %d, e.g. "
+                 "pelvic_native — excluded from the v2 tree)",
+                 sorted(include_configs), total, len(kept), total - len(kept))
+        records = kept
+        total = len(records)
     in_scope = [r for r in records
                 if r.get("ok", True) and r.get("config") in SCOPE_CONFIGS
                 and r.get("ct_file") and r.get("label_file")]

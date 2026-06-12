@@ -198,6 +198,10 @@ fi
 [[ "${SKIP_DOWNLOAD}" == "1" ]] && EXTRA_ARGS="${EXTRA_ARGS} --skip_download"
 [[ "${PSEUDO_LIMIT}" != "0" ]] && EXTRA_ARGS="${EXTRA_ARGS} --limit ${PSEUDO_LIMIT}"
 [[ "${PREDICT_FUSED}" == "1" ]] && EXTRA_ARGS="${EXTRA_ARGS} --predict_fused"
+# INCLUDE_CONFIGS=fused,spine_only keeps only those in the v2 tree (drops
+# pelvic_native). This is where v2 diverges from the all-configs v1 base — the
+# filter lives here, NOT in a re-export. Passed as one argv value (comma safe).
+[[ -n "${INCLUDE_CONFIGS:-}" ]] && EXTRA_ARGS="${EXTRA_ARGS} --include_configs ${INCLUDE_CONFIGS}"
 
 PPATH="/workspace/scripts:/workspace/src:/workspace"
 # nnUNet_results is bound at the SAME host path so the container writes

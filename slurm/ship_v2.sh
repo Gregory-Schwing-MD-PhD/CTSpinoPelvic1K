@@ -47,26 +47,38 @@ MANIFEST_FILE="${MANIFEST_FILE:-placed_manifest_orientation_fixed.json}"
     echo "ERROR: nnUNet container missing at ${NNUNET_SIF} (needed unless DRY_RUN=1)."
     echo "       set NNUNET_SIF=/path/to/ctspinopelvic1k-ts.sif"; exit 1; }
 
-# Guards: force fresh base labels (anchor) AND fresh v2 labels (so the pelvis
-# fill is re-applied onto the anchored base). NEVER touch *_work — those are the
-# cached preds the pseudolabel step reuses to avoid a GPU inference run.
-echo "[ship_v2] clearing stale base labels  ${HF_EXPORT_DIR}/{labels,qc,manifest.json}"
-rm -rf "${HF_EXPORT_DIR}"/labels "${HF_EXPORT_DIR}"/qc "${HF_EXPORT_DIR}"/manifest.json
+# Guards: force fresh v2 labels (so the pelvis fill is re-applied onto the
+# anchored base) and, unless SKIP_BASE=1, fresh base labels too. NEVER touch
+# *_work — those are the cached preds the pseudolabel step reuses (no GPU run).
+SKIP_BASE="${SKIP_BASE:-0}"
 echo "[ship_v2] clearing stale v2 labels    ${PSEUDO_OUT_DIR}/{labels,qc,manifest.json}  (KEEPING ${PSEUDO_OUT_DIR}_work)"
 rm -rf "${PSEUDO_OUT_DIR}"/labels "${PSEUDO_OUT_DIR}"/qc "${PSEUDO_OUT_DIR}"/manifest.json
 
-# (1) export the filtered base (fused + spine_only) WITH the anchor, NO push.
-# INCLUDE_CONFIGS holds a comma, which sbatch --export would mis-split — so put
-# it in the ENVIRONMENT and let --export=ALL carry it through intact.
-export INCLUDE_CONFIGS="fused,spine_only"
-echo "[ship_v2] (1/3) export filtered base (${INCLUDE_CONFIGS} + anchor) [CPU]"
-J1=$(sbatch --parsable \
-  --export=ALL,SIF_PATH=${SIF_PATH},PUSH=0,SKIP_EXPORT=0,SKIP_QC=${SKIP_QC},NO_PIR=${NO_PIR},HF_REPO_ID=,HF_EXPORT_DIR=${HF_EXPORT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
-  slurm/export_dataset.sh)
+# (1) Build the v1 BASE = ALL configs + anchor (NOT filtered). v2 is derived
+# from this base; the fused+spine_only filter is applied at the pseudolabel step
+# (2), not by re-exporting a filtered tree. Skip with SKIP_BASE=1 if you just ran
+# ship_v1 and data/hf_export already holds the anchored all-configs base.
+DEP=""
+if [[ "${SKIP_BASE}" == "1" ]]; then
+    echo "[ship_v2] (1/3) SKIP_BASE=1 — reusing existing all-configs base at ${HF_EXPORT_DIR}"
+    [[ -f "${HF_EXPORT_DIR}/manifest.json" ]] || { echo "ERROR: no base at ${HF_EXPORT_DIR}; run ship_v1 first or unset SKIP_BASE"; exit 1; }
+else
+    echo "[ship_v2] clearing stale base labels  ${HF_EXPORT_DIR}/{labels,qc,manifest.json}"
+    rm -rf "${HF_EXPORT_DIR}"/labels "${HF_EXPORT_DIR}"/qc "${HF_EXPORT_DIR}"/manifest.json
+    echo "[ship_v2] (1/3) export the v1 base (ALL configs + anchor) [CPU]"
+    J1=$(sbatch --parsable \
+      --export=ALL,SIF_PATH=${SIF_PATH},PUSH=0,SKIP_EXPORT=0,SKIP_QC=${SKIP_QC},NO_PIR=${NO_PIR},HF_REPO_ID=,HF_EXPORT_DIR=${HF_EXPORT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
+      slurm/export_dataset.sh)
+    DEP="--dependency=afterok:${J1}"
+fi
 
-# (2) pseudolabel — fill the spine_only pelves, reusing cached preds [GPU].
-echo "[ship_v2] (2/3) pseudolabel (reuse cached preds, DRY_RUN=${DRY_RUN}) [GPU]  after ${J1}"
-J2=$(sbatch --parsable --dependency=afterok:${J1} \
+# Now set the filter — AFTER the base export was submitted, so the base stays
+# ALL configs and only the pseudolabel step (which snapshots this env) filters.
+export INCLUDE_CONFIGS="fused,spine_only"
+
+# (2) pseudolabel — fill spine_only pelves, reuse cached preds, DROP pelvic_native [GPU].
+echo "[ship_v2] (2/3) pseudolabel: fill pelves + keep ${INCLUDE_CONFIGS} (DRY_RUN=${DRY_RUN}) [GPU]  ${DEP:-no dep}"
+J2=$(sbatch --parsable ${DEP} \
   --export=ALL,SIF_PATH=${SIF_PATH},NNUNET_SIF=${NNUNET_SIF},NNUNET_RESULTS=${NNUNET_RESULTS},HF_EXPORT_DIR=${HF_EXPORT_DIR},PSEUDO_OUT_DIR=${PSEUDO_OUT_DIR},MODELS_CONFIG=${MODELS_CONFIG},DRY_RUN=${DRY_RUN},HF_TOKEN=${HF_TOKEN} \
   slurm/pseudolabel.sh)
 
@@ -76,7 +88,7 @@ J3=$(sbatch --parsable --dependency=afterok:${J2} \
   --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=1,WIPE_REMOTE=0,HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v2,HF_EXPORT_DIR=${PSEUDO_OUT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
   slurm/export_dataset.sh)
 
-echo "[ship_v2] submitted chain:  export ${J1}  ->  pseudolabel ${J2}  ->  push ${J3}"
-echo "[ship_v2]   monitor:  tail -f logs/*${J1}* logs/*${J2}* logs/*${J3}*"
-echo "[ship_v2]   NOTE: step 1 rebuilds data/hf_export as fused+spine_only only."
-echo "[ship_v2]         Run ship_v1.sh (or eval_vs_manual) BEFORE this if you need the all-configs base."
+echo "[ship_v2] submitted chain:  base ${J1:-<skipped>}  ->  pseudolabel ${J2}  ->  push ${J3}"
+echo "[ship_v2]   monitor:  tail -f logs/*${J1:-}* logs/*${J2}* logs/*${J3}*"
+echo "[ship_v2]   the base (data/hf_export) stays ALL configs = the v1 base;"
+echo "[ship_v2]   v2 is derived by DROPPING pelvic_native at the pseudolabel step."

@@ -119,13 +119,16 @@ forward pass, on exactly the patients where the stakes are highest. See
 
 ## Versions
 
-- **v1** — the full release (all configs), now including the T12 anchor class
-  (11). The only change from the original export is that class 11 is no longer
-  discarded.
-- **v2** — the LSTV-segmenter training artifact: **fused + spine_only** only
-  (every case has a radiologist spine). `pelvic_native` (real pelvis, *pseudo*
-  spine) is **excluded from the ship** and held back as the **pelvis-pseudolabel
-  validation set**.
+- **v1** — the **partial-annotation** artifact (all configs, `ignore` protocol):
+  **the input used to train the pseudolabeller**, now carrying the T12 anchor.
+  `pelvic_native` keeps `ignore` on the un-traced spine (an honest absence, never
+  a faked label). The only change from the original export is that class 11 (the
+  anchor) is no longer discarded.
+- **v2** — the **clean, densely-labelled** release: CTSpine1K spine ground truth +
+  pelvis (real where fused, pseudolabelled on `spine_only`), **fused + spine_only**
+  only. `pelvic_native` (real pelvis, *pseudo* spine) is dropped from the ship and
+  held back as the **pelvis-pseudolabel validation set**. No `ignore` voxels
+  remain on the shipped cases — this is the LSTV-segmenter training artifact.
 - **v3** *(roadmap)* — adds the student-annotated **rib** (class 12) of the anchor
   vertebra. The scheme is already reserved for it.
 
