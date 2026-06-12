@@ -30,6 +30,9 @@ _RGB: Dict[int, Tuple[int, int, int]] = {
     1: (0, 0, 128), 2: (0, 0, 255), 3: (0, 128, 255),
     4: (21, 255, 226), 5: (123, 255, 123), 6: (226, 255, 21),
     7: (255, 151, 0), 8: (255, 33, 0), 9: (128, 0, 0),
+    # v4 rib-anchor classes — off the JET ramp so the anchor + rib pop against
+    # the vertebra/pelvis colours: last_rib_vertebra magenta, rib white.
+    11: (255, 0, 255), 12: (255, 255, 255),
 }
 
 
@@ -37,12 +40,14 @@ def descriptor_text() -> str:
     lines = [
         "################################################",
         "# ITK-SnAP Label Description File",
-        "# CTSpinoPelvic1K canonical 10-class scheme — DO NOT renumber.",
+        "# CTSpinoPelvic1K canonical scheme — DO NOT renumber.",
         '# Fields: IDX  -R-  -G-  -B-  -A--  VIS MSH  "LABEL"',
         "################################################",
         '    0     0    0    0        0  0  0    "Clear Label"',
     ]
-    for idx in range(1, 10):
+    # Drive the palette off CLASS_NAMES so the v4 rib-anchor classes (11/12)
+    # appear automatically; skip 0 (Clear, above) and IGNORE (added below).
+    for idx in sorted(k for k in schema.CLASS_NAMES if k not in (0,)):
         r, g, b = _RGB[idx]
         name = schema.CLASS_NAMES[idx]
         lines.append(f'{idx:5d} {r:5d} {g:4d} {b:4d}'

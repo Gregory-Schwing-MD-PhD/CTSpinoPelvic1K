@@ -25,16 +25,22 @@ from typing import Dict, List, Optional
 
 SCHEMA_VERSION = 1
 
-# Canonical 10-class scheme (mirrors export_hf.CLASS_NAMES; IGNORE=10).
+# Canonical scheme (mirrors export_hf.CLASS_NAMES; IGNORE=10). Classes 11/12
+# are the v4 rib-anchor additions (the counting anchor — see
+# docs/RIB_ANCHOR_RATIONALE.md); they sit ABOVE IGNORE so adding them never
+# renumbers the 0–9 scheme the in-flight LSTV review uses.
 CLASS_NAMES = {
     0: "background", 1: "L1", 2: "L2", 3: "L3", 4: "L4", 5: "L5",
     6: "L6", 7: "sacrum", 8: "left_hip", 9: "right_hip",
+    11: "last_rib_vertebra", 12: "rib",
 }
 IGNORE_LABEL = 10
 SPINE_CLASSES = frozenset({1, 2, 3, 4, 5, 6})
 PELVIC_CLASSES = frozenset({7, 8, 9})
+RIB_ANCHOR_CLASSES = frozenset({11, 12})
 REGION_CLASSES: Dict[str, frozenset] = {"spine": SPINE_CLASSES,
-                                        "pelvis": PELVIC_CLASSES}
+                                        "pelvis": PELVIC_CLASSES,
+                                        "rib_anchor": RIB_ANCHOR_CLASSES}
 REGIONS = ("spine", "pelvis")
 
 PROV_VALUES = ("manual", "pseudo", "pseudo_corrected", None)
