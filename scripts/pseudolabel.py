@@ -137,23 +137,61 @@ def merge_pseudo_into_manual(manual, pred_canonical) -> "object":
     return merged
 
 
-def updated_record(record: dict, filled_region: str, merged) -> dict:
+def updated_record(record: dict, filled_region: str, merged,
+                   prov: str = "pseudo") -> dict:
     """Return record with provenance + voxel stats updated for the v2 tree.
 
-    Only the FILLED region's provenance flips to "pseudo"; the manually
-    annotated region's prov is left exactly as-is (never downgraded).
+    Only the FILLED region's provenance flips to `prov`; the manually annotated
+    region's prov is left exactly as-is (never downgraded). `prov` is "pseudo" for
+    a model fill, "manual_propagated" when the region was filled by carrying the
+    patient's OWN radiologist GT across acquisitions (propagate_pelvis) — REAL GT,
+    not a model guess.
     """
     import numpy as np
     r = dict(record)
     if filled_region == "spine":
-        r["prov_spine"] = "pseudo"
+        r["prov_spine"] = prov
     elif filled_region == "pelvis":
-        r["prov_pelvis"] = "pseudo"
+        r["prov_pelvis"] = prov
     r["partial_annotation"] = bool((merged == IGNORE_LABEL).any())
     r["n_voxels_ignore"] = int((merged == IGNORE_LABEL).sum())
     r["n_voxels_fg"] = int(((merged > 0) & (merged != IGNORE_LABEL)).sum())
     r["n_voxels_bg"] = int((merged == 0).sum())
     return r
+
+
+def load_propagated_map(manifest_path, propagated_dir=None) -> Dict[str, dict]:
+    """token -> {path, spine_uid} for ACCEPTED propagated pelves (real GT carried
+    across acquisitions by propagate_pelvis). Only accepted cases are returned, so
+    a rejected/failed registration transparently falls back to the model.
+
+    Resolves the label path from the manifest's `placed` (pelvic sub-dict), falling
+    back to <propagated_dir>/<spine_uid>_pelvic_propagated.nii.gz if that path is
+    not present at read time (paths in the manifest are whatever the run wrote)."""
+    from pathlib import Path as _P
+    out: Dict[str, dict] = {}
+    if not manifest_path:
+        return out
+    p = _P(manifest_path)
+    if not p.exists():
+        log.warning("propagated manifest %s not found — all pelves via model", p)
+        return out
+    data = json.loads(p.read_text())
+    for c in data.get("cases", []):
+        if int((c.get("propagation") or {}).get("accept", 0) or 0) != 1:
+            continue
+        tok = str(c.get("patient_token", ""))
+        pv = c.get("pelvic", {}) or {}
+        suid = pv.get("series_uid", "")
+        cand = pv.get("placed", "")
+        path = _P(cand) if cand else None
+        if (path is None or not path.exists()) and propagated_dir and suid:
+            alt = _P(propagated_dir) / f"{suid}_pelvic_propagated.nii.gz"
+            path = alt
+        if tok and path is not None:
+            out[tok] = {"path": str(path), "spine_uid": suid}
+    log.info("propagated pelves (accepted, real GT): %d tokens", len(out))
+    return out
 
 
 def build_heldout_fold_map(splits: dict) -> Dict[str, int]:
@@ -393,9 +431,22 @@ def main() -> int:
                          "filter HERE, not by re-exporting a filtered base. Env "
                          "INCLUDE_CONFIGS honoured if the flag is absent; empty "
                          "= keep all configs.")
+    ap.add_argument("--propagated_manifest", type=Path, default=None,
+                    help="placed_manifest_propagated.json from propagate_pelvis. "
+                         "For its ACCEPTED tokens, the pelvis on the spine-side "
+                         "(spine_only) record is filled with the propagated REAL "
+                         "GT instead of the model (prov_pelvis=manual_propagated); "
+                         "rejected/absent tokens fall back to the model. Env "
+                         "PROPAGATED_MANIFEST honoured if the flag is absent.")
+    ap.add_argument("--propagated_dir", type=Path, default=None,
+                    help="dir of <spine_uid>_pelvic_propagated.nii.gz, used to "
+                         "resolve a manifest path that isn't present at read time.")
     args = ap.parse_args()
     _inc = args.include_configs or os.environ.get("INCLUDE_CONFIGS", "")
     include_configs = {c.strip() for c in _inc.split(",") if c.strip()} or None
+    _prop_man = args.propagated_manifest or (
+        Path(os.environ["PROPAGATED_MANIFEST"])
+        if os.environ.get("PROPAGATED_MANIFEST") else None)
 
     # Line-buffer stdout/stderr so logs stream live through Singularity /
     # SLURM redirection instead of appearing only at exit.
@@ -426,6 +477,10 @@ def main() -> int:
     all_folds = sorted(set(heldout.values())) or [0, 1, 2, 3, 4]
     log.info("Out-of-fold map: %d tokens across folds %s",
              len(heldout), all_folds)
+
+    # Real-GT pelves carried across acquisitions (propagate_pelvis): for these
+    # ACCEPTED tokens the spine-side pelvis is REAL GT, so they skip the model.
+    prop_map = load_propagated_map(_prop_man, args.propagated_dir)
 
     records = _load_manifest(man_path)
     total = len(records)
@@ -511,10 +566,11 @@ def main() -> int:
     if done:
         log.info("resume: %d cases already completed (markers)", len(done))
 
-    n_fill = n_oof = n_ens = n_pass = n_fail = n_resume = 0
+    n_fill = n_oof = n_ens = n_pass = n_fail = n_resume = n_prop = 0
     new_records: List[dict] = []
     scoped: List[tuple] = []         # (cid, rec, region, supplied, fold, predict_only=False)
     fused_predict: List[tuple] = []  # (cid, rec, "(full)", (), fold, predict_only=True)
+    prop_items: List[tuple] = []     # (cid, rec, prop_path) — real-GT pelvis, no model
 
     for rec in records:
         cfg_v = rec.get("config")
@@ -534,6 +590,12 @@ def main() -> int:
             _link_ct(ct_rel)                  # ensure CT present (idempotent)
             new_records.append(done[cid]); n_resume += 1
             continue
+        # Real-GT pelvis available for this separate-cohort spine scan? Use it
+        # instead of the model (pelvis-missing spine_only records only).
+        tok = str(rec.get("token", ""))
+        if cfg_v == "spine_only" and tok in prop_map:
+            prop_items.append((cid, rec, prop_map[tok]["path"]))
+            continue
         region = MISSING_REGION[cfg_v]
         fold = heldout.get(str(rec.get("token", "")))
         scoped.append((cid, rec, region, REGION_CANONICAL[region], fold, False))
@@ -548,6 +610,39 @@ def main() -> int:
     if fused_predict:
         log.info("predict_fused: %d fused case(s) will be PREDICTED (cached for "
                  "eval) but kept passthrough.", len(fused_predict))
+
+    # ---- real-GT propagated pelves: fill WITHOUT the model (no GPU) -----------
+    if prop_items:
+        log.info("propagated REAL-GT pelvis fill: %d separate-cohort spine scans "
+                 "(skipping the model for these)", len(prop_items))
+    for j, (cid, rec, prop_path) in enumerate(prop_items, 1):
+        tok = rec.get("token", "?")
+        try:
+            ref = nib.load(str(src / rec["label_file"]))
+            if not Path(prop_path).exists():
+                raise FileNotFoundError(prop_path)
+            prop_arr = _align_to(ref, nib.load(str(prop_path)))
+            # already canonical 7/8/9; restrict to the pelvis region defensively.
+            prop_canon = np.where(np.isin(prop_arr, list(CANONICAL_PELVIS)),
+                                  prop_arr, 0).astype(np.int16)
+            manual = np.asarray(ref.dataobj).astype(np.int16)
+            merged = merge_pseudo_into_manual(manual, prop_canon)
+            _link_ct(rec["ct_file"])
+            nib.save(nib.Nifti1Image(merged, ref.affine, ref.header),
+                     str(out / rec["label_file"]))
+            urec = updated_record(rec, "pelvis", merged, prov="manual_propagated")
+            (done_dir / f"{cid}.json").write_text(json.dumps(urec))
+            new_records.append(urec); n_prop += 1
+            log.info("[prop %d/%d] token=%s cid=%s: pelvis <- REAL GT (propagated, "
+                     "%d fg vox)", j, len(prop_items), tok, cid,
+                     int(((merged > 0) & (merged != IGNORE_LABEL)).sum()))
+        except Exception as exc:
+            # fall back to the model path for this case
+            region = MISSING_REGION[rec["config"]]
+            fold = heldout.get(str(rec.get("token", "")))
+            scoped.append((cid, rec, region, REGION_CANONICAL[region], fold, False))
+            log.warning("token=%s cid=%s: propagated pelvis unusable (%s) — "
+                        "falling back to model", tok, cid, exc)
 
     # Group scoped + fused-predict cases by held-out fold → ONE predict per group
     # (model loaded once per group instead of once per case).
@@ -640,6 +735,8 @@ def main() -> int:
     log.info("pseudolabel v2 tree -> %s", out)
     log.info("  pseudo-filled (new)  : %d  (out-of-fold=%d  ensemble=%d)",
              n_fill, n_oof, n_ens)
+    log.info("  REAL-GT propagated   : %d  (pelvis carried across acquisitions, "
+             "no model)", n_prop)
     log.info("  resumed (prior run)  : %d", n_resume)
     log.info("  passthrough          : %d", n_pass)
     log.info("  failed (passthrough) : %d", n_fail)

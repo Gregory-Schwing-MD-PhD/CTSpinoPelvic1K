@@ -181,52 +181,46 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
     -> fixed CT; warp the moving label (NN) into the fixed grid. Returns
     (warped_label_np, jacobian_np, fixed_ct_np, warped_label_sitk).
 
-    `flow_sigma` sets the B-spline control-grid spacing in mm (larger = coarser =
-    stiffer); `bspline_iters`/`affine_iters` cap the deformable/affine optimizer
-    iterations. Defaults err stiff (test mode lowers iters for a fast smoke)."""
+    `flow_sigma` sets the B-spline control-point spacing in mm (LARGER = fewer
+    control points = stiffer); `bspline_iters` caps the deformable optimizer and
+    `affine_iters` the rigid optimizer. Defaults err stiff (test lowers iters)."""
     import numpy as np
     import SimpleITK as sitk
 
     fixed = sitk.ReadImage(str(fixed_ct_path), sitk.sitkFloat32)
     moving = sitk.ReadImage(str(moving_ct_path), sitk.sitkFloat32)
-    fixed_bone = sitk.BinaryThreshold(fixed, BONE_HU, 1e6, 1, 0)
 
-    # --- rigid + affine initialization (bone-driven, MI) ---------------------
-    init = sitk.CenteredTransformInitializer(
+    # GEOMETRY init, NOT MOMENTS: CT air is -1000, so an intensity-weighted center
+    # of mass is meaningless and leaves the scans non-overlapping ("all samples map
+    # outside moving image buffer"). GEOMETRY aligns the physical image centers.
+    initial = sitk.CenteredTransformInitializer(
         fixed, moving, sitk.Euler3DTransform(),
-        sitk.CenteredTransformInitializerFilter.MOMENTS)
+        sitk.CenteredTransformInitializerFilter.GEOMETRY)
 
-    def _affine_stage(tx, learning_rate, iters):
-        r = sitk.ImageRegistrationMethod()
-        r.SetMetricAsMattesMutualInformation(numberOfHistogramBins=32)
-        r.SetMetricFixedMask(fixed_bone)
-        r.SetMetricSamplingStrategy(r.RANDOM)
-        r.SetMetricSamplingPercentage(0.2, seed=SEED)
-        r.SetInterpolator(sitk.sitkLinear)
-        r.SetOptimizerAsRegularStepGradientDescent(
-            learningRate=learning_rate, minStep=1e-4, numberOfIterations=iters)
-        r.SetOptimizerScalesFromPhysicalShift()
-        r.SetShrinkFactorsPerLevel([4, 2, 1])
-        r.SetSmoothingSigmasPerLevel([2, 1, 0])
-        r.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
-        r.SetInitialTransform(tx, inPlace=True)
-        r.Execute(fixed, moving)
-        return tx
+    # --- RIGID: full-image MI, wide multi-resolution pyramid (NO mask) --------
+    # Unmasked + heavily down-sampled top level gives a wide capture range so the
+    # partially-overlapping spine/pelvic scans lock together before any masking.
+    reg = sitk.ImageRegistrationMethod()
+    reg.SetMetricAsMattesMutualInformation(numberOfHistogramBins=32)
+    reg.SetMetricSamplingStrategy(reg.RANDOM)
+    reg.SetMetricSamplingPercentage(0.2, seed=SEED)
+    reg.SetInterpolator(sitk.sitkLinear)
+    reg.SetOptimizerAsRegularStepGradientDescent(
+        learningRate=2.0, minStep=1e-4, numberOfIterations=int(affine_iters))
+    reg.SetOptimizerScalesFromPhysicalShift()
+    reg.SetShrinkFactorsPerLevel([8, 4, 2, 1])
+    reg.SetSmoothingSigmasPerLevel([4, 2, 1, 0])
+    reg.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
+    reg.SetInitialTransform(initial, inPlace=False)
+    rigid = reg.Execute(fixed, moving)
 
-    rigid = _affine_stage(sitk.Euler3DTransform(init), 1.0, int(affine_iters))
-    affine = _affine_stage(
-        sitk.AffineTransform(
-            sitk.CenteredTransformInitializer(
-                fixed, moving, sitk.AffineTransform(3),
-                sitk.CenteredTransformInitializerFilter.MOMENTS)),
-        0.5, int(affine_iters))
-    # seed affine with the rigid result by composing into the initial moving resample
-    affine_composite = sitk.CompositeTransform([rigid, affine])
-
-    # --- coarse B-spline deformable (stiff; bone-masked) ---------------------
-    grid_phys = max(float(flow_sigma), 1.0)        # control-point spacing (mm)
+    # --- COARSE B-spline deformable (stiff; bone-masked) ----------------------
+    # flow_sigma is the control-point SPACING in mm: LARGE => few control points
+    # => stiff (cannot warp within a bone). ~40-50mm gives ~5-8 points per axis.
+    fixed_bone = sitk.BinaryThreshold(fixed, BONE_HU, 1e6, 1, 0)
+    grid_mm = max(float(flow_sigma), 20.0)
     size_mm = [sz * sp for sz, sp in zip(fixed.GetSize(), fixed.GetSpacing())]
-    mesh = [max(1, int(round(extent / grid_phys))) for extent in size_mm]
+    mesh = [max(1, int(round(extent / grid_mm))) for extent in size_mm]
     bspline = sitk.BSplineTransformInitializer(fixed, mesh, order=3)
 
     rb = sitk.ImageRegistrationMethod()
@@ -235,7 +229,7 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
     rb.SetMetricSamplingStrategy(rb.RANDOM)
     rb.SetMetricSamplingPercentage(0.2, seed=SEED)
     rb.SetInterpolator(sitk.sitkLinear)
-    rb.SetMovingInitialTransform(affine_composite)
+    rb.SetMovingInitialTransform(rigid)
     rb.SetInitialTransform(bspline, inPlace=True)
     rb.SetOptimizerAsLBFGSB(gradientConvergenceTolerance=1e-5,
                             numberOfIterations=int(bspline_iters),
@@ -246,7 +240,7 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
     rb.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
     rb.Execute(fixed, moving)
 
-    full = sitk.CompositeTransform([affine_composite, bspline])
+    full = sitk.CompositeTransform([rigid, bspline])
 
     # --- warp the label (NN) into the fixed grid -----------------------------
     warped_img = sitk.Resample(moving_label_img, fixed, full,
@@ -322,6 +316,32 @@ def process_patient(case: dict, *, nifti_dir: Path, pelvic_dir: Path,
     # one sitk thread per worker process: avoids oversubscription under the
     # process pool AND removes the last source of run-to-run nondeterminism.
     sitk.ProcessObject.SetGlobalDefaultNumberOfThreads(1)
+
+    # Guard against a degenerate/scout series being selected for either side: a
+    # scout/topogram is a thin projection (a tiny dimension) that cannot overlap a
+    # full CT. Read headers only (cheap) and skip with a NAMED status so a wrong
+    # series surfaces instead of a cryptic "samples map outside" registration error.
+    def _geom(path):
+        r = sitk.ImageFileReader(); r.SetFileName(str(path)); r.ReadImageInformation()
+        size, spc = r.GetSize(), r.GetSpacing()
+        return size, spc, [s * p for s, p in zip(size, spc)]
+    f_size, _f_sp, f_ext = _geom(fixed_ct)
+    m_size, _m_sp, m_ext = _geom(moving_ct)
+    log.info("token=%s  fixed(spine) uid=%s size=%s extent=%dx%dx%dmm  "
+             "moving(pelvic) uid=%s size=%s extent=%dx%dx%dmm", tok, spine_uid,
+             f_size, *[int(x) for x in f_ext], pelvic_uid, m_size,
+             *[int(x) for x in m_ext])
+    SCOUT_MIN_SLICES, SCOUT_MIN_EXT_MM = 16, 40.0
+    scout = []
+    if min(f_size) < SCOUT_MIN_SLICES or min(f_ext) < SCOUT_MIN_EXT_MM:
+        scout.append(f"fixed/spine({spine_uid})")
+    if min(m_size) < SCOUT_MIN_SLICES or min(m_ext) < SCOUT_MIN_EXT_MM:
+        scout.append(f"moving/pelvic({pelvic_uid})")
+    if scout:
+        return {"token": tok, "spine_uid": spine_uid or "",
+                "pelvic_uid": pelvic_uid or "", "accept": 0,
+                "status": "scout_or_degenerate:" + ",".join(scout)}
+
     lab_img = sitk.ReadImage(str(pelvic_mask), sitk.sitkInt16)
     src_arr = _to_canonical_pelvis(sitk.GetArrayFromImage(lab_img))   # z,y,x
     canon_img = sitk.GetImageFromArray(src_arr)
@@ -475,9 +495,10 @@ def _worker(task: dict) -> dict:
 
 
 # test = fast end-to-end smoke (few cases, low iters); production = full quality.
+# flow_sigma is the B-spline control-point SPACING in mm (LARGE = stiff coarse grid).
 MODE_PRESETS = {
-    "test":       dict(limit=5,  affine_iters=60,  bspline_iters=30,  flow_sigma=8.0),
-    "production": dict(limit=0,  affine_iters=200, bspline_iters=120, flow_sigma=6.0),
+    "test":       dict(limit=5,  affine_iters=100, bspline_iters=30,  flow_sigma=50.0),
+    "production": dict(limit=0,  affine_iters=250, bspline_iters=120, flow_sigma=40.0),
 }
 
 

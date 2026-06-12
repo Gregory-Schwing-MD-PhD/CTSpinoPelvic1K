@@ -80,5 +80,5 @@ stdbuf -oL -eL singularity exec \
 echo ""
 echo "======================================================================"
 echo " propagate_pelvis done at $(date)"
-echo "   out: ${PROP_OUT_DIR}  (propagate_qc.csv + propagate_manifest.json)"
+echo "   out: ${PROP_OUT_DIR}  (propagate_qc.csv + placed_manifest_propagated.json)"
 echo "======================================================================"

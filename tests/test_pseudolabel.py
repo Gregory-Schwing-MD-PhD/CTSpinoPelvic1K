@@ -11,6 +11,7 @@ model / label scheme is finally trained:
   * only the FILLED region's provenance flips to "pseudo";
   * a prediction class outside the model's supplied canonical set is dropped.
 """
+import json
 import sys
 from pathlib import Path
 
@@ -24,6 +25,7 @@ if str(_SCRIPTS) not in sys.path:
 from pseudolabel import (  # noqa: E402
     IGNORE_LABEL,
     build_heldout_fold_map,
+    load_propagated_map,
     merge_pseudo_into_manual,
     remap_prediction,
     updated_record,
@@ -106,6 +108,12 @@ def test_fill_pelvis_flips_only_pelvis_prov():
     assert out["n_voxels_bg"] == 1
 
 
+def test_fill_pelvis_with_propagated_prov():
+    merged = np.array([1, 7, 8, 9], dtype=np.int16)
+    out = updated_record(_rec(), "pelvis", merged, prov="manual_propagated")
+    assert out["prov_pelvis"] == "manual_propagated"   # real GT, not "pseudo"
+
+
 def test_fill_spine_flips_only_spine_prov():
     rec = {"token": "1", "config": "pelvic_native",
            "prov_spine": None, "prov_pelvis": "manual",
@@ -179,3 +187,39 @@ def test_residual_ignore_keeps_partial_flag_true():
     out = updated_record(_rec(), "pelvis", merged)
     assert out["partial_annotation"] is True
     assert out["n_voxels_ignore"] == 1
+
+
+# --------------------------------------------------------------------------- #
+# load_propagated_map — only ACCEPTED real-GT pelves, model fallback otherwise
+# --------------------------------------------------------------------------- #
+
+def test_load_propagated_map_keeps_only_accepted(tmp_path):
+    man = {"cases": [
+        {"patient_token": "17", "pelvic": {"series_uid": "1.2.3",
+         "placed": "/data/prop/1.2.3_pelvic_propagated.nii.gz"},
+         "propagation": {"accept": 1}},
+        {"patient_token": "18", "pelvic": {"series_uid": "4.5.6",
+         "placed": "/data/prop/4.5.6_pelvic_propagated.nii.gz"},
+         "propagation": {"accept": 0}},          # rejected -> excluded -> model
+    ]}
+    p = tmp_path / "placed_manifest_propagated.json"
+    p.write_text(json.dumps(man))
+    m = load_propagated_map(p)
+    assert set(m) == {"17"}                      # only the accepted token
+    assert m["17"]["spine_uid"] == "1.2.3"
+
+
+def test_load_propagated_map_falls_back_to_dir_for_path(tmp_path):
+    man = {"cases": [{"patient_token": "17",
+            "pelvic": {"series_uid": "1.2.3", "placed": "/gone/missing.nii.gz"},
+            "propagation": {"accept": 1}}]}
+    p = tmp_path / "m.json"; p.write_text(json.dumps(man))
+    pdir = tmp_path / "prop"; pdir.mkdir()
+    (pdir / "1.2.3_pelvic_propagated.nii.gz").write_text("x")   # exists -> used
+    m = load_propagated_map(p, propagated_dir=pdir)
+    assert m["17"]["path"].endswith("1.2.3_pelvic_propagated.nii.gz")
+    assert str(pdir) in m["17"]["path"]
+
+
+def test_load_propagated_map_missing_manifest_is_empty():
+    assert load_propagated_map(None) == {}

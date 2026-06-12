@@ -202,6 +202,19 @@ fi
 # pelvic_native). This is where v2 diverges from the all-configs v1 base — the
 # filter lives here, NOT in a re-export. Passed as one argv value (comma safe).
 [[ -n "${INCLUDE_CONFIGS:-}" ]] && EXTRA_ARGS="${EXTRA_ARGS} --include_configs ${INCLUDE_CONFIGS}"
+# Propagated REAL-GT pelves (propagate_pelvis): for accepted separate-cohort
+# spine scans the pelvis is filled with the patient's OWN GT carried across
+# acquisitions, NOT the model. Auto-detected from the propagate output dir.
+PROPAGATED_DIR="${PROPAGATED_DIR:-${DATA_DIR}/placed/pelvic_propagated}"
+PROPAGATED_MANIFEST="${PROPAGATED_MANIFEST:-${PROPAGATED_DIR}/placed_manifest_propagated.json}"
+if [[ -f "${PROPAGATED_MANIFEST}" ]]; then
+    C_PROP_MAN="/data/$(realpath --relative-to="${DATA_DIR}" "${PROPAGATED_MANIFEST}")"
+    C_PROP_DIR="/data/$(realpath --relative-to="${DATA_DIR}" "${PROPAGATED_DIR}")"
+    EXTRA_ARGS="${EXTRA_ARGS} --propagated_manifest ${C_PROP_MAN} --propagated_dir ${C_PROP_DIR}"
+    echo "Using propagated REAL-GT pelves: ${PROPAGATED_MANIFEST}"
+else
+    echo "NOTE: no propagated manifest at ${PROPAGATED_MANIFEST} — all pelves via model"
+fi
 
 PPATH="/workspace/scripts:/workspace/src:/workspace"
 # nnUNet_results is bound at the SAME host path so the container writes
