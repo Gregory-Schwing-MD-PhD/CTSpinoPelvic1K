@@ -287,30 +287,31 @@ def init_cases_from_manifest(store: ReviewStore, records: List[dict],
 
 
 # rib-anchor (v4) seeding ----------------------------------------------------
-# All v3 configs are eligible: by v3 every record carries a FULL dense label
-# (not just the originally-annotated region), and a "pelvic_native" CT is
-# routinely abdominopelvic and reaches the thoracolumbar rib — so the config tag
-# is NOT a field-of-view statement. The annotator flags a genuinely out-of-FOV
-# case (no rib visible); we do not drop a whole config a priori.
-RIB_ANCHOR_CONFIGS = frozenset({"fused", "spine_only", "pelvic_native"})
+# Only configs with REAL radiologist spine GT are eligible. The anchor is
+# defined relationally as "the vertebra directly above ground-truth L1" — so it
+# is only trustworthy where L1 itself is radiologist truth. `fused` and
+# `spine_only` carry the CTSpine1K spine GT; `pelvic_native` has a PSEUDOLABELLED
+# spine (its L1 is a model guess), so its anchor would be untrustworthy — those
+# cases are dropped from the numbering task entirely.
+RIB_ANCHOR_CONFIGS = frozenset({"fused", "spine_only"})
 
 
 def init_rib_anchor_cases(store: ReviewStore, records: List[dict],
                           source_revision: str = "v3",
                           include_configs: frozenset = RIB_ANCHOR_CONFIGS) -> int:
-    """Seed the v4 rib-anchor task: one case per dense-labelled v3 record.
+    """Seed the v4 rib-anchor task: one case per spine-GT v3 record.
 
     Unlike the pseudo-label review (init_cases_from_manifest), this serves the
-    EXISTING v3 label as the editable base — students ADD the counting anchor
-    (`last_rib_vertebra` 11 + `rib` 12) and may tidy class-mixing / partly
-    coloured vertebrae (docs/RIB_ANCHOR_RATIONALE.md). region_to_review is
-    "rib_anchor" so IRR/provenance treat it as the add-the-anchor pass.
+    EXISTING v3 label as the editable base — the anchor (`last_rib_vertebra` 11
+    + `rib` 12) is defined as "the vertebra above ground-truth L1"; reviewers
+    confirm/segment it and may tidy class-mixing / partly coloured vertebrae
+    (docs/RIB_ANCHOR_RATIONALE.md). region_to_review is "rib_anchor" so
+    IRR/provenance treat it as the add-the-anchor pass.
 
-    Every config is enqueued (fused / spine_only / pelvic_native): in v3 they
-    all carry full dense labels, and the anchor is annotated wherever the rib is
-    in FOV — a genuinely out-of-FOV scan is flagged by the annotator, not
-    excluded here. Idempotent: never clobbers a case that already has
-    claims/reviews. All new cases land in a SINGLE commit (store.put_cases).
+    Only spine-GT configs are enqueued (fused / spine_only). `pelvic_native`
+    cases have a pseudolabelled spine — an untrusted L1 — so their anchor cannot
+    be trusted and they are excluded. Idempotent: never clobbers a case that
+    already has claims/reviews. All new cases land in a SINGLE commit.
     """
     existing = {p[len("cases/"):-len(".json")]
                 for p in store.b.list("cases/")

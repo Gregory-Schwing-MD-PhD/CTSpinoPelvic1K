@@ -160,20 +160,20 @@ def _rib_service(tmp_path, recs=None, **kw):
                              source_revision="v3", **kw), st
 
 
-def test_rib_anchor_seed_includes_all_configs_and_sets_region(tmp_path):
+def test_rib_anchor_seed_drops_pelvic_native_and_sets_region(tmp_path):
     s, st = _rib_service(tmp_path, recs=[
         {"token": "6", "config": "spine_only", "prov_spine": "manual",
          "prov_pelvis": None, "ct_file": "ct/0006_spine_ct.nii.gz",
          "label_file": "labels/0006_spine_label.nii.gz", "lstv_label": "normal"},
         {"token": "8", "config": "pelvic_native", "prov_spine": None,
          "prov_pelvis": "manual", "ct_file": "ct/0008_pel_ct.nii.gz",
-         "label_file": "labels/0008_pel_label.nii.gz"},   # dense v3 label -> seeded
+         "label_file": "labels/0008_pel_label.nii.gz"},   # pseudo spine -> dropped
         {"token": "9", "config": "spine_only",            # no label -> can't serve
          "ct_file": "ct/0009_ct.nii.gz"},
     ])
-    # pelvic_native IS seeded — in v3 it carries a full dense label and the CT
-    # routinely reaches the rib; out-of-FOV cases are flagged, not pre-excluded.
-    assert st.get_case("8__pelvic_native") is not None
+    # pelvic_native is dropped: its spine (hence L1, hence the anchor) is a
+    # pseudolabel, not radiologist GT — untrustworthy for the numbering task.
+    assert st.get_case("8__pelvic_native") is None
     assert st.get_case("9__spine_only") is None           # missing label -> skipped
     c = st.get_case("6__spine_only")
     assert c["region_to_review"] == "rib_anchor"
