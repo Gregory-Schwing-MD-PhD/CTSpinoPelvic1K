@@ -49,6 +49,18 @@
 - `scripts/analyze_lstv_zpos.py`: Z-position / CoordConv-feasibility analysis
   (shows the bottom vertebra's box-position can't separate L5 from L6).
 
+### Direction (decided end of 2026-06-11)
+Pivot to a **single end-to-end model** that segments AND numbers the spine from
+the **last rib-bearing vertebra through the sacrum** — L1–L6 as distinct classes
+(no merge), all Castellvi classes, counting anomalies (lumbar rib / T13 /
+sacralization / lumbarization). The enabler is the **counting anchor**: annotate
+the last rib-bearing vertebra + its rib on **all ~1000 cases** (top anchor) +
+the sacrum (bottom anchor) → counting between them makes numbering deterministic.
+New classes: `last_rib_vertebra` (11), `rib` (12). The anchor is *relational*
+("last rib-bearing vertebra"), never an absolute number (T12/T13 unknowable in a
+lumbosacral FOV). Docs written: `docs/STUDENT_ANNOTATION_PROTOCOL.md` (master),
+`docs/LABELING_GUIDE.md`, `docs/RIB_ANCHOR_REVIEW_GUIDE.md`.
+
 ### Open / next
 1. Wait for fused-only fold-0 → eval on fused test split (`spine_eval_single.sh`,
    `N_CLASSES=9`) + the all-cases-803-on-fused-test comparison arm.

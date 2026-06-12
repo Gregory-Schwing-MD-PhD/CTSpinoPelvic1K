@@ -10,12 +10,17 @@ this once; the task itself is fast with AI assistance.
 
 You cannot tell whether the bottom lumbar is **L5 or L6** by looking at it — they
 are near-identical. The only reliable way is to **count from a fixed anchor at
-the top of the spine.** That anchor is the **last rib-bearing vertebra (T12)**:
-the vertebra immediately below it is **L1**, and from there you count down to the
+the top of the spine.** That anchor is the **last rib-bearing vertebra**: the
+vertebra immediately below it is **L1**, and from there you count down to the
 sacrum.
 
-A lumbosacral CT almost always captures **both** the lowest ribs (T12) at the top
-of the volume and the sacrum at the bottom. So if we label the **top anchor
+**Do NOT call it "T12."** In a lumbosacral field of view you can't count down
+from T1, so the absolute thoracic number (T12? T13?) is unknowable — and it
+doesn't matter. The anchor is the *relational* identity "the last rib-bearing
+vertebra," which you **can** verify; L1 is defined relative to it.
+
+A lumbosacral CT almost always captures **both** the lowest ribs at the top of
+the volume and the sacrum at the bottom. So if we label the **top anchor
 (last rib-bearing vertebra + its rib)** and we already have the **bottom anchor
 (sacrum)**, the lumbar count becomes deterministic — and the L5-vs-L6 question
 answers itself. That is the entire purpose of this task.
@@ -26,7 +31,8 @@ answers itself. That is the entire purpose of this task.
 
 Per case, two structures:
 
-1. **The last rib-bearing vertebra** → class **`last_thoracic`** (normally T12).
+1. **The last rib-bearing vertebra** → class **`last_rib_vertebra`** (a
+   relational label — do **not** assign an absolute number like T12).
    Segment the whole vertebra (body + posterior elements) that is in the FOV.
 2. **Its rib(s)** → class **`rib`**. You do **not** need the whole rib — the
    **proximal segment at the costovertebral / costotransverse junction is
@@ -49,16 +55,29 @@ Nothing else. Do not segment higher thoracic levels or full ribs — out of scop
 ### Watch for the variants (flag them)
 The thoracolumbar junction has its own transitional anatomy that can fool the
 count:
-- **Rudimentary / lumbar rib at L1** — a short rib-like stub on what is otherwise
-  the first lumbar vertebra. If you anchor on this, the whole count shifts by one.
-- **T13 rib** — an extra rib-bearing level.
+
+- **Lumbar rib at L1** — a **short, stubby rib** on what is otherwise the first
+  lumbar vertebra. On a **coronal** view: you see the long curving true ribs on
+  the last thoracic vertebra, then a little **nub** one level down. It's much
+  shorter than a true rib (often just a head + short shaft). **If you anchor on
+  this instead of the vertebra above, the whole count shifts down by one** and
+  you'll miscount the lumbar spine.
+- **T13 rib** — an extra rib-bearing level (one more than usual).
 - A small, **non-articulating** stub is **not** a true rib.
 
+Two distinctions to make:
+1. **Lumbar rib vs. true last rib — length/shape.** The true last rib is a full,
+   curving rib; a lumbar rib is a stub. Anchor on the lowest vertebra with a
+   **full, articulating** rib, not the one with the stub below it.
+2. **Lumbar rib vs. a big transverse process — is there a joint?** A lumbar rib
+   is a **separate ossicle** that articulates via a **costotransverse joint**
+   (look for a joint line / lucency). A merely prominent transverse process is
+   **continuous bone** — no joint. Joint line → rib; continuous → just a big TP.
+
 Rule of thumb: anchor on the lowest vertebra with a **clearly articulating** rib.
-If a level is **borderline** (could be a rudimentary lumbar rib vs a true T12
-rib), **segment it anyway and flag it** in the review form — those borderline
-cases are themselves clinically interesting and we want them surfaced, not
-silently resolved.
+If a level is **borderline** (rudimentary lumbar rib vs a true rib), **segment it
+anyway and flag it** in the review form — those cases are clinically interesting
+and we want them surfaced, not silently resolved.
 
 ---
 
@@ -73,7 +92,7 @@ backend).**
 3. Drop a few interaction points on the **last rib-bearing vertebra**, let the AI
    fill the mask, and correct any obvious leakage with the brush.
 4. Repeat for the **rib** (a few points along the proximal rib).
-5. **Relabel** the AI output to the correct class values: `last_thoracic` for the
+5. **Relabel** the AI output to the correct class values: `last_rib_vertebra` for the
    vertebra, `rib` for the rib. (Confirm the label values against the project
    label sheet before you save.)
 6. Save as the per-case rib-anchor label and note borderline cases on the form.
@@ -86,7 +105,7 @@ hand-trace voxel by voxel.
 
 ## 5. Output & hand-back
 
-- One label file per case containing `last_thoracic` + `rib` (added alongside the
+- One label file per case containing `last_rib_vertebra` + `rib` (added alongside the
   existing spine/pelvis mask, not overwriting it).
 - The review form row filled in, with the **count of vertebrae from the last
   rib-bearing vertebra to the sacrum** (this is the number that settles L5 vs L6:
@@ -97,7 +116,7 @@ hand-trace voxel by voxel.
 ## 6. One-paragraph summary
 
 Scroll up from the lumbar spine; find the lowest vertebra with a **true
-articulating rib** (that's T12 — the one below it is L1). Segment that vertebra
-(`last_thoracic`) and the proximal part of its rib (`rib`) using **ITK-SNAP's
+articulating rib** (the one below it is L1). Segment that vertebra
+(`last_rib_vertebra`) and the proximal part of its rib (`rib`) using **ITK-SNAP's
 AI-assisted tool**, not by hand. Count vertebrae from there to the sacrum — that
 count is the L5-vs-L6 answer. Flag any rudimentary lumbar rib / T13 ambiguity.

@@ -67,7 +67,7 @@ Möller 2026 (VERIDAH §2.2).
 
 **As an annotator you still count and label L1–L6 explicitly** (the radiologist
 *can* count; the merge happens later in the pipeline). Count from the
-thoracolumbar junction (lowest ribs = T12) down.
+thoracolumbar junction (the last rib-bearing vertebra) down.
 
 ### 3b. Fused boundaries are ambiguous → §4
 When a vertebra fuses to the sacrum there may be no real boundary to draw. §4 is
