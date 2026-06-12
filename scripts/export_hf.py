@@ -257,6 +257,7 @@ _MANIFEST_SCHEMA = [
     ("has_l6",                 bool,  False),
     ("n_lumbar_labels",        int,   False),
     ("has_anchor",             bool,  False),   # T12 rib anchor (class 11) present
+    ("has_rib",                bool,  False),   # v3 student rib (class 12) present
     ("alignment_ok",           bool,  False),
     ("ct_resampled_to_mask",   bool,  False),
     ("postwrite_hip_bone_pct", float, True),
@@ -345,7 +346,14 @@ CLASS_NAMES = {
     0: "background", 1: "L1", 2: "L2", 3: "L3", 4: "L4", 5: "L5",
     6: "L6", 7: "sacrum", 8: "left_hip", 9: "right_hip",
     11: "last_rib_vertebra",      # the rib anchor (T12), retained from GT
+    12: "rib",                    # RESERVED for v3: student-annotated rib of the
+                                  # anchor vertebra. Not in CTSpine1K GT, so v1/v2
+                                  # never emit it — but the value is allocated NOW
+                                  # so v3 is purely additive (no renumbering). The
+                                  # export paints it via the optional --rib_dir
+                                  # overlay (dormant until v3 rib masks exist).
 }
+RIB_CLASS = 12
 
 
 def _fname_base(tok) -> str:
@@ -373,6 +381,7 @@ _SEG_COLORS = {
     7: (0.85, 0.15, 0.15, 0.55), 8: (0.95, 0.50, 0.10, 0.55),
     9: (0.95, 0.80, 0.05, 0.55),
     11: (1.00, 0.00, 1.00, 0.65),     # last_rib_vertebra — magenta
+    12: (0.00, 0.85, 0.30, 0.70),     # rib (v3, reserved) — green (far from 11)
 }
 
 # -- Small helpers ------------------------------------------------------------
@@ -496,8 +505,14 @@ def strip_phi(img):
     return nib.Nifti1Image(np.asarray(img.dataobj), img.affine, hdr)
 
 
-def merge_labels(spine_path, pelvic_path, ref_shape):
-    """Build the 10-class label volume from spine + pelvic placed masks.
+def merge_labels(spine_path, pelvic_path, ref_shape, rib_path=None):
+    """Build the label volume from spine + pelvic placed masks.
+
+    rib_path (v3, optional): a student-annotated rib mask for the anchor
+    vertebra. If given and present, its non-zero voxels are painted as
+    RIB_CLASS (12) on top of the merged result — the rib is a distinct
+    structure (the costovertebral/costotransverse stub of T12), so a direct
+    authoritative write is safe. None (v1/v2) = no rib, identical output.
 
     Output value range:
       Fused mode  (both masks present): voxels ∈ {0..9}
@@ -571,6 +586,13 @@ def merge_labels(spine_path, pelvic_path, ref_shape):
                 # spine annotator's word is authoritative. These regions are
                 # disjoint from the pelvic classes, so a direct write is safe.
                 result[sl][sp[sl] == vid] = cls
+
+    # ── Rib overlay (v3, optional: student-annotated rib of the anchor) ──
+    if rib_path and Path(rib_path).exists():
+        rib = np.asarray(_load_nii(rib_path).dataobj, dtype=np.int16)
+        mn  = tuple(min(a, b) for a, b in zip(ref_shape, rib.shape))
+        sl  = tuple(slice(0, m) for m in mn)
+        result[sl][rib[sl] > 0] = RIB_CLASS
 
     return result
 
@@ -738,6 +760,7 @@ def _export_one(args: dict) -> dict:
         kvp=args.get("kvp"),
         prov_spine=prov_spine, prov_pelvis=prov_pelvis,
         alignment_ok=False, has_l6=False, n_lumbar_labels=0, has_anchor=False,
+        has_rib=False,
         ct_file=rel_ct_file, label_file=rel_lbl_file, qc_file=rel_qc_file,
         lstv_pelvic=args.get("lstv_pelvic", ""),
         lstv_vertebral=args.get("lstv_vertebral", ""),
@@ -791,7 +814,8 @@ def _export_one(args: dict) -> dict:
             result["ct_resampled_to_mask"] = True
 
         # Partial-annotation aware label merge — see merge_labels docstring.
-        lbl_data = merge_labels(spine_path, pelvic_path, ref_shape)
+        lbl_data = merge_labels(spine_path, pelvic_path, ref_shape,
+                                rib_path=args.get("rib_path"))
         # Determine partial mode by checking what merge_labels emitted.
         result["partial_annotation"] = bool((lbl_data == IGNORE_LABEL).any())
 
@@ -869,6 +893,7 @@ def _export_one(args: dict) -> dict:
         result["n_lumbar_labels"] = len(uniq)
         result["has_l6"]          = 6 in uniq
         result["has_anchor"]      = 11 in all_vals
+        result["has_rib"]         = RIB_CLASS in all_vals
 
         if not args.get("skip_qc"):
             ct_arr = np.asarray(ct_r.dataobj, dtype=np.float32)
@@ -889,13 +914,18 @@ def _export_one(args: dict) -> dict:
 
 def build_work(manifest_path: Path, nifti_dir: Path,
                spine_dir: Path, pelvic_dir: Path,
-               include_configs: Optional[set] = None) -> List[dict]:
+               include_configs: Optional[set] = None,
+               rib_dir: Optional[Path] = None) -> List[dict]:
     """Build per-case export work from placed_manifest.json.
 
     include_configs: if given, keep only these configs (e.g. {"fused",
     "spine_only"} for the v2 ship, which excludes pelvic_native — a real-pelvis
     but PSEUDO-spine scan we never ship, holding it back as the pelvis-pseudo-
     label validation set). None = all configs (v1 behaviour, unchanged).
+
+    rib_dir (v3, optional): dir of student-annotated rib masks named
+    `<fname_base>_rib.nii.gz`. When present for a case, its path is attached so
+    merge_labels paints the rib (class 12). None (v1/v2) = no ribs.
     """
     data  = json.loads(manifest_path.read_text())
     cases = data.get("cases", [])
@@ -1059,6 +1089,15 @@ def build_work(manifest_path: Path, nifti_dir: Path,
         kept = Counter(w["config"] for w in work)
         log.info("config filter %s: %d -> %d work items  %s",
                  sorted(include_configs), before, len(work), dict(kept))
+
+    if rib_dir:
+        n_rib = 0
+        for w in work:
+            cand = Path(rib_dir) / f"{w['fname_base']}_rib.nii.gz"
+            w["rib_path"] = str(cand) if cand.exists() else None
+            n_rib += w["rib_path"] is not None
+        log.info("rib overlay: %d/%d cases have a rib mask in %s",
+                 n_rib, len(work), rib_dir)
     return work
 
 
@@ -1431,6 +1470,10 @@ def main():
                          "'fused,spine_only' for the v2 release, which excludes "
                          "pelvic_native). Default/empty = all configs. Env "
                          "INCLUDE_CONFIGS is honoured if the flag is absent.")
+    ap.add_argument("--rib_dir", default=None, type=Path,
+                    help="(v3) dir of student-annotated rib masks named "
+                         "'<fname_base>_rib.nii.gz'; painted as class 12. Env "
+                         "RIB_DIR honoured if absent. Default = no ribs (v1/v2).")
     ap.add_argument("--push_to_hub", action="store_true")
     ap.add_argument("--hf_repo_id",  default=HF_REPO_ID,
                     help="Target HF repo (e.g. org/Name). REQUIRED with "
@@ -1475,9 +1518,12 @@ def main():
         _inc = args.include_configs or os.environ.get("INCLUDE_CONFIGS", "")
         include_configs = ({c.strip() for c in _inc.split(",") if c.strip()}
                            or None)
+        _rib = args.rib_dir or (Path(os.environ["RIB_DIR"])
+                                if os.environ.get("RIB_DIR") else None)
         log.info("Building work from %s ...", args.manifest)
         work = build_work(args.manifest, args.nifti_dir, args.spine_dir,
-                          args.pelvic_dir, include_configs=include_configs)
+                          args.pelvic_dir, include_configs=include_configs,
+                          rib_dir=_rib)
         log.info("Work items: %d", len(work))
 
         if args.debug_n > 0:

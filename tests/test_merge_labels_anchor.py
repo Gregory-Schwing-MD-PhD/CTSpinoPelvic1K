@@ -61,3 +61,15 @@ def test_anchor_not_overwritten_by_sacrum_fill():
     r = merge_labels(_w(sp), None, shape)
     assert r[0, 0, 0] == 11
     assert int((r == 11).sum()) == 1      # exactly the one anchor voxel
+
+
+def test_rib_overlay_paints_class_12_when_present():
+    # v3 forward-compat: a student rib mask paints class 12; absent -> unchanged
+    shape, sp = _spine()
+    rib = np.zeros(shape, np.int16)
+    rib[0, 1, 0] = 1                      # one rib voxel beside the anchor
+    r_no = merge_labels(_w(sp), None, shape)               # v1/v2: no rib_path
+    r_yes = merge_labels(_w(sp), None, shape, rib_path=_w(rib))
+    assert int((r_no == 12).sum()) == 0   # dormant by default
+    assert r_yes[0, 1, 0] == 12 and int((r_yes == 12).sum()) == 1
+    assert r_yes[0, 0, 0] == 11           # anchor untouched
