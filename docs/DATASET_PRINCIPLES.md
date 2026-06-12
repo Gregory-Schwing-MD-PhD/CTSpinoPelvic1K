@@ -17,13 +17,27 @@ Treat it as **write-once**.
 2. **Additive, never destructive.** A new version is a **superset** of the
    labels in the previous one. If a structure was labelled once, it stays
    labelled. The roadmap is purely additive: pelvis (done) → last rib-bearing
-   vertebra / counting anchor (done) → rib (reserved, class 12) → all available
-   thoracic levels → …
+   vertebra / counting anchor (done) → rib (reserved, class 12) → **all available
+   thoracic levels** → **all available cervical levels** → … We keep every
+   labelled vertebra the radiologists drew, however rare (e.g. the handful of
+   cases with C1 or upper-thoracic labels) — rarity is not disposability.
 
 3. **Class IDs are reserved forward, never renumbered.** Once an ID means a
    thing it means that thing forever (e.g. `11 = last_rib_vertebra`,
-   `12 = rib`). New structures take new IDs. This is what makes every version a
-   drop-in superset.
+   `12 = rib`). New structures take new IDs **above the current maximum**, keyed
+   to VerSe identity so each level has a stable, recoverable ID. The lumbosacral
+   core (1–9), the anchor (11), and the rib (12) never move. This is what makes
+   every version a drop-in superset.
+
+   **`ignore = 10` is a permanently-reserved sentinel.** It is no longer "the
+   next free number"; it is the ignore value, forever. It sits in the middle of
+   the scheme only because it was assigned when the scheme was small, and moving
+   it now would renumber a *published* value (v2 and the trained pseudolabeller
+   both use 10) — which the append-only law forbids. The scheme therefore grows
+   *around* 10 (new anatomy at 13+), never reshuffles to absorb it. (If a
+   perfectly contiguous anatomical range is ever wanted, the only lawful route is
+   the canonical-vs-view split in invariant 6: a lossless master in native VerSe
+   numbering, with the compact 0–12 scheme as a derived training view.)
 
 4. **The master is lossless; releases are filtered *views*.** The master
    retains every mask and the native source labelling. A named release (v1, v2,
