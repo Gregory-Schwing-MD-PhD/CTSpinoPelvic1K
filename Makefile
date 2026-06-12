@@ -98,7 +98,8 @@ MANIFEST       ?=
 NIFTI_DIR      ?=
 PROP_OUT_DIR   ?=
 PROP_WORKERS   ?=
-MAX_BONE_DROP  ?= 1.0
+DROP_TARGET    ?= 1.0
+GATE_ON_DROP   ?= 0
 PROP_LIMIT     ?= 0
 MODELS_CONFIG  ?=        # default: configs/pseudolabel_models.json
 DRY_RUN        ?= 0
@@ -486,7 +487,7 @@ structure-qc: check-container  ## GT-free structure QC (presence/dup/gap/L-R swa
 propagate-pelvis: check-container  ## Carry each separate patient's REAL pelvis GT onto the spine scan by deterministic deformable registration (real GT replaces the model pelvis); MODE=test|production (CPU)
 	@mkdir -p $(LOGS_DIR)
 	@echo "Submitting propagate-pelvis (MODE=$(strip $(MODE)) — real-GT pelvis across acquisitions)"
-	sbatch $(DEP) --export=ALL,SIF_PATH=$(strip $(CONTAINER)),MODE=$(strip $(MODE)),MANIFEST=$(strip $(MANIFEST)),NIFTI_DIR=$(strip $(NIFTI_DIR)),PELVIC_DIR=$(strip $(PELVIC_DIR)),PROP_OUT_DIR=$(strip $(PROP_OUT_DIR)),PROP_WORKERS=$(strip $(PROP_WORKERS)),MAX_BONE_DROP=$(strip $(MAX_BONE_DROP)),PROP_LIMIT=$(strip $(PROP_LIMIT)) \
+	sbatch $(DEP) --export=ALL,SIF_PATH=$(strip $(CONTAINER)),MODE=$(strip $(MODE)),MANIFEST=$(strip $(MANIFEST)),NIFTI_DIR=$(strip $(NIFTI_DIR)),PELVIC_DIR=$(strip $(PELVIC_DIR)),PROP_OUT_DIR=$(strip $(PROP_OUT_DIR)),PROP_WORKERS=$(strip $(PROP_WORKERS)),DROP_TARGET=$(strip $(DROP_TARGET)),GATE_ON_DROP=$(strip $(GATE_ON_DROP)),PROP_LIMIT=$(strip $(PROP_LIMIT)) \
 	       slurm/propagate_pelvis.sh
 
 
