@@ -420,17 +420,17 @@ def process_patient(case: dict, *, nifti_dir: Path, pelvic_dir: Path,
     except (TypeError, ValueError):
         manifest_pct = float("nan")
 
-    # bone-HU drop is a REPORTED quality metric, NOT a rejection rule by default:
-    # a slightly-degraded REAL pelvis still beats a model guess, and min_fit
-    # (absolute on-bone fraction) already rejects genuinely broken registrations.
-    # Only --gate_on_drop makes exceeding drop_target a fallback-to-model.
+    # Acceptance keys on the RELATIVE drop, not an absolute bone-HU floor: filled
+    # (marrow-inclusive) masks are only ~45-55% >200HU even natively, so the same
+    # threshold on both sides cancels and the drop is calibration-free. Reject to the
+    # model only on a genuine failure (drop > fail_drop); a small drop is still REAL
+    # GT and beats a model guess. drop_target (1pp) is the reported ideal, not a gate.
     reasons = list(decision["reasons"])
-    over_drop = (bone_pct_drop == bone_pct_drop
-                 and bone_pct_drop > gate_kw["drop_target"])
-    if over_drop and gate_kw["gate_on_drop"]:
-        reasons.append(f"bone_pct_drop={bone_pct_drop:.1f}")
-    accept = int(bool(decision["accept"])
-                 and not (over_drop and gate_kw["gate_on_drop"]))
+    reg_failed = (bone_pct_drop == bone_pct_drop
+                  and bone_pct_drop > gate_kw["fail_drop"])
+    if reg_failed:
+        reasons.append(f"reg_failed_drop={bone_pct_drop:.1f}pp")
+    accept = int(bool(decision["accept"]) and not reg_failed)
 
     # save in the native spine-CT grid (sitk carries the fixed geometry exactly).
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -563,10 +563,14 @@ def main() -> int:
                     help="log the ITK optimizer metric every N iterations "
                          "(0 = only level changes + stage start/done).")
     # gate thresholds
-    ap.add_argument("--min_fit", type=float, default=0.80,
-                    help="reject if a warped bone is <this fraction on bone-HU.")
+    ap.add_argument("--min_fit", type=float, default=0.0,
+                    help="OFF by default (0.0). An ABSOLUTE bone-HU floor is wrong "
+                         "for CTPelvic1K masks: they are FILLED (marrow-inclusive), "
+                         "so only ~45-55%% of voxels are >200 HU even natively. The "
+                         "calibration-free signal is the drop vs native (--fail_drop).")
     ap.add_argument("--max_jac_bad", type=float, default=0.10,
-                    help="reject if >this fraction of bone voxels have |detJ-1|>tol.")
+                    help="reject if >this fraction of bone voxels have |detJ-1|>tol "
+                         "(rigid -> always 0; kept for the optional deformable path).")
     ap.add_argument("--jac_tol", type=float, default=0.30)
     ap.add_argument("--vol_lo", type=float, default=0.70)
     ap.add_argument("--vol_hi", type=float, default=1.30)
@@ -574,11 +578,11 @@ def main() -> int:
                     help="REPORT-ONLY reference: the run reports what %% of placed "
                          "pelves stay within this many bone-HU overlap pp of the "
                          "native placement (default 1.0 — the <=1%% ideal).")
-    ap.add_argument("--gate_on_drop", action="store_true",
-                    help="ALSO fall back to the model when a case exceeds "
-                         "--drop_target (OFF by default: a slightly-degraded REAL "
-                         "pelvis still beats a model guess; min_fit already floors "
-                         "absolute quality).")
+    ap.add_argument("--fail_drop", type=float, default=8.0,
+                    help="THE acceptance gate: fall back to the model only when the "
+                         "bone-HU overlap drops >this many pp vs the native placement "
+                         "(a genuine registration failure). Lenient on purpose — a "
+                         "slightly-degraded REAL pelvis still beats a model guess.")
     args = ap.parse_args()
 
     preset = MODE_PRESETS[args.mode]
@@ -607,7 +611,7 @@ def main() -> int:
                   log_every=args.reg_log_every)
     gate_kw = dict(min_fit=args.min_fit, max_jac_bad=args.max_jac_bad,
                    jac_tol=args.jac_tol, vol_lo=args.vol_lo, vol_hi=args.vol_hi,
-                   drop_target=args.drop_target, gate_on_drop=args.gate_on_drop)
+                   fail_drop=args.fail_drop)
 
     case_by_token = {str(c.get("patient_token", "?")): c for c in separate}
     tasks = [dict(case=c, nifti_dir=args.nifti_dir, pelvic_dir=args.pelvic_dir,
@@ -663,7 +667,7 @@ def main() -> int:
     manifest_out.write_text(json.dumps({
         "schema_version": PROPAGATED_MANIFEST_SCHEMA,
         "mode": args.mode, "seed": SEED, "drop_target": args.drop_target,
-        "gate_on_drop": bool(args.gate_on_drop),
+        "fail_drop": args.fail_drop,
         "n_cases": len(manifest_cases),
         "n_accepted": sum(c["propagation"]["accept"] for c in manifest_cases),
         "n_fallback": sum(1 - c["propagation"]["accept"] for c in manifest_cases),
@@ -716,10 +720,9 @@ def main() -> int:
     log.info("Deterministic (seed=%d), pelvis-masked RIGID carry-over of the "
              "patient's OWN radiologist pelvis onto the spine scan — the highest-"
              "fidelity pelvis the data allows, no model guess. Cases drop to the "
-             "model only on a genuine registration failure (off-bone / "
-             "FOV-truncation)%s. wrote -> %s  (+%s)",
-             SEED, (" or >%.1f pp bone-HU drop" % args.drop_target)
-             if args.gate_on_drop else "", out_csv, manifest_out.name)
+             "model only on a genuine registration failure (bone-HU overlap drop "
+             ">%.1f pp vs native, or FOV-truncation). wrote -> %s  (+%s)",
+             SEED, args.fail_drop, out_csv, manifest_out.name)
     return 0
 
 
