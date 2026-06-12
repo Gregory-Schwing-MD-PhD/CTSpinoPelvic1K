@@ -287,13 +287,18 @@ def init_cases_from_manifest(store: ReviewStore, records: List[dict],
 
 
 # rib-anchor (v4) seeding ----------------------------------------------------
-RIB_ANCHOR_CONFIGS = frozenset({"fused", "spine_only"})
+# All v3 configs are eligible: by v3 every record carries a FULL dense label
+# (not just the originally-annotated region), and a "pelvic_native" CT is
+# routinely abdominopelvic and reaches the thoracolumbar rib — so the config tag
+# is NOT a field-of-view statement. The annotator flags a genuinely out-of-FOV
+# case (no rib visible); we do not drop a whole config a priori.
+RIB_ANCHOR_CONFIGS = frozenset({"fused", "spine_only", "pelvic_native"})
 
 
 def init_rib_anchor_cases(store: ReviewStore, records: List[dict],
                           source_revision: str = "v3",
                           include_configs: frozenset = RIB_ANCHOR_CONFIGS) -> int:
-    """Seed the v4 rib-anchor task: one case per spine-bearing record.
+    """Seed the v4 rib-anchor task: one case per dense-labelled v3 record.
 
     Unlike the pseudo-label review (init_cases_from_manifest), this serves the
     EXISTING v3 label as the editable base — students ADD the counting anchor
@@ -301,10 +306,11 @@ def init_rib_anchor_cases(store: ReviewStore, records: List[dict],
     coloured vertebrae (docs/RIB_ANCHOR_RATIONALE.md). region_to_review is
     "rib_anchor" so IRR/provenance treat it as the add-the-anchor pass.
 
-    Only spine-bearing configs are enqueued — a `pelvic_native` scan images the
-    pelvis and never captures the thoracolumbar rib, so it cannot carry the
-    anchor. Idempotent: never clobbers a case that already has claims/reviews.
-    All new cases land in a SINGLE commit (store.put_cases).
+    Every config is enqueued (fused / spine_only / pelvic_native): in v3 they
+    all carry full dense labels, and the anchor is annotated wherever the rib is
+    in FOV — a genuinely out-of-FOV scan is flagged by the annotator, not
+    excluded here. Idempotent: never clobbers a case that already has
+    claims/reviews. All new cases land in a SINGLE commit (store.put_cases).
     """
     existing = {p[len("cases/"):-len(".json")]
                 for p in store.b.list("cases/")

@@ -81,8 +81,11 @@ lumbosacral FOV). Docs written: `docs/STUDENT_ANNOTATION_PROTOCOL.md` (master),
      the 0–9 path is untouched); ITK-SNAP palette auto-derives from CLASS_NAMES.
    - `rib_anchor` is a first-class region (provenance leaves spine/pelvis source
      unchanged — the pass *adds* 11/12, recorded via decision+diff).
-   - `store.init_rib_anchor_cases` seeds one case per spine-bearing record
-     (fused + spine_only; pelvic_native skipped — no rib in FOV), serving the
+   - `store.init_rib_anchor_cases` seeds one case per dense-labelled v3 record —
+     **all configs** (fused / spine_only / pelvic_native): by v3 every record
+     carries a full dense label and the config tag is not a FOV statement
+     (pelvic_native CTs are routinely abdominopelvic and reach the rib);
+     out-of-FOV cases are flagged by the annotator, not pre-excluded. Serves the
      **existing v3 label** as the editable base.
    - `app.py` `TASK=rib_anchor` env picks the seeder + source revision at boot.
    - `reviewtool` shows the find-the-anchor instructions; its no-crop path already
