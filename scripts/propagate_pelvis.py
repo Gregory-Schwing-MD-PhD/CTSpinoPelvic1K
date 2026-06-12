@@ -9,22 +9,26 @@ scan. Instead of asking a model to guess the pelvis, we warp the real GT from th
 pelvic-side scan onto the spine-side scan. It is the identical bone, so this is
 strictly higher-fidelity than a population model's completion.
 
-Rigid, masked to the pelvis
----------------------------
-The bony pelvis (sacrum + both hemipelves) moves prone<->supine essentially as ONE
-rigid unit — it rocks, tilts and translates, but does not deform (the SI joints
-give a degree or two at most). So the transform is a single RIGID transform (3
-rotations + 3 translations), which is the exact mathematical description of "the
-pelvis as one solid object." We mask the registration metric to the moving pelvic
-mask, so the optimizer aligns the PELVIS specifically and is not pulled off by the
-differently-articulated spine in the same scan.
+Rigid carry-over (whole-pelvis default; optional per-bone)
+----------------------------------------------------------
+The bony pelvis moves prone<->supine essentially as ONE rigid unit — it rocks,
+tilts and translates but does not deform — so by default we fit a single RIGID
+transform (3 rotations + 3 translations), the exact description of "the pelvis as
+one solid object." The metric is masked to the moving pelvic mask so the optimizer
+aligns the PELVIS and is not pulled off by the differently-articulated spine in the
+same scan. On the test cases this seats the sacrum + ilia cleanly on bone.
 
-A rigid transform is volume-preserving by construction (det J == 1 everywhere), so
-there is no bone-squashing failure mode and no Jacobian gate is needed. A case
-still falls back to the model only on a real failure: the warped bone does not sit
-on target bone-HU (bad fit) or it is FOV-truncated (vol ratio far below 1 -> no
-data to propagate). The bone-HU overlap before vs after is reported so the rigid
-carry-over can be shown not to degrade placement quality.
+The pelvis is, strictly, ARTICULATED rigid bone (the SI joints let the sacrum rock
+a few degrees relative to the ilia). For cases where that matters, --per_bone ALSO
+refines a separate rigid per bone {sacrum, left hip, right hip} from the whole-
+pelvis init and composites them, absorbing the articulation. It is opt-in because
+the single rigid is already clean on the validated cases.
+
+Every rigid is volume-preserving (det J == 1), so there is no bone-squashing failure
+mode and no Jacobian gate. A case falls back to the model only on a real failure:
+the bone-HU overlap drops >fail_drop pp vs the native placement, or a bone is
+FOV-truncated (vol ratio far below 1 -> no data). Native vs propagated bone-HU
+overlap is reported so the carry-over can be shown not to degrade placement quality.
 
 Where this runs
 ---------------
@@ -212,34 +216,29 @@ def _attach_reg_logging(method, token, tag, every: int):
 
 def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
                       moving_label_img, *, token: str = "",
-                      rigid_iters: int, dilate_vox: int = 5,
+                      rigid_iters: int, dilate_vox: int = 2, per_bone: bool = True,
                       log_every: int = 10):
-    """GEOMETRY-init, multi-resolution RIGID registration with the metric masked to
-    the moving pelvis, moving CT -> fixed CT; warp the moving label (NN) into the
-    fixed grid. Returns (warped_label_sitk, fixed_sitk, moving_sitk) — the caller
-    does grid-aware QC (the source mask and target are on different grids).
+    """Bone-masked RIGID registration, moving CT -> fixed CT; warp the moving label
+    (NN) into the fixed grid. Returns (warped_label_sitk, fixed_sitk, moving_sitk);
+    the caller does grid-aware QC (source mask and target are on different grids).
 
-    The pelvis moves prone<->supine as one rigid unit, so one rigid transform (6
-    DOF) seats it exactly — no bending, hence no Jacobian gate (det J == 1). The
-    moving mask = the (dilated) pelvic GT keeps the optimizer on the pelvis and off
-    the differently-articulated spine. `rigid_iters` caps the optimizer."""
+    The pelvis is articulated rigid bone: the sacrum + each hemipelvis are rigid,
+    but the SI joints let the sacrum rock a few degrees relative to the ilia
+    prone<->supine. So (per_bone, default) we first fit ONE whole-pelvis rigid as a
+    robust global init, then REFINE a separate rigid per bone {sacrum, L-hip, R-hip}
+    masked to that bone, and composite — each bone seats exactly, SI motion absorbed.
+    --single_rigid (per_bone=False) keeps the one whole-pelvis transform.
+
+    Every rigid is volume-preserving (det J == 1), so there is no bone-warp gate.
+    Registration runs at REG_MM (a 6-DOF fit is determined at ~2-3mm; full 512^3 is
+    needless minutes of smoothing/memory); transforms are resolution-independent and
+    applied to the FULL-res mask, and bone-HU overlap is scored at full res."""
     import numpy as np
     import SimpleITK as sitk
 
     fixed = sitk.ReadImage(str(fixed_ct_path), sitk.sitkFloat32)
     moving = sitk.ReadImage(str(moving_ct_path), sitk.sitkFloat32)
 
-    # moving metric mask = the pelvic GT (dilated a few voxels for a margin), so
-    # the registration is driven by the pelvis, not the spine in the same scan.
-    mv_pelvis = sitk.BinaryThreshold(moving_label_img, 1, 32000, 1, 0)
-    if dilate_vox > 0:
-        mv_pelvis = sitk.BinaryDilate(mv_pelvis, [int(dilate_vox)] * 3)
-    mv_pelvis = sitk.Cast(mv_pelvis, sitk.sitkUInt8)
-
-    # Register at REG_MM (a rigid 6-DOF pelvis fit is fully determined at ~2-3mm;
-    # full 512^3 is needless minutes of single-threaded smoothing and memory). The
-    # resulting transform is resolution-independent and is applied to the FULL-res
-    # mask below; the bone-HU overlap is scored at full res by the caller.
     def _iso(img, interp, default):
         isz, isp = img.GetSize(), img.GetSpacing()
         osz = [max(1, int(round(sz * sp / REG_MM))) for sz, sp in zip(isz, isp)]
@@ -248,39 +247,69 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
                              img.GetPixelID())
     fixed_lo = _iso(fixed, sitk.sitkLinear, -1000.0)
     moving_lo = _iso(moving, sitk.sitkLinear, -1000.0)
-    mask_lo = _iso(mv_pelvis, sitk.sitkNearestNeighbor, 0)
+
+    def _moving_mask_lo(lo, hi):
+        """Downsampled metric mask from the moving label values in [lo, hi]
+        (dilated a few voxels) — keeps the optimizer on that structure."""
+        m = sitk.BinaryThreshold(moving_label_img, lo, hi, 1, 0)
+        if dilate_vox > 0:
+            m = sitk.BinaryDilate(m, [int(dilate_vox)] * 3)
+        return _iso(sitk.Cast(m, sitk.sitkUInt8), sitk.sitkNearestNeighbor, 0)
+
+    def _run_rigid(mask_lo, init, iters, tag, shrink, smooth):
+        reg = sitk.ImageRegistrationMethod()
+        reg.SetMetricAsMattesMutualInformation(numberOfHistogramBins=32)
+        reg.SetMetricMovingMask(mask_lo)
+        reg.SetMetricSamplingStrategy(reg.RANDOM)
+        reg.SetMetricSamplingPercentage(0.2, seed=SEED)
+        reg.SetInterpolator(sitk.sitkLinear)
+        reg.SetOptimizerAsRegularStepGradientDescent(
+            learningRate=2.0, minStep=1e-4, numberOfIterations=int(iters))
+        reg.SetOptimizerScalesFromPhysicalShift()
+        reg.SetShrinkFactorsPerLevel(shrink)
+        reg.SetSmoothingSigmasPerLevel(smooth)
+        reg.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
+        reg.SetInitialTransform(init, inPlace=False)
+        _attach_reg_logging(reg, token, tag, log_every)
+        log.info("  token=%s [%s] starting @%.1fmm (<=%d its)...", token, tag,
+                 REG_MM, int(iters))
+        tx = reg.Execute(fixed_lo, moving_lo)
+        log.info("  token=%s [%s] done: metric=%.5f stop='%s'", token, tag,
+                 reg.GetMetricValue(), reg.GetOptimizerStopConditionDescription())
+        return tx
 
     # GEOMETRY init, NOT MOMENTS: CT air is -1000, so an intensity-weighted center
-    # of mass is meaningless and leaves the scans non-overlapping ("all samples map
-    # outside moving image buffer"). GEOMETRY aligns the physical image centers.
+    # of mass is meaningless and leaves the scans non-overlapping. GEOMETRY aligns
+    # the physical image centers. Whole-pelvis global rigid = the robust init.
     initial = sitk.CenteredTransformInitializer(
         fixed_lo, moving_lo, sitk.Euler3DTransform(),
         sitk.CenteredTransformInitializerFilter.GEOMETRY)
+    full = _run_rigid(_moving_mask_lo(1, 32000), initial, rigid_iters,
+                      "rigid(whole-pelvis)", [4, 2, 1], [4, 2, 0])
 
-    # --- RIGID, pelvis-masked, multi-resolution pyramid (on the downsampled CTs) -
-    reg = sitk.ImageRegistrationMethod()
-    reg.SetMetricAsMattesMutualInformation(numberOfHistogramBins=32)
-    reg.SetMetricMovingMask(mask_lo)
-    reg.SetMetricSamplingStrategy(reg.RANDOM)
-    reg.SetMetricSamplingPercentage(0.2, seed=SEED)
-    reg.SetInterpolator(sitk.sitkLinear)
-    reg.SetOptimizerAsRegularStepGradientDescent(
-        learningRate=2.0, minStep=1e-4, numberOfIterations=int(rigid_iters))
-    reg.SetOptimizerScalesFromPhysicalShift()
-    reg.SetShrinkFactorsPerLevel([4, 2, 1])
-    reg.SetSmoothingSigmasPerLevel([4, 2, 0])
-    reg.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
-    reg.SetInitialTransform(initial, inPlace=False)
-    _attach_reg_logging(reg, token, "rigid", log_every)
-    log.info("  token=%s [rigid] starting (pelvis-masked @%.1fmm, 3 levels, "
-             "<=%d its)...", token, REG_MM, int(rigid_iters))
-    full = reg.Execute(fixed_lo, moving_lo)
-    log.info("  token=%s [rigid] done: metric=%.5f stop='%s'", token,
-             reg.GetMetricValue(), reg.GetOptimizerStopConditionDescription())
+    def _warp(label_img, tx):
+        return sitk.Resample(label_img, fixed, tx, sitk.sitkNearestNeighbor,
+                             0.0, sitk.sitkInt16)
 
-    # --- warp the FULL-res label (NN) into the full-res fixed grid -------------
-    warped_img = sitk.Resample(moving_label_img, fixed, full,
-                               sitk.sitkNearestNeighbor, 0.0, sitk.sitkInt16)
+    if not per_bone:
+        return _warp(moving_label_img, full), fixed, moving
+
+    # Per-bone refinement from the global pose: each bone is truly rigid, so a
+    # separate rigid seats it exactly and the SI-joint articulation is absorbed.
+    fsz = fixed.GetSize()
+    comp = np.zeros((fsz[2], fsz[1], fsz[0]), dtype="int16")           # z,y,x
+    for b in (SACRUM, LEFT_HIP, RIGHT_HIP):
+        mask_b = _moving_mask_lo(b, b)
+        if float(sitk.GetArrayFromImage(mask_b).sum()) < 10:
+            continue                                                   # bone absent
+        tx_b = _run_rigid(mask_b, sitk.Euler3DTransform(full),
+                          max(50, int(rigid_iters) // 2),
+                          f"bone:{PELVIS[b]}", [2, 1], [1, 0])
+        bone_img = sitk.BinaryThreshold(moving_label_img, b, b, b, 0)  # value-b
+        wb = sitk.GetArrayFromImage(_warp(bone_img, tx_b))
+        comp[wb == b] = b
+    warped_img = sitk.GetImageFromArray(comp)
+    warped_img.CopyInformation(fixed)
     return warped_img, fixed, moving
 
 
@@ -559,6 +588,12 @@ def main() -> int:
                     help="dilate the moving pelvic metric mask by this many voxels "
                          "(small margin; radius 5 on a 512^3 volume is ~10x slower "
                          "for no benefit).")
+    ap.add_argument("--per_bone", dest="per_bone", action="store_true", default=False,
+                    help="(opt-in) ALSO refine a separate rigid per bone {sacrum, "
+                         "L-hip, R-hip} from the whole-pelvis init, to absorb the "
+                         "few-degree SI-joint articulation. Default is ONE whole-"
+                         "pelvis rigid, which seats the masks cleanly on the test "
+                         "cases; enable only if a case looks misplaced.")
     ap.add_argument("--reg_log_every", type=int, default=10,
                     help="log the ITK optimizer metric every N iterations "
                          "(0 = only level changes + stage start/done).")
@@ -589,9 +624,10 @@ def main() -> int:
     limit = args.limit if args.limit is not None else preset["limit"]
     rigid_iters = (args.rigid_iters if args.rigid_iters is not None
                    else preset["rigid_iters"])
-    log.info("mode=%s  limit=%s  rigid_iters=%d  dilate_vox=%d  seed=%d "
-             "(deterministic, pelvis-masked rigid)", args.mode, limit or "all",
-             rigid_iters, args.dilate_vox, SEED)
+    log.info("mode=%s  limit=%s  rigid_iters=%d  dilate_vox=%d  per_bone=%s  "
+             "seed=%d (deterministic, %s rigid @%.1fmm)", args.mode, limit or "all",
+             rigid_iters, args.dilate_vox, args.per_bone, SEED,
+             "per-bone" if args.per_bone else "whole-pelvis", REG_MM)
 
     data = json.loads(args.manifest.read_text())
     cases = data.get("cases", data) if isinstance(data, dict) else data
@@ -608,7 +644,7 @@ def main() -> int:
         return 0
 
     reg_kw = dict(rigid_iters=rigid_iters, dilate_vox=args.dilate_vox,
-                  log_every=args.reg_log_every)
+                  per_bone=args.per_bone, log_every=args.reg_log_every)
     gate_kw = dict(min_fit=args.min_fit, max_jac_bad=args.max_jac_bad,
                    jac_tol=args.jac_tol, vol_lo=args.vol_lo, vol_hi=args.vol_hi,
                    fail_drop=args.fail_drop)
