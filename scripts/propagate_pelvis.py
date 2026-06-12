@@ -140,13 +140,17 @@ def bone_pct(target_ct, mask) -> float:
     return round(f * 100, 1) if f == f else float("nan")
 
 
-def volume_ratio(warped_bone, source_bone_n: int) -> float:
-    """warped voxel count / source voxel count. ~1 for a clean rigid carry-over;
-    << 1 means the bone is FOV-truncated on the target (or the warp collapsed)."""
+def volume_ratio(warped_bone, source_bone_n: int, *,
+                 warped_voxvol: float = 1.0, source_voxvol: float = 1.0) -> float:
+    """warped PHYSICAL volume / source physical volume. ~1 for a clean rigid carry-
+    over; << 1 means the bone is FOV-truncated on the target. Pass each grid's voxel
+    volume (mm^3) since the source mask and the target are on different grids; the
+    voxvol defaults (1.0) reduce it to a plain voxel-count ratio."""
     import numpy as np
     if source_bone_n <= 0:
         return float("nan")
-    return float(np.asarray(warped_bone, bool).sum()) / float(source_bone_n)
+    return (float(np.asarray(warped_bone, bool).sum()) * warped_voxvol) / \
+           (float(source_bone_n) * source_voxvol)
 
 
 def gate_case(per_bone: Dict[int, dict], *, min_fit: float, max_jac_bad: float,
@@ -208,8 +212,8 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
                       log_every: int = 10):
     """GEOMETRY-init, multi-resolution RIGID registration with the metric masked to
     the moving pelvis, moving CT -> fixed CT; warp the moving label (NN) into the
-    fixed grid. Returns (warped_label_np, jacobian_np, fixed_ct_np,
-    warped_label_sitk, moving_ct_np).
+    fixed grid. Returns (warped_label_sitk, fixed_sitk, moving_sitk) — the caller
+    does grid-aware QC (the source mask and target are on different grids).
 
     The pelvis moves prone<->supine as one rigid unit, so one rigid transform (6
     DOF) seats it exactly — no bending, hence no Jacobian gate (det J == 1). The
@@ -247,12 +251,15 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
     reg.SetOptimizerAsRegularStepGradientDescent(
         learningRate=2.0, minStep=1e-4, numberOfIterations=int(rigid_iters))
     reg.SetOptimizerScalesFromPhysicalShift()
-    reg.SetShrinkFactorsPerLevel([8, 4, 2, 1])
-    reg.SetSmoothingSigmasPerLevel([4, 2, 1, 0])
+    # 3 levels down to shrink 2 (NOT full 512^3 — the finest level cost ~half the
+    # runtime for sub-voxel precision a rigid pelvis does not need; overlap is
+    # scored at full res afterwards regardless).
+    reg.SetShrinkFactorsPerLevel([8, 4, 2])
+    reg.SetSmoothingSigmasPerLevel([4, 2, 1])
     reg.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
     reg.SetInitialTransform(initial, inPlace=False)
     _attach_reg_logging(reg, token, "rigid", log_every)
-    log.info("  token=%s [rigid] starting (pelvis-masked, 4 levels, <=%d its)...",
+    log.info("  token=%s [rigid] starting (pelvis-masked, 3 levels, <=%d its)...",
              token, int(rigid_iters))
     full = reg.Execute(fixed, moving)
     log.info("  token=%s [rigid] done: metric=%.5f stop='%s'", token,
@@ -261,14 +268,7 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
     # --- warp the label (NN) into the fixed grid -----------------------------
     warped_img = sitk.Resample(moving_label_img, fixed, full,
                                sitk.sitkNearestNeighbor, 0.0, sitk.sitkInt16)
-    warped = sitk.GetArrayFromImage(warped_img).astype("int16")
-
-    # rigid is exactly volume-preserving -> det J == 1 everywhere (no bone-warp).
-    jac = np.ones(warped.shape, dtype="float32")
-
-    fixed_np = sitk.GetArrayFromImage(fixed).astype("float32")
-    moving_np = sitk.GetArrayFromImage(moving).astype("float32")
-    return warped, jac, fixed_np, warped_img, moving_np
+    return warped_img, fixed, moving
 
 
 # ===========================================================================
@@ -356,18 +356,32 @@ def process_patient(case: dict, *, nifti_dir: Path, pelvic_dir: Path,
     canon_img = sitk.GetImageFromArray(src_arr)
     canon_img.CopyInformation(lab_img)
 
-    warped, jac, fixed_np, warped_img, moving_np = register_and_warp(
+    warped_img, fixed_img, moving_img = register_and_warp(
         fixed_ct, moving_ct, canon_img, token=tok, **reg_kw)
-    src_lab = src_arr                                # for per-bone source counts
+    warped = sitk.GetArrayFromImage(warped_img).astype("int16")    # fixed grid
+    fixed_np = sitk.GetArrayFromImage(fixed_img).astype("float32")
+    moving_np = sitk.GetArrayFromImage(moving_img).astype("float32")
+    # rigid is exactly volume-preserving -> det J == 1 everywhere (no bone-warp).
+    jac = np.ones(warped.shape, dtype="float32")
+
+    # The placed mask and the raw pelvic CT are on DIFFERENT grids, so resample the
+    # source mask into the moving-CT grid (physical-space) for grid-matched QC.
+    src_on_moving = sitk.Resample(canon_img, moving_img, sitk.Transform(),
+                                  sitk.sitkNearestNeighbor, 0.0, sitk.sitkInt16)
+    src_moving = sitk.GetArrayFromImage(src_on_moving).astype("int16")
+    fixed_vox = float(np.prod(fixed_img.GetSpacing()))     # mm^3 / voxel
+    moving_vox = float(np.prod(moving_img.GetSpacing()))
 
     per_bone: Dict[int, dict] = {}
     for b in PELVIS:
-        wb = warped == b
+        wb = warped == b                                    # fixed grid
+        n_src = int((src_moving == b).sum())                # moving grid
         per_bone[b] = {
-            "n_source": int((src_lab == b).sum()),
+            "n_source": n_src,
             "n_warped": int(wb.sum()),
             "bone_fit": bone_fit_fraction(fixed_np, wb),
-            "vol_ratio": volume_ratio(wb, int((src_lab == b).sum())),
+            "vol_ratio": volume_ratio(wb, n_src, warped_voxvol=fixed_vox,
+                                      source_voxvol=moving_vox),
         }
         med, bad, _ = jacobian_stats_in_mask(jac, wb, tol=gate_kw["jac_tol"])
         per_bone[b]["jac_med"] = med
@@ -381,7 +395,7 @@ def process_patient(case: dict, *, nifti_dir: Path, pelvic_dir: Path,
     # bone_pct() (CT > 200) so src vs prop is rigorously apples-to-apples — this is
     # what proves registration did not degrade placement quality. The placed_manifest
     # value place_fused wrote is kept only as a consistency cross-check.
-    src_pct = bone_pct(moving_np, src_arr > 0)            # native pelvic-scan overlap
+    src_pct = bone_pct(moving_np, src_moving > 0)         # native pelvic-scan overlap
     prop_pct = bone_pct(fixed_np, warped > 0)             # propagated spine-scan overlap
     prop_bone_pct = prop_pct
     bone_pct_drop = (src_pct - prop_pct) if (src_pct == src_pct
