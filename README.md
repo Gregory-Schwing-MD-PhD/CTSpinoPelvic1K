@@ -17,8 +17,10 @@ size_categories:
 
 # CTSpinoPelvic1K
 
-A fused spine + pelvis 3D CT segmentation dataset built by patient-level
-crosswalk between three public sources:
+A fused spine + pelvis 3D CT segmentation dataset built for one job the common
+tools get wrong: **numbering the lumbar spine correctly in patients with a
+lumbosacral transitional vertebra (LSTV).** Built by patient-level crosswalk
+between three public sources:
 
 1. **TCIA CT COLONOGRAPHY** — DICOM CT volumes (prone + supine per patient)
 2. **CTSpine1K (COLONOG subset)** — VerSe-convention vertebral label masks
@@ -31,29 +33,66 @@ spine and pelvic labels target different prone/supine acquisitions
 (**separate** cases, exported as two records per patient — one
 `spine_only`, one `pelvic_native`).
 
+## Design principles (the decisions that make it LSTV-aware)
+
+1. **Vertebrae are radiologist ground truth, full stop** — we never ship a
+   pseudolabelled spine. The L1–L6 / L6 / sacrum calls and the transitional
+   adjudications come from CTSpine1K's radiologists.
+2. **A built-in counting anchor** — the **last rib-bearing vertebra** (T12 →
+   class 11), the vertebra directly above ground-truth L1. You can't tell L5
+   from L6 locally; with a fixed cranial anchor + the sacrum, the lumbar count
+   (hence L5-vs-L6) is deterministic. The anchor is free from GT (present on
+   783/784 abdominopelvic studies; earlier exports just dropped it). See
+   [docs/RIB_ANCHOR_RATIONALE.md](docs/RIB_ANCHOR_RATIONALE.md).
+3. **LSTV captured from both ends, and graded** — vertebral count (CTSpine1K)
+   *and* pelvic annotation (CTPelvic1K), expert Castellvi-graded (see below).
+4. **Honest pelvis provenance** — real where fused, pseudolabelled (leak-safe)
+   for `spine_only`, with quality reported as held-out Dice on the
+   `pelvic_native` scans.
+
+Versions: **v1.1** = full release + the T12 anchor class · **v2** = fused +
+spine_only (the LSTV-segmenter artifact; `pelvic_native` held out for pelvis
+validation) · **v3** = adds the student-annotated rib (class 12, reserved now).
+
 > **Reviewing segmentations?** If you were asked to help correct the AI-drafted
 > labels, see **[docs/REVIEW.md](docs/REVIEW.md)** — account/token setup,
 > install, and how to connect to the distributed review system (and, for the
 > project maintainer, how to stand up the HuggingFace Space backend).
 
-## Labels (10-class)
+## Labels
 
-| ID | Name        | Source                                         |
-|----|-------------|------------------------------------------------|
-| 0  | background  | —                                              |
-| 1  | L1          | CTSpine1K (VerSe label 20 → 1)                 |
-| 2  | L2          | CTSpine1K (VerSe label 21 → 2)                 |
-| 3  | L3          | CTSpine1K (VerSe label 22 → 3)                 |
-| 4  | L4          | CTSpine1K (VerSe label 23 → 4)                 |
-| 5  | L5          | CTSpine1K (VerSe label 24 → 5)                 |
-| 6  | L6 / LSTV   | CTSpine1K (VerSe label 25 → 6) — lumbarized S1 |
-| 7  | sacrum      | CTPelvic1K (dataset2 label 1 → 7)              |
-| 8  | left hip    | CTPelvic1K (dataset2 label 2 → 8)              |
-| 9  | right hip   | CTPelvic1K (dataset2 label 3 → 9)              |
+| ID | Name                  | Source                                            |
+|---:|-----------------------|---------------------------------------------------|
+| 0  | background            | —                                                 |
+| 1  | L1                    | CTSpine1K (VerSe 20 → 1)                           |
+| 2  | L2                    | CTSpine1K (VerSe 21 → 2)                           |
+| 3  | L3                    | CTSpine1K (VerSe 22 → 3)                           |
+| 4  | L4                    | CTSpine1K (VerSe 23 → 4)                           |
+| 5  | L5                    | CTSpine1K (VerSe 24 → 5)                           |
+| 6  | L6 / LSTV             | CTSpine1K (VerSe 25 → 6) — lumbarized S1          |
+| 7  | sacrum                | CTPelvic1K (dataset2 1 → 7); CTSpine1K VerSe 26 fallback |
+| 8  | left hip              | CTPelvic1K (dataset2 2 → 8)                        |
+| 9  | right hip             | CTPelvic1K (dataset2 3 → 9)                        |
+| 10 | **ignore**            | partial-annotation only — un-traced region, NOT bg |
+| 11 | **last_rib_vertebra** | CTSpine1K (VerSe **19 = T12** → 11) — counting anchor |
+| 12 | **rib** *(reserved)*  | v3 student annotation — not yet populated          |
 
 CTPelvic1K's sacrum takes priority over CTSpine1K's sacrum (VerSe label 26)
 to avoid the two labelling conventions colliding on lumbosacral transitional
-vertebrae.
+vertebrae. Class 12 (`rib`) is **reserved and empty** so v3 is purely additive.
+
+## LSTV — captured from both ends, expert-graded
+
+Transitional status is read **independently** from the vertebral count
+(`lstv_vertebral`, CTSpine1K) and the pelvic/sacral annotation (`lstv_pelvic`,
+CTPelvic1K filename qualifier), with an `lstv_agreement` flag. The vertebral
+calls match **CTSpine1K's published cohort** case-for-case (16 lumbarizations +
+9 sacralizations on COLONOG); **8 further sacralization/semi-sacralization cases
+come from the CTPelvic1K pelvic annotations**. All **33 transitional cases carry
+an expert Castellvi grade** — **25 sourced from CTSpine1K (vertebral) + 8 from
+CTPelvic1K (pelvic)**. The full per-case source table is in the dataset card
+([docs/dataset_card.md](docs/dataset_card.md)); the grading sheet is
+`_lstv_phenotypes.csv`.
 
 ## Orientation
 
