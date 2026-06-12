@@ -79,8 +79,8 @@ lumbosacral FOV). Docs written: `docs/STUDENT_ANNOTATION_PROTOCOL.md` (master),
    So serving the v4 rib-anchor pass was mostly config:
    - Label scheme extended: `11 last_rib_vertebra`, `12 rib` (above IGNORE=10, so
      the 0–9 path is untouched); ITK-SNAP palette auto-derives from CLASS_NAMES.
-   - `rib_anchor` is a first-class region (provenance leaves spine/pelvis source
-     unchanged — the pass *adds* 11/12, recorded via decision+diff).
+   - `rib_anchor` is a first-class region (the pass leaves the spine/pelvis label
+     source unchanged — it *adds* 11/12, recorded via decision+diff).
    - `store.init_rib_anchor_cases` seeds one case per dense-labelled v3 record —
      **all configs** (fused / spine_only / pelvic_native): by v3 every record
      carries a full dense label and the config tag is not a FOV statement

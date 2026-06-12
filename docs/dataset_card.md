@@ -52,7 +52,7 @@ indistinguishable from a wrong-level plan. Four decisions shape this dataset:
 3. **LSTV is captured from both ends, and graded.** Transitional status is read
    *independently* from the vertebral count (CTSpine1K) **and** the pelvic/sacral
    annotation (CTPelvic1K), then expert **Castellvi**-graded (see below).
-4. **Honest pelvis provenance.** The pelvis is real radiologist GT where it was
+4. **Honest about the pelvis.** The pelvis is real radiologist GT where it was
    co-annotated (**fused** cases) and a leak-safe model **pseudolabel** otherwise
    (**spine_only** cases); its quality is reported as held-out Dice against real
    CTPelvic1K GT (the held-out `pelvic_native` scans).
@@ -119,8 +119,9 @@ forward pass, on exactly the patients where the stakes are highest. See
 
 ## Versions
 
-- **v1.1** — the full release + the T12 anchor class (all configs). A superset of
-  v1; the only change is that class 11 is no longer discarded.
+- **v1** — the full release (all configs), now including the T12 anchor class
+  (11). The only change from the original export is that class 11 is no longer
+  discarded.
 - **v2** — the LSTV-segmenter training artifact: **fused + spine_only** only
   (every case has a radiologist spine). `pelvic_native` (real pelvis, *pseudo*
   spine) is **excluded from the ship** and held back as the **pelvis-pseudolabel
@@ -130,7 +131,7 @@ forward pass, on exactly the patients where the stakes are highest. See
 
 ---
 
-## LSTV — status, provenance, and per-case sources
+## LSTV — status, sources, and per-case origin
 
 Each case carries two **complementary, independent** LSTV annotations:
 

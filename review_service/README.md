@@ -118,5 +118,5 @@ python scripts/review/reduce_to_v3.py --v2 data/hf_export_v2 \
 #         HF_EXPORT_DIR=$(pwd)/data/hf_export_v3 make hf-push
 ```
 
-The state machine + IRR + provenance live in `scripts/review/` (Phase 1,
+The state machine + IRR + label-source tracking live in `scripts/review/` (Phase 1,
 unit-tested); this service is a thin, write-serialized layer over it.

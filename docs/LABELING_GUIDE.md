@@ -125,9 +125,9 @@ trainer masks `ignore` out of the loss.
 
 ---
 
-## 6. Provenance & versions (where a label came from)
+## 6. Label source & versions (where a label came from)
 
-Every record carries provenance: `manual` (radiologist), `pseudo` (model
+Every record records where its label came from: `manual` (radiologist), `pseudo` (model
 pseudolabel), `pseudo_corrected` (reviewer-corrected pseudolabel). Dataset
 versions: **v2** is the published manual+matched release; **v3** is the
 fully-pseudolabelled + reviewer-corrected tree.

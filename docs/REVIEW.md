@@ -205,7 +205,7 @@ HF_TOKEN=<write> HF_REPO_ID=<org>/CTSpinoPelvic1K \
   HF_REVISION=v3 HF_EXPORT_DIR=$(pwd)/data/hf_export_v3 make hf-push
 ```
 
-Design details (state machine, IRR, provenance) live in
+Design details (state machine, IRR, label-source tracking) live in
 [`scripts/review/`](../scripts/review); the service in
 [`review_service/`](../review_service); the client in
 [`reviewtool/`](../reviewtool).

@@ -46,13 +46,14 @@ spine and pelvic labels target different prone/supine acquisitions
    [docs/RIB_ANCHOR_RATIONALE.md](docs/RIB_ANCHOR_RATIONALE.md).
 3. **LSTV captured from both ends, and graded** — vertebral count (CTSpine1K)
    *and* pelvic annotation (CTPelvic1K), expert Castellvi-graded (see below).
-4. **Honest pelvis provenance** — real where fused, pseudolabelled (leak-safe)
+4. **Honest about the pelvis** — real where fused, pseudolabelled (leak-safe)
    for `spine_only`, with quality reported as held-out Dice on the
    `pelvic_native` scans.
 
-Versions: **v1.1** = full release + the T12 anchor class · **v2** = fused +
-spine_only (the LSTV-segmenter artifact; `pelvic_native` held out for pelvis
-validation) · **v3** = adds the student-annotated rib (class 12, reserved now).
+Versions: **v1** = the full release (all configs), with the T12 anchor class ·
+**v2** = fused + spine_only (the LSTV-segmenter artifact; `pelvic_native` held
+out for pelvis validation) · **v3** = adds the student-annotated rib (class 12,
+reserved now).
 
 > **Reviewing segmentations?** If you were asked to help correct the AI-drafted
 > labels, see **[docs/REVIEW.md](docs/REVIEW.md)** — account/token setup,
@@ -136,7 +137,7 @@ pelvic masks align across their prone/supine acquisitions:
 | `spine_only`    | Record carries lumbar labels only (1–6); sacrum/hips absent   |
 | `pelvic_native` | Record carries sacrum + hip labels only (7–9); lumbar absent  |
 
-Use `match_type` to distinguish patient-level provenance:
+Use `match_type` to distinguish where each side's labels came from:
 
 | `match_type`   | Meaning                                                        |
 |----------------|----------------------------------------------------------------|
