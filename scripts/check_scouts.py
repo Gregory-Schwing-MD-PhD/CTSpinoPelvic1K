@@ -232,11 +232,11 @@ def main() -> int:
     log.info("-" * 64)
     log.info("CRANIOCAUDAL EXTENT  (sample of %d)", len(sample))
     log.info("-" * 64)
-    log.info("%-6s %-8s %-9s %-10s %-22s %s",
-             "token", "view", "n_dcm", "SI_mm", "scout z[lo,hi]", "vs CT (reaches above?)")
+    log.info("%-6s %-8s %-9s %-10s %-10s %s",
+             "token", "view", "n_dcm", "SI_mm", "CT_SI_mm", "scout taller by (extra cranial cover)")
     from collections import Counter
     view_counts: Counter = Counter()
-    above = 0
+    taller = 0
     for r, n in sample:
         g = _scout_geometry(Path(r.series_dir))
         if g is None:
@@ -245,16 +245,22 @@ def main() -> int:
         view_counts[g["view"]] += 1
         ct = _best_ct(grouped[r.patient_uid])
         ctz = _ct_zrange(ct) if ct else None
+        # FRAME-INDEPENDENT comparison: a COLONOG localizer and its axial series
+        # usually DON'T share a z-origin (separate prone/supine acquisitions reset
+        # table position), so comparing absolute z is meaningless. Compare the SI
+        # EXTENTS instead: the axial already covers lumbar+sacrum, so any extra
+        # scout height is added cranial coverage — i.e. toward the lower thorax /
+        # ribs. (Definitive check is still the PNG.)
         if ctz:
-            reaches = g["z_hi"] - ctz[1]                # +ve = scout tops out higher
-            verdict = (f"CT z[{ctz[0]:.0f},{ctz[1]:.0f}]  "
-                       f"scout-top {'+' if reaches >= 0 else ''}{reaches:.0f}mm")
-            above += int(reaches > 20)                 # >2cm above CT top
+            ct_si = ctz[1] - ctz[0]
+            delta = g["si_extent_mm"] - ct_si
+            verdict = f"{ct_si:7.0f}    {'+' if delta >= 0 else ''}{delta:.0f}mm"
+            taller += int(delta > 50)                  # >5cm taller than the CT
         else:
-            verdict = "no CT spatial"
-        log.info("%-6s %-8s %-9d %-10.0f [%7.0f,%7.0f]   %s",
-                 r.patient_token, g["view"], n, g["si_extent_mm"],
-                 g["z_lo"], g["z_hi"], verdict)
+            ct_si = float("nan")
+            verdict = "   no CT spatial"
+        log.info("%-6s %-8s %-9d %-10.0f %-10.0f %s",
+                 r.patient_token, g["view"], n, g["si_extent_mm"], ct_si, verdict)
         if a.dump_png:
             png = a.dump_png / f"{r.patient_token}_{g['view']}_{r.series_uid[-8:]}.png"
             if _dump_png(Path(r.series_dir), png):
@@ -262,12 +268,14 @@ def main() -> int:
 
     log.info("-" * 64)
     log.info("sample views: %s", dict(view_counts))
-    log.info("scouts topping out >2cm above the CT (toward ribs): %d / %d",
-             above, len(sample))
+    log.info("scouts >5cm taller than their axial CT (extra cranial cover -> ribs): %d / %d",
+             taller, len(sample))
     log.info("=" * 64)
-    log.info("READ: SI_mm ~500+ and 'reaches above' = whole-torso scout (ribs "
-             "countable). SI_mm ~300 confined to abdomen/pelvis = relative count "
-             "only. Open the PNGs to confirm the rib cage is visible.")
+    log.info("READ: SI_mm ~500+ AND taller than the abdominal CT => whole-torso "
+             "scout, ribs almost certainly in frame (countable). Confirm on the "
+             "PNGs. SI_mm ~300 and no extra height => abdomen/pelvis only "
+             "(relative count). Absolute z is NOT compared (localizer/axial "
+             "frames-of-reference differ).")
     return 0
 
 
