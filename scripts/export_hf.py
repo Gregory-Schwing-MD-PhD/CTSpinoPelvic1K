@@ -332,10 +332,11 @@ VERSE_TO_10CLASS: Dict[int, int] = {
     # cervical C1-C7 (VerSe 1-7) -> 13-19. Previously DROPPED; now retained from
     # CTSpine1K GT (present on a handful of cases — see DATASET_PRINCIPLES.md).
     1: 13, 2: 14, 3: 15, 4: 16, 5: 17, 6: 18, 7: 19,
-    # thoracic T1-T11 (VerSe 8-18) -> 20-30. Previously DROPPED; now retained.
+    # thoracic T1-T12 (VerSe 8-19) -> 20-31. Previously DROPPED; now retained,
+    # CONTIGUOUS through T12 (so the column is in order, no orphaned vertebra).
     8: 20, 9: 21, 10: 22, 11: 23, 12: 24, 13: 25,
     14: 26, 15: 27, 16: 28, 17: 29, 18: 30,
-    19: 11,                       # T12 = the vertebra above L1 = the RIB ANCHOR
+    19: 31,                       # T12 -> per-level (NOT the anchor; see below)
     20: 1, 21: 2, 22: 3, 23: 4, 24: 5,
     25: 6,
     26: 7,
@@ -344,14 +345,15 @@ VERSE_TO_10CLASS: Dict[int, int] = {
 # Append-only law (DATASET_PRINCIPLES.md): the existing 0-12 scheme is FROZEN;
 # everything above is purely additive and never renumbers a published value.
 #
-# - VerSe 19 (T12) = "the vertebra directly above L1" stays mapped to the
-#   counting anchor (last_rib_vertebra=11), unchanged. Slot 31 (T12 per-level)
-#   is reserved as the *absolute* view of the same vertebra; the export
-#   populates T12 as the anchor (11), so 31 is defined but not emitted here.
-# - Cervical (13-19) and thoracic T1-T11 (20-30) are now retained from the
-#   CTSpine1K radiologist GT instead of being dropped. They are the spine
-#   annotator's word and are written authoritatively by merge_labels.
-# - T13 (VerSe 28) -> 32 (no COLONOG case has it yet; reserved-and-ready).
+# - Vertebrae are NATIVE and CONTIGUOUS: cervical C1-C7 -> 13-19, thoracic
+#   T1-T13 -> 20-32 (T12 -> 31, T13 -> 32), lumbar L1-L6 -> 1-6, sacrum -> 7.
+#   They are the spine annotator's word, written authoritatively by merge_labels.
+# - The counting anchor is DERIVED, not a stored class: it is the last
+#   rib-bearing vertebra (the lowest vertebra bearing a rib once ribs are
+#   labelled, or simply the vertebra above ground-truth L1, i.e. T12=31 / T13=32
+#   when present). Classes 11/12 remain reserved names for that relational anchor
+#   + its rib in the *training view*, but the canonical export no longer paints
+#   them — keeping the vertebral column native and contiguous.
 # - Classes 33-62 (femur, full rib cage, sternum, costal cartilages) are
 #   RESERVED names only — not in this map (no GT source yet), future annotation.
 # - ignore stays 10; this change is decoupled from the pseudolabeller, which
@@ -922,7 +924,9 @@ def _export_one(args: dict) -> dict:
         uniq = {v for v in all_vals if 1 <= v <= 6}
         result["n_lumbar_labels"] = len(uniq)
         result["has_l6"]          = 6 in uniq
-        result["has_anchor"]      = 11 in all_vals
+        # anchor is DERIVED: the last rib-bearing vertebra = T12 (31) or, when
+        # present, the supernumerary T13 (32). No stored anchor class.
+        result["has_anchor"]      = bool({31, 32} & all_vals)
         result["has_rib"]         = RIB_CLASS in all_vals
 
         if not args.get("skip_qc"):
