@@ -888,8 +888,15 @@ def _export_one(args: dict) -> dict:
 # -- Build work items ---------------------------------------------------------
 
 def build_work(manifest_path: Path, nifti_dir: Path,
-               spine_dir: Path, pelvic_dir: Path) -> List[dict]:
-    """Build per-case export work from placed_manifest.json."""
+               spine_dir: Path, pelvic_dir: Path,
+               include_configs: Optional[set] = None) -> List[dict]:
+    """Build per-case export work from placed_manifest.json.
+
+    include_configs: if given, keep only these configs (e.g. {"fused",
+    "spine_only"} for the v2 ship, which excludes pelvic_native — a real-pelvis
+    but PSEUDO-spine scan we never ship, holding it back as the pelvis-pseudo-
+    label validation set). None = all configs (v1 behaviour, unchanged).
+    """
     data  = json.loads(manifest_path.read_text())
     cases = data.get("cases", [])
     if isinstance(cases, dict):
@@ -1045,6 +1052,13 @@ def build_work(manifest_path: Path, nifti_dir: Path,
                     fname_base=f"{token_base}_pelvic", **lstv_kwargs, **prov_kwargs, **demo_kwargs,
                 ))
 
+    if include_configs:
+        before = len(work)
+        work = [w for w in work if w["config"] in include_configs]
+        from collections import Counter
+        kept = Counter(w["config"] for w in work)
+        log.info("config filter %s: %d -> %d work items  %s",
+                 sorted(include_configs), before, len(work), dict(kept))
     return work
 
 
@@ -1412,6 +1426,11 @@ def main():
     ap.add_argument("--no_pir",      action="store_true")
     ap.add_argument("--debug_n",     default=0,      type=int)
     ap.add_argument("--skip_export", action="store_true")
+    ap.add_argument("--include_configs", default=None,
+                    help="comma-separated configs to ship (e.g. "
+                         "'fused,spine_only' for the v2 release, which excludes "
+                         "pelvic_native). Default/empty = all configs. Env "
+                         "INCLUDE_CONFIGS is honoured if the flag is absent.")
     ap.add_argument("--push_to_hub", action="store_true")
     ap.add_argument("--hf_repo_id",  default=HF_REPO_ID,
                     help="Target HF repo (e.g. org/Name). REQUIRED with "
@@ -1453,8 +1472,12 @@ def main():
         for d in [args.out_dir/"ct", args.out_dir/"labels", args.out_dir/"qc"]:
             d.mkdir(parents=True, exist_ok=True)
 
+        _inc = args.include_configs or os.environ.get("INCLUDE_CONFIGS", "")
+        include_configs = ({c.strip() for c in _inc.split(",") if c.strip()}
+                           or None)
         log.info("Building work from %s ...", args.manifest)
-        work = build_work(args.manifest, args.nifti_dir, args.spine_dir, args.pelvic_dir)
+        work = build_work(args.manifest, args.nifti_dir, args.spine_dir,
+                          args.pelvic_dir, include_configs=include_configs)
         log.info("Work items: %d", len(work))
 
         if args.debug_n > 0:

@@ -249,6 +249,9 @@ EXPORT_FLAGS=""
 [[ "${SKIP_EXPORT}" == "1" ]] && EXPORT_FLAGS="${EXPORT_FLAGS} --skip_export"
 [[ "${SKIP_QC}"     == "1" ]] && EXPORT_FLAGS="${EXPORT_FLAGS} --skip_qc"
 [[ "${NO_PIR}"      == "1" ]] && EXPORT_FLAGS="${EXPORT_FLAGS} --no_pir"
+# INCLUDE_CONFIGS=fused,spine_only ships the v2 release (excludes pelvic_native,
+# held back as the pelvis-pseudolabel validation set). Empty = all configs (v1).
+[[ -n "${INCLUDE_CONFIGS:-}" ]] && EXPORT_FLAGS="${EXPORT_FLAGS} --include_configs ${INCLUDE_CONFIGS}"
 
 if [[ "${PUSH}" == "1" ]]; then
     EXPORT_FLAGS="${EXPORT_FLAGS} --push_to_hub"
