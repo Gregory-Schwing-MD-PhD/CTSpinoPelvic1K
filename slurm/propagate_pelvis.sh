@@ -28,6 +28,7 @@
 #   MANIFEST     placed_manifest.json              (default: data/placed/placed_manifest.json)
 #   NIFTI_DIR    TCIA NIfTIs                        (default: data/tcia_nifti)
 #   PELVIC_DIR   placed pelvic masks               (default: data/placed/pelvic)
+#   SPINE_DIR    placed spine GT (L5/S1 landmark)  (default: data/placed/spine)
 #   PROP_OUT_DIR propagated pelves + qc            (default: data/placed/pelvic_propagated)
 #   PROP_WORKERS parallel registrations            (default: $SLURM_CPUS_PER_TASK - 2)
 #   DROP_TARGET  bone-HU overlap report ref (pp)   (default: 1.0, report-only)
@@ -46,6 +47,7 @@ MODE="${MODE:-production}"
 MANIFEST="${MANIFEST:-${DATA_DIR}/placed/placed_manifest.json}"
 NIFTI_DIR="${NIFTI_DIR:-${DATA_DIR}/tcia_nifti}"
 PELVIC_DIR="${PELVIC_DIR:-${DATA_DIR}/placed/pelvic}"
+SPINE_DIR="${SPINE_DIR:-${DATA_DIR}/placed/spine}"
 PROP_OUT_DIR="${PROP_OUT_DIR:-${DATA_DIR}/placed/pelvic_propagated}"
 PROP_WORKERS="${PROP_WORKERS:-$(( ${SLURM_CPUS_PER_TASK:-8} > 2 ? ${SLURM_CPUS_PER_TASK:-8} - 2 : 1 ))}"
 DROP_TARGET="${DROP_TARGET:-1.0}"
@@ -67,6 +69,7 @@ ARGS=( --manifest "/data/$(realpath --relative-to="${DATA_DIR}" "${MANIFEST}")"
        --reg_log_every "${REG_LOG_EVERY}"
        --drop_target "${DROP_TARGET}" )
 ARGS+=( --fail_drop "${FAIL_DROP}" )
+[[ -d "${SPINE_DIR}" ]] && ARGS+=( --spine_dir "/data/$(realpath --relative-to="${DATA_DIR}" "${SPINE_DIR}")" ) || echo "NOTE: no spine dir at ${SPINE_DIR} — L5/S1 landmark disabled"
 [[ "${PER_BONE}" == "1" ]] && ARGS+=( --per_bone )
 [[ "${RESUME}" == "1" ]] && ARGS+=( --resume )
 [[ "${PROP_LIMIT}" != "0" ]] && ARGS+=( --limit "${PROP_LIMIT}" )

@@ -94,6 +94,11 @@ PELVIC_TO_CANONICAL = {1: 7, 2: 8, 3: 9}
 SACRUM, LEFT_HIP, RIGHT_HIP = 7, 8, 9
 PELVIS = {SACRUM: "sacrum", LEFT_HIP: "left_hip", RIGHT_HIP: "right_hip"}
 BONE_HU = 200
+# Lumbar labels in the fixed-scan spine GT: VerSe L1-L6 = 20-25 (the placed
+# CTSpine1K convention), or canonical 1-6 as a fallback. Their INFERIOR aspect is
+# the L5/S1 junction the radiologist drew — the anatomical anchor for the sacrum.
+LUMBAR_VERSE = (20, 21, 22, 23, 24, 25)
+LUMBAR_CANON = (1, 2, 3, 4, 5, 6)
 # Resolution (mm) the rigid registration runs at. A 6-DOF rigid pelvis fit is fully
 # determined at ~2-3mm; registering at the native 512^3 was needless minutes of
 # single-threaded smoothing + memory. Overlap is still scored at full res.
@@ -214,8 +219,42 @@ def _attach_reg_logging(method, token, tag, every: int):
         method.AddCommand(sitk.sitkIterationEvent, _on_iter)
 
 
+def _aspect_centroid_world(img, labels, aspect: str):
+    """World centroid of the inferior ('inf', min superior-Z) or superior ('sup',
+    max Z) ~quartile of the labelled voxels. Returns a 3-vector or None."""
+    import numpy as np
+    import SimpleITK as sitk
+    arr = sitk.GetArrayFromImage(img)                 # z,y,x
+    m = np.isin(arr, list(labels))
+    if not m.any():
+        return None
+    kji = np.argwhere(m).astype(float)                # (N, [k,j,i])
+    sp = np.asarray(img.GetSpacing(), float)          # (sx,sy,sz) for (i,j,k)
+    orig = np.asarray(img.GetOrigin(), float)
+    D = np.asarray(img.GetDirection(), float).reshape(3, 3)
+    ijk = kji[:, ::-1]                                 # -> (i,j,k)
+    world = orig + (D @ (ijk * sp).T).T               # (N,3) physical
+    z = world[:, 2]                                    # RAS +Z = superior
+    sel = z <= np.percentile(z, 25) if aspect == "inf" else z >= np.percentile(z, 75)
+    return world[sel].mean(axis=0)
+
+
+def landmark_translation(spine_mask_img, sacrum_mask_img):
+    """The L5/S1 anchor init: a world translation that maps the moving sacrum's
+    SUPERIOR aspect (S1 promontory) onto the fixed lumbar column's INFERIOR aspect
+    (the L5-S1 junction the radiologist drew on the spine scan). Returns (sx,sy,sz)
+    or None if either landmark is missing."""
+    lum = _aspect_centroid_world(spine_mask_img, LUMBAR_VERSE, "inf")
+    if lum is None:
+        lum = _aspect_centroid_world(spine_mask_img, LUMBAR_CANON, "inf")
+    sac = _aspect_centroid_world(sacrum_mask_img, (SACRUM,), "sup")
+    if lum is None or sac is None:
+        return None
+    return tuple(float(s - l) for s, l in zip(sac, lum))
+
+
 def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
-                      moving_label_img, *, token: str = "",
+                      moving_label_img, *, token: str = "", landmark=None,
                       rigid_iters: int, dilate_vox: int = 2, per_bone: bool = True,
                       multistart: bool = True, log_every: int = 10):
     """Bone-masked RIGID registration, moving CT -> fixed CT; warp the moving label
@@ -298,9 +337,19 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
     geometry = sitk.CenteredTransformInitializer(
         fixed_lo, moving_lo, sitk.Euler3DTransform(),
         sitk.CenteredTransformInitializerFilter.GEOMETRY)
+
+    def _euler_vec(t):                       # identity + an arbitrary world translation
+        e = sitk.Euler3DTransform(); e.SetCenter(fc); e.SetTranslation(tuple(t))
+        return e
+
     if multistart:
-        cands = [("identity", _euler_tz(0)), ("geometry", geometry),
-                 ("identity+z", _euler_tz(90)), ("identity-z", _euler_tz(-90))]
+        cands = [("identity", _euler_tz(0)), ("geometry", geometry)]
+        if landmark is not None:
+            # the principled cranio-caudal init from the L5/S1 anchor.
+            cands.append(("L5S1", _euler_vec(landmark)))
+        else:
+            # no spine landmark -> fall back to blind cranio-caudal slides.
+            cands += [("identity+z", _euler_tz(90)), ("identity-z", _euler_tz(-90))]
     else:
         cands = [("geometry", geometry)]
 
@@ -367,7 +416,8 @@ def _to_canonical_pelvis(lab):
 
 
 def process_patient(case: dict, *, nifti_dir: Path, pelvic_dir: Path,
-                    out_dir: Path, reg_kw: dict, gate_kw: dict) -> Optional[dict]:
+                    out_dir: Path, reg_kw: dict, gate_kw: dict,
+                    spine_dir: Path = None) -> Optional[dict]:
     import numpy as np
 
     tok = str(case.get("patient_token", "?"))
@@ -434,8 +484,26 @@ def process_patient(case: dict, *, nifti_dir: Path, pelvic_dir: Path,
     canon_img = sitk.GetImageFromArray(src_arr)
     canon_img.CopyInformation(lab_img)
 
+    # L5/S1 landmark init: the fixed scan's spine GT gives the L5-S1 junction; align
+    # the moving sacrum's top to it. Resolve the placed spine mask for this scan.
+    landmark = None
+    spine_placed = sp.get("placed")
+    spine_mask = Path(spine_placed) if spine_placed else None
+    if spine_mask and not spine_mask.exists() and spine_dir and spine_uid:
+        cand = spine_dir / f"{spine_uid}_seg_placed.nii.gz"
+        spine_mask = cand if cand.exists() else None
+    if spine_mask and spine_mask.exists():
+        try:
+            landmark = landmark_translation(
+                sitk.ReadImage(str(spine_mask), sitk.sitkInt16), canon_img)
+        except Exception as exc:                                # noqa: BLE001
+            log.warning("token=%s landmark failed (%s) — using blind inits", tok, exc)
+    if landmark is not None:
+        log.info("token=%s L5/S1 landmark translation = (%.0f, %.0f, %.0f) mm",
+                 tok, *landmark)
+
     warped_img, fixed_img, moving_img = register_and_warp(
-        fixed_ct, moving_ct, canon_img, token=tok, **reg_kw)
+        fixed_ct, moving_ct, canon_img, token=tok, landmark=landmark, **reg_kw)
     warped = sitk.GetArrayFromImage(warped_img).astype("int16")    # fixed grid
     # QC only needs the HU threshold (CT > 200), and HU fits in int16 — half the
     # memory of float32 per worker (matters at high worker counts).
@@ -593,7 +661,8 @@ def _worker(task: dict) -> dict:
     try:
         return process_patient(
             task["case"], nifti_dir=task["nifti_dir"], pelvic_dir=task["pelvic_dir"],
-            out_dir=task["out_dir"], reg_kw=task["reg_kw"], gate_kw=task["gate_kw"])
+            out_dir=task["out_dir"], reg_kw=task["reg_kw"], gate_kw=task["gate_kw"],
+            spine_dir=task.get("spine_dir"))
     except Exception as exc:                                     # noqa: BLE001
         return {"token": tok, "status": f"fail:{exc}", "accept": 0}
 
@@ -611,6 +680,9 @@ def main() -> int:
     ap.add_argument("--manifest", required=True, type=Path)
     ap.add_argument("--nifti_dir", required=True, type=Path)
     ap.add_argument("--pelvic_dir", required=True, type=Path)
+    ap.add_argument("--spine_dir", type=Path, default=None,
+                    help="placed spine GT masks (<spine_uid>_seg_placed.nii.gz), used "
+                         "for the L5/S1 landmark init. Optional; absent -> blind inits.")
     ap.add_argument("--out_dir", required=True, type=Path)
     ap.add_argument("--out_csv", type=Path, default=None)
     ap.add_argument("--mode", choices=("test", "production"), default="production",
@@ -722,7 +794,8 @@ def main() -> int:
                  len(done_rows), len(separate))
 
     tasks = [dict(case=c, nifti_dir=args.nifti_dir, pelvic_dir=args.pelvic_dir,
-                  out_dir=args.out_dir, reg_kw=reg_kw, gate_kw=gate_kw)
+                  out_dir=args.out_dir, reg_kw=reg_kw, gate_kw=gate_kw,
+                  spine_dir=args.spine_dir)
              for c in separate]
     workers = max(1, min(args.workers, len(tasks)))
     log.info("registering %d pelves across %d workers ...", len(tasks), workers)

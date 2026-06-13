@@ -48,6 +48,7 @@ HF_EXPORT_DIR="${HF_EXPORT_DIR:-${DATA_DIR}/hf_export}"          # filtered base
 PSEUDO_OUT_DIR="${PSEUDO_OUT_DIR:-${DATA_DIR}/hf_export_v2}"     # the v2 tree we push
 NIFTI_DIR="${NIFTI_DIR:-${DATA_DIR}/tcia_nifti}"
 PELVIC_DIR="${PELVIC_DIR:-${DATA_DIR}/placed/pelvic}"
+SPINE_DIR="${SPINE_DIR:-${DATA_DIR}/placed/spine}"
 PROP_OUT_DIR="${PROP_OUT_DIR:-${DATA_DIR}/placed/pelvic_propagated}"  # propagation output
 DASH_OUT_DIR="${DASH_OUT_DIR:-${DATA_DIR}/qc_dashboard}"
 HF_WORKERS="${HF_WORKERS:-8}"
@@ -106,7 +107,7 @@ if [[ "${SKIP_PROP}" == "1" ]]; then
 else
     echo "[ship_v2] (2) propagate_pelvis (MODE=${PROP_MODE}) -> ${PROP_OUT_DIR} [CPU]"
     JPROP=$(sbatch --parsable \
-      --export=ALL,SIF_PATH=${SIF_PATH},MODE=${PROP_MODE},MANIFEST=${PLACED_MANIFEST},NIFTI_DIR=${NIFTI_DIR},PELVIC_DIR=${PELVIC_DIR},PROP_OUT_DIR=${PROP_OUT_DIR} \
+      --export=ALL,SIF_PATH=${SIF_PATH},MODE=${PROP_MODE},MANIFEST=${PLACED_MANIFEST},NIFTI_DIR=${NIFTI_DIR},PELVIC_DIR=${PELVIC_DIR},SPINE_DIR=${SPINE_DIR},PROP_OUT_DIR=${PROP_OUT_DIR} \
       slurm/propagate_pelvis.sh)
     PROP_DEP=":${JPROP}"
 fi
