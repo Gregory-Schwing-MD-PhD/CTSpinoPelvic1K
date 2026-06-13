@@ -130,6 +130,12 @@ _run() {
 }
 
 # ── Compute this shard's token list (uses pinned N_SHARDS) ───────────────────
+# TOKENS_OVERRIDE short-circuits the manifest sharding to a fixed comma-separated
+# token list — for one-off benchmarks (e.g. a single case for a presentation):
+#   TOKENS_OVERRIDE=215 N_SHARDS_OVERRIDE=1 sbatch --array=0 slurm/benchmark_totalseg.sh
+if [[ -n "${TOKENS_OVERRIDE:-}" ]]; then
+TOKENS="${TOKENS_OVERRIDE}"
+else
 TOKENS=$(python3 - <<PY
 import json, sys
 from pathlib import Path
@@ -147,6 +153,7 @@ print(",".join(my_tokens), end="")
 sys.stderr.write(f"shard {shard_id}/{n_shards}: {len(my_tokens)} of {len(all_tokens)} tokens\n")
 PY
 )
+fi
 
 NUM_TOKENS=$(echo -n "$TOKENS" | tr ',' '\n' | grep -c .)
 
