@@ -240,17 +240,20 @@ def _aspect_centroid_world(img, labels, aspect: str):
 
 
 def landmark_translation(spine_mask_img, sacrum_mask_img):
-    """The L5/S1 anchor init: a world translation that maps the moving sacrum's
-    SUPERIOR aspect (S1 promontory) onto the fixed lumbar column's INFERIOR aspect
-    (the L5-S1 junction the radiologist drew on the spine scan). Returns (sx,sy,sz)
-    or None if either landmark is missing."""
+    """The L5/S1 anchor: a POINT correspondence between the fixed lumbar column's
+    INFERIOR aspect (the L5-S1 junction the radiologist drew) and the moving sacrum's
+    SUPERIOR aspect (S1 promontory). Returns (translation, center) where translation
+    = sac - lum maps the junction onto the sacrum top and `center` (= lum) is the
+    pivot to rotate the pelvis about WITHOUT breaking that alignment — so the caller
+    can try 180-degree flips (prone<->supine) around the junction. None if missing."""
     lum = _aspect_centroid_world(spine_mask_img, LUMBAR_VERSE, "inf")
     if lum is None:
         lum = _aspect_centroid_world(spine_mask_img, LUMBAR_CANON, "inf")
     sac = _aspect_centroid_world(sacrum_mask_img, (SACRUM,), "sup")
     if lum is None or sac is None:
         return None
-    return tuple(float(s - l) for s, l in zip(sac, lum))
+    translation = tuple(float(s - l) for s, l in zip(sac, lum))
+    return translation, tuple(float(x) for x in lum)
 
 
 def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
@@ -338,15 +341,21 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
         fixed_lo, moving_lo, sitk.Euler3DTransform(),
         sitk.CenteredTransformInitializerFilter.GEOMETRY)
 
-    def _euler_vec(t):                       # identity + an arbitrary world translation
-        e = sitk.Euler3DTransform(); e.SetCenter(fc); e.SetTranslation(tuple(t))
-        return e
-
     if multistart:
         cands = [("identity", _euler_tz(0)), ("geometry", geometry)]
         if landmark is not None:
-            # the principled cranio-caudal init from the L5/S1 anchor.
-            cands.append(("L5S1", _euler_vec(landmark)))
+            import math
+            T, pivot = landmark
+            def _euler_landmark(rx, ry, rz):     # rotate the pelvis ABOUT the junction
+                e = sitk.Euler3DTransform(); e.SetCenter(tuple(pivot))
+                e.SetRotation(rx, ry, rz); e.SetTranslation(tuple(T))
+                return e
+            P = math.pi
+            # the junction always aligns; the 180-degree flips cover prone<->supine.
+            cands += [("L5S1", _euler_landmark(0, 0, 0)),
+                      ("L5S1+flipZ", _euler_landmark(0, 0, P)),
+                      ("L5S1+flipX", _euler_landmark(P, 0, 0)),
+                      ("L5S1+flipY", _euler_landmark(0, P, 0))]
         else:
             # no spine landmark -> fall back to blind cranio-caudal slides.
             cands += [("identity+z", _euler_tz(90)), ("identity-z", _euler_tz(-90))]
@@ -510,7 +519,7 @@ def process_patient(case: dict, *, nifti_dir: Path, pelvic_dir: Path,
             log.warning("token=%s landmark failed (%s) — using blind inits", tok, exc)
     if landmark is not None:
         log.info("token=%s L5/S1 landmark translation = (%.0f, %.0f, %.0f) mm",
-                 tok, *landmark)
+                 tok, *landmark[0])
 
     warped_img, fixed_img, moving_img = register_and_warp(
         fixed_ct, moving_ct, canon_img, token=tok, landmark=landmark, **reg_kw)
