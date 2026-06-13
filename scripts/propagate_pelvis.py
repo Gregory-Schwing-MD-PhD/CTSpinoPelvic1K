@@ -319,7 +319,8 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
                       moving_label_img, *, token: str = "", landmark=None,
                       spine_mask=None, rigid_iters: int, dilate_vox: int = 2,
                       per_bone: bool = True, multistart: bool = True,
-                      affine: bool = False, log_every: int = 10):
+                      affine: bool = False, bonefit_refine: bool = True,
+                      log_every: int = 10):
     """Bone-masked RIGID registration, moving CT -> fixed CT; warp the moving label
     (NN) into the fixed grid. Returns (warped_label_sitk, fixed_sitk, moving_sitk);
     the caller does grid-aware QC (source mask and target are on different grids).
@@ -484,6 +485,41 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
     if multistart:
         log.info("  token=%s multi-start winner: %s (lo-fit=%.3f)", token,
                  best_name, best_fit)
+
+    if bonefit_refine:
+        # DIRECT search for the pelvis-shaped bone: the MI optimizer maximizes
+        # intensity similarity, which drifts off the bone in a gassy abdomen. So
+        # instead, rock/roll the pelvis about the L5/S1 junction and slide it, and
+        # score each pose by ACTUAL bone overlap (lo-fit) — keep the best seating.
+        import itertools
+        import math
+        pivot = tuple(landmark[1]) if landmark is not None else fc
+
+        def _pert(rot_deg, trans_mm):
+            e = sitk.Euler3DTransform(); e.SetCenter(pivot)
+            e.SetRotation(*(d * math.pi / 180.0 for d in rot_deg))
+            e.SetTranslation(tuple(float(t) for t in trans_mm))
+            return e
+
+        def _sweep(ref, fit, grids, kind):
+            best_tx2, best2 = ref, fit
+            for combo in itertools.product(*grids):
+                rot = combo if kind == "rot" else (0, 0, 0)
+                tr = combo if kind == "trans" else (0, 0, 0)
+                cand = sitk.CompositeTransform([ref, _pert(rot, tr)])
+                f = _lo_fit(cand)
+                if f > best2:
+                    best2, best_tx2 = f, cand
+            return best_tx2, best2
+
+        f0 = best_fit
+        RC = (-30, -15, 0, 15, 30)            # coarse rock/roll/twist, deg
+        full, best_fit = _sweep(full, best_fit, (RC, RC, RC), "rot")
+        TR = (-20, -10, 0, 10, 20)            # slide up/down/left/right/front/back, mm
+        full, best_fit = _sweep(full, best_fit, (TR, TR, TR), "trans")
+        RF = (-10, -5, 0, 5, 10)              # fine rock/roll/twist, deg
+        full, best_fit = _sweep(full, best_fit, (RF, RF, RF), "rot")
+        log.info("  token=%s bone-fit grid-refine: %.3f -> %.3f", token, f0, best_fit)
 
     if affine:
         # EXPERIMENT: allow scale + shear on top of the best rigid. If this fixes the
@@ -865,6 +901,12 @@ def main() -> int:
                     help="EXPERIMENT: after the best rigid, allow scale+shear (affine) "
                          "refinement. Tests whether the scans' affines disagree on "
                          "physical scale; kept only if it improves bone-fit.")
+    ap.add_argument("--no_bonefit_refine", dest="bonefit_refine",
+                    action="store_false", default=True,
+                    help="disable the direct bone-fit grid search (rock/roll the "
+                         "pelvis about the L5/S1 junction + slide it, scoring by actual "
+                         "bone overlap instead of MI). On by default — it's the thing "
+                         "that recovers cases where the MI optimizer drifts off bone.")
     ap.add_argument("--reg_log_every", type=int, default=10,
                     help="log the ITK optimizer metric every N iterations "
                          "(0 = only level changes + stage start/done).")
@@ -931,7 +973,8 @@ def main() -> int:
 
     reg_kw = dict(rigid_iters=rigid_iters, dilate_vox=args.dilate_vox,
                   per_bone=args.per_bone, multistart=args.multistart,
-                  affine=args.affine, log_every=args.reg_log_every)
+                  affine=args.affine, bonefit_refine=args.bonefit_refine,
+                  log_every=args.reg_log_every)
     gate_kw = dict(min_fit=args.min_fit, max_jac_bad=args.max_jac_bad,
                    jac_tol=args.jac_tol, vol_lo=args.vol_lo, vol_hi=args.vol_hi,
                    fail_drop=args.fail_drop)
