@@ -73,6 +73,7 @@ ARGS+=( --fail_drop "${FAIL_DROP}" )
 [[ "${PER_BONE}" == "1" ]] && ARGS+=( --per_bone )
 [[ "${AFFINE:-0}" == "1" ]] && ARGS+=( --affine )
 [[ "${RESUME}" == "1" ]] && ARGS+=( --resume )
+[[ -n "${TOKENS:-}" ]] && ARGS+=( --tokens "${TOKENS}" )
 [[ "${PROP_LIMIT}" != "0" ]] && ARGS+=( --limit "${PROP_LIMIT}" )
 
 echo "======================================================================"

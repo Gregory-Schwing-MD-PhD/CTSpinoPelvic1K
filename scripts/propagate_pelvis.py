@@ -74,6 +74,7 @@ import csv
 import json
 import logging
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -256,11 +257,69 @@ def landmark_translation(spine_mask_img, sacrum_mask_img):
     return translation, tuple(float(x) for x in lum)
 
 
+def _endplate(img, labels, aspect):
+    """(centroid, normal) of the inferior ('inf') or superior ('sup') endplate of a
+    labelled bone, in world mm. The normal is the PCA thin-axis of the endplate slab
+    (perpendicular to the disc) ORIENTED to point INFERIOR along the bone, so a fixed
+    lumbar-inferior endplate and a moving sacrum-superior endplate get comparably
+    oriented axes that can be rotated onto each other. None if too few voxels."""
+    import numpy as np
+    import SimpleITK as sitk
+    arr = sitk.GetArrayFromImage(img)
+    m = np.isin(arr, list(labels))
+    if int(m.sum()) < 50:
+        return None
+    kji = np.argwhere(m).astype(float)
+    sp = np.asarray(img.GetSpacing(), float)
+    orig = np.asarray(img.GetOrigin(), float)
+    D = np.asarray(img.GetDirection(), float).reshape(3, 3)
+    world = orig + (D @ (kji[:, ::-1] * sp).T).T              # (N,3) physical
+    full_c = world.mean(0)
+    z = world[:, 2]
+    sel = z <= np.percentile(z, 25) if aspect == "inf" else z >= np.percentile(z, 75)
+    slab = world[sel]
+    if len(slab) < 20:
+        return None
+    c = slab.mean(0)
+    _, _, vt = np.linalg.svd(slab - c, full_matrices=False)
+    n = vt[2]                                                 # endplate normal
+    # 'inferior along the bone': inf slab sits below the bulk; sup slab sits above it
+    down = (c - full_c) if aspect == "inf" else (full_c - c)
+    if float(np.dot(n, down)) < 0:
+        n = -n
+    return c, n / (np.linalg.norm(n) + 1e-9)
+
+
+def endplate_alignment(spine_mask_img, sacrum_mask_img):
+    """A rigid init that aligns the moving sacrum's SUPERIOR endplate (plane: position
+    + orientation) to the fixed last-lumbar INFERIOR endplate — so the sacrum continues
+    the lumbar column at the correct TILT, not just the right place. Returns a
+    VersorRigid3DTransform or None."""
+    import numpy as np
+    import SimpleITK as sitk
+    f = (_endplate(spine_mask_img, LUMBAR_VERSE, "inf")
+         or _endplate(spine_mask_img, LUMBAR_CANON, "inf"))
+    m = _endplate(sacrum_mask_img, (SACRUM,), "sup")
+    if f is None or m is None:
+        return None
+    c_f, n_f = f
+    c_m, n_m = m
+    axis = np.cross(n_f, n_m)
+    s = float(np.linalg.norm(axis))
+    d = float(np.clip(np.dot(n_f, n_m), -1.0, 1.0))
+    e = sitk.VersorRigid3DTransform()
+    e.SetCenter(tuple(float(x) for x in c_f))
+    if s > 1e-6:                                              # rotate fixed-down -> moving-down
+        e.SetRotation(tuple(float(x) for x in axis / s), float(np.arccos(d)))
+    e.SetTranslation(tuple(float(x) for x in (c_m - c_f)))    # c_f -> c_m
+    return e
+
+
 def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
                       moving_label_img, *, token: str = "", landmark=None,
-                      rigid_iters: int, dilate_vox: int = 2, per_bone: bool = True,
-                      multistart: bool = True, affine: bool = False,
-                      log_every: int = 10):
+                      spine_mask=None, rigid_iters: int, dilate_vox: int = 2,
+                      per_bone: bool = True, multistart: bool = True,
+                      affine: bool = False, log_every: int = 10):
     """Bone-masked RIGID registration, moving CT -> fixed CT; warp the moving label
     (NN) into the fixed grid. Returns (warped_label_sitk, fixed_sitk, moving_sitk);
     the caller does grid-aware QC (source mask and target are on different grids).
@@ -296,6 +355,16 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
     # Sampling only fixed bone (CT>200) forces bone-to-bone alignment.
     fixed_bone_lo = sitk.Cast(sitk.BinaryThreshold(fixed_lo, BONE_HU, 100000, 1, 0),
                               sitk.sitkUInt8)
+    # ... but EXCLUDE the lumbar spine from that target. The landmark drops the sacrum
+    # at L5, so the moving pelvis overlaps the fixed L-spine, and MI happily climbs the
+    # pelvis UP onto the spine (ilia too superior). Subtract the (dilated) spine GT so
+    # the pelvis can only register to pelvis/femur bone, never the vertebrae.
+    if spine_mask is not None:
+        sp_lo = sitk.Resample(spine_mask, fixed_lo, sitk.Transform(),
+                              sitk.sitkNearestNeighbor, 0, sitk.sitkUInt8)
+        sp_bin = sitk.BinaryDilate(sitk.BinaryThreshold(sp_lo, 1, 100000, 1, 0),
+                                   [3, 3, 3])
+        fixed_bone_lo = sitk.And(fixed_bone_lo, sitk.Not(sp_bin))
 
     def _moving_mask_lo(lo, hi):
         """Downsampled metric mask from the moving label values in [lo, hi]
@@ -364,6 +433,12 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
                       ("L5S1+flipZ", _euler_landmark(0, 0, P)),
                       ("L5S1+flipX", _euler_landmark(P, 0, 0)),
                       ("L5S1+flipY", _euler_landmark(0, P, 0))]
+            # endplate alignment: seat the sacrum continuing the lumbar column at the
+            # right TILT (orientation), not just translation.
+            if spine_mask is not None:
+                ep = endplate_alignment(spine_mask, moving_label_img)
+                if ep is not None:
+                    cands.append(("L5S1plane", ep))
         else:
             # no spine landmark -> fall back to blind cranio-caudal slides.
             cands += [("identity+z", _euler_tz(90)), ("identity-z", _euler_tz(-90))]
@@ -545,26 +620,29 @@ def process_patient(case: dict, *, nifti_dir: Path, pelvic_dir: Path,
     canon_img = sitk.GetImageFromArray(src_arr)
     canon_img.CopyInformation(lab_img)
 
-    # L5/S1 landmark init: the fixed scan's spine GT gives the L5-S1 junction; align
-    # the moving sacrum's top to it. Resolve the placed spine mask for this scan.
+    # The fixed scan's spine GT drives the L5/S1 landmark init + the endplate-tilt
+    # init, AND is subtracted from the bone target so the pelvis can't climb the
+    # spine. Resolve + load the placed spine mask once.
     landmark = None
+    spine_img = None
     spine_placed = sp.get("placed")
-    spine_mask = Path(spine_placed) if spine_placed else None
-    if spine_mask and not spine_mask.exists() and spine_dir and spine_uid:
+    spine_mask_p = Path(spine_placed) if spine_placed else None
+    if spine_mask_p and not spine_mask_p.exists() and spine_dir and spine_uid:
         cand = spine_dir / f"{spine_uid}_seg_placed.nii.gz"
-        spine_mask = cand if cand.exists() else None
-    if spine_mask and spine_mask.exists():
+        spine_mask_p = cand if cand.exists() else None
+    if spine_mask_p and spine_mask_p.exists():
         try:
-            landmark = landmark_translation(
-                sitk.ReadImage(str(spine_mask), sitk.sitkInt16), canon_img)
+            spine_img = sitk.ReadImage(str(spine_mask_p), sitk.sitkInt16)
+            landmark = landmark_translation(spine_img, canon_img)
         except Exception as exc:                                # noqa: BLE001
-            log.warning("token=%s landmark failed (%s) — using blind inits", tok, exc)
+            log.warning("token=%s spine mask failed (%s) — using blind inits", tok, exc)
     if landmark is not None:
         log.info("token=%s L5/S1 landmark translation = (%.0f, %.0f, %.0f) mm",
                  tok, *landmark[0])
 
     warped_img, fixed_img, moving_img = register_and_warp(
-        fixed_ct, moving_ct, canon_img, token=tok, landmark=landmark, **reg_kw)
+        fixed_ct, moving_ct, canon_img, token=tok, landmark=landmark,
+        spine_mask=spine_img, **reg_kw)
     warped = sitk.GetArrayFromImage(warped_img).astype("int16")    # fixed grid
     # QC only needs the HU threshold (CT > 200), and HU fits in int16 — half the
     # memory of float32 per worker (matters at high worker counts).
@@ -800,6 +878,9 @@ def main() -> int:
                          "bone-HU overlap drops >this many pp vs the native placement "
                          "(a genuine registration failure). Lenient on purpose — a "
                          "slightly-degraded REAL pelvis still beats a model guess.")
+    ap.add_argument("--tokens", default="",
+                    help="run ONLY these patient tokens (debug); separate by comma, "
+                         "colon, or space (e.g. --tokens 74:54:154 or --tokens 74).")
     ap.add_argument("--resume", action="store_true",
                     help="idempotent: skip cases already ACCEPTED in a prior "
                          "propagate_qc.csv (whose mask still exists) and carry their "
@@ -823,6 +904,12 @@ def main() -> int:
         cases = list(cases.values())
     separate = [c for c in cases
                 if (c.get("match_type") or c.get("config")) == "separate"]
+    want = {t for t in re.split(r"[,:;\s]+", args.tokens.strip()) if t}
+    if want:
+        separate = [c for c in separate
+                    if str(c.get("patient_token", "?")) in want]
+        log.info("--tokens: restricted to %d case(s): %s", len(separate),
+                 sorted(want))
     if limit:
         separate = separate[:limit]
     log.info("separate-cohort patients to propagate: %d", len(separate))

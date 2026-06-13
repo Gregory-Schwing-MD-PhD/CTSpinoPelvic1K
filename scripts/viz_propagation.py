@@ -96,7 +96,8 @@ def main() -> int:
     ap.add_argument("--tokens", default="", help="comma-separated subset to render.")
     args = ap.parse_args()
 
-    want = {t.strip() for t in args.tokens.split(",") if t.strip()} or None
+    import re
+    want = {t for t in re.split(r"[,:;\s]+", args.tokens.strip()) if t} or None
     rows = list(csv.DictReader(open(args.qc_csv)))
     rows = [r for r in rows if r.get("status") == "ok"
             and (want is None or r.get("token") in want)]
