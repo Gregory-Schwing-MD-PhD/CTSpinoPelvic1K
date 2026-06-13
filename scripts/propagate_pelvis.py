@@ -259,7 +259,8 @@ def landmark_translation(spine_mask_img, sacrum_mask_img):
 def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
                       moving_label_img, *, token: str = "", landmark=None,
                       rigid_iters: int, dilate_vox: int = 2, per_bone: bool = True,
-                      multistart: bool = True, log_every: int = 10):
+                      multistart: bool = True, affine: bool = False,
+                      log_every: int = 10):
     """Bone-masked RIGID registration, moving CT -> fixed CT; warp the moving label
     (NN) into the fixed grid. Returns (warped_label_sitk, fixed_sitk, moving_sitk);
     the caller does grid-aware QC (source mask and target are on different grids).
@@ -397,6 +398,40 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
     if multistart:
         log.info("  token=%s multi-start winner: %s (lo-fit=%.3f)", token,
                  best_name, best_fit)
+
+    if affine:
+        # EXPERIMENT: allow scale + shear on top of the best rigid. If this fixes the
+        # failures, the two scans' affines disagree on physical scale; if not, scale
+        # is ruled out and the problem is purely pose (gas/soft-tissue local minima).
+        ra = sitk.ImageRegistrationMethod()
+        ra.SetMetricAsMattesMutualInformation(numberOfHistogramBins=32)
+        ra.SetMetricFixedMask(fixed_bone_lo)
+        ra.SetMetricMovingMask(mask_whole)
+        ra.SetMetricSamplingStrategy(ra.RANDOM)
+        ra.SetMetricSamplingPercentage(0.2, seed=SEED)
+        ra.SetInterpolator(sitk.sitkLinear)
+        ra.SetOptimizerAsRegularStepGradientDescent(
+            learningRate=1.0, minStep=1e-4, numberOfIterations=int(rigid_iters))
+        ra.SetOptimizerScalesFromPhysicalShift()
+        ra.SetShrinkFactorsPerLevel([2, 1])
+        ra.SetSmoothingSigmasPerLevel([1, 0])
+        ra.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
+        ra.SetMovingInitialTransform(full)          # refine on top of the rigid
+        aff0 = sitk.AffineTransform(3); aff0.SetCenter(fc)
+        ra.SetInitialTransform(aff0, inPlace=False)
+        _attach_reg_logging(ra, token, "affine", log_every)
+        log.info("  token=%s [affine] refining (scale+shear) from rigid...", token)
+        try:
+            aff = ra.Execute(fixed_lo, moving_lo)
+            cand = sitk.CompositeTransform([full, aff])
+            f2 = _lo_fit(cand)
+            log.info("  token=%s [affine] done lo-fit=%.3f (rigid was %.3f)",
+                     token, f2, best_fit)
+            if f2 > best_fit:
+                full = cand
+        except Exception as exc:                                # noqa: BLE001
+            log.warning("  token=%s [affine] failed (%s) — keeping rigid", token,
+                        str(exc).splitlines()[-1][:80])
 
     def _warp(label_img, tx):
         return sitk.Resample(label_img, fixed, tx, sitk.sitkNearestNeighbor,
@@ -737,6 +772,10 @@ def main() -> int:
                          "Multi-start fixes the bimodal catastrophic failures where a "
                          "single GEOMETRY init locks onto the wrong place; off = one "
                          "GEOMETRY init (faster, but ~28%% of cases mis-register).")
+    ap.add_argument("--affine", action="store_true",
+                    help="EXPERIMENT: after the best rigid, allow scale+shear (affine) "
+                         "refinement. Tests whether the scans' affines disagree on "
+                         "physical scale; kept only if it improves bone-fit.")
     ap.add_argument("--reg_log_every", type=int, default=10,
                     help="log the ITK optimizer metric every N iterations "
                          "(0 = only level changes + stage start/done).")
@@ -794,7 +833,7 @@ def main() -> int:
 
     reg_kw = dict(rigid_iters=rigid_iters, dilate_vox=args.dilate_vox,
                   per_bone=args.per_bone, multistart=args.multistart,
-                  log_every=args.reg_log_every)
+                  affine=args.affine, log_every=args.reg_log_every)
     gate_kw = dict(min_fit=args.min_fit, max_jac_bad=args.max_jac_bad,
                    jac_tol=args.jac_tol, vol_lo=args.vol_lo, vol_hi=args.vol_hi,
                    fail_drop=args.fail_drop)

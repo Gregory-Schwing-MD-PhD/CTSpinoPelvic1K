@@ -71,6 +71,7 @@ ARGS=( --manifest "/data/$(realpath --relative-to="${DATA_DIR}" "${MANIFEST}")"
 ARGS+=( --fail_drop "${FAIL_DROP}" )
 [[ -d "${SPINE_DIR}" ]] && ARGS+=( --spine_dir "/data/$(realpath --relative-to="${DATA_DIR}" "${SPINE_DIR}")" ) || echo "NOTE: no spine dir at ${SPINE_DIR} — L5/S1 landmark disabled"
 [[ "${PER_BONE}" == "1" ]] && ARGS+=( --per_bone )
+[[ "${AFFINE:-0}" == "1" ]] && ARGS+=( --affine )
 [[ "${RESUME}" == "1" ]] && ARGS+=( --resume )
 [[ "${PROP_LIMIT}" != "0" ]] && ARGS+=( --limit "${PROP_LIMIT}" )
 
