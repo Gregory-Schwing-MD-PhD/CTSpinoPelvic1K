@@ -217,7 +217,7 @@ def _attach_reg_logging(method, token, tag, every: int):
 def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
                       moving_label_img, *, token: str = "",
                       rigid_iters: int, dilate_vox: int = 2, per_bone: bool = True,
-                      log_every: int = 10):
+                      multistart: bool = True, log_every: int = 10):
     """Bone-masked RIGID registration, moving CT -> fixed CT; warp the moving label
     (NN) into the fixed grid. Returns (warped_label_sitk, fixed_sitk, moving_sitk);
     the caller does grid-aware QC (source mask and target are on different grids).
@@ -278,14 +278,50 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
                  reg.GetMetricValue(), reg.GetOptimizerStopConditionDescription())
         return tx
 
-    # GEOMETRY init, NOT MOMENTS: CT air is -1000, so an intensity-weighted center
-    # of mass is meaningless and leaves the scans non-overlapping. GEOMETRY aligns
-    # the physical image centers. Whole-pelvis global rigid = the robust init.
-    initial = sitk.CenteredTransformInitializer(
+    # MULTI-START whole-pelvis rigid. A single init fails bimodally: ~rigid scans
+    # carry anatomical DICOM affines so IDENTITY (trust world coords) aligns them,
+    # but a big FOV-extent difference between the spine and pelvic scans makes
+    # GEOMETRY centering shove the pelvis off by half that difference, beyond the
+    # optimizer's reach -> a catastrophic wrong lock. So register from a few inits
+    # (identity, geometry, +/- a cranio-caudal slide) and KEEP whichever actually
+    # seats the pelvis on bone (highest low-res bone-HU fit of the warped mask).
+    mask_whole = _moving_mask_lo(1, 32000)
+    fixed_lo_arr = sitk.GetArrayFromImage(fixed_lo)
+    fc = fixed_lo.TransformContinuousIndexToPhysicalPoint(
+        [(s - 1) / 2.0 for s in fixed_lo.GetSize()])
+
+    def _euler_tz(tz):                       # identity + a world-Z (cranio-caudal) slide
+        e = sitk.Euler3DTransform(); e.SetCenter(fc)
+        e.SetTranslation((0.0, 0.0, float(tz)))
+        return e
+
+    geometry = sitk.CenteredTransformInitializer(
         fixed_lo, moving_lo, sitk.Euler3DTransform(),
         sitk.CenteredTransformInitializerFilter.GEOMETRY)
-    full = _run_rigid(_moving_mask_lo(1, 32000), initial, rigid_iters,
-                      "rigid(whole-pelvis)", [4, 2, 1], [4, 2, 0])
+    if multistart:
+        cands = [("identity", _euler_tz(0)), ("geometry", geometry),
+                 ("identity+z", _euler_tz(90)), ("identity-z", _euler_tz(-90))]
+    else:
+        cands = [("geometry", geometry)]
+
+    def _lo_fit(tx):                         # fraction of warped pelvis on target bone
+        wa = sitk.GetArrayFromImage(sitk.Resample(
+            moving_label_img, fixed_lo, tx, sitk.sitkNearestNeighbor, 0,
+            sitk.sitkInt16)) > 0
+        return float((fixed_lo_arr[wa] > BONE_HU).mean()) if wa.any() else -1.0
+
+    best_tx = best_fit = best_name = None
+    for name, init in cands:
+        tx = _run_rigid(mask_whole, init, rigid_iters, f"rigid:{name}",
+                        [4, 2, 1], [4, 2, 0])
+        fit = _lo_fit(tx)
+        log.info("  token=%s start=%-10s lo-fit=%.3f", token, name, fit)
+        if best_fit is None or fit > best_fit:
+            best_tx, best_fit, best_name = tx, fit, name
+    full = best_tx
+    if multistart:
+        log.info("  token=%s multi-start winner: %s (lo-fit=%.3f)", token,
+                 best_name, best_fit)
 
     def _warp(label_img, tx):
         return sitk.Resample(label_img, fixed, tx, sitk.sitkNearestNeighbor,
@@ -594,6 +630,12 @@ def main() -> int:
                          "few-degree SI-joint articulation. Default is ONE whole-"
                          "pelvis rigid, which seats the masks cleanly on the test "
                          "cases; enable only if a case looks misplaced.")
+    ap.add_argument("--no_multistart", dest="multistart", action="store_false",
+                    default=True,
+                    help="disable multi-start init (identity / geometry / +-z slide). "
+                         "Multi-start fixes the bimodal catastrophic failures where a "
+                         "single GEOMETRY init locks onto the wrong place; off = one "
+                         "GEOMETRY init (faster, but ~28%% of cases mis-register).")
     ap.add_argument("--reg_log_every", type=int, default=10,
                     help="log the ITK optimizer metric every N iterations "
                          "(0 = only level changes + stage start/done).")
@@ -625,8 +667,9 @@ def main() -> int:
     rigid_iters = (args.rigid_iters if args.rigid_iters is not None
                    else preset["rigid_iters"])
     log.info("mode=%s  limit=%s  rigid_iters=%d  dilate_vox=%d  per_bone=%s  "
-             "seed=%d (deterministic, %s rigid @%.1fmm)", args.mode, limit or "all",
-             rigid_iters, args.dilate_vox, args.per_bone, SEED,
+             "multistart=%s  seed=%d (deterministic, %s rigid @%.1fmm)", args.mode,
+             limit or "all", rigid_iters, args.dilate_vox, args.per_bone,
+             args.multistart, SEED,
              "per-bone" if args.per_bone else "whole-pelvis", REG_MM)
 
     data = json.loads(args.manifest.read_text())
@@ -644,7 +687,8 @@ def main() -> int:
         return 0
 
     reg_kw = dict(rigid_iters=rigid_iters, dilate_vox=args.dilate_vox,
-                  per_bone=args.per_bone, log_every=args.reg_log_every)
+                  per_bone=args.per_bone, multistart=args.multistart,
+                  log_every=args.reg_log_every)
     gate_kw = dict(min_fit=args.min_fit, max_jac_bad=args.max_jac_bad,
                    jac_tol=args.jac_tol, vol_lo=args.vol_lo, vol_hi=args.vol_hi,
                    fail_drop=args.fail_drop)
