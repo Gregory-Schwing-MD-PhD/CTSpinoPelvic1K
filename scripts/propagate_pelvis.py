@@ -361,12 +361,22 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
 
     best_tx = best_fit = best_name = None
     for name, init in cands:
-        tx = _run_rigid(mask_whole, init, rigid_iters, f"rigid:{name}",
-                        [4, 2, 1], [4, 2, 0])
-        fit = _lo_fit(tx)
+        # An init with no overlap makes ITK throw "all samples map outside moving
+        # image buffer" — skip that candidate, do NOT kill the case: another init
+        # (often the L5/S1 landmark) is exactly what recovers these.
+        try:
+            tx = _run_rigid(mask_whole, init, rigid_iters, f"rigid:{name}",
+                            [4, 2, 1], [4, 2, 0])
+            fit = _lo_fit(tx)
+        except Exception as exc:                                # noqa: BLE001
+            log.warning("  token=%s start=%-10s FAILED (%s) — skipped", token, name,
+                        str(exc).splitlines()[-1][:80])
+            continue
         log.info("  token=%s start=%-10s lo-fit=%.3f", token, name, fit)
         if best_fit is None or fit > best_fit:
             best_tx, best_fit, best_name = tx, fit, name
+    if best_tx is None:
+        raise RuntimeError("all inits failed to register (no overlap)")
     full = best_tx
     if multistart:
         log.info("  token=%s multi-start winner: %s (lo-fit=%.3f)", token,
@@ -670,7 +680,9 @@ def _worker(task: dict) -> dict:
 # test = fast end-to-end smoke (few cases, low iters); production = full quality.
 MODE_PRESETS = {
     "test":       dict(limit=5, rigid_iters=200),
-    "production": dict(limit=0, rigid_iters=500),
+    # multi-start runs ~4 registrations/case; the optimizer hits its gradient
+    # tolerance well before 500, so 300 is plenty and ~40% cheaper.
+    "production": dict(limit=0, rigid_iters=300),
 }
 
 
