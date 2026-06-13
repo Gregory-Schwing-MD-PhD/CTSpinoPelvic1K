@@ -63,6 +63,10 @@ COMPLETE_PROPAGATED="${COMPLETE_PROPAGATED:-1}"  # 1 = model completes GT-missed
 WIPE="${WIPE:-1}"
 MANIFEST_FILE="${MANIFEST_FILE:-placed_manifest_orientation_fixed.json}"
 PLACED_MANIFEST="${DATA_DIR}/placed/${MANIFEST_FILE}"
+# Inject a QOS / extra sbatch flags into EVERY job in the chain (e.g. so the whole
+# pipeline runs on a queue you can actually get nodes on): SBATCH_QOS=secondary.
+SB=""; [[ -n "${SBATCH_QOS:-}" ]] && SB="-q ${SBATCH_QOS}"
+SB="${SB} ${SBATCH_EXTRA:-}"
 
 [[ -f "${SIF_PATH}" ]] || { echo "ERROR: project container missing at ${SIF_PATH}"; exit 1; }
 [[ "${DRY_RUN}" == "1" || -f "${NNUNET_SIF}" ]] || {
@@ -90,7 +94,7 @@ else
     echo "[ship_v2] clearing stale base labels  ${HF_EXPORT_DIR}/{labels,qc,manifest.json}"
     rm -rf "${HF_EXPORT_DIR}"/labels "${HF_EXPORT_DIR}"/qc "${HF_EXPORT_DIR}"/manifest.json
     echo "[ship_v2] (1) export the v1 base (ALL configs + anchor) + PUSH @v1 [CPU]"
-    J1=$(sbatch --parsable \
+    J1=$(sbatch --parsable ${SB} \
       --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=0,SKIP_QC=${SKIP_QC},NO_PIR=${NO_PIR},WIPE_REMOTE=${WIPE},HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v1,HF_EXPORT_DIR=${HF_EXPORT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
       slurm/export_dataset.sh)
     BASE_DEP=":${J1}"
@@ -106,7 +110,7 @@ if [[ "${SKIP_PROP}" == "1" ]]; then
     [[ -f "${PROP_OUT_DIR}/placed_manifest_propagated.json" ]] || { echo "ERROR: no propagation at ${PROP_OUT_DIR}; unset SKIP_PROP"; exit 1; }
 else
     echo "[ship_v2] (2) propagate_pelvis (MODE=${PROP_MODE}) -> ${PROP_OUT_DIR} [CPU]"
-    JPROP=$(sbatch --parsable \
+    JPROP=$(sbatch --parsable ${SB} \
       --export=ALL,SIF_PATH=${SIF_PATH},MODE=${PROP_MODE},MANIFEST=${PLACED_MANIFEST},NIFTI_DIR=${NIFTI_DIR},PELVIC_DIR=${PELVIC_DIR},SPINE_DIR=${SPINE_DIR},PROP_OUT_DIR=${PROP_OUT_DIR} \
       slurm/propagate_pelvis.sh)
     PROP_DEP=":${JPROP}"
@@ -120,7 +124,7 @@ PSEUDO_DEP="afterok${BASE_DEP}${PROP_DEP}"
 [[ "${PSEUDO_DEP}" == "afterok" ]] && PSEUDO_DEP=""    # no deps (both skipped)
 DEP_ARG=""; [[ -n "${PSEUDO_DEP}" ]] && DEP_ARG="--dependency=${PSEUDO_DEP}"
 echo "[ship_v2] (3) pseudolabel: propagated GT + model-complete, keep ${INCLUDE_CONFIGS} (DRY_RUN=${DRY_RUN}) [GPU]  ${DEP_ARG:-no dep}"
-J2=$(sbatch --parsable ${DEP_ARG} \
+J2=$(sbatch --parsable ${SB} ${DEP_ARG} \
   --export=ALL,SIF_PATH=${SIF_PATH},NNUNET_SIF=${NNUNET_SIF},NNUNET_RESULTS=${NNUNET_RESULTS},HF_EXPORT_DIR=${HF_EXPORT_DIR},PSEUDO_OUT_DIR=${PSEUDO_OUT_DIR},MODELS_CONFIG=${MODELS_CONFIG},DRY_RUN=${DRY_RUN},HF_TOKEN=${HF_TOKEN},PROPAGATED_DIR=${PROP_OUT_DIR},COMPLETE_PROPAGATED=${COMPLETE_PROPAGATED} \
   slurm/pseudolabel.sh)
 
@@ -130,11 +134,11 @@ J2=$(sbatch --parsable ${DEP_ARG} \
 if [[ "${SKIP_QC}" != "1" ]]; then
     VIZ_DEP=""; [[ -n "${PROP_DEP}" ]] && VIZ_DEP="--dependency=afterok${PROP_DEP}"
     echo "[ship_v2] (4a) viz_propagation (overlays) [CPU]  ${VIZ_DEP:-no dep}"
-    JVIZ=$(sbatch --parsable ${VIZ_DEP} \
+    JVIZ=$(sbatch --parsable ${SB} ${VIZ_DEP} \
       --export=ALL,SIF_PATH=${SIF_PATH},PROP_OUT_DIR=${PROP_OUT_DIR},NIFTI_DIR=${NIFTI_DIR} \
       slurm/viz_propagation.sh)
     echo "[ship_v2] (4b) qc_dashboard (figures) [CPU]  after ${J2}"
-    JDASH=$(sbatch --parsable --dependency=afterok:${J2} \
+    JDASH=$(sbatch --parsable ${SB} --dependency=afterok:${J2} \
       --export=ALL,SIF_PATH=${SIF_PATH},PROP_OUT_DIR=${PROP_OUT_DIR},PSEUDO_OUT_DIR=${PSEUDO_OUT_DIR},DASH_OUT_DIR=${DASH_OUT_DIR} \
       slurm/qc_dashboard.sh)
 fi
@@ -142,7 +146,7 @@ fi
 # ---------------------------------------------------------------------------
 # (5) push the v2 tree (export step skipped — it already exists from step 3) [CPU].
 echo "[ship_v2] (5) push ${PSEUDO_OUT_DIR} -> ${HF_REPO_ID}@v2 [CPU]  after ${J2}"
-J3=$(sbatch --parsable --dependency=afterok:${J2} \
+J3=$(sbatch --parsable ${SB} --dependency=afterok:${J2} \
   --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=1,WIPE_REMOTE=${WIPE},HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v2,HF_EXPORT_DIR=${PSEUDO_OUT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
   slurm/export_dataset.sh)
 
