@@ -102,6 +102,7 @@ DROP_TARGET    ?= 1.0
 FAIL_DROP      ?= 8.0
 PER_BONE       ?= 0
 REG_LOG_EVERY  ?= 10
+RESUME         ?= 0
 PROP_LIMIT     ?= 0
 # viz-propagation (overlay propagated pelves on the spine CT)
 VIZ_OUT_DIR    ?=
@@ -494,7 +495,7 @@ structure-qc: check-container  ## GT-free structure QC (presence/dup/gap/L-R swa
 propagate-pelvis: check-container  ## Carry each separate patient's REAL pelvis GT onto the spine scan by deterministic deformable registration (real GT replaces the model pelvis); MODE=test|production (CPU)
 	@mkdir -p $(LOGS_DIR)
 	@echo "Submitting propagate-pelvis (MODE=$(strip $(MODE)) — real-GT pelvis across acquisitions)"
-	sbatch $(DEP) --export=ALL,SIF_PATH=$(strip $(CONTAINER)),MODE=$(strip $(MODE)),MANIFEST=$(strip $(MANIFEST)),NIFTI_DIR=$(strip $(NIFTI_DIR)),PELVIC_DIR=$(strip $(PELVIC_DIR)),PROP_OUT_DIR=$(strip $(PROP_OUT_DIR)),PROP_WORKERS=$(strip $(PROP_WORKERS)),DROP_TARGET=$(strip $(DROP_TARGET)),FAIL_DROP=$(strip $(FAIL_DROP)),PER_BONE=$(strip $(PER_BONE)),REG_LOG_EVERY=$(strip $(REG_LOG_EVERY)),PROP_LIMIT=$(strip $(PROP_LIMIT)) \
+	sbatch $(DEP) --export=ALL,SIF_PATH=$(strip $(CONTAINER)),MODE=$(strip $(MODE)),MANIFEST=$(strip $(MANIFEST)),NIFTI_DIR=$(strip $(NIFTI_DIR)),PELVIC_DIR=$(strip $(PELVIC_DIR)),PROP_OUT_DIR=$(strip $(PROP_OUT_DIR)),PROP_WORKERS=$(strip $(PROP_WORKERS)),DROP_TARGET=$(strip $(DROP_TARGET)),FAIL_DROP=$(strip $(FAIL_DROP)),PER_BONE=$(strip $(PER_BONE)),REG_LOG_EVERY=$(strip $(REG_LOG_EVERY)),RESUME=$(strip $(RESUME)),PROP_LIMIT=$(strip $(PROP_LIMIT)) \
 	       slurm/propagate_pelvis.sh
 
 

@@ -33,6 +33,7 @@
 #   DROP_TARGET  bone-HU overlap report ref (pp)   (default: 1.0, report-only)
 #   FAIL_DROP    fall back to model if bone-HU drop > this many pp (default: 8.0)
 #   PER_BONE     1 = ALSO per-bone rigid refinement; 0 = whole-pelvis rigid (default)
+#   RESUME       1 = skip already-accepted cases from a prior propagate_qc.csv
 #   PROP_LIMIT   cap cases (debug)                 (default: 0 = all in production)
 # =============================================================================
 set -euo pipefail
@@ -51,6 +52,7 @@ DROP_TARGET="${DROP_TARGET:-1.0}"
 FAIL_DROP="${FAIL_DROP:-8.0}"
 PER_BONE="${PER_BONE:-0}"
 REG_LOG_EVERY="${REG_LOG_EVERY:-10}"
+RESUME="${RESUME:-0}"
 PROP_LIMIT="${PROP_LIMIT:-0}"
 
 mkdir -p "${LOGS_DIR}" "${PROP_OUT_DIR}"
@@ -66,6 +68,7 @@ ARGS=( --manifest "/data/$(realpath --relative-to="${DATA_DIR}" "${MANIFEST}")"
        --drop_target "${DROP_TARGET}" )
 ARGS+=( --fail_drop "${FAIL_DROP}" )
 [[ "${PER_BONE}" == "1" ]] && ARGS+=( --per_bone )
+[[ "${RESUME}" == "1" ]] && ARGS+=( --resume )
 [[ "${PROP_LIMIT}" != "0" ]] && ARGS+=( --limit "${PROP_LIMIT}" )
 
 echo "======================================================================"

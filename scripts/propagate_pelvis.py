@@ -561,7 +561,8 @@ def _build_manifest_case(case: dict, row: dict) -> dict:
             "placed": row.get("out_file", ""),
             "bone_pct": row.get("prop_bone_pct", ""),
             "position": sp.get("position"),
-            "source_series_uid": row.get("pelvic_uid", ""),  # where the GT lived
+            "source_series_uid": (row.get("pelvic_uid", "")
+                                  or pv_src.get("series_uid", "")),  # where GT lived
             "bone_pct_before": row.get("src_bone_pct", ""),
             "bone_pct_after": row.get("prop_bone_pct", ""),
             "bone_pct_drop": row.get("bone_pct_drop", ""),
@@ -660,6 +661,11 @@ def main() -> int:
                          "bone-HU overlap drops >this many pp vs the native placement "
                          "(a genuine registration failure). Lenient on purpose — a "
                          "slightly-degraded REAL pelvis still beats a model guess.")
+    ap.add_argument("--resume", action="store_true",
+                    help="idempotent: skip cases already ACCEPTED in a prior "
+                         "propagate_qc.csv (whose mask still exists) and carry their "
+                         "result forward; re-register only the rejected/missing ones "
+                         "(e.g. to recover failures after enabling multi-start).")
     args = ap.parse_args()
 
     preset = MODE_PRESETS[args.mode]
@@ -694,6 +700,27 @@ def main() -> int:
                    fail_drop=args.fail_drop)
 
     case_by_token = {str(c.get("patient_token", "?")): c for c in separate}
+    out_csv = args.out_csv or (args.out_dir / "propagate_qc.csv")
+
+    # Resume: carry forward cases already ACCEPTED in a prior run (mask present) and
+    # re-register only the rest. Read the prior CSV BEFORE it is overwritten below.
+    done_rows: Dict[str, dict] = {}
+    if args.resume and out_csv.exists():
+        for r in csv.DictReader(open(out_csv)):
+            tok = str(r.get("token", ""))
+            if r.get("status") != "ok" or str(r.get("accept")) != "1" or not tok:
+                continue
+            of = r.get("out_file", "")
+            mask = (Path(of) if of else
+                    args.out_dir / f"{r.get('spine_uid', '')}_pelvic_propagated.nii.gz")
+            if mask.exists():
+                done_rows[tok] = r
+        before = len(separate)
+        separate = [c for c in separate
+                    if str(c.get("patient_token", "?")) not in done_rows]
+        log.info("resume: %d already accepted (skipped) | %d to (re)register",
+                 len(done_rows), len(separate))
+
     tasks = [dict(case=c, nifti_dir=args.nifti_dir, pelvic_dir=args.pelvic_dir,
                   out_dir=args.out_dir, reg_kw=reg_kw, gate_kw=gate_kw)
              for c in separate]
@@ -725,7 +752,12 @@ def main() -> int:
                      int(elapsed) // 60, int(elapsed) % 60,
                      int(eta) // 60, int(eta) % 60, row.get("reasons", ""))
 
-    out_csv = args.out_csv or (args.out_dir / "propagate_qc.csv")
+    # carry forward the resumed (already-accepted) cases so the CSV/manifest/summary
+    # describe the FULL cohort, not just this run's re-registered subset.
+    if done_rows:
+        rows = list(done_rows.values()) + rows
+        log.info("resume: carried forward %d previously-accepted cases", len(done_rows))
+
     cols = ["token", "spine_uid", "status", "out_file", "accept", "reasons",
             "src_bone_pct", "prop_bone_pct", "bone_pct_drop",
             "native_bone_pct_manifest"]
