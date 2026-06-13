@@ -487,13 +487,25 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
                  best_name, best_fit)
 
     if bonefit_refine:
-        # DIRECT search for the pelvis-shaped bone: the MI optimizer maximizes
-        # intensity similarity, which drifts off the bone in a gassy abdomen. So
-        # instead, rock/roll the pelvis about the L5/S1 junction and slide it, and
-        # score each pose by ACTUAL bone overlap (lo-fit) — keep the best seating.
+        # DIRECT search for the pelvis-shaped bone (Chamfer / ICP objective). MI
+        # maximises intensity similarity and drifts off bone in a gassy abdomen; even a
+        # bone-OVERLAP score is FLAT once a piece of mask floats off bone, so a hanging
+        # ilium has no downhill pulling it back. Instead score each pose by the mean
+        # DISTANCE of the warped pelvis SURFACE to the fixed bone: smooth everywhere, so
+        # a floating ilium is actively drawn onto the nearest bone. Minimise it by
+        # rocking/rolling the pelvis about the L5/S1 junction and sliding it.
         import itertools
         import math
+        import numpy as np
+        from scipy.ndimage import binary_erosion
         pivot = tuple(landmark[1]) if landmark is not None else fc
+
+        # distance (mm) from each voxel to the nearest fixed bone voxel; 0 on/inside bone.
+        sdt = sitk.GetArrayFromImage(sitk.SignedMaurerDistanceMap(
+            fixed_bone_lo, insideIsPositive=False, squaredDistance=False,
+            useImageSpacing=True))
+        bone_dt = np.maximum(sdt, 0.0)
+        BIG = float(bone_dt.max()) + 1.0
 
         def _pert(rot_deg, trans_mm):
             e = sitk.Euler3DTransform(); e.SetCenter(pivot)
@@ -501,26 +513,29 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
             e.SetTranslation(tuple(float(t) for t in trans_mm))
             return e
 
-        def _sweep(ref, fit, grids, kind):
-            best_tx2, best2 = ref, fit
-            for combo in itertools.product(*grids):
-                rot = combo if kind == "rot" else (0, 0, 0)
-                tr = combo if kind == "trans" else (0, 0, 0)
-                cand = sitk.CompositeTransform([ref, _pert(rot, tr)])
-                f = _lo_fit(cand)
-                if f > best2:
-                    best2, best_tx2 = f, cand
-            return best_tx2, best2
+        def _surf_dist(tx):                  # mean mm of warped pelvis surface off bone
+            wa = sitk.GetArrayFromImage(sitk.Resample(
+                moving_label_img, fixed_lo, tx, sitk.sitkNearestNeighbor, 0,
+                sitk.sitkInt16)) > 0
+            if not wa.any():
+                return BIG
+            surf = wa & ~binary_erosion(wa)
+            return float(bone_dt[surf].mean()) if surf.any() else BIG
 
-        f0 = best_fit
+        f0, d0 = best_fit, _surf_dist(full)
+        best_d = d0
         # (1) coarse global escape: rock/roll the pelvis to break out of the MI basin.
         RC = (-30, -15, 0, 15, 30)
-        full, best_fit = _sweep(full, best_fit, (RC, RC, RC), "rot")
+        for combo in itertools.product(RC, RC, RC):
+            cand = sitk.CompositeTransform([full, _pert(combo, (0, 0, 0))])
+            d = _surf_dist(cand)
+            if d < best_d:
+                best_d, full = d, cand
 
-        # (2) coarse-to-fine compass climb on all 6 DOF, scored by bone overlap.
-        #     Recenters on every improvement, so it can WALK to a large tilt (token 74
-        #     needs a dramatic forward tilt that +/-30 alone can't reach) and then halve
-        #     the step down to ~1 deg / ~1 mm to seat the bone precisely.
+        # (2) coarse-to-fine compass DESCENT on all 6 DOF. Recenters on every
+        #     improvement, so it WALKS to a large tilt (token 74 needs a dramatic
+        #     forward tilt that +/-30 alone can't reach), then halves the step down to
+        #     ~1 deg / ~0.6 mm to snap the surface onto the bone.
         rot_step, trans_step = 30.0, 20.0
         for _level in range(6):
             improved = True
@@ -533,12 +548,14 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
                         for rot, tr in ((tuple(r), (0.0, 0.0, 0.0)),
                                         ((0.0, 0.0, 0.0), tuple(t))):
                             cand = sitk.CompositeTransform([full, _pert(rot, tr)])
-                            f = _lo_fit(cand)
-                            if f > best_fit:
-                                best_fit, full, improved = f, cand, True
+                            d = _surf_dist(cand)
+                            if d < best_d:
+                                best_d, full, improved = d, cand, True
             rot_step *= 0.5
             trans_step *= 0.5
-        log.info("  token=%s bone-fit grid-refine: %.3f -> %.3f", token, f0, best_fit)
+        best_fit = _lo_fit(full)
+        log.info("  token=%s bone-fit refine: surf-dist %.1f -> %.1f mm  "
+                 "(overlap %.3f -> %.3f)", token, d0, best_d, f0, best_fit)
 
     if affine:
         # EXPERIMENT: allow scale + shear on top of the best rigid. If this fixes the
