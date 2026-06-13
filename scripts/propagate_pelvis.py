@@ -289,6 +289,12 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
                              img.GetPixelID())
     fixed_lo = _iso(fixed, sitk.sitkLinear, -1000.0)
     moving_lo = _iso(moving, sitk.sitkLinear, -1000.0)
+    # Restrict the metric to BONE on the fixed side: the pelvis sits in a gas-filled
+    # abdomen, and bowel gas redistributes completely prone<->supine, so MI on the
+    # raw CT locks onto soft-tissue/gas patterns and parks the pelvis off the bone.
+    # Sampling only fixed bone (CT>200) forces bone-to-bone alignment.
+    fixed_bone_lo = sitk.Cast(sitk.BinaryThreshold(fixed_lo, BONE_HU, 100000, 1, 0),
+                              sitk.sitkUInt8)
 
     def _moving_mask_lo(lo, hi):
         """Downsampled metric mask from the moving label values in [lo, hi]
@@ -301,7 +307,8 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
     def _run_rigid(mask_lo, init, iters, tag, shrink, smooth):
         reg = sitk.ImageRegistrationMethod()
         reg.SetMetricAsMattesMutualInformation(numberOfHistogramBins=32)
-        reg.SetMetricMovingMask(mask_lo)
+        reg.SetMetricFixedMask(fixed_bone_lo)      # sample only fixed BONE
+        reg.SetMetricMovingMask(mask_lo)           # ... that maps into the moving pelvis
         reg.SetMetricSamplingStrategy(reg.RANDOM)
         reg.SetMetricSamplingPercentage(0.2, seed=SEED)
         reg.SetInterpolator(sitk.sitkLinear)
