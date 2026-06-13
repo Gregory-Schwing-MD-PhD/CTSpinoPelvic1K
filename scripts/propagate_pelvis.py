@@ -457,14 +457,25 @@ def register_and_warp(fixed_ct_path: Path, moving_ct_path: Path,
         # image buffer" — skip that candidate, do NOT kill the case: another init
         # (often the L5/S1 landmark) is exactly what recovers these.
         try:
+            fit_raw = _lo_fit(init)                  # the init pose, BEFORE optimizing
             tx = _run_rigid(mask_whole, init, rigid_iters, f"rigid:{name}",
                             [4, 2, 1], [4, 2, 0])
-            fit = _lo_fit(tx)
+            fit_opt = _lo_fit(tx)
         except Exception as exc:                                # noqa: BLE001
             log.warning("  token=%s start=%-10s FAILED (%s) — skipped", token, name,
                         str(exc).splitlines()[-1][:80])
             continue
-        log.info("  token=%s start=%-10s lo-fit=%.3f", token, name, fit)
+        # The registration OBJECTIVE (MI) can disagree with bone overlap on these
+        # gas/contrast-heavy abdomens and drift AWAY from a correct anatomical init.
+        # If the optimizer made the bone seating WORSE, keep the (anatomical) init.
+        if fit_raw > fit_opt:
+            tx, fit = init, fit_raw
+            log.info("  token=%s start=%-10s lo-fit=%.3f  (raw init KEPT; optimizer "
+                     "drifted to %.3f)", token, name, fit_raw, fit_opt)
+        else:
+            fit = fit_opt
+            log.info("  token=%s start=%-10s lo-fit=%.3f  (raw init %.3f)", token,
+                     name, fit_opt, fit_raw)
         if best_fit is None or fit > best_fit:
             best_tx, best_fit, best_name = tx, fit, name
     if best_tx is None:
