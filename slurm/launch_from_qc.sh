@@ -5,15 +5,16 @@
 # pseudolabel is done and you only need: QC triage -> push v2 -> build+push v3
 # (skips the expensive base export + GPU pseudolabel).
 #
-# By default it FIRST cancels the in-flight pipeline jobs (pseudolabel / qc /
-# export / v3_ribs) for this user, then submits the chain. Set CANCEL=0 to leave
-# running jobs alone.
+# It does NOT touch your running jobs. If you also want it to cancel the in-flight
+# pipeline jobs (pseudolabel / qc / export / v3_ribs) for this user first, pass
+# CANCEL=1 explicitly. Otherwise cancel whatever you want by hand, then run this.
 #
 #   HF_TOKEN=hf_xxx HF_REPO_ID=<org>/CTSpinoPelvic1K \
 #     NNUNET_SIF=$(pwd)/containers/ctspinopelvic1k-ts.sif bash slurm/launch_from_qc.sh
 #
-# Env: CANCEL=1 (cancel in-flight pipeline jobs first), SHIP_V3=1 (chain v3),
-#      WIPE=1, HF_WORKERS, HF_PRIVATE, PSEUDO_OUT_DIR, SBATCH_QOS/SBATCH_EXTRA.
+# Env: CANCEL=0 (default; set 1 to cancel in-flight pipeline jobs first),
+#      SHIP_V3=1 (chain v3), WIPE=1, HF_WORKERS, HF_PRIVATE, PSEUDO_OUT_DIR,
+#      SBATCH_QOS/SBATCH_EXTRA.
 # =============================================================================
 set -euo pipefail
 
@@ -32,7 +33,7 @@ HF_WORKERS="${HF_WORKERS:-8}"
 HF_PRIVATE="${HF_PRIVATE:-0}"
 WIPE="${WIPE:-1}"
 SHIP_V3="${SHIP_V3:-1}"
-CANCEL="${CANCEL:-1}"
+CANCEL="${CANCEL:-0}"    # default OFF — never cancels your jobs unless you ask (CANCEL=1)
 MANIFEST_FILE="${MANIFEST_FILE:-placed_manifest_orientation_fixed.json}"
 
 # Inject QOS / extras + fail-fast-on-dead-dependency into every chained submission.
