@@ -56,10 +56,6 @@ MANIFEST_FILE="${MANIFEST_FILE:-placed_manifest_orientation_fixed.json}"
 # pipeline runs on a queue you can actually get nodes on): SBATCH_QOS=secondary.
 SB=""; [[ -n "${SBATCH_QOS:-}" ]] && SB="-q ${SBATCH_QOS}"
 SB="${SB} ${SBATCH_EXTRA:-}"
-# Cancel a chained job IMMEDIATELY if its dependency can never be satisfied (an
-# upstream job exited non-zero), instead of leaving it PENDING (DependencyNeverSatisfied)
-# for hours looking like a queue stall. Harmless on dep-less jobs.
-SB="${SB} --kill-on-invalid-dep=yes"
 
 [[ -f "${SIF_PATH}" ]] || { echo "ERROR: project container missing at ${SIF_PATH}"; exit 1; }
 [[ "${DRY_RUN}" == "1" || -f "${NNUNET_SIF}" ]] || {

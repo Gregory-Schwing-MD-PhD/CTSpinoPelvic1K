@@ -36,9 +36,9 @@ SHIP_V3="${SHIP_V3:-1}"
 CANCEL="${CANCEL:-0}"    # default OFF — never cancels your jobs unless you ask (CANCEL=1)
 MANIFEST_FILE="${MANIFEST_FILE:-placed_manifest_orientation_fixed.json}"
 
-# Inject QOS / extras + fail-fast-on-dead-dependency into every chained submission.
+# Same QOS/extras passthrough as ship_v2.
 SB=""; [[ -n "${SBATCH_QOS:-}" ]] && SB="-q ${SBATCH_QOS}"
-SB="${SB} ${SBATCH_EXTRA:-} --kill-on-invalid-dep=yes"
+SB="${SB} ${SBATCH_EXTRA:-}"
 
 [[ -f "${SIF_PATH}" ]] || { echo "ERROR: project container missing at ${SIF_PATH}"; exit 1; }
 [[ -f "${PSEUDO_OUT_DIR}/manifest.json" ]] || {
@@ -74,7 +74,7 @@ if [[ "${SHIP_V3}" == "1" ]]; then
         SIF_PATH="${SIF_PATH}" NNUNET_SIF="${NNUNET_SIF}" WIPE="${WIPE}" \
         HF_WORKERS="${HF_WORKERS}" HF_PRIVATE="${HF_PRIVATE}" \
         MANIFEST_FILE="${MANIFEST_FILE}" SBATCH_QOS="${SBATCH_QOS:-}" \
-        SBATCH_EXTRA="${SBATCH_EXTRA:-}" GPU_PARTITION="${GPU_PARTITION:-}" \
+        SBATCH_EXTRA="${SBATCH_EXTRA:-}" \
         bash slurm/ship_v3.sh
 fi
 

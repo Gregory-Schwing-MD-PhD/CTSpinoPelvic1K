@@ -32,21 +32,12 @@ WIPE="${WIPE:-1}"
 MANIFEST_FILE="${MANIFEST_FILE:-placed_manifest_orientation_fixed.json}"
 SB=""; [[ -n "${SBATCH_QOS:-}" ]] && SB="-q ${SBATCH_QOS}"
 SB="${SB} ${SBATCH_EXTRA:-}"
-# Cancel a chained job immediately if its dependency can never be satisfied (upstream
-# exited non-zero) instead of leaving it PENDING for hours. Harmless on dep-less jobs.
-SB="${SB} --kill-on-invalid-dep=yes"
 
 # EXTRA_DEP chains the rib job AFTER the v2 push (so v3 reads a finished v2 tree).
 RIB_DEP=""; [[ -n "${EXTRA_DEP:-}" ]] && RIB_DEP="--dependency=afterok:${EXTRA_DEP}"
 
-# This cluster's `gpu` QOS has no default partition, so the GPU rib job must name one
-# explicitly (the CPU push does not). gmsap is the H200 partition (sbatch --test-only
-# resolves the rib job there). Override with GPU_PARTITION=<name> if it ever changes.
-GPU_PARTITION="${GPU_PARTITION:-gmsap}"
-RIB_SB="${SB} --partition=${GPU_PARTITION}"
-
 echo "[ship_v3] (1) v3 ribs (TS ribs + GT-thoracic renumber, merge onto v2) [GPU]  ${RIB_DEP:-no dep}"
-JR=$(sbatch --parsable ${RIB_SB} ${RIB_DEP} \
+JR=$(sbatch --parsable ${SB} ${RIB_DEP} \
   --export=ALL,NNUNET_SIF=${NNUNET_SIF},V2_DIR=${V2_DIR},V3_DIR=${V3_DIR},SPINE_DIR=${SPINE_DIR} \
   slurm/v3_ribs.sh)
 

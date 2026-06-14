@@ -12,14 +12,8 @@
 #SBATCH --mail-type=END,FAIL
 #SBATCH --exclude=msa1
 # =============================================================================
-# Header notes (kept OUT of the #SBATCH block so every directive above is contiguous,
-# matching the known-good pseudolabel.sh — no comment can accidentally interrupt them):
-#  - gres is pinned to nvidia_h200:1 because this cluster's `-q gpu` QOS requires a
-#    TYPED gres; override to a less-contested card via SBATCH_EXTRA="--gres=gpu:<type>:1".
-#  - 24h wall, but the job is RESUMABLE (per-case markers), so a wall-hit/preemption
-#    just continues on resubmit.
-#  - the `gpu` QOS has NO default partition here; pass GPU_PARTITION=<name> to ship_v3
-#    if you hit "No partition specified".
+# Same GPU directives as the known-good pseudolabel.sh. 24h wall, but the job is
+# RESUMABLE (per-case markers) so a wall-hit/preemption just continues on resubmit.
 #
 # v3 ribs — derive the v3 tree from v2 by adding anatomically-numbered ribs.
 #
