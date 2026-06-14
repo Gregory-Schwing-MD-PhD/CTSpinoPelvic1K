@@ -74,7 +74,7 @@ if [[ "${SHIP_V3}" == "1" ]]; then
         SIF_PATH="${SIF_PATH}" NNUNET_SIF="${NNUNET_SIF}" WIPE="${WIPE}" \
         HF_WORKERS="${HF_WORKERS}" HF_PRIVATE="${HF_PRIVATE}" \
         MANIFEST_FILE="${MANIFEST_FILE}" SBATCH_QOS="${SBATCH_QOS:-}" \
-        SBATCH_EXTRA="${SBATCH_EXTRA:-}" \
+        SBATCH_EXTRA="${SBATCH_EXTRA:-}" GPU_PARTITION="${GPU_PARTITION:-}" \
         bash slurm/ship_v3.sh
 fi
 
