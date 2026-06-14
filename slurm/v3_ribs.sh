@@ -10,9 +10,9 @@
 # card only if you want, via:  SBATCH_EXTRA="--gres=gpu:nvidia_h200:1"  (ship_v3
 # injects SBATCH_EXTRA into the sbatch call, overriding this default).
 #SBATCH --gres=gpu:1
-# 12h is more backfill-friendly than 24h; the job is RESUMABLE (per-case markers),
-# so if it is preempted or hits the wall, just resubmit and it continues.
-#SBATCH --time=12:00:00
+# 24h to give the full run room to finish in ONE shot. The job is also RESUMABLE
+# (per-case markers), so a preemption or wall-hit just continues on resubmit.
+#SBATCH --time=24:00:00
 #SBATCH --output=logs/v3_ribs_%j.out
 #SBATCH --error=logs/v3_ribs_%j.err
 #SBATCH --mail-type=END,FAIL
