@@ -70,11 +70,13 @@ J_PUSH=$(sbatch --parsable ${SB} --dependency=afterok:${JQC} \
 # --- (3) chain v3 (ribs + push) after the v2 push. ------------------------------
 if [[ "${SHIP_V3}" == "1" ]]; then
     echo "[from_qc] (3) chaining v3 after v2 push ${J_PUSH}"
+    # NOTE: do NOT pass SBATCH_QOS/SBATCH_EXTRA here. Forcing an EMPTY SBATCH_QOS into
+    # the env makes sbatch override the rib job's `#SBATCH -q gpu` with nothing -> no
+    # QOS -> "No partition specified". They're inherited naturally if you set them.
     EXTRA_DEP="${J_PUSH}" HF_TOKEN="${HF_TOKEN}" HF_REPO_ID="${HF_REPO_ID}" \
         SIF_PATH="${SIF_PATH}" NNUNET_SIF="${NNUNET_SIF}" WIPE="${WIPE}" \
         HF_WORKERS="${HF_WORKERS}" HF_PRIVATE="${HF_PRIVATE}" \
-        MANIFEST_FILE="${MANIFEST_FILE}" SBATCH_QOS="${SBATCH_QOS:-}" \
-        SBATCH_EXTRA="${SBATCH_EXTRA:-}" \
+        MANIFEST_FILE="${MANIFEST_FILE}" \
         bash slurm/ship_v3.sh
 fi
 
