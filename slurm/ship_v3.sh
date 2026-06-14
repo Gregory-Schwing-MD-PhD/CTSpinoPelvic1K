@@ -8,7 +8,7 @@
 #
 # Standalone:
 #   HF_TOKEN=hf_xxx HF_REPO_ID=<org>/CTSpinoPelvic1K bash slurm/ship_v3.sh
-# Chained after v2 (launch_v2.sh sets EXTRA_DEP to the v2 push job):
+# Chained after v2 (launch_all.sh sets EXTRA_DEP to the v2 push job):
 #   EXTRA_DEP=<jobid> bash slurm/ship_v3.sh
 # =============================================================================
 set -euo pipefail
