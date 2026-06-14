@@ -5,21 +5,22 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
-# This cluster's `-q gpu` QOS requires a TYPED gres (generic `gpu:1` fails to map to
-# a partition -> "No partition specified"); match the other working GPU jobs. The
-# 24h queue wait was the afterok dependency stranding (fixed by --kill-on-invalid-dep),
-# NOT this card. Override to a less-contested type if you have one, via:
-#   SBATCH_EXTRA="--gres=gpu:<type>:1"   (ship_v3 injects it into the sbatch call).
 #SBATCH --gres=gpu:nvidia_h200:1
-# 24h to give the full run room to finish in ONE shot. The job is also RESUMABLE
-# (per-case markers), so a preemption or wall-hit just continues on resubmit.
 #SBATCH --time=24:00:00
 #SBATCH --output=logs/v3_ribs_%j.out
 #SBATCH --error=logs/v3_ribs_%j.err
 #SBATCH --mail-type=END,FAIL
-# Match the known-good GPU jobs (pseudolabel/benchmark) exactly — they exclude msa1.
 #SBATCH --exclude=msa1
 # =============================================================================
+# Header notes (kept OUT of the #SBATCH block so every directive above is contiguous,
+# matching the known-good pseudolabel.sh — no comment can accidentally interrupt them):
+#  - gres is pinned to nvidia_h200:1 because this cluster's `-q gpu` QOS requires a
+#    TYPED gres; override to a less-contested card via SBATCH_EXTRA="--gres=gpu:<type>:1".
+#  - 24h wall, but the job is RESUMABLE (per-case markers), so a wall-hit/preemption
+#    just continues on resubmit.
+#  - the `gpu` QOS has NO default partition here; pass GPU_PARTITION=<name> to ship_v3
+#    if you hit "No partition specified".
+#
 # v3 ribs — derive the v3 tree from v2 by adding anatomically-numbered ribs.
 #
 # Runs TotalSegmentator (ribs ROI only) per case in the TS container, re-numbers

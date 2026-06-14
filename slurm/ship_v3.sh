@@ -39,11 +39,11 @@ SB="${SB} --kill-on-invalid-dep=yes"
 # EXTRA_DEP chains the rib job AFTER the v2 push (so v3 reads a finished v2 tree).
 RIB_DEP=""; [[ -n "${EXTRA_DEP:-}" ]] && RIB_DEP="--dependency=afterok:${EXTRA_DEP}"
 
-# This cluster's `gpu` QOS has no default partition, so the GPU rib job needs an
-# explicit --partition (the CPU push does not). Set GPU_PARTITION=<name> — find it
-# with:  sinfo -o '%P %G' | grep -i gpu   (or sacct -j <a working GPU job> -o Partition).
-RIB_SB="${SB}"
-[[ -n "${GPU_PARTITION:-}" ]] && RIB_SB="${RIB_SB} --partition=${GPU_PARTITION}"
+# This cluster's `gpu` QOS has no default partition, so the GPU rib job must name one
+# explicitly (the CPU push does not). gmsap is the H200 partition (sbatch --test-only
+# resolves the rib job there). Override with GPU_PARTITION=<name> if it ever changes.
+GPU_PARTITION="${GPU_PARTITION:-gmsap}"
+RIB_SB="${SB} --partition=${GPU_PARTITION}"
 
 echo "[ship_v3] (1) v3 ribs (TS ribs + GT-thoracic renumber, merge onto v2) [GPU]  ${RIB_DEP:-no dep}"
 JR=$(sbatch --parsable ${RIB_SB} ${RIB_DEP} \
