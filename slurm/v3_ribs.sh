@@ -5,11 +5,12 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
-# ANY gpu — TotalSegmentator's rib task does NOT need an H200, and pinning that
-# (the most contested card) is what left this job PENDING for ~24h. Pin a faster
-# card only if you want, via:  SBATCH_EXTRA="--gres=gpu:nvidia_h200:1"  (ship_v3
-# injects SBATCH_EXTRA into the sbatch call, overriding this default).
-#SBATCH --gres=gpu:1
+# This cluster's `-q gpu` QOS requires a TYPED gres (generic `gpu:1` fails to map to
+# a partition -> "No partition specified"); match the other working GPU jobs. The
+# 24h queue wait was the afterok dependency stranding (fixed by --kill-on-invalid-dep),
+# NOT this card. Override to a less-contested type if you have one, via:
+#   SBATCH_EXTRA="--gres=gpu:<type>:1"   (ship_v3 injects it into the sbatch call).
+#SBATCH --gres=gpu:nvidia_h200:1
 # 24h to give the full run room to finish in ONE shot. The job is also RESUMABLE
 # (per-case markers), so a preemption or wall-hit just continues on resubmit.
 #SBATCH --time=24:00:00
