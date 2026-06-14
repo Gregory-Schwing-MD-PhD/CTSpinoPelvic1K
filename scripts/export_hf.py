@@ -252,8 +252,10 @@ _MANIFEST_SCHEMA = [
     ("lstv_class",             int,   False),
     ("lstv_pelvic",            str,   True),
     ("lstv_vertebral",         str,   True),
-    ("castellvi_type",         str,   True),   # Castellvi grade (I..IV / IIa..) from
-                                               # _lstv_phenotypes.csv, joined by token
+    ("castellvi_type",         str,   True),   # Castellvi grade, reader 1 (I..IV/IIa..)
+    ("castellvi_second_read",  str,   True),   # Castellvi grade, reader 2 (null if not
+                                               # double-read — only a subset were)
+    ("castellvi_agreement",    bool,  True),   # read1==read2; null if no second read
     ("lstv_agreement",         bool,  True),   # true / false / null ONLY
     ("lstv_confusion_zone",    bool,  False),
     ("has_l6",                 bool,  False),
@@ -784,6 +786,8 @@ def _export_one(args: dict) -> dict:
         lstv_pelvic=args.get("lstv_pelvic", ""),
         lstv_vertebral=args.get("lstv_vertebral", ""),
         castellvi_type=args.get("castellvi_type") or None,
+        castellvi_second_read=args.get("castellvi_second_read") or None,
+        castellvi_agreement=args.get("castellvi_agreement"),
         lstv_agreement=args.get("lstv_agreement"),
         lstv_confusion_zone=args.get("lstv_confusion_zone", False),
         lstv_class=args.get("lstv_class", 0),
@@ -932,27 +936,38 @@ def _export_one(args: dict) -> dict:
 
 # -- Build work items ---------------------------------------------------------
 
-def _load_castellvi_map(csv_path: Optional[Path]) -> Dict[str, str]:
-    """token -> Castellvi grade, joined from _lstv_phenotypes.csv.
+def _load_castellvi_map(csv_path: Optional[Path]) -> Dict[str, dict]:
+    """token -> {type, second_read, agreement}, joined from _lstv_phenotypes.csv.
 
-    The grade lives in a side CSV (radiologist phenotyping), not placed_manifest,
-    so we join it in by token at export time. Absent file / token -> no entry
-    (the manifest field stays JSON null).
+    Castellvi grading lives in a side CSV (radiologist phenotyping), not
+    placed_manifest, so we join it in by token at export time. Most cases have a
+    single read (castellvi_type); a subset were double-read (castellvi_second_read).
+    We ship BOTH plus an agreement flag (True/False, or None when not double-read)
+    so reader disagreement is visible rather than silently collapsed to read 1.
+    Absent file / token -> no entry (the manifest fields stay JSON null).
     """
-    out: Dict[str, str] = {}
+    out: Dict[str, dict] = {}
     if csv_path is None:
         csv_path = Path(__file__).resolve().parent.parent / "_lstv_phenotypes.csv"
     if not csv_path.exists():
-        log.warning("castellvi: no phenotype CSV at %s — castellvi_type will be null", csv_path)
+        log.warning("castellvi: no phenotype CSV at %s — castellvi fields will be null", csv_path)
         return out
     import csv as _csv
+    n_second = n_disagree = 0
     with open(csv_path, newline="") as fh:
         for r in _csv.DictReader(fh):
             tok = str(r.get("token", "")).strip()
             grade = (r.get("castellvi_type") or "").strip()
-            if tok and grade:
-                out[tok] = grade
-    log.info("castellvi: loaded %d graded token(s) from %s", len(out), csv_path.name)
+            if not (tok and grade):
+                continue
+            second = (r.get("castellvi_second_read") or "").strip()
+            agreement = (grade == second) if second else None
+            if second:
+                n_second += 1
+                n_disagree += int(agreement is False)
+            out[tok] = {"type": grade, "second_read": second or None, "agreement": agreement}
+    log.info("castellvi: loaded %d graded token(s) from %s (%d double-read, %d disagree)",
+             len(out), csv_path.name, n_second, n_disagree)
     return out
 
 
@@ -1060,7 +1075,9 @@ def build_work(manifest_path: Path, nifti_dir: Path,
             lstv=lstv,
             lstv_pelvic=lstv_pelvic,
             lstv_vertebral=lstv_vertebral,
-            castellvi_type=castellvi_map.get(tok) or None,
+            castellvi_type=(castellvi_map.get(tok) or {}).get("type"),
+            castellvi_second_read=(castellvi_map.get(tok) or {}).get("second_read"),
+            castellvi_agreement=(castellvi_map.get(tok) or {}).get("agreement"),
             lstv_agreement=lstv_agreement,
             lstv_confusion_zone=lstv_confusion,
             lstv_class=lstv_class,
