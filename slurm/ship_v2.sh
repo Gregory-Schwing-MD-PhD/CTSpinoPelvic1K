@@ -102,17 +102,10 @@ J2=$(sbatch --parsable ${SB} ${DEP_ARG} \
   slurm/pseudolabel.sh)
 
 # ---------------------------------------------------------------------------
-# (3) QC — dataset summary figures from the completion CSV (after pseudolabel) [CPU].
-if [[ "${SKIP_QC}" != "1" ]]; then
-    echo "[ship_v2] (3) qc_dashboard (figures) [CPU]  after ${J2}"
-    JDASH=$(sbatch --parsable ${SB} --dependency=afterok:${J2} \
-      --export=ALL,SIF_PATH=${SIF_PATH},PSEUDO_OUT_DIR=${PSEUDO_OUT_DIR},DASH_OUT_DIR=${DASH_OUT_DIR} \
-      slurm/qc_dashboard.sh)
-fi
-
-# ---------------------------------------------------------------------------
-# (4) push the v2 tree (export step skipped — it already exists from step 2) [CPU].
-echo "[ship_v2] (4) push ${PSEUDO_OUT_DIR} -> ${HF_REPO_ID}@v2 [CPU]  after ${J2}"
+# (3) push the v2 tree (export step skipped — it already exists from step 2) [CPU].
+# (The old propagation QC dashboard is gone with propagation; the pseudolabel step
+# writes its own per-case completion QC into the v2 tree.)
+echo "[ship_v2] (3) push ${PSEUDO_OUT_DIR} -> ${HF_REPO_ID}@v2 [CPU]  after ${J2}"
 J3=$(sbatch --parsable ${SB} --dependency=afterok:${J2} \
   --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=1,WIPE_REMOTE=${WIPE},HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v2,HF_EXPORT_DIR=${PSEUDO_OUT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
   slurm/export_dataset.sh)
@@ -122,7 +115,6 @@ echo "V2_PUSH_JOB=${J3}"
 echo "[ship_v2] submitted:"
 echo "[ship_v2]   v1 build+push : ${J1:-<skipped>}"
 echo "[ship_v2]   pseudolabel   : ${J2}   (GT spines + MODEL pelves)"
-echo "[ship_v2]   qc dashboard  : ${JDASH:-<skipped>}"
 echo "[ship_v2]   v2 push       : ${J3}"
 echo "[ship_v2]   monitor       : tail -f logs/*${J2}* logs/*${J3}*"
 echo "[ship_v2]   v2 = radiologist spine GT + model-pseudolabelled pelves; pelvic_native dropped."
