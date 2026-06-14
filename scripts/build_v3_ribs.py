@@ -55,6 +55,30 @@ RIB_NAMES: List[str] = (
 # VerSe ids 8..19 == thoracic T1..T12. Remap to the 1..12 that relabel_ribs expects.
 VERSE_THORACIC_LO, VERSE_THORACIC_HI = 8, 19
 
+# ---------------------------------------------------------------------------
+# v3 TRAINING-CONTIGUOUS label scheme. nnU-Net requires consecutive label ids
+# with the ignore label HIGHEST, so adding 24 ribs pushes ignore off 10:
+#   0 bg | 1..6 L1..L6 | 7 sacrum | 8 left_hip | 9 right_hip
+#   10..21 rib_left_1..12 | 22..33 rib_right_1..12 | 34 ignore
+# We set relabel_ribs' offsets so left rib n -> 9+n (10..21), right n -> 21+n
+# (22..33), and remap the v2 ignore (10) -> 34 so it never collides with rib id 10.
+RR.LEFT_OFFSET = 9
+RR.RIGHT_OFFSET = 21
+V2_IGNORE = 10
+V3_IGNORE = 34
+
+
+def v3_label_dict() -> Dict[str, int]:
+    """The full v3 {name: id} label map (background..ignore), for dataset.json."""
+    d = {"background": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4, "L5": 5, "L6": 6,
+         "sacrum": 7, "left_hip": 8, "right_hip": 9}
+    for n in range(1, 13):
+        d[f"rib_left_{n}"] = 9 + n
+    for n in range(1, 13):
+        d[f"rib_right_{n}"] = 21 + n
+    d["ignore"] = V3_IGNORE
+    return d
+
 
 # ===========================================================================
 # Thoracic anchors from the placed VerSe spine mask
@@ -166,6 +190,9 @@ def process_case(
     """Add ribs to one case; write the merged v3 label. Returns a QC dict."""
     lbl_img = nib.load(str(v2_label_path))
     v2_label = np.asarray(lbl_img.dataobj).astype(np.int32)
+    # Move the ignore label off 10 (which is now rib_left_1) -> 34, for every case
+    # so v3's ignore id is uniform whether or not the case gets ribs.
+    v2_label[v2_label == V2_IGNORE] = V3_IGNORE
 
     qc: Dict[str, object] = {"ct": ct_path.name, "ribs_written": 0, "n_ribs": 0,
                              "status": "ok", "note": ""}
@@ -244,9 +271,14 @@ def main() -> int:
                               device=args.device, min_voxels=args.min_voxels,
                               dilation_radius=args.dilation_radius, pad=args.pad)
         except Exception as exc:                                       # noqa: BLE001
-            log.error("  token=%s FAILED: %s — shipping v2 label unchanged",
+            log.error("  token=%s FAILED: %s — shipping v2 label (ignore remapped, no ribs)",
                       r.get("token"), exc)
-            shutil.copy2(v2_label_path, out_label_path)
+            # Still apply the ignore 10->34 remap so v3's ignore id stays uniform.
+            li = nib.load(str(v2_label_path))
+            la = np.asarray(li.dataobj).astype(np.int32)
+            la[la == V2_IGNORE] = V3_IGNORE
+            nib.save(nib.Nifti1Image(la.astype(np.uint16), li.affine, li.header),
+                     str(out_label_path))
             qc = {"ct": ct_path.name, "status": "error", "note": str(exc)[:200],
                   "ribs_written": 0, "n_ribs": 0}
         qc["token"] = r.get("token")
@@ -260,8 +292,12 @@ def main() -> int:
         w.writeheader()
         for row in qc_rows:
             w.writerow({k: row.get(k, "") for k in w.fieldnames})
+    # Emit the v3 label scheme (training-contiguous, ignore=34) for dataset.json.
+    (args.v3_dir / "dataset_labels.json").write_text(json.dumps(v3_label_dict(), indent=2))
+
     n_ok = sum(1 for r in qc_rows if r["status"] == "ok")
-    log.info("v3 ribs done: %d/%d cases got ribs -> %s", n_ok, len(qc_rows), qc_path)
+    log.info("v3 ribs done: %d/%d cases got ribs -> %s  (labels: dataset_labels.json)",
+             n_ok, len(qc_rows), qc_path)
     return 0
 
 
