@@ -319,11 +319,20 @@ class LSTVReviewerWidget(ScriptedLoadableModuleWidget):
             for d in sorted(sub.iterdir()):
                 if not (d.is_dir() and d.name.startswith("token_")):
                     continue
+                meta = {}
+                meta_path = d / "case_meta.json"
+                if meta_path.exists():
+                    try:
+                        import json as _json
+                        meta = _json.loads(meta_path.read_text())
+                    except Exception:
+                        meta = {}
                 self.cases.append({
                     "subtype": sd,
                     "token": d.name.replace("token_", ""),
                     "dir": d,
                     "complete": (d / "landmarks.mrk.json").exists(),
+                    "meta": meta,
                 })
         n_complete = sum(1 for c in self.cases if c["complete"])
         self.lblProgress.setText(
@@ -345,6 +354,33 @@ class LSTVReviewerWidget(ScriptedLoadableModuleWidget):
         if idx < 0 or idx >= len(self.cases):
             return None
         return self.cases[idx]
+
+    @staticmethod
+    def _metaPanelHtml(meta):
+        """Format case_meta.json into an HTML block for the status panel: the
+        existing Castellvi grade (both reads + agreement) and the LSTV call by
+        SOURCE — spine (vertebral) vs pelvis — each with its label provenance
+        (manual vs model-pseudolabel) so the reader knows what to trust."""
+        if not meta:
+            return ""
+        def g(k):
+            v = meta.get(k)
+            return "—" if v in (None, "", "unknown") else str(v)
+        cast = g("castellvi_type")
+        c2 = meta.get("castellvi_second_read")
+        agree = meta.get("castellvi_agreement")
+        if c2 not in (None, "", "unknown"):
+            tag = "agree" if agree else "DISAGREE"
+            cast = f"{cast} / {c2} ({tag})"
+        return (
+            "<hr>"
+            f"<b>Castellvi:</b> {cast}<br>"
+            f"<b>LSTV (spine):</b> {g('lstv_vertebral')} "
+            f"<i>[{g('prov_spine')}]</i><br>"
+            f"<b>LSTV (pelvis):</b> {g('lstv_pelvic')} "
+            f"<i>[{g('prov_pelvis')}]</i><br>"
+            f"<b>match/config:</b> {g('match_type')} / {g('config')}"
+        )
 
     def onNextIncomplete(self):
         if not self.cases:
@@ -438,7 +474,8 @@ class LSTVReviewerWidget(ScriptedLoadableModuleWidget):
             f"<b>Loaded:</b> {case['subtype']} / "
             f"token_{case['token']}<br>"
             f"<b>Landmarks:</b> {n_placed} / {n_total} placed "
-            f"({source_note})")
+            f"({source_note})"
+            + self._metaPanelHtml(case.get("meta")))
         self.btnSave.setEnabled(True)
         self.btnReview.setEnabled(True)
 

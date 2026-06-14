@@ -958,6 +958,37 @@ def write_review_template(token_dir, token, subtype, match_type="unknown"):
     (token_dir / "review.txt").write_text(text)
 
 
+# Fields surfaced on-screen in the Slicer reviewer so the reader sees the existing
+# Castellvi grade + the LSTV calls by SOURCE (spine vs pelvis) and the label
+# provenance (manual vs model-pseudolabel) while reviewing.
+CASE_META_FIELDS = (
+    "lstv_label", "match_type", "config",
+    "castellvi_type", "castellvi_second_read", "castellvi_agreement",
+    "lstv_vertebral", "prov_spine",     # spine-side LSTV call + its provenance
+    "lstv_pelvic", "prov_pelvis",       # pelvis-side LSTV call + its provenance
+)
+
+
+def write_case_meta(token_dir, token, subtype, recs):
+    """Write case_meta.json (read by LSTVReviewer for the on-screen panel).
+
+    A token may have several records (e.g. a separate-cohort spine record + pelvic
+    record); for each field take the first record that actually carries it, so the
+    spine-side call comes from the spine record and the pelvis-side from the pelvic
+    one. Missing fields stay null (older manifests predate them)."""
+    meta = {"token": token, "subtype": subtype}
+    for f in CASE_META_FIELDS:
+        val = None
+        for r in recs:
+            v = r.get(f)
+            if v not in (None, "", "unknown"):
+                val = v
+                break
+        meta[f] = val
+    (token_dir / "case_meta.json").write_text(json.dumps(meta, indent=2))
+    return meta
+
+
 def write_landmarks_template(token_dir):
     template = make_landmarks_template()
     with open(token_dir / "landmarks_template.mrk.json", "w") as f:
@@ -1157,6 +1188,7 @@ def main():
                 })
 
             write_review_template(token_dir, token, subtype, display_match)
+            write_case_meta(token_dir, token, subtype, recs)
             write_landmarks_template(token_dir)
             log.info(f"           done in {time.time() - t_token:.1f}s")
 
