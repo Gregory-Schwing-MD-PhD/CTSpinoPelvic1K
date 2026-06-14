@@ -32,6 +32,9 @@ WIPE="${WIPE:-1}"
 MANIFEST_FILE="${MANIFEST_FILE:-placed_manifest_orientation_fixed.json}"
 SB=""; [[ -n "${SBATCH_QOS:-}" ]] && SB="-q ${SBATCH_QOS}"
 SB="${SB} ${SBATCH_EXTRA:-}"
+# Cancel a chained job immediately if its dependency can never be satisfied (upstream
+# exited non-zero) instead of leaving it PENDING for hours. Harmless on dep-less jobs.
+SB="${SB} --kill-on-invalid-dep=yes"
 
 # EXTRA_DEP chains the rib job AFTER the v2 push (so v3 reads a finished v2 tree).
 RIB_DEP=""; [[ -n "${EXTRA_DEP:-}" ]] && RIB_DEP="--dependency=afterok:${EXTRA_DEP}"

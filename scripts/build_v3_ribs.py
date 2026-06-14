@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import shutil
 import sys
 import tempfile
@@ -236,18 +237,52 @@ def main() -> int:
     ap.add_argument("--dilation_radius", type=int, default=4)
     ap.add_argument("--pad", type=int, default=10)
     ap.add_argument("--limit", type=int, default=0, help="cap cases (debug)")
+    ap.add_argument("--resume", action="store_true", default=True,
+                    help="skip cases already rib-processed (default on) — a timed-out "
+                         "or preempted job continues instead of restarting")
+    ap.add_argument("--no_resume", dest="resume", action="store_false",
+                    help="force a full rebuild (ignore .rib_done markers)")
     args = ap.parse_args()
 
     manifest = json.loads((args.v2_dir / "manifest.json").read_text())
     records = manifest["records"] if isinstance(manifest, dict) and "records" in manifest else manifest
 
-    # Mirror the v2 tree, then overwrite the labels we touch (CT + manifest unchanged).
+    # Mirror the v2 tree IDEMPOTENTLY: hardlink (fallback copy) each CT/label only if
+    # it is absent in v3, so a RESUME does NOT re-copy ~188 GB of CTs every run.
+    # process_case overwrites the labels it ribs; everything else is left in place.
     args.v3_dir.mkdir(parents=True, exist_ok=True)
+    def _mirror(src: Path, dst: Path) -> None:
+        if dst.exists():
+            return
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.link(src, dst)                  # cheap: no data copied (same filesystem)
+        except OSError:
+            shutil.copy2(src, dst)             # cross-device fallback
     for sub in ("ct", "labels"):
-        if (args.v2_dir / sub).exists():
-            shutil.copytree(args.v2_dir / sub, args.v3_dir / sub, dirs_exist_ok=True)
+        sd = args.v2_dir / sub
+        if sd.exists():
+            for f in sd.glob("*.nii.gz"):
+                _mirror(f, args.v3_dir / sub / f.name)
     for f in args.v2_dir.glob("*.json"):
         shutil.copy2(f, args.v3_dir / f.name)
+
+    # Resume: a per-case marker (holding that case's QC row) is written once a case
+    # is fully rib-processed. On restart, completed cases are skipped — so a job that
+    # times out / is preempted continues instead of re-running TotalSegmentator on
+    # the cases it already finished. Clear .rib_done to force a full rebuild.
+    # Markers live in a _work sibling, NOT inside the v3 tree, so they never ship to HF.
+    done_dir = args.v3_dir.parent / (args.v3_dir.name + "_work") / "rib_done"
+    done_dir.mkdir(parents=True, exist_ok=True)
+    done: Dict[str, dict] = {}
+    if args.resume:
+        for m in done_dir.glob("*.json"):
+            try:
+                done[m.stem] = json.loads(m.read_text())
+            except Exception:
+                pass
+        if done:
+            log.info("resume: %d case(s) already rib-processed — skipping", len(done))
 
     qc_rows: List[Dict[str, object]] = []
     todo = [r for r in records if r.get("config") in ("fused", "spine_only")]
@@ -260,9 +295,14 @@ def main() -> int:
         ct_rel = r.get("ct_file") or ""
         if not label_rel or not ct_rel:
             continue
+        cid = Path(label_rel).name[: -len(".nii.gz")]
+        out_label_path = args.v3_dir / label_rel
+        # Skip ONLY if marked done AND the output label is actually present.
+        if args.resume and cid in done and out_label_path.exists():
+            qc_rows.append(done[cid])
+            continue
         ct_path = args.v2_dir / ct_rel
         v2_label_path = args.v2_dir / label_rel
-        out_label_path = args.v3_dir / label_rel
         spine_uid = r.get("spine_series_uid")
         spine_mask = (args.spine_dir / f"{spine_uid}_seg_placed.nii.gz") if spine_uid else None
         log.info("[%d/%d] token=%s config=%s", i, len(todo), r.get("token"), r.get("config"))
@@ -283,6 +323,10 @@ def main() -> int:
                   "ribs_written": 0, "n_ribs": 0}
         qc["token"] = r.get("token")
         qc_rows.append(qc)
+        # Mark done only after the output label is on disk (a timeout mid-case leaves
+        # no marker -> that case re-runs next time; finished cases never re-run).
+        if out_label_path.exists():
+            (done_dir / f"{cid}.json").write_text(json.dumps(qc))
 
     import csv
     qc_path = args.v3_dir / "rib_qc.csv"
