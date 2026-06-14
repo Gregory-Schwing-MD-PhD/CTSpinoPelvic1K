@@ -62,10 +62,17 @@ SB="${SB} ${SBATCH_EXTRA:-}"
     echo "ERROR: nnUNet container missing at ${NNUNET_SIF} (needed unless DRY_RUN=1)."
     echo "       set NNUNET_SIF=/path/to/ctspinopelvic1k-ts.sif"; exit 1; }
 
-# Guards: force fresh v2 labels (so the pelvis fill is re-applied onto the
-# anchored base) and, unless SKIP_BASE=1, fresh base labels too. NEVER touch
-# *_work — those are the cached preds the pseudolabel step reuses (no GPU run).
-SKIP_BASE="${SKIP_BASE:-0}"
+# v1 base: AUTO-REUSE if it already exists (already built + pushed @v1) — don't wipe
+# or redo it, just proceed to v2. Only (re)build it when it's missing. Force either
+# way with SKIP_BASE=1 (reuse) / SKIP_BASE=0 (rebuild + re-push v1). v2/v3 always
+# rebuild + wipe-push regardless. NEVER touch *_work (cached preds).
+if [[ -z "${SKIP_BASE:-}" ]]; then
+    if [[ -f "${HF_EXPORT_DIR}/manifest.json" ]]; then
+        SKIP_BASE=1; echo "[ship_v2] v1 base present -> reuse (auto; SKIP_BASE=0 to rebuild)"
+    else
+        SKIP_BASE=0; echo "[ship_v2] no v1 base -> will build + push @v1"
+    fi
+fi
 echo "[ship_v2] clearing stale v2 labels    ${PSEUDO_OUT_DIR}/{labels,qc,manifest.json}  (KEEPING ${PSEUDO_OUT_DIR}_work)"
 rm -rf "${PSEUDO_OUT_DIR}"/labels "${PSEUDO_OUT_DIR}"/qc "${PSEUDO_OUT_DIR}"/manifest.json \
        "${PSEUDO_OUT_DIR}"/propagated_completion_qc.csv
