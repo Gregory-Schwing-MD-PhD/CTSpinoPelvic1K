@@ -141,9 +141,33 @@ def _load(path: Path) -> Tuple[np.ndarray, np.ndarray]:
     return np.asarray(img.dataobj), img.affine
 
 
+def _score_record(payload):
+    """Worker: score ONE case (load CT+label, run the plausibility checks).
+
+    Top-level (picklable) so it can run under ProcessPoolExecutor — the cases are
+    fully independent, so this is embarrassingly parallel. Returns ("ok", row) or
+    ("skip", token, reason)."""
+    v2_dir_str, bone_hu, r = payload
+    v2_dir = Path(v2_dir_str)
+    tok = str(r.get("token", "?"))
+    ct_p, lbl_p = v2_dir / r["ct_file"], v2_dir / r["label_file"]
+    if not ct_p.exists() or not lbl_p.exists():
+        return ("skip", tok, "missing CT/label")
+    ct, aff = _load(ct_p)
+    lbl, _ = _load(lbl_p)
+    if ct.shape[:3] != lbl.shape[:3]:
+        return ("skip", tok, "shape mismatch")
+    m = qc_one(ct, np.rint(lbl).astype(np.int16), aff, bone_hu=bone_hu)
+    return ("ok", {"token": tok, "config": r.get("config", ""),
+                   "review_priority": r.get("review_priority", ""),
+                   "label_file": r["label_file"], **m})
+
+
 def run(v2_dir: Path, out_csv: Path, *, bone_hu: int = 200,
-        tokens: Optional[set] = None) -> List[dict]:
-    """Score every model-pseudolabelled-pelvis case in the v2 tree."""
+        tokens: Optional[set] = None, workers: int = 8) -> List[dict]:
+    """Score every model-pseudolabelled-pelvis case in the v2 tree (parallel)."""
+    from concurrent.futures import ProcessPoolExecutor
+
     manifest = json.loads((v2_dir / "manifest.json").read_text())
     records = manifest["records"] if isinstance(manifest, dict) else manifest
 
@@ -153,27 +177,22 @@ def run(v2_dir: Path, out_csv: Path, *, bone_hu: int = 200,
               if (r.get("prov_pelvis") == "pseudo"
                   or r.get("config") == "spine_only")
               and (tokens is None or str(r.get("token")) in tokens)]
-    log.info("triaging %d model-pseudolabelled-pelvis case(s)", len(scoped))
+    workers = max(1, min(workers, len(scoped) or 1))
+    log.info("triaging %d model-pseudolabelled-pelvis case(s) with %d worker(s)",
+             len(scoped), workers)
 
+    payloads = [(str(v2_dir), bone_hu, r) for r in scoped]
     rows: List[dict] = []
-    for i, r in enumerate(scoped, 1):
-        tok = str(r.get("token", "?"))
-        ct_p, lbl_p = v2_dir / r["ct_file"], v2_dir / r["label_file"]
-        if not ct_p.exists() or not lbl_p.exists():
-            log.warning("[%d/%d] token=%s missing CT/label — skip", i, len(scoped), tok)
-            continue
-        ct, aff = _load(ct_p)
-        lbl, _ = _load(lbl_p)
-        if ct.shape[:3] != lbl.shape[:3]:
-            log.warning("[%d/%d] token=%s shape mismatch — skip", i, len(scoped), tok)
-            continue
-        m = qc_one(ct, np.rint(lbl).astype(np.int16), aff, bone_hu=bone_hu)
-        m = {"token": tok, "config": r.get("config", ""),
-             "review_priority": r.get("review_priority", ""),
-             "label_file": r["label_file"], **m}
-        rows.append(m)
-        if i % 25 == 0 or i == len(scoped):
-            log.info("  [%d/%d] scored", i, len(scoped))
+    done = 0
+    with ProcessPoolExecutor(max_workers=workers) as ex:
+        for res in ex.map(_score_record, payloads):
+            done += 1
+            if res[0] == "skip":
+                log.warning("token=%s skipped: %s", res[1], res[2])
+            else:
+                rows.append(res[1])
+            if done % 50 == 0 or done == len(payloads):
+                log.info("  [%d/%d] scored", done, len(payloads))
 
     # Worst first.
     rows.sort(key=lambda d: d["triage_score"], reverse=True)
@@ -198,10 +217,14 @@ def main() -> int:
     ap.add_argument("--bone_hu", type=int, default=200,
                     help="bone-HU threshold for the SOFT bone_fit signal (default 200)")
     ap.add_argument("--tokens", default="", help="comma-separated subset to score")
+    ap.add_argument("--workers", type=int, default=0,
+                    help="parallel workers (default 0 = os.cpu_count())")
     args = ap.parse_args()
+    import os
     import re
     want = {t for t in re.split(r"[,:;\s]+", args.tokens.strip()) if t} or None
-    run(args.v2_dir, args.out_csv, bone_hu=args.bone_hu, tokens=want)
+    workers = args.workers or (os.cpu_count() or 8)
+    run(args.v2_dir, args.out_csv, bone_hu=args.bone_hu, tokens=want, workers=workers)
     return 0
 
 

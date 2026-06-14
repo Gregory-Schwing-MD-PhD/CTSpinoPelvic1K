@@ -3,8 +3,8 @@
 #SBATCH -q primary
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=16G
+#SBATCH --cpus-per-task=24
+#SBATCH --mem=64G
 #SBATCH --time=01:00:00
 #SBATCH --output=logs/qc_pseudo_pelvis_%j.out
 #SBATCH --error=logs/qc_pseudo_pelvis_%j.out
@@ -60,6 +60,7 @@ stdbuf -oL -eL singularity exec \
         --v2_dir  "$(REL "${PSEUDO_OUT_DIR}")" \
         --out_csv "$(REL "${OUT_CSV}")" \
         --bone_hu "${BONE_HU}" \
+        --workers "${SLURM_CPUS_PER_TASK:-8}" \
     || echo "WARN: qc_pseudo_pelvis.py exited non-zero — continuing (non-fatal)"
 
 echo ""
