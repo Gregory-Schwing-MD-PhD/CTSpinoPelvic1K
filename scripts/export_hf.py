@@ -248,6 +248,9 @@ _MANIFEST_SCHEMA = [
     # reachable when the (gated) pseudo-label + QA pipeline writes them.
     ("prov_spine",             str,   True),
     ("prov_pelvis",            str,   True),
+    ("review_priority",        str,   True),   # "high" (model-filled spine on a
+                                               # pelvic-only token) | "normal" (model-
+                                               # filled pelvis) | null. Set by pseudolabel.
     ("lstv_label",             str,   False),
     ("lstv_class",             int,   False),
     ("lstv_pelvic",            str,   True),

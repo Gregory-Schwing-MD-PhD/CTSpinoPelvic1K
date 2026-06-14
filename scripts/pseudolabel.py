@@ -191,6 +191,13 @@ def updated_record(record: dict, filled_region: str, merged,
         r["prov_spine"] = prov
     elif filled_region == "pelvis":
         r["prov_pelvis"] = prov
+    # Review prioritisation for the human QA pass. A model-filled SPINE is the
+    # riskiest pseudolabel — the ENTIRE lumbar column is inferred from a pelvic-only
+    # scan (no spine ever traced for this token) — so flag it "high". A model-filled
+    # pelvis (spine_only) is "normal". REAL GT carried across acquisitions
+    # (manual_propagated) needs no review. Manual/null cases stay unflagged.
+    if prov == "pseudo":
+        r["review_priority"] = "high" if filled_region == "spine" else "normal"
     r["partial_annotation"] = bool((merged == IGNORE_LABEL).any())
     r["n_voxels_ignore"] = int((merged == IGNORE_LABEL).sum())
     r["n_voxels_fg"] = int(((merged > 0) & (merged != IGNORE_LABEL)).sum())
@@ -532,10 +539,22 @@ def main() -> int:
     records = _load_manifest(man_path)
     total = len(records)
     if include_configs:
-        kept = [r for r in records if r.get("config") in include_configs]
-        log.info("include_configs %s: %d -> %d records (dropped %d, e.g. "
-                 "pelvic_native — excluded from the v2 tree)",
-                 sorted(include_configs), total, len(kept), total - len(kept))
+        def _keep(r) -> bool:
+            if r.get("config") in include_configs:
+                return True
+            # ALSO keep PURE pelvic-only tokens (match_type == pelvic_only): their
+            # only acquisition is the pelvic scan, so dropping all pelvic_native
+            # would erase these tokens from v2 entirely. Keep them and pseudolabel
+            # their spine. (Separate-cohort pelvic SIDES are config=pelvic_native but
+            # match_type=separate — those stay dropped, since the same token's spine
+            # side is already kept as a spine_only record.)
+            return (r.get("config") == "pelvic_native"
+                    and r.get("match_type") == "pelvic_only")
+        kept = [r for r in records if _keep(r)]
+        n_ponly = sum(1 for r in kept if r.get("config") == "pelvic_native")
+        log.info("include_configs %s (+%d pure pelvic_only, model-spine): %d -> %d "
+                 "records (dropped %d redundant pelvic sides)",
+                 sorted(include_configs), n_ponly, total, len(kept), total - len(kept))
         records = kept
         total = len(records)
     in_scope = [r for r in records
