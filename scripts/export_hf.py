@@ -1429,6 +1429,60 @@ def hf_write_preflight(repo_id, token, revision, private=False) -> None:
             f"  HF said: {e}")
 
 
+def _verify_tree_complete(out_dir: Path) -> None:
+    """Abort the push unless every manifest record's CT + label is present and
+    non-empty, and prune stale orphan files the manifest no longer references.
+
+    Last line of defence against shipping an incomplete or stale tree: an upstream
+    bug (e.g. a resume that skipped writes) would otherwise push a dataset missing
+    labels. We raise BEFORE any remote mutation, so a failure leaves the existing HF
+    version live and untouched — a loud failed job beats a silently broken release.
+    """
+    man = out_dir / "manifest.json"
+    if not man.exists():
+        raise RuntimeError(f"refusing to push: no manifest.json in {out_dir}")
+    data = json.loads(man.read_text())
+    records = data["records"] if isinstance(data, dict) and "records" in data else data
+
+    expected_ct: set = set()
+    expected_lbl: set = set()
+    missing: List[str] = []
+    for r in records:
+        for key, bucket in (("ct_file", expected_ct), ("label_file", expected_lbl)):
+            rel = r.get(key)
+            if not rel:
+                missing.append(f"{r.get('token','?')}: manifest record has no {key}")
+                continue
+            bucket.add(rel)
+            p = out_dir / rel
+            if not p.exists():
+                missing.append(f"MISSING  {rel}")
+            elif p.stat().st_size == 0:
+                missing.append(f"EMPTY    {rel}")
+    if missing:
+        head = "\n  ".join(missing[:30])
+        raise RuntimeError(
+            f"refusing to push '{out_dir.name}': {len(missing)} incomplete file(s) "
+            f"vs manifest ({len(records)} records). REMOTE LEFT UNTOUCHED.\n  {head}"
+            + (f"\n  ... (+{len(missing) - 30} more)" if len(missing) > 30 else ""))
+
+    # Prune stale orphans: files physically in ct/ or labels/ that the manifest no
+    # longer references (leftovers from an older/larger run). These would otherwise
+    # ship as "old scans". Safe to delete — the export tree is regenerable scratch.
+    pruned = 0
+    for sub, expected in (("ct", expected_ct), ("labels", expected_lbl)):
+        d = out_dir / sub
+        if not d.exists():
+            continue
+        for f in d.glob("*.nii.gz"):
+            rel = f"{sub}/{f.name}"
+            if rel not in expected:
+                log.warning("  verify: pruning STALE orphan (not in manifest): %s", rel)
+                f.unlink(); pruned += 1
+    log.info("  verify OK: %d records, every CT+label present & non-empty; "
+             "pruned %d stale orphan(s)", len(records), pruned)
+
+
 def push_to_hub(
     out_dir:          Path,
     repo_id:          Optional[str] = HF_REPO_ID,
@@ -1460,6 +1514,10 @@ def push_to_hub(
         )
 
     api = HfApi(token=token)
+
+    # Completeness gate — abort BEFORE touching the remote if the local tree is
+    # short or stale. A failed job here leaves the existing HF version untouched.
+    _verify_tree_complete(out_dir)
 
     log.info("Ensuring repo: %s  (private=%s) ...", repo_id, private)
     create_repo(repo_id=repo_id, repo_type=HF_REPO_TYPE,

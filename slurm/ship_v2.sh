@@ -102,11 +102,25 @@ J2=$(sbatch --parsable ${SB} ${DEP_ARG} \
   slurm/pseudolabel.sh)
 
 # ---------------------------------------------------------------------------
-# (3) push the v2 tree (export step skipped — it already exists from step 2) [CPU].
+# (3) QC triage — score every model-pseudolabelled pelvis on anatomical plausibility
+# and write qc/pseudo_pelvis_triage.csv INTO the v2 tree so it ships with the push
+# (review worst-first). Non-fatal: the job always exits 0, so it never blocks the
+# push. Runs after pseudolabel (needs the v2 labels). [CPU]
+QC_DEP=":${J2}"
+if [[ "${SKIP_QC}" != "1" ]]; then
+    echo "[ship_v2] (3) qc_pseudo_pelvis triage -> ${PSEUDO_OUT_DIR}/qc [CPU]  after ${J2}"
+    JQC=$(sbatch --parsable ${SB} --dependency=afterok:${J2} \
+      --export=ALL,SIF_PATH=${SIF_PATH},PSEUDO_OUT_DIR=${PSEUDO_OUT_DIR} \
+      slurm/qc_pseudo_pelvis.sh)
+    QC_DEP=":${JQC}"      # push waits for the CSV so it ships inside v2
+fi
+
+# ---------------------------------------------------------------------------
+# (4) push the v2 tree (export step skipped — it already exists from step 2) [CPU].
 # (The old propagation QC dashboard is gone with propagation; the pseudolabel step
 # writes its own per-case completion QC into the v2 tree.)
-echo "[ship_v2] (3) push ${PSEUDO_OUT_DIR} -> ${HF_REPO_ID}@v2 [CPU]  after ${J2}"
-J3=$(sbatch --parsable ${SB} --dependency=afterok:${J2} \
+echo "[ship_v2] (4) push ${PSEUDO_OUT_DIR} -> ${HF_REPO_ID}@v2 [CPU]  after${QC_DEP}"
+J3=$(sbatch --parsable ${SB} --dependency=afterok${QC_DEP} \
   --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=1,WIPE_REMOTE=${WIPE},HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v2,HF_EXPORT_DIR=${PSEUDO_OUT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
   slurm/export_dataset.sh)
 
@@ -115,6 +129,7 @@ echo "V2_PUSH_JOB=${J3}"
 echo "[ship_v2] submitted:"
 echo "[ship_v2]   v1 build+push : ${J1:-<skipped>}"
 echo "[ship_v2]   pseudolabel   : ${J2}   (GT spines + MODEL pelves)"
-echo "[ship_v2]   v2 push       : ${J3}"
+echo "[ship_v2]   qc triage     : ${JQC:-<skipped>}"
+echo "[ship_v2]   v2 push       : ${J3}   (completeness-gated: aborts if labels/CTs missing)"
 echo "[ship_v2]   monitor       : tail -f logs/*${J2}* logs/*${J3}*"
 echo "[ship_v2]   v2 = radiologist spine GT + model-pseudolabelled pelves; pelvic_native dropped."
