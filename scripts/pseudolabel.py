@@ -637,7 +637,13 @@ def main() -> int:
             _passthrough(rec); new_records.append(rec); n_pass += 1
             continue
         cid = _case_id(rec)
-        if cid in done:                       # already merged previously
+        # Resume ONLY if the case was merged previously AND its output label is still
+        # on disk. A `done` marker alone is not enough: ship_v2 wipes the labels dir
+        # but keeps _work (for cached preds), so trusting the marker silently skips
+        # re-writing a label that was just deleted -> the label goes missing. Re-check
+        # the output exists; if not, fall through and re-merge/re-write it.
+        done_lbl = (done.get(cid) or {}).get("label_file", lbl_rel)
+        if cid in done and done_lbl and (out / done_lbl).exists():
             _link_ct(ct_rel)                  # ensure CT present (idempotent)
             new_records.append(done[cid]); n_resume += 1
             continue
