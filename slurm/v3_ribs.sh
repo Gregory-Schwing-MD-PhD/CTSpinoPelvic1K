@@ -17,6 +17,8 @@
 #SBATCH --output=logs/v3_ribs_%j.out
 #SBATCH --error=logs/v3_ribs_%j.err
 #SBATCH --mail-type=END,FAIL
+# Match the known-good GPU jobs (pseudolabel/benchmark) exactly — they exclude msa1.
+#SBATCH --exclude=msa1
 # =============================================================================
 # v3 ribs — derive the v3 tree from v2 by adding anatomically-numbered ribs.
 #
