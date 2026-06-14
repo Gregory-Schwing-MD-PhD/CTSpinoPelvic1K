@@ -207,7 +207,12 @@ fi
 # acquisitions, NOT the model. Auto-detected from the propagate output dir.
 PROPAGATED_DIR="${PROPAGATED_DIR:-${DATA_DIR}/placed/pelvic_propagated}"
 PROPAGATED_MANIFEST="${PROPAGATED_MANIFEST:-${PROPAGATED_DIR}/placed_manifest_propagated.json}"
-if [[ -f "${PROPAGATED_MANIFEST}" ]]; then
+# USE_PROPAGATED=0 forces pure model pelves (ignores any propagated manifest on
+# disk). v2 ships GT spines + MODEL-pseudolabelled pelves — no cross-acquisition
+# registration — so ship_v2.sh sets this to 0.
+if [[ "${USE_PROPAGATED:-1}" != "1" ]]; then
+    echo "NOTE: USE_PROPAGATED=0 — all pelves via model (propagation disabled)"
+elif [[ -f "${PROPAGATED_MANIFEST}" ]]; then
     C_PROP_MAN="/data/$(realpath --relative-to="${DATA_DIR}" "${PROPAGATED_MANIFEST}")"
     C_PROP_DIR="/data/$(realpath --relative-to="${DATA_DIR}" "${PROPAGATED_DIR}")"
     EXTRA_ARGS="${EXTRA_ARGS} --propagated_manifest ${C_PROP_MAN} --propagated_dir ${C_PROP_DIR}"

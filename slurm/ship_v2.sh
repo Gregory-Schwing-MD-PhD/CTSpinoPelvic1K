@@ -5,27 +5,23 @@
 # v1 = the partial-annotation base (ALL configs + T12 anchor): the input that
 #      trained the pseudolabeller. Built and pushed @v1 in step 1. UNCHANGED.
 #
-# v2 = the LSTV-segmenter training artifact, now built GT-FIRST:
-#        (2) propagate_pelvis — carry each separate-cohort patient's OWN radiologist
-#            pelvis GT across acquisitions onto their spine scan (deterministic
-#            rigid registration), producing placed_manifest_propagated.json.   [CPU]
-#        (3) pseudolabel — lay that propagated REAL pelvis GT onto the base, then
-#            let the model COMPLETE only the bone the (sometimes partial) GT missed
-#            (never overwriting GT); pelvic_native dropped. Writes the v2 tree +
-#            propagated_completion_qc.csv (GT-vs-model Dice, completeness).   [GPU]
-#        (4) QC — overlay each propagated pelvis on its spine CT, and aggregate the
-#            placement/completion CSVs into dataset summary figures.          [CPU]
-#        (5) push the v2 tree -> <repo>@v2.                                   [CPU]
+# v2 = GROUND-TRUTH spines + MODEL-pseudolabelled pelves:
+#        (2) pseudolabel — keep the radiologist spine GT, and on spine_only
+#            (separate-mode) scans let the 5-fold nnU-Net ENSEMBLE fill the pelvis
+#            the spine annotator never traced. Manual voxels are never overwritten;
+#            fused cases pass through unchanged; the ~3 pelvic_native cases are
+#            DROPPED. NO cross-acquisition registration (propagation removed).  [GPU]
+#        (3) QC — aggregate the completion CSV into dataset summary figures.    [CPU]
+#        (4) push the v2 tree -> <repo>@v2 (manifest carries Castellvi grades).  [CPU]
 #
-# So a single run ships v1 AND v2. SKIP_BASE=1 reuses an existing base (skip step 1);
-# SKIP_PROP=1 reuses an existing propagation (skip step 2).
+# So a single run ships v1 AND v2. SKIP_BASE=1 reuses an existing base (skip step 1).
+# Ribs are a v3 concern (see ship_v3.sh) — not built here.
 #
 #   HF_TOKEN=hf_xxx HF_REPO_ID=<org>/CTSpinoPelvic1K \
 #     NNUNET_SIF=$(pwd)/containers/ctspinopelvic1k-ts.sif bash slurm/ship_v2.sh
 #
-# DRY_RUN=1 plans the pseudolabel step (no inference); pair with SKIP_PROP=1 to also
-# skip the (heavy) registration. Optional env: HF_WORKERS, HF_PRIVATE, PROP_MODE,
-# COMPLETE_PROPAGATED, NNUNET_RESULTS, MODELS_CONFIG, MANIFEST_FILE.
+# DRY_RUN=1 plans the pseudolabel step (no inference). Optional env: HF_WORKERS,
+# HF_PRIVATE, NNUNET_RESULTS, MODELS_CONFIG, MANIFEST_FILE.
 # =============================================================================
 set -euo pipefail
 
@@ -46,23 +42,16 @@ NNUNET_RESULTS="${NNUNET_RESULTS:-${PROJECT_ROOT}/nnunet/results}"
 MODELS_CONFIG="${MODELS_CONFIG:-${PROJECT_ROOT}/configs/pseudolabel_models.json}"
 HF_EXPORT_DIR="${HF_EXPORT_DIR:-${DATA_DIR}/hf_export}"          # filtered base (scratch)
 PSEUDO_OUT_DIR="${PSEUDO_OUT_DIR:-${DATA_DIR}/hf_export_v2}"     # the v2 tree we push
-NIFTI_DIR="${NIFTI_DIR:-${DATA_DIR}/tcia_nifti}"
-PELVIC_DIR="${PELVIC_DIR:-${DATA_DIR}/placed/pelvic}"
-SPINE_DIR="${SPINE_DIR:-${DATA_DIR}/placed/spine}"
-PROP_OUT_DIR="${PROP_OUT_DIR:-${DATA_DIR}/placed/pelvic_propagated}"  # propagation output
 DASH_OUT_DIR="${DASH_OUT_DIR:-${DATA_DIR}/qc_dashboard}"
 HF_WORKERS="${HF_WORKERS:-8}"
 HF_PRIVATE="${HF_PRIVATE:-0}"
 SKIP_QC="${SKIP_QC:-0}"
 NO_PIR="${NO_PIR:-0}"
 DRY_RUN="${DRY_RUN:-0}"
-PROP_MODE="${PROP_MODE:-production}"             # propagate_pelvis mode
-COMPLETE_PROPAGATED="${COMPLETE_PROPAGATED:-1}"  # 1 = model completes GT-missed bone
 # WIPE=1 (default): clear each target branch's files on HF before pushing it
-# (v1 in step 1, v2 in step 5), so no stale files survive. Set WIPE=0 to skip.
+# (v1 in step 1, v2 in step 4), so no stale files survive. Set WIPE=0 to skip.
 WIPE="${WIPE:-1}"
 MANIFEST_FILE="${MANIFEST_FILE:-placed_manifest_orientation_fixed.json}"
-PLACED_MANIFEST="${DATA_DIR}/placed/${MANIFEST_FILE}"
 # Inject a QOS / extra sbatch flags into EVERY job in the chain (e.g. so the whole
 # pipeline runs on a queue you can actually get nodes on): SBATCH_QOS=secondary.
 SB=""; [[ -n "${SBATCH_QOS:-}" ]] && SB="-q ${SBATCH_QOS}"
@@ -77,7 +66,6 @@ SB="${SB} ${SBATCH_EXTRA:-}"
 # anchored base) and, unless SKIP_BASE=1, fresh base labels too. NEVER touch
 # *_work — those are the cached preds the pseudolabel step reuses (no GPU run).
 SKIP_BASE="${SKIP_BASE:-0}"
-SKIP_PROP="${SKIP_PROP:-0}"
 echo "[ship_v2] clearing stale v2 labels    ${PSEUDO_OUT_DIR}/{labels,qc,manifest.json}  (KEEPING ${PSEUDO_OUT_DIR}_work)"
 rm -rf "${PSEUDO_OUT_DIR}"/labels "${PSEUDO_OUT_DIR}"/qc "${PSEUDO_OUT_DIR}"/manifest.json \
        "${PSEUDO_OUT_DIR}"/propagated_completion_qc.csv
@@ -101,60 +89,40 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# (2) propagate_pelvis — carry the REAL pelvis GT across acquisitions onto the
-# spine scans [CPU]. Independent of the export (reads placed_manifest), so it runs
-# in PARALLEL with step 1. Output: ${PROP_OUT_DIR}/placed_manifest_propagated.json.
-PROP_DEP=""
-if [[ "${SKIP_PROP}" == "1" ]]; then
-    echo "[ship_v2] (2) SKIP_PROP=1 — reusing existing propagation at ${PROP_OUT_DIR}"
-    [[ -f "${PROP_OUT_DIR}/placed_manifest_propagated.json" ]] || { echo "ERROR: no propagation at ${PROP_OUT_DIR}; unset SKIP_PROP"; exit 1; }
-else
-    echo "[ship_v2] (2) propagate_pelvis (MODE=${PROP_MODE}) -> ${PROP_OUT_DIR} [CPU]"
-    JPROP=$(sbatch --parsable ${SB} \
-      --export=ALL,SIF_PATH=${SIF_PATH},MODE=${PROP_MODE},MANIFEST=${PLACED_MANIFEST},NIFTI_DIR=${NIFTI_DIR},PELVIC_DIR=${PELVIC_DIR},SPINE_DIR=${SPINE_DIR},PROP_OUT_DIR=${PROP_OUT_DIR} \
-      slurm/propagate_pelvis.sh)
-    PROP_DEP=":${JPROP}"
-fi
-
-# ---------------------------------------------------------------------------
-# (3) pseudolabel — GT-first union: lay the propagated pelvis GT, then model
-# COMPLETES the missed bone; DROP pelvic_native [GPU]. Depends on base + propagation.
+# (2) pseudolabel — keep GT spines; MODEL-complete the pelvis on spine_only;
+# DROP pelvic_native; fused passes through. USE_PROPAGATED=0 => no registration,
+# pure model pelves [GPU]. Depends on the base export.
 export INCLUDE_CONFIGS="fused,spine_only"
-PSEUDO_DEP="afterok${BASE_DEP}${PROP_DEP}"
-[[ "${PSEUDO_DEP}" == "afterok" ]] && PSEUDO_DEP=""    # no deps (both skipped)
+PSEUDO_DEP="afterok${BASE_DEP}"
+[[ "${PSEUDO_DEP}" == "afterok" ]] && PSEUDO_DEP=""    # no dep (base skipped)
 DEP_ARG=""; [[ -n "${PSEUDO_DEP}" ]] && DEP_ARG="--dependency=${PSEUDO_DEP}"
-echo "[ship_v2] (3) pseudolabel: propagated GT + model-complete, keep ${INCLUDE_CONFIGS} (DRY_RUN=${DRY_RUN}) [GPU]  ${DEP_ARG:-no dep}"
+echo "[ship_v2] (2) pseudolabel: GT spines + MODEL pelves, keep ${INCLUDE_CONFIGS} (DRY_RUN=${DRY_RUN}) [GPU]  ${DEP_ARG:-no dep}"
 J2=$(sbatch --parsable ${SB} ${DEP_ARG} \
-  --export=ALL,SIF_PATH=${SIF_PATH},NNUNET_SIF=${NNUNET_SIF},NNUNET_RESULTS=${NNUNET_RESULTS},HF_EXPORT_DIR=${HF_EXPORT_DIR},PSEUDO_OUT_DIR=${PSEUDO_OUT_DIR},MODELS_CONFIG=${MODELS_CONFIG},DRY_RUN=${DRY_RUN},HF_TOKEN=${HF_TOKEN},PROPAGATED_DIR=${PROP_OUT_DIR},COMPLETE_PROPAGATED=${COMPLETE_PROPAGATED} \
+  --export=ALL,SIF_PATH=${SIF_PATH},NNUNET_SIF=${NNUNET_SIF},NNUNET_RESULTS=${NNUNET_RESULTS},HF_EXPORT_DIR=${HF_EXPORT_DIR},PSEUDO_OUT_DIR=${PSEUDO_OUT_DIR},MODELS_CONFIG=${MODELS_CONFIG},DRY_RUN=${DRY_RUN},HF_TOKEN=${HF_TOKEN},USE_PROPAGATED=0 \
   slurm/pseudolabel.sh)
 
 # ---------------------------------------------------------------------------
-# (4) QC — overlays of each propagated pelvis (after propagation) + dataset summary
-# figures (after pseudolabel, which writes propagated_completion_qc.csv) [CPU].
+# (3) QC — dataset summary figures from the completion CSV (after pseudolabel) [CPU].
 if [[ "${SKIP_QC}" != "1" ]]; then
-    VIZ_DEP=""; [[ -n "${PROP_DEP}" ]] && VIZ_DEP="--dependency=afterok${PROP_DEP}"
-    echo "[ship_v2] (4a) viz_propagation (overlays) [CPU]  ${VIZ_DEP:-no dep}"
-    JVIZ=$(sbatch --parsable ${SB} ${VIZ_DEP} \
-      --export=ALL,SIF_PATH=${SIF_PATH},PROP_OUT_DIR=${PROP_OUT_DIR},NIFTI_DIR=${NIFTI_DIR} \
-      slurm/viz_propagation.sh)
-    echo "[ship_v2] (4b) qc_dashboard (figures) [CPU]  after ${J2}"
+    echo "[ship_v2] (3) qc_dashboard (figures) [CPU]  after ${J2}"
     JDASH=$(sbatch --parsable ${SB} --dependency=afterok:${J2} \
-      --export=ALL,SIF_PATH=${SIF_PATH},PROP_OUT_DIR=${PROP_OUT_DIR},PSEUDO_OUT_DIR=${PSEUDO_OUT_DIR},DASH_OUT_DIR=${DASH_OUT_DIR} \
+      --export=ALL,SIF_PATH=${SIF_PATH},PSEUDO_OUT_DIR=${PSEUDO_OUT_DIR},DASH_OUT_DIR=${DASH_OUT_DIR} \
       slurm/qc_dashboard.sh)
 fi
 
 # ---------------------------------------------------------------------------
-# (5) push the v2 tree (export step skipped — it already exists from step 3) [CPU].
-echo "[ship_v2] (5) push ${PSEUDO_OUT_DIR} -> ${HF_REPO_ID}@v2 [CPU]  after ${J2}"
+# (4) push the v2 tree (export step skipped — it already exists from step 2) [CPU].
+echo "[ship_v2] (4) push ${PSEUDO_OUT_DIR} -> ${HF_REPO_ID}@v2 [CPU]  after ${J2}"
 J3=$(sbatch --parsable ${SB} --dependency=afterok:${J2} \
   --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=1,WIPE_REMOTE=${WIPE},HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v2,HF_EXPORT_DIR=${PSEUDO_OUT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
   slurm/export_dataset.sh)
 
+# Emit the terminal push job id so a parent launcher can chain v3 onto it.
+echo "V2_PUSH_JOB=${J3}"
 echo "[ship_v2] submitted:"
 echo "[ship_v2]   v1 build+push : ${J1:-<skipped>}"
-echo "[ship_v2]   propagate     : ${JPROP:-<skipped>}"
-echo "[ship_v2]   pseudolabel   : ${J2}   (GT-first union)"
-echo "[ship_v2]   qc viz/dash   : ${JVIZ:-<skipped>} / ${JDASH:-<skipped>}"
+echo "[ship_v2]   pseudolabel   : ${J2}   (GT spines + MODEL pelves)"
+echo "[ship_v2]   qc dashboard  : ${JDASH:-<skipped>}"
 echo "[ship_v2]   v2 push       : ${J3}"
 echo "[ship_v2]   monitor       : tail -f logs/*${J2}* logs/*${J3}*"
-echo "[ship_v2]   v2 pelvis = propagated REAL GT, model completes only the missed bone."
+echo "[ship_v2]   v2 = radiologist spine GT + model-pseudolabelled pelves; pelvic_native dropped."

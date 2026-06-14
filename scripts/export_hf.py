@@ -252,6 +252,8 @@ _MANIFEST_SCHEMA = [
     ("lstv_class",             int,   False),
     ("lstv_pelvic",            str,   True),
     ("lstv_vertebral",         str,   True),
+    ("castellvi_type",         str,   True),   # Castellvi grade (I..IV / IIa..) from
+                                               # _lstv_phenotypes.csv, joined by token
     ("lstv_agreement",         bool,  True),   # true / false / null ONLY
     ("lstv_confusion_zone",    bool,  False),
     ("has_l6",                 bool,  False),
@@ -781,6 +783,7 @@ def _export_one(args: dict) -> dict:
         ct_file=rel_ct_file, label_file=rel_lbl_file, qc_file=rel_qc_file,
         lstv_pelvic=args.get("lstv_pelvic", ""),
         lstv_vertebral=args.get("lstv_vertebral", ""),
+        castellvi_type=args.get("castellvi_type") or None,
         lstv_agreement=args.get("lstv_agreement"),
         lstv_confusion_zone=args.get("lstv_confusion_zone", False),
         lstv_class=args.get("lstv_class", 0),
@@ -929,20 +932,50 @@ def _export_one(args: dict) -> dict:
 
 # -- Build work items ---------------------------------------------------------
 
+def _load_castellvi_map(csv_path: Optional[Path]) -> Dict[str, str]:
+    """token -> Castellvi grade, joined from _lstv_phenotypes.csv.
+
+    The grade lives in a side CSV (radiologist phenotyping), not placed_manifest,
+    so we join it in by token at export time. Absent file / token -> no entry
+    (the manifest field stays JSON null).
+    """
+    out: Dict[str, str] = {}
+    if csv_path is None:
+        csv_path = Path(__file__).resolve().parent.parent / "_lstv_phenotypes.csv"
+    if not csv_path.exists():
+        log.warning("castellvi: no phenotype CSV at %s — castellvi_type will be null", csv_path)
+        return out
+    import csv as _csv
+    with open(csv_path, newline="") as fh:
+        for r in _csv.DictReader(fh):
+            tok = str(r.get("token", "")).strip()
+            grade = (r.get("castellvi_type") or "").strip()
+            if tok and grade:
+                out[tok] = grade
+    log.info("castellvi: loaded %d graded token(s) from %s", len(out), csv_path.name)
+    return out
+
+
 def build_work(manifest_path: Path, nifti_dir: Path,
                spine_dir: Path, pelvic_dir: Path,
-               include_configs: Optional[set] = None) -> List[dict]:
+               include_configs: Optional[set] = None,
+               castellvi_csv: Optional[Path] = None) -> List[dict]:
     """Build per-case export work from placed_manifest.json.
 
     include_configs: if given, keep only these configs (e.g. {"fused",
     "spine_only"} for the v2 ship, which excludes pelvic_native — a real-pelvis
     but PSEUDO-spine scan we never ship, holding it back as the pelvis-pseudo-
     label validation set). None = all configs (v1 behaviour, unchanged).
+
+    castellvi_csv: token->Castellvi-grade source (default: repo _lstv_phenotypes.csv),
+    joined into each record's castellvi_type manifest field.
     """
     data  = json.loads(manifest_path.read_text())
     cases = data.get("cases", [])
     if isinstance(cases, dict):
         cases = list(cases.values())
+
+    castellvi_map = _load_castellvi_map(castellvi_csv)
 
     work = []
     for c in cases:
@@ -1027,6 +1060,7 @@ def build_work(manifest_path: Path, nifti_dir: Path,
             lstv=lstv,
             lstv_pelvic=lstv_pelvic,
             lstv_vertebral=lstv_vertebral,
+            castellvi_type=castellvi_map.get(tok) or None,
             lstv_agreement=lstv_agreement,
             lstv_confusion_zone=lstv_confusion,
             lstv_class=lstv_class,
@@ -1509,6 +1543,9 @@ def main():
     ap.add_argument("--no_pir",      action="store_true")
     ap.add_argument("--debug_n",     default=0,      type=int)
     ap.add_argument("--skip_export", action="store_true")
+    ap.add_argument("--castellvi_csv", default=None, type=Path,
+                    help="token->Castellvi-grade CSV joined into the manifest's "
+                         "castellvi_type field (default: repo _lstv_phenotypes.csv)")
     ap.add_argument("--include_configs", default=None,
                     help="comma-separated configs to ship (e.g. "
                          "'fused,spine_only' for the v2 release, which excludes "
@@ -1566,7 +1603,8 @@ def main():
                            or None)
         log.info("Building work from %s ...", args.manifest)
         work = build_work(args.manifest, args.nifti_dir, args.spine_dir,
-                          args.pelvic_dir, include_configs=include_configs)
+                          args.pelvic_dir, include_configs=include_configs,
+                          castellvi_csv=args.castellvi_csv)
         log.info("Work items: %d", len(work))
 
         if args.debug_n > 0:
