@@ -106,26 +106,31 @@ v3 bone labels use the separate contiguous scheme below.
 
 ## v3 label scheme (TotalSegmentator bone)
 
-v3 is bone-augmented and uses its **own contiguous** scheme (ids packed for nnU-Net,
-ignore highest) — distinct from the legacy scheme above. It keeps the v2 spinopelvic
-classes 0–9 and appends bone from one TotalSegmentator pass per case:
+v3 re-indexes the spinopelvic core into an anatomical order (S1 inserted right after
+L6) and appends the GT thoracic column + the TotalSegmentator bone. **Own contiguous
+scheme, ignore highest** — distinct from the legacy scheme above, and **not**
+id-compatible with v2 (sacrum/hips shift to make room for S1):
 
 | ID | Name | Source |
 |---:|------|--------|
-| 0–9 | background, L1–L6, sacrum, hips | v2 spinopelvic GT |
-| 10–21 | rib_left_1 … rib_left_12 | TS, numbered from the GT thoracic vertebrae |
-| 22–33 | rib_right_1 … rib_right_12 | TS, numbered from the GT thoracic vertebrae |
-| 34 / 35 | femur_left / femur_right | TS |
-| 36 | **S1** (carved from sacrum) | (GT sacrum) ∩ (TS `vertebrae_S1`) |
-| 37 | **ignore** | sentinel |
+| 1–6 | L1–L6 | radiologist GT |
+| 7 | **S1** (carved from sacrum) | (GT sacrum) ∩ (TS `vertebrae_S1`) |
+| 8 | sacrum | radiologist GT |
+| 9 / 10 | left_hip / right_hip | radiologist GT |
+| 11 / 12 | femur_left / femur_right | TS |
+| 13–25 | T1 … T13 | radiologist GT thoracic column (placed VerSe masks) |
+| 26–37 | rib_left_1 … rib_left_12 | TS, numbered from the GT thoracic vertebrae |
+| 38–49 | rib_right_1 … rib_right_12 | TS, numbered from the GT thoracic vertebrae |
+| 50 | **ignore** | sentinel |
 
-Ribs are emitted only where a GT thoracic vertebra backs them (numbered from the
-radiologist vertebra, **not** TS); femurs are added directly; S1 subdivides the GT
-sacrum in place (the sacrum's outer boundary stays GT). Bone lands only on
-background, so the v2 spinopelvic labels are unchanged. **Coverage is 802 of 1,153
-volumes** — the spine-anchored + orphan cases; the 351 separate-mode pelvic sides
-keep v2 labels only. The legacy scheme above is kept for the original nnU-Net
-training; v3 and future bone work use this one.
+The **thoracic column** (T1–T13) was always in the source GT (placed VerSe masks),
+dropped from v2; v3 ships it. Ribs are emitted only where a GT thoracic vertebra
+backs them (numbered from the radiologist vertebra, **not** TS); femurs are added
+directly; S1 subdivides the GT sacrum in place. Bone/thoracic land on background, so
+the underlying anatomy is unchanged. **Coverage is 802 of 1,153 volumes** — the
+spine-anchored + orphan cases; the 351 separate-mode pelvic sides keep v2 labels only.
+The legacy scheme above is kept for the original nnU-Net training; v3 and future bone
+work use this one.
 
 ## LSTV — captured from both ends, expert-graded
 

@@ -28,35 +28,38 @@ S1; 7 sacrum; 8 left hip; 9 right hip).
 - **v2** — model-completed: every case densely labelled by an out-of-fold,
   5-fold nnU-Net (the unified 10-class spinopelvic map, no ignore-label voxels).
   Recommended release for the LSTV / spinopelvic benchmark.
-- **v3** — bone-augmented: v2 plus a single TotalSegmentator pass per case adding
-  GT-vertebra-matched ribs, both femurs, and an S1 body carved from the sacrum
-  (see *v3 label scheme* below). The v2 spinopelvic labels are untouched — bone
-  lands only on background and S1 merely subdivides the existing sacrum.
+- **v3** — bone-augmented: v2 plus a single TotalSegmentator pass per case, and
+  re-indexed into an anatomical order — GT thoracic column (T1–T13), GT-matched
+  ribs, both femurs, and an S1 body carved from the sacrum (see *v3 label scheme*).
+  The same anatomy as v2, but the **core ids are renumbered** (S1 is inserted after
+  L6, so sacrum/hips shift): v3 is **not** id-compatible with v2.
 
 ## v3 label scheme (bone-augmented)
 
-v3 keeps the v2 spinopelvic classes (0–9) and appends bone structures from one
-TotalSegmentator inference per case:
+v3 re-indexes the spinopelvic core into an anatomical order (S1 inserted right after
+L6) and appends the GT thoracic column and the TotalSegmentator bone (one inference
+per case). Contiguous, ignore highest:
 
 | id | class | source |
 |---|---|---|
 | 0 | background | |
-| 1–6 | L1–L6 | radiologist GT (v2) |
-| 7 | sacrum | radiologist GT (v2) |
-| 8 / 9 | left hip / right hip | radiologist GT (v2) |
-| 10–21 | rib_left_1 … rib_left_12 | TS, numbered from the GT thoracic vertebrae |
-| 22–33 | rib_right_1 … rib_right_12 | TS, numbered from the GT thoracic vertebrae |
-| 34 / 35 | femur_left / femur_right | TS |
-| 36 | S1 (carved from the sacrum) | (GT sacrum) ∩ (TS vertebrae_S1) |
-| 37 | ignore | sentinel |
+| 1–6 | L1–L6 | radiologist GT |
+| 7 | S1 (carved from sacrum) | (GT sacrum) ∩ (TS vertebrae_S1) |
+| 8 | sacrum | radiologist GT |
+| 9 / 10 | left hip / right hip | radiologist GT |
+| 11 / 12 | femur_left / femur_right | TS |
+| 13–25 | T1 … T13 | radiologist GT thoracic column (placed VerSe masks) |
+| 26–37 | rib_left_1 … rib_left_12 | TS, numbered from the GT thoracic vertebrae |
+| 38–49 | rib_right_1 … rib_right_12 | TS, numbered from the GT thoracic vertebrae |
+| 50 | ignore | sentinel |
 
-A rib is emitted **only** where a GT thoracic vertebra backs it, and its number
-comes from that radiologist vertebra (not from TS) — so nothing rests on TS's
-vertebra numbering. Femurs are added directly. S1 is the part of the GT sacrum that
-TS identifies as the S1 body, so the sacrum's outer boundary stays radiologist GT
-and only its internal S1 split comes from TS. Bone labels are written on background
-and never overwrite a v2 voxel; the S1 carve relabels sacrum voxels in place without
-changing the sacrum's extent.
+The **thoracic column** (T1–T13) was always in the source GT (the placed VerSe spine
+masks) but was dropped from v2; v3 ships it. A rib is emitted **only** where a GT
+thoracic vertebra backs it, and its number comes from that radiologist vertebra (not
+from TS). Femurs are added directly. S1 is the part of the GT sacrum that TS
+identifies as the S1 body, so the sacrum's outer boundary stays radiologist GT and
+only its internal S1 split comes from TS. Ribs/femurs/thoracic land on background;
+the S1 carve relabels sacrum voxels in place without changing the sacrum's extent.
 
 **Bone coverage is heterogeneous by design.** The TotalSegmentator pass runs on the
 802 released per-patient representatives (342 fused + 440 spine-only + the 20 pure

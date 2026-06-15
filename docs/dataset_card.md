@@ -104,8 +104,9 @@ labelling conventions don't collide at the lumbosacral junction.
 The vertebral column is **native and contiguous** (C1–C7 = 13–19, T1–T13 =
 20–32); the rostral counting anchor is **not** a stored class but the last thoracic
 vertebra (T12 = 31). This is the **legacy scheme**, kept for the original nnU-Net
-training. The 35–60 rib-cage reservation was **superseded** — v3 bone labels use a
-separate contiguous scheme (ribs 10–33, femur_left/right 34/35, S1 36, ignore 37).
+training. The 35–60 rib-cage reservation was **superseded** — v3 uses a separate
+contiguous scheme (1-6 L1-L6 | 7 S1 | 8 sacrum | 9/10 hips | 11/12 femurs |
+13-25 T1-T13 | 26-37 rib_left | 38-49 rib_right | 50 ignore).
 
 ---
 
@@ -139,10 +140,13 @@ giving the sacral endplate for sacral slope / pelvic incidence.
   only. `pelvic_native` (real pelvis, *pseudo* spine) is dropped from the ship and
   held back as the **pelvis-pseudolabel validation set**. No `ignore` voxels
   remain on the shipped cases — this is the LSTV-segmenter training artifact.
-- **v3** — **bone-augmented** (TotalSegmentator): v2 plus GT-vertebra-matched ribs,
-  both femurs, and an **S1** body carved from the sacrum. Uses its own contiguous
-  scheme (ribs 10–33, femur 34/35, S1 36, ignore 37), distinct from the legacy
-  scheme above; bone coverage is the 802 spine-anchored + orphan cases.
+- **v3** — **bone-augmented** (TotalSegmentator): v2 re-indexed into an anatomical
+  order (S1 after L6) + the GT thoracic column (T1-T13) + GT-matched ribs + both
+  femurs + an **S1** carve of the sacrum. Own contiguous scheme, **not**
+  id-compatible with v2: `1-6 L1-L6 | 7 S1 | 8 sacrum | 9/10 hips | 11/12 femurs |
+  13-25 T1-T13 | 26-37 rib_left | 38-49 rib_right | 50 ignore`. The thoracic column
+  was always in the source GT, just dropped from v2; bone coverage is the 802
+  spine-anchored + orphan cases.
 
 ---
 
