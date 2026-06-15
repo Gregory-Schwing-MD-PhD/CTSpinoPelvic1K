@@ -305,6 +305,76 @@ def _save_label(arr, affine, header, out_path: Path) -> None:
              str(out_path))
 
 
+def _extend_ribs_along_bone(merged: np.ndarray, ct: np.ndarray, *, bone_hu: float = 150.0,
+                            bridge_min: int = 15, bridge_max: int = 6000) -> int:
+    """Extend rib labels (26..49) along UNLABELLED bone to the vertebra.
+
+    TS under-segments the posterior rib (neck/head near the spine); the full rib is
+    one continuous bone, so each connected unlabelled-bone component that touches
+    exactly ONE rib is assigned that rib. Labelled vertebrae/sacrum are excluded, so
+    the rib grows up to — never over — them. Returns voxels added."""
+    if ct.shape != merged.shape:
+        return 0
+    from scipy import ndimage
+    rib_lo, rib_hi = RR.LEFT_OFFSET + 1, RR.RIGHT_OFFSET + 12     # 26..49
+    bone_bg = (ct > bone_hu) & (merged == 0)
+    if not bone_bg.any():
+        return 0
+    lab, n = ndimage.label(bone_bg, structure=np.ones((3, 3, 3), bool))
+    if not n:
+        return 0
+    rib_only = np.where((merged >= rib_lo) & (merged <= rib_hi), merged, 0).astype(np.int32)
+    rib_dil = ndimage.grey_dilation(rib_only, footprint=np.ones((3, 3, 3)))
+    added = 0
+    for c, sl in enumerate(ndimage.find_objects(lab), 1):
+        if sl is None:
+            continue
+        sub = lab[sl] == c
+        sz = int(sub.sum())
+        if not (bridge_min <= sz <= bridge_max):
+            continue
+        touch = np.unique(rib_dil[sl][sub])
+        touch = touch[(touch >= rib_lo) & (touch <= rib_hi)]
+        if touch.size == 1:                          # bridges exactly one rib
+            block = merged[sl]
+            block[sub] = int(touch[0])
+            merged[sl] = block
+            added += sz
+    return added
+
+
+def _carve_s1_slab(merged: np.ndarray, s1_mask: np.ndarray, affine) -> int:
+    """Carve S1 (id 7) as a clean slab of the GT sacrum (id 8), split along the
+    sacrum's PRINCIPAL AXIS so the S1/S2 plane follows pelvic tilt, not world-Z.
+
+    TS-S1 only locates the cut; the whole cranial slab of the sacrum becomes S1, so
+    no sacrum speckles remain inside the S1 body. Returns S1 voxel count."""
+    sac = merged == SACRUM_ID
+    seed = sac & s1_mask
+    if not seed.any() or not sac.any():
+        return 0
+    sac_ijk = np.array(np.nonzero(sac)).T
+    sac_w = nib.affines.apply_affine(affine, sac_ijk)
+    center = sac_w.mean(0)
+    evals, evecs = np.linalg.eigh(np.cov((sac_w - center).T))
+    # principal (long) axis of the sacrum — highest-variance axis that still has a
+    # real cranio-caudal component (so the ala width can't pick a left-right axis).
+    axis = None
+    for k in np.argsort(evals)[::-1]:
+        if abs(evecs[2, k]) > 0.3:
+            axis = evecs[:, k].copy(); break
+    if axis is None:
+        axis = evecs[:, int(np.argmax(evals))].copy()
+    if axis[2] < 0:                                  # orient cranially (superior = +)
+        axis = -axis
+    sac_proj = (sac_w - center) @ axis
+    seed_proj = (nib.affines.apply_affine(affine, np.array(np.nonzero(seed)).T) - center) @ axis
+    cut = float(np.percentile(seed_proj, 10))        # S1/S2 boundary along the axis
+    promote = sac_ijk[sac_proj >= cut]
+    merged[promote[:, 0], promote[:, 1], promote[:, 2]] = S1_ID
+    return int(promote.shape[0])
+
+
 def process_case(
     ct_path: Path, v2_label_path: Path, spine_mask_path: Optional[Path],
     out_label_path: Path, *, device: str = "gpu", min_voxels: int = 150,
@@ -335,20 +405,23 @@ def process_case(
     n_bone = int(pl.sum())
     merged[pl] = add_vol[pl]
 
-    # 4) carve S1 out of the GT sacrum (now id 8): only sacrum voxels TS calls S1.
-    n_s1 = 0
-    if s1_mask is not None:
-        carve = (merged == SACRUM_ID) & s1_mask
-        merged[carve] = S1_ID
-        n_s1 = int(carve.sum())
+    # 4) extend the ribs along unlabelled bone to the vertebra (TS misses the
+    #    posterior rib neck/head). The full rib is one continuous bone, so we grow
+    #    each rib label into the connected unlabelled-bone it touches.
+    ct_data = np.asarray(nib.load(str(ct_path)).dataobj).astype(np.float32)
+    n_ext = _extend_ribs_along_bone(merged, ct_data)
+
+    # 5) carve S1 (id 7) as a clean slab of the GT sacrum, split along the sacrum's
+    #    PRINCIPAL AXIS so the S1/S2 plane follows pelvic tilt (not world-Z).
+    n_s1 = _carve_s1_slab(merged, s1_mask, lbl_img.affine) if s1_mask is not None else 0
 
     _save_label(merged, lbl_img.affine, lbl_img.header, out_label_path)
     n_thor = len(vert_z)
     qc.update(ribs_written=n_bone, n_ribs=meta["n_ribs"], status="ok",
-              note=f"thoracic={n_thor} ribs={meta['n_ribs']} "
-                   f"femurs={meta['femurs']} s1_vox={n_s1}")
-    log.info("  %s: %d thoracic + %d rib(s) + %d femur(s) + S1(%d vox), %d bg vox",
-             ct_path.name, n_thor, meta["n_ribs"], len(meta["femurs"]), n_s1, n_bone)
+              note=f"thoracic={n_thor} ribs={meta['n_ribs']} femurs={meta['femurs']} "
+                   f"rib_extend_vox={n_ext} s1_vox={n_s1}")
+    log.info("  %s: %d thoracic + %d rib(s) (+%d vox to vertebra) + %d femur(s) + S1(%d vox)",
+             ct_path.name, n_thor, meta["n_ribs"], n_ext, len(meta["femurs"]), n_s1)
     return qc
 
 
