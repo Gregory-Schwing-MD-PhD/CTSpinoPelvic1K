@@ -315,17 +315,23 @@ def main() -> int:
             log.info("resume: %d case(s) already rib-processed — skipping", len(done))
 
     qc_rows: List[Dict[str, object]] = []
-    # Rib EVERY released case (v2 = 802: 342 fused + 440 spine_only + the 20
-    # pseudo-spined pelvic_only). Ribs only ever land on background, so a
-    # pseudolabelled spine/pelvis is fine to rib. Override via $RIB_CONFIGS.
+    # Rib the RELEASED set = 802: 342 fused + 440 spine_only + the 20 PURE
+    # pelvic-only orphans (config=pelvic_native AND match_type=pelvic_only) whose
+    # ONLY acquisition is the pelvic scan, so they were pseudo-spined and shipped.
+    # The ~351 separate-mode pelvic sides (match_type=separate) are NOT ribbed:
+    # that patient's spine acquisition is the released spine_only volume instead.
+    # (Mirrors the scoping in pseudolabel.py.)
     from collections import Counter
-    cfgs = tuple(c.strip() for c in
-                 os.environ.get("RIB_CONFIGS", "fused,spine_only,pelvic_only").split(","))
-    todo = [r for r in records if r.get("config") in cfgs]
+    def _released(r) -> bool:
+        if r.get("config") in ("fused", "spine_only"):
+            return True
+        return (r.get("config") == "pelvic_native"
+                and r.get("match_type") == "pelvic_only")
+    todo = [r for r in records if _released(r)]
     if args.limit:
         todo = todo[: args.limit]
-    log.info("v3 ribs: %d case(s) to process  configs=%s  breakdown=%s",
-             len(todo), cfgs, dict(Counter(r.get("config") for r in todo)))
+    log.info("v3 ribs: %d case(s) to process  breakdown=%s",
+             len(todo), dict(Counter(r.get("config") for r in todo)))
 
     for i, r in enumerate(todo, 1):
         label_rel = r.get("label_file") or ""
