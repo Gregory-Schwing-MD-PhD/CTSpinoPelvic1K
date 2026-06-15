@@ -183,6 +183,20 @@ def merge_ribs_into_label(v2_label: np.ndarray, rib_vol: np.ndarray) -> Tuple[np
 # ===========================================================================
 # Per-case + driver
 # ===========================================================================
+def _save_label(arr, affine, header, out_path: Path) -> None:
+    """Write a uint16 label, FIRST breaking any pre-existing hardlink at the target.
+
+    The v2->v3 mirror may have hardlinked this path to the v2 label (same inode);
+    `nib.save` truncates in place, so writing without unlinking first would corrupt
+    the v2 file. Unlinking guarantees a fresh inode — v3 writes never touch v2."""
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if out_path.exists() or out_path.is_symlink():
+        out_path.unlink()
+    nib.save(nib.Nifti1Image(np.asarray(arr).astype(np.uint16), affine, header),
+             str(out_path))
+
+
 def process_case(
     ct_path: Path, v2_label_path: Path, spine_mask_path: Optional[Path],
     out_label_path: Path, *, device: str = "gpu", min_voxels: int = 500,
@@ -202,8 +216,7 @@ def process_case(
               if spine_mask_path and spine_mask_path.exists() else None)
     if anchor is None:
         # No thoracic ruler -> we cannot number ribs; ship v2 label unchanged.
-        nib.save(nib.Nifti1Image(v2_label.astype(np.uint16), lbl_img.affine, lbl_img.header),
-                 str(out_label_path))
+        _save_label(v2_label, lbl_img.affine, lbl_img.header, out_label_path)
         qc.update(status="no_thoracic_anchor",
                   note="no T1..T12 in placed spine mask / not in FOV")
         log.info("  %s: no thoracic anchor — v2 label copied unchanged", ct_path.name)
@@ -216,9 +229,7 @@ def process_case(
     rib_vol = RR.build_output_volume(labeled, assignments)
 
     merged, n_written = merge_ribs_into_label(v2_label, rib_vol)
-    out_label_path.parent.mkdir(parents=True, exist_ok=True)
-    nib.save(nib.Nifti1Image(merged.astype(np.uint16), lbl_img.affine, lbl_img.header),
-             str(out_label_path))
+    _save_label(merged, lbl_img.affine, lbl_img.header, out_label_path)
     qc.update(ribs_written=n_written, n_ribs=len(assignments))
     log.info("  %s: %d rib(s) assigned, %d voxel(s) merged onto background",
              ct_path.name, len(assignments), n_written)
@@ -251,19 +262,23 @@ def main() -> int:
     # it is absent in v3, so a RESUME does NOT re-copy ~188 GB of CTs every run.
     # process_case overwrites the labels it ribs; everything else is left in place.
     args.v3_dir.mkdir(parents=True, exist_ok=True)
-    def _mirror(src: Path, dst: Path) -> None:
+    def _mirror(src: Path, dst: Path, *, hardlink: bool) -> None:
         if dst.exists():
             return
         dst.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            os.link(src, dst)                  # cheap: no data copied (same filesystem)
-        except OSError:
-            shutil.copy2(src, dst)             # cross-device fallback
+        if hardlink:
+            try:
+                os.link(src, dst)              # CTs ONLY: never modified, safe to share inode
+                return
+            except OSError:
+                pass
+        shutil.copy2(src, dst)                 # labels: independent copy (v3 OVERWRITES them;
+                                               # a hardlink here would corrupt the v2 label)
     for sub in ("ct", "labels"):
         sd = args.v2_dir / sub
         if sd.exists():
             for f in sd.glob("*.nii.gz"):
-                _mirror(f, args.v3_dir / sub / f.name)
+                _mirror(f, args.v3_dir / sub / f.name, hardlink=(sub == "ct"))
     for f in args.v2_dir.glob("*.json"):
         shutil.copy2(f, args.v3_dir / f.name)
 
@@ -317,8 +332,7 @@ def main() -> int:
             li = nib.load(str(v2_label_path))
             la = np.asarray(li.dataobj).astype(np.int32)
             la[la == V2_IGNORE] = V3_IGNORE
-            nib.save(nib.Nifti1Image(la.astype(np.uint16), li.affine, li.header),
-                     str(out_label_path))
+            _save_label(la, li.affine, li.header, out_label_path)
             qc = {"ct": ct_path.name, "status": "error", "note": str(exc)[:200],
                   "ribs_written": 0, "n_ribs": 0}
         qc["token"] = r.get("token")
