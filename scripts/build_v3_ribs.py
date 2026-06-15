@@ -1,10 +1,11 @@
 """
 build_v3_ribs.py — derive the v3 tree from v2 with a TotalSegmentator pass:
-GT-matched ribs + femurs (bone only).
+GT-matched ribs + femurs + an S1 carve out of the GT sacrum (bone only).
 
 v2 ships radiologist spine GT + model-pseudolabelled pelves (classes 1..9, ignore
-10). v3 = v2 + a TotalSegmentator pass (one inference/case) adding GT-matched ribs
-plus the femurs (bone only). Ribs are emitted
+10). v3 = v2 + a TotalSegmentator pass (one inference/case) adding GT-matched ribs,
+the femurs, and an S1 body carved out of the GT sacrum where TS's vertebrae_S1
+overlaps it (the sacrum's outer boundary stays GT). Bone only. Ribs are emitted
 ONLY where a GT thoracic vertebra backs them: for each GT vertebra T_N present in
 the spine mask, the TS rib whose head sits at that level (nearest in Z, within ~1
 vertebra) is labelled rib N; ribs with no GT vertebra at their level are dropped,
@@ -24,8 +25,9 @@ missed ribs across the costovertebral joint gap; this Z-level match does not.)
 Output label scheme (v3)
 ------------------------
 Spine/pelvis GT 1..9 untouched | rib_left N -> 9+N (10..21) | rib_right N -> 21+N
-(22..33) | femur_left 34 | femur_right 35 | ignore 36. Additions land on
-background only; GT voxels are never overwritten. v3_label_dict() is the exact map.
+(22..33) | femur_left 34 | femur_right 35 | S1 36 (carved from sacrum) | ignore 37.
+Ribs/femurs land on background only; the S1 carve relabels GT sacrum(7) voxels in
+place and never changes the sacrum's outer extent. v3_label_dict() is the exact map.
 
 This is the v3 build stage invoked by slurm/ship_v3.sh inside the TS container.
 """
@@ -61,7 +63,13 @@ RIB_NAMES: List[str] = (
 # v3 is BONE ONLY by design -> just the femurs. Any name not in TS's CT "total"
 # task is skipped at runtime with a warning.
 EXTRA_ROIS: List[str] = ["femur_left", "femur_right"]
-TS_ROI_NAMES: List[str] = RIB_NAMES + EXTRA_ROIS
+# S1 is NOT added on background: it is CARVED out of the GT sacrum (class 7) where
+# TS's vertebrae_S1 overlaps it, so the sacrum's outer boundary stays radiologist
+# GT and only the internal S1/sacrum split comes from TS. Needed for the sacral
+# endplate -> sacral slope / pelvic incidence.
+S1_TS_NAME = "vertebrae_S1"
+SACRUM_ID = 7
+TS_ROI_NAMES: List[str] = RIB_NAMES + EXTRA_ROIS + [S1_TS_NAME]
 
 # VerSe ids 8..19 == thoracic T1..T12 (rib anchors).
 VERSE_THORACIC_LO, VERSE_THORACIC_HI = 8, 19
@@ -71,15 +79,15 @@ VERSE_THORACIC_LO, VERSE_THORACIC_HI = 8, 19
 # with the ignore label HIGHEST:
 #   0 bg | 1..6 L1..L6 | 7 sacrum | 8 left_hip | 9 right_hip
 #   10..21 rib_left_1..12 | 22..33 rib_right_1..12
-#   34.. EXTRA_ROIS (femur_left, femur_right, spinal_cord, intervertebral_discs)
-#   then ignore (highest). v2 ignore (10) is remapped to V3_IGNORE so it never
-#   collides with rib id 10.
+#   34,35 femur_left, femur_right | 36 S1 (carved from sacrum) | 37 ignore
+# v2 ignore (10) is remapped to V3_IGNORE so it never collides with rib id 10.
 RR.LEFT_OFFSET = 9
 RR.RIGHT_OFFSET = 21
 EXTRA_BASE = 34                                   # first id after rib_right_12 (33)
 EXTRA_IDS = {name: EXTRA_BASE + i for i, name in enumerate(EXTRA_ROIS)}
+S1_ID = EXTRA_BASE + len(EXTRA_ROIS)              # 36: the carved S1 body
 V2_IGNORE = 10
-V3_IGNORE = EXTRA_BASE + len(EXTRA_ROIS)           # after the extras
+V3_IGNORE = S1_ID + 1                              # after S1
 
 
 def v3_label_dict() -> Dict[str, int]:
@@ -92,6 +100,7 @@ def v3_label_dict() -> Dict[str, int]:
         d[f"rib_right_{n}"] = 21 + n
     for name, fid in EXTRA_IDS.items():
         d[name] = fid
+    d["S1"] = S1_ID
     d["ignore"] = V3_IGNORE
     return d
 
@@ -225,13 +234,15 @@ def _run_ts_ml(ct_path: Path, ref_img: "nib.Nifti1Image", device: str, roi_names
 def ts_ribs_and_extras(
     ct_path: Path, ref_img: "nib.Nifti1Image", spine_mask_path: Optional[Path],
     device: str = "gpu", min_voxels: int = 150,
-) -> Tuple[np.ndarray, Dict[str, object]]:
-    """GT-vertebra-matched ribs + the EXTRA_ROIS (femurs) from ONE TS run.
+) -> Tuple[np.ndarray, Optional[np.ndarray], Dict[str, object]]:
+    """GT-vertebra-matched ribs + EXTRA_ROIS (femurs) + the TS S1 mask, ONE TS run.
 
     Ribs: emit rib N only where GT thoracic vertebra T_N exists, matched to the TS
     rib at that Z-level (numbering entirely from the GT vertebra). Extras: each
-    EXTRA_ROIS class that TS actually produced is written to its fixed v3 id
-    directly (unambiguous, no anchoring). Returns (v3-id volume, meta).
+    EXTRA_ROIS class that TS produced is written to its fixed v3 id directly. The
+    TS vertebrae_S1 binary is returned separately (it is not a background add -- the
+    caller carves it into the GT sacrum). Returns (additions-on-bg volume, s1_mask
+    or None, meta).
     """
     arr, name_val = _run_ts_ml(ct_path, ref_img, device, TS_ROI_NAMES)
     present = set(int(v) for v in np.unique(arr)) - {0}
@@ -275,7 +286,7 @@ def ts_ribs_and_extras(
                     out[ribs[best][1]] = (RR.LEFT_OFFSET + N) if s == "left" else (RR.RIGHT_OFFSET + N)
                     meta["n_matched"] = int(meta["n_matched"]) + 1
 
-    # ---- extras: direct single-label ROIs (femurs, spinal_cord, discs) ----
+    # ---- extras: direct single-label ROIs (femurs) added on background ----
     for name in EXTRA_ROIS:
         v = name_val.get(name)
         if v is not None and v in present:
@@ -283,7 +294,15 @@ def ts_ribs_and_extras(
             if int(mask.sum()) >= min_voxels:
                 out[mask] = EXTRA_IDS[name]
                 meta["extras"].append(name)
-    return out, meta
+
+    # ---- TS S1 mask (carved into the GT sacrum by the caller, not added here) ----
+    s1_mask = None
+    sv = name_val.get(S1_TS_NAME)
+    if sv is not None and sv in present:
+        m = arr == sv
+        if int(m.sum()) >= min_voxels:
+            s1_mask = m
+    return out, s1_mask, meta
 
 
 # ===========================================================================
@@ -332,19 +351,27 @@ def process_case(
     qc: Dict[str, object] = {"ct": ct_path.name, "ribs_written": 0, "n_ribs": 0,
                              "status": "ok", "note": ""}
 
-    add_vol, meta = ts_ribs_and_extras(ct_path, lbl_img, spine_mask_path,
-                                       device=device, min_voxels=min_voxels)
+    add_vol, s1_mask, meta = ts_ribs_and_extras(ct_path, lbl_img, spine_mask_path,
+                                                device=device, min_voxels=min_voxels)
     merged, n_written = merge_ribs_into_label(v2_label, add_vol)
+
+    # Carve S1 out of the GT sacrum: only sacrum(7) voxels that TS calls vertebrae_S1
+    # become S1. The sacrum's outer boundary stays GT; nothing is added outside it.
+    n_s1 = 0
+    if s1_mask is not None:
+        carve = (merged == SACRUM_ID) & s1_mask
+        merged[carve] = S1_ID
+        n_s1 = int(carve.sum())
     _save_label(merged, lbl_img.affine, lbl_img.header, out_label_path)
 
-    has = bool(np.any(add_vol))
+    has = bool(np.any(add_vol)) or n_s1 > 0
     status = "ok" if has else ("no_thoracic_gt" if not meta["gt_thoracic"] else "no_labels")
     qc.update(ribs_written=n_written, n_ribs=meta["n_matched"], status=status,
               note=f"gt_thoracic={meta['gt_thoracic']} ribs={meta['n_matched']} "
-                   f"extras={meta['extras']}")
-    log.info("  %s: %d rib(s) + extras %s (GT thoracic %s), %d vox merged",
-             ct_path.name, meta["n_matched"], meta["extras"], meta["gt_thoracic"],
-             n_written)
+                   f"extras={meta['extras']} s1_vox={n_s1}")
+    log.info("  %s: %d rib(s) + extras %s + S1(%d vox) (GT thoracic %s), %d vox merged",
+             ct_path.name, meta["n_matched"], meta["extras"], n_s1,
+             meta["gt_thoracic"], n_written)
     return qc
 
 
