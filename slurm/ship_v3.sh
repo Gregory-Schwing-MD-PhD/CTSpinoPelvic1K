@@ -2,8 +2,8 @@
 # =============================================================================
 # ship_v3.sh — build + push v3 = v2 + anatomically-numbered ribs.
 #
-#   (1) v3_ribs  — TotalSegmentator ribs, re-numbered from GT thoracic vertebrae,
-#                  merged onto the v2 labels (background only).            [GPU]
+#   (1) v3_ribs  — TotalSegmentator ribs (TS-native numbering), merged onto
+#                  the v2 labels (background only).                        [GPU]
 #   (2) push     — the v3 tree -> <repo>@v3.                              [CPU]
 #
 # Standalone:
@@ -36,9 +36,9 @@ SB="${SB} ${SBATCH_EXTRA:-}"
 # EXTRA_DEP chains the rib job AFTER the v2 push (so v3 reads a finished v2 tree).
 RIB_DEP=""; [[ -n "${EXTRA_DEP:-}" ]] && RIB_DEP="--dependency=afterok:${EXTRA_DEP}"
 
-echo "[ship_v3] (1) v3 ribs (TS ribs + GT-thoracic renumber, merge onto v2) [GPU]  ${RIB_DEP:-no dep}"
+echo "[ship_v3] (1) v3 ribs (TS ribs, native numbering, merge onto v2) [GPU]  ${RIB_DEP:-no dep}"
 JR=$(sbatch --parsable ${SB} ${RIB_DEP} \
-  --export=ALL,NNUNET_SIF=${NNUNET_SIF},V2_DIR=${V2_DIR},V3_DIR=${V3_DIR},SPINE_DIR=${SPINE_DIR} \
+  --export=ALL,NNUNET_SIF=${NNUNET_SIF},V2_DIR=${V2_DIR},V3_DIR=${V3_DIR},SPINE_DIR=${SPINE_DIR},RESUME=${RESUME:-1} \
   slurm/v3_ribs.sh)
 
 echo "[ship_v3] (2) push ${V3_DIR} -> ${HF_REPO_ID}@v3 [CPU]  after ${JR}"

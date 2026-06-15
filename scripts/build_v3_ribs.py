@@ -3,18 +3,19 @@ build_v3_ribs.py — derive the v3 tree from v2 by adding instance-labelled ribs
 
 v2 ships radiologist spine GT + model-pseudolabelled pelves (classes 1..9, ignore
 10). v3 = v2 + ribs: for each case we run TotalSegmentator restricted to the 24 rib
-ROIs, then re-number those ribs anatomically from the GROUND-TRUTH thoracic
-vertebrae (TotalSegmentator's own rib numbers are wrong on a partial FOV — see
-relabel_ribs.py), and merge the result into the v2 label volume WITHOUT ever
-overwriting an existing v2 voxel (ribs land only on background).
+ROIs and keep TotalSegmentator's OWN per-rib numbering (rib_left_1..12 /
+rib_right_1..12), which is reliable even on a partial abdominal FOV because TS
+numbers ribs from whole-body context. We merge the numbered ribs into the v2
+label volume WITHOUT ever overwriting an existing v2 voxel (ribs land only on
+background).
 
-Thoracic anchors
-----------------
-The shipped v2 labels are the canonical 1..9 set and contain NO thoracic
-vertebrae, so the anchors come from the placed VerSe spine masks (--spine_dir),
-where thoracic T1..T12 are VerSe ids 8..19. We remap 8..19 -> 1..12 and resample
-into the v2 CT grid (SimpleITK, physical space, nearest-neighbour) so the anchors
-and the TS ribs share one voxel grid.
+Why not anchor to GT vertebrae?
+-------------------------------
+Earlier versions re-derived rib numbers by overlapping each rib with a
+GROUND-TRUTH thoracic vertebra. That failed on these abdominal CTs: ribs attach
+to T1..T12, which are almost never in the labelled FOV, so nearly every rib was
+left UNASSIGNED (0..a-few ribs/case). Keeping TS's native numbering fixes that.
+--spine_dir is now unused.
 
 Output label scheme (v3 ribs)
 -----------------------------
@@ -143,25 +144,50 @@ def _sitk_to_nib_array(sitk_img, target_shape: Tuple[int, ...]) -> np.ndarray:
 # ===========================================================================
 # TotalSegmentator ribs -> binary
 # ===========================================================================
-def ts_rib_binary(ct_path: Path, ref_img: "nib.Nifti1Image", device: str = "gpu") -> np.ndarray:
-    """Run TS restricted to ribs and return a binary rib mask on the CT grid.
+def ts_rib_labels(ct_path: Path, ref_img: "nib.Nifti1Image", device: str = "gpu",
+                  min_voxels: int = 150) -> np.ndarray:
+    """Run TS restricted to ribs and return a v3-id rib LABEL volume on the CT grid.
 
-    With roi_subset = the 24 ribs and ml=True, EVERY non-zero voxel in the output
-    is a rib, so binarising is just `> 0`. TS already runs on `ct_path` (the v2 CT)
-    so the result is on that grid; we only sanity-check the shape.
+    TotalSegmentator already numbers the ribs (rib_left_1..12 / rib_right_1..12)
+    from whole-body context, so we keep that numbering directly:
+    rib_left_N -> RR.LEFT_OFFSET+N (10..21), rib_right_N -> RR.RIGHT_OFFSET+N
+    (22..33). No GT-vertebra anchoring. TS runs on the v2 CT so the output is
+    already on that grid; we only resample on rare shape drift.
     """
     from totalsegmentator.python_api import totalsegmentator
+    from totalsegmentator.map_to_binary import class_map
+    name_to_ts = {name: idx for idx, name in class_map["total"].items()}
+    ts_to_v3 = {}
+    for n in range(1, 13):
+        ts_to_v3[name_to_ts[f"rib_left_{n}"]] = RR.LEFT_OFFSET + n
+        ts_to_v3[name_to_ts[f"rib_right_{n}"]] = RR.RIGHT_OFFSET + n
+
     pred = totalsegmentator(input=nib.load(str(ct_path)), output=None, task="total",
                             ml=True, device=device, roi_subset=RIB_NAMES, verbose=False)
-    arr = np.asarray(pred.dataobj)
+    arr = np.asarray(pred.dataobj).astype(np.int32)
     if arr.shape[:3] != ref_img.shape[:3]:
         import SimpleITK as sitk                                # rare grid drift -> resample
         m = sitk.GetImageFromArray(np.transpose(arr, (2, 1, 0)).astype(np.int32))
         m.CopyInformation(_nib_to_sitk_ref(pred))
         rs = sitk.ResampleImageFilter(); rs.SetReferenceImage(_nib_to_sitk_ref(ref_img))
         rs.SetInterpolator(sitk.sitkNearestNeighbor); rs.SetTransform(sitk.Transform())
-        arr = _sitk_to_nib_array(rs.Execute(m), ref_img.shape[:3])
-    return (arr > 0).astype(np.uint8)
+        arr = _sitk_to_nib_array(rs.Execute(m), ref_img.shape[:3]).astype(np.int32)
+
+    out = np.zeros(arr.shape, dtype=np.int32)
+    for ts_idx, v3id in ts_to_v3.items():
+        out[arr == ts_idx] = v3id
+    # Fallback: some TS versions compact a roi_subset to 1..len(subset) in the ml
+    # output (index k == RIB_NAMES[k-1]) instead of using full class_map ids.
+    if out.max() == 0 and arr.max() > 0:
+        for k, name in enumerate(RIB_NAMES, start=1):
+            n = int(name.rsplit("_", 1)[1])
+            out[arr == k] = (RR.LEFT_OFFSET + n) if "left" in name else (RR.RIGHT_OFFSET + n)
+    if min_voxels:                                             # drop tiny spurious blobs
+        ids, counts = np.unique(out, return_counts=True)
+        for v3id, c in zip(ids, counts):
+            if v3id != 0 and c < min_voxels:
+                out[out == v3id] = 0
+    return out
 
 
 # ===========================================================================
@@ -198,41 +224,29 @@ def _save_label(arr, affine, header, out_path: Path) -> None:
 
 
 def process_case(
-    ct_path: Path, v2_label_path: Path, spine_mask_path: Optional[Path],
-    out_label_path: Path, *, device: str = "gpu", min_voxels: int = 500,
-    dilation_radius: int = 4, pad: int = 10,
+    ct_path: Path, v2_label_path: Path, out_label_path: Path,
+    *, device: str = "gpu", min_voxels: int = 150,
 ) -> Dict[str, object]:
-    """Add ribs to one case; write the merged v3 label. Returns a QC dict."""
+    """Add TS-numbered ribs to one case; write the merged v3 label. Returns a QC dict."""
     lbl_img = nib.load(str(v2_label_path))
     v2_label = np.asarray(lbl_img.dataobj).astype(np.int32)
-    # Move the ignore label off 10 (which is now rib_left_1) -> 34, for every case
-    # so v3's ignore id is uniform whether or not the case gets ribs.
+    # Move the v2 ignore (10) -> 34 so v3's ignore id never collides with rib_left_1 (10).
     v2_label[v2_label == V2_IGNORE] = V3_IGNORE
 
     qc: Dict[str, object] = {"ct": ct_path.name, "ribs_written": 0, "n_ribs": 0,
                              "status": "ok", "note": ""}
 
-    anchor = (thoracic_anchor_on_grid(spine_mask_path, lbl_img)
-              if spine_mask_path and spine_mask_path.exists() else None)
-    if anchor is None:
-        # No thoracic ruler -> we cannot number ribs; ship v2 label unchanged.
-        _save_label(v2_label, lbl_img.affine, lbl_img.header, out_label_path)
-        qc.update(status="no_thoracic_anchor",
-                  note="no T1..T12 in placed spine mask / not in FOV")
-        log.info("  %s: no thoracic anchor — v2 label copied unchanged", ct_path.name)
-        return qc
-
-    binary = ts_rib_binary(ct_path, lbl_img, device=device)
-    labeled, kept = RR.label_and_filter_components(binary, min_voxels=min_voxels)
-    dil = RR.dilate_vertebrae_local(anchor, dilation_radius=dilation_radius, pad=pad)
-    assignments = RR.assign_ribs(labeled, kept, anchor, dil, lbl_img.affine)
-    rib_vol = RR.build_output_volume(labeled, assignments)
-
+    rib_vol = ts_rib_labels(ct_path, lbl_img, device=device, min_voxels=min_voxels)
     merged, n_written = merge_ribs_into_label(v2_label, rib_vol)
     _save_label(merged, lbl_img.affine, lbl_img.header, out_label_path)
-    qc.update(ribs_written=n_written, n_ribs=len(assignments))
-    log.info("  %s: %d rib(s) assigned, %d voxel(s) merged onto background",
-             ct_path.name, len(assignments), n_written)
+
+    rib_ids = sorted(int(x) for x in np.unique(rib_vol) if x != 0)
+    qc.update(ribs_written=n_written, n_ribs=len(rib_ids),
+              status=("ok" if rib_ids else "no_ribs"),
+              note=("ids=" + ",".join(map(str, rib_ids)) if rib_ids
+                    else "TS found no ribs in FOV"))
+    log.info("  %s: %d rib(s) %s, %d voxel(s) merged onto background",
+             ct_path.name, len(rib_ids), rib_ids, n_written)
     return qc
 
 
@@ -241,10 +255,11 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--v2_dir", required=True, type=Path, help="v2 tree (ct/, labels/, manifest.json)")
     ap.add_argument("--v3_dir", required=True, type=Path, help="v3 output tree")
-    ap.add_argument("--spine_dir", required=True, type=Path,
-                    help="placed VerSe spine masks ({uid}_seg_placed.nii.gz) for thoracic anchors")
+    ap.add_argument("--spine_dir", required=False, type=Path, default=None,
+                    help="(unused) kept for backward-compat with older launch scripts")
     ap.add_argument("--device", default="gpu")
-    ap.add_argument("--min_voxels", type=int, default=500)
+    ap.add_argument("--min_voxels", type=int, default=150,
+                    help="drop a TS rib whose voxel count is below this (spurious blob)")
     ap.add_argument("--dilation_radius", type=int, default=4)
     ap.add_argument("--pad", type=int, default=10)
     ap.add_argument("--limit", type=int, default=0, help="cap cases (debug)")
@@ -318,13 +333,10 @@ def main() -> int:
             continue
         ct_path = args.v2_dir / ct_rel
         v2_label_path = args.v2_dir / label_rel
-        spine_uid = r.get("spine_series_uid")
-        spine_mask = (args.spine_dir / f"{spine_uid}_seg_placed.nii.gz") if spine_uid else None
         log.info("[%d/%d] token=%s config=%s", i, len(todo), r.get("token"), r.get("config"))
         try:
-            qc = process_case(ct_path, v2_label_path, spine_mask, out_label_path,
-                              device=args.device, min_voxels=args.min_voxels,
-                              dilation_radius=args.dilation_radius, pad=args.pad)
+            qc = process_case(ct_path, v2_label_path, out_label_path,
+                              device=args.device, min_voxels=args.min_voxels)
         except Exception as exc:                                       # noqa: BLE001
             log.error("  token=%s FAILED: %s — shipping v2 label (ignore remapped, no ribs)",
                       r.get("token"), exc)

@@ -17,17 +17,18 @@
 #
 # v3 ribs — derive the v3 tree from v2 by adding anatomically-numbered ribs.
 #
-# Runs TotalSegmentator (ribs ROI only) per case in the TS container, re-numbers
-# each rib from the GT thoracic vertebrae (placed VerSe spine masks), and merges
-# the result into the v2 labels ONLY on background (GT never overwritten). See
-# scripts/build_v3_ribs.py and scripts/relabel_ribs.py.
+# Runs TotalSegmentator (ribs ROI only) per case in the TS container and keeps
+# TS's OWN per-rib numbering (rib_left_1..12 / rib_right_1..12), merging the
+# numbered ribs into the v2 labels ONLY on background (GT never overwritten).
+# See scripts/build_v3_ribs.py.
 #
 # Options (env):
 #   V2_DIR     v2 source tree     (default: data/hf_export_v2)
 #   V3_DIR     v3 output tree     (default: data/hf_export_v3)
-#   SPINE_DIR  placed VerSe masks (default: data/placed/spine)  [thoracic anchors]
+#   SPINE_DIR  (unused; kept for older launchers)  (default: data/placed/spine)
 #   NNUNET_SIF TS+CUDA container  (default: containers/ctspinopelvic1k-ts.sif)
 #   V3_LIMIT   cap cases (debug)  (default: 0 = all)
+#   RESUME     1 = continue from .rib_done markers; 0 = full rebuild
 # =============================================================================
 set -euo pipefail
 
@@ -63,7 +64,7 @@ echo "   Job ID    : ${SLURM_JOB_ID:-local}   Node: $(hostname)"
 echo "   GPU       : $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo '?')"
 echo "   v2 source : ${V2_DIR}"
 echo "   v3 out    : ${V3_DIR}"
-echo "   spine GT  : ${SPINE_DIR}  (thoracic anchors)"
+echo "   numbering : TotalSegmentator native (rib_left/right_1..12)"
 echo "   TS SIF    : ${NNUNET_SIF}"
 echo "   Started   : $(date)"
 echo "======================================================================"
