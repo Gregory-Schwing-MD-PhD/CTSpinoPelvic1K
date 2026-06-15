@@ -1,16 +1,26 @@
-# Why we annotate the last rib-bearing vertebra (the counting anchor)
+# Why we anchor the lumbar count — rostral (T12) and caudal (S1)
 
-This document is the standalone scientific/clinical justification for adding the
-**last rib-bearing vertebra** and its **rib** to the CTSpinoPelvic1K masks. It
-holds on its own merits, independent of any specific paper's acceptance.
+This document is the standalone scientific/clinical justification for bracketing
+the lumbar count with two fixed landmarks in the CTSpinoPelvic1K masks: the
+**last rib-bearing vertebra** (rostral) and **S1** (caudal). It holds on its own
+merits, independent of any specific paper's acceptance.
 
 ## What we are doing
 
-On every CT we add two structures to the segmentation — `last_rib_vertebra` (11)
-and `rib` (12) — alongside the existing L1–L6, sacrum, and hips. Students also
-correct two pre-existing label defects while they are in each case:
-**class-mixing** (a single vertebra labeled with two numbers) and
-**partially-colored vertebrae** (a body only partly labeled).
+We anchor the lumbar count from **both ends**:
+
+- **Rostral — the last rib-bearing vertebra (T12).** Not a stored class: it is
+  simply the last thoracic vertebra already present in the native vertebral column
+  (class 31 in the legacy scheme). Earlier drafts reserved separate
+  `last_rib_vertebra`/`rib` classes (11/12); those were retired. The anchor is free
+  from the native labels, and the rib cage itself is segmented in v3 by
+  TotalSegmentator, numbered from the GT thoracic vertebrae.
+- **Caudal — S1.** The first sacral body, segmented in v3 as its own class,
+  `(GT sacrum) ∩ (TS vertebrae_S1)` (see *The caudal anchor: S1* below).
+
+(Independently of the anchors, label-defect cleanup — class-mixing, a single
+vertebra labelled with two numbers, and partially-coloured bodies — is handled
+in QC.)
 
 ## The problem it solves
 
@@ -47,14 +57,42 @@ down to the sacrum. Three properties make it the right anchor:
    *relative prior* that is invariant to the extra/missing vertebra that breaks
    the absolute one.
 
+## The caudal anchor: S1
+
+The rostral anchor plus "count down to the sacrum" already brackets the lumbar
+column — but the sacrum is a single fused mass, so its *top* (where the count
+terminates) is not sharply marked. **S1 makes the bottom bracket explicit:** it is
+the first sacral body, immediately below L5 (or L6), so the count runs from the
+last rib-bearing vertebra down to S1 with both ends pinned. Two reasons to segment
+it as its own class:
+
+1. **It tightens the count.** A sharp caudal landmark (S1) plus the rostral anchor
+   leaves no ambiguity about where the lumbar run starts and stops — the same
+   relational logic as the rib anchor, applied at the other end.
+2. **It is the sacral-endplate landmark.** The S1 superior endplate defines
+   **sacral slope and pelvic incidence**, the core spinopelvic parameters, so S1
+   doubles as the geometric primitive for automated PI / PT / SS measurement.
+
+S1 is derived **GT-bounded**: only the part of the radiologist sacrum that
+TotalSegmentator identifies as the S1 body is relabelled, so the sacrum's outer
+boundary stays ground truth and TS only decides the internal S1/sacrum split. On
+transitional anatomy this is safe by construction — in lumbarization the mobile
+body is L6 (class 6), never the GT sacrum, so the carve cannot touch it; in
+sacralization the fused mass stays radiologist-bounded. S1 is a **landmark** class
+(the S1/S2 edge is an intrinsically fuzzy fused boundary), not a precise-volume one.
+
 ## The payoff
 
 This is the piece that lets a single end-to-end model correctly label
 **L1–L4, L5, and L6 across all spine variants** — normal, lumbarization, and
 sacralization — instead of silently shifting labels on exactly the patients where
-the stakes are highest. It supplies the missing **in-FOV global count reference**
-in a single forward pass, the cleanest test of whether a segmentation network can
-resolve the level shift end-to-end without a downstream sequence predictor.
+the stakes are highest. It supplies the missing **in-FOV global count references** — a
+rib-bearing top (T12) and an S1 bottom — in a single forward pass, the cleanest
+test of whether a segmentation network can resolve the level shift end-to-end
+without a downstream sequence predictor.
 
-It is fast, AI-assisted work (a couple of minutes per case). See
+The rib cage and S1 are produced automatically by TotalSegmentator (GT-anchored —
+see `scripts/build_v3_totalseg.py`), GT-bounded so they never overwrite radiologist
+labels, while the rostral T12 anchor is free from the native vertebral column.
+Label-defect cleanup remains light, AI-assisted review — see
 `docs/RIB_ANCHOR_REVIEW_GUIDE.md` and `docs/STUDENT_ANNOTATION_PROTOCOL.md`.
