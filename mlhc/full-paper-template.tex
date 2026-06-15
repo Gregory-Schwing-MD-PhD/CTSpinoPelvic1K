@@ -48,7 +48,7 @@
 \newcommand{\cs}[1]{\texttt{\char`\\#1}}
 \newcommand{\dataset}{\textsc{CTSpinoPelvic1K}}
 
-% ── Visual-abstract figure: colours, styles, and book-page / anatomy macros ──
+% ── Visual-abstract figure: colours, styles, book-page macro, render slots ──
 \definecolor{vacspine}{RGB}{120,42,0}
 \definecolor{vacpelv}{RGB}{80,22,100}
 \definecolor{vacfuse}{RGB}{25,100,180}
@@ -60,7 +60,8 @@
   pback/.style={draw=#1!55!black, fill=#1!18, rounded corners=2pt,
                 minimum width=2.0cm, minimum height=2.5cm, line width=0.4pt},
   pfront/.style={draw=#1!70!black, fill=#1!7, rounded corners=2pt,
-                 minimum width=2.0cm, minimum height=2.5cm, line width=0.8pt},
+                 minimum width=2.0cm, minimum height=2.5cm, line width=0.8pt,
+                 inner sep=1.4pt},
   flow/.style={-{Stealth[length=2.6mm]}, line width=1.0pt, draw=vacgray},
   hdr/.style={font=\sffamily\bfseries\small, text=#1!55!black, align=center},
   lbl/.style={font=\sffamily\small, align=center, text=#1!50!black},
@@ -68,28 +69,28 @@
   procbox/.style={draw=#1!70!black, fill=#1!9, rounded corners=5pt,
                   line width=1.0pt, align=center, font=\sffamily, inner sep=8pt},
 }
-\newcommand{\pagestack}[4]{%
+% Three offset "pages"; #5 = page content (a placeholder now, an
+% \includegraphics later). Front node is named #1 so arrows can attach.
+\newcommand{\pagestack}[5]{%
   \node[pback=#4] at ($(#2,#3)+(0.24,0.24)$) {};
   \node[pback=#4] at ($(#2,#3)+(0.12,0.12)$) {};
-  \node[pfront=#4] (#1) at (#2,#3) {};
+  \node[pfront=#4] (#1) at (#2,#3) {#5};
 }
-\newcommand{\spineicon}[3]{%
-  \foreach \i in {0,1,2,3,4}{%
-    \fill[#3!35!white, draw=#3!70!black, line width=0.3pt, rounded corners=1pt]
-      ($(#1,#2)+(-0.26, 0.82-0.40*\i)$) rectangle ($(#1,#2)+(0.26, 1.10-0.40*\i)$);}}
-\newcommand{\pelvisicon}[3]{%
-  \fill[#3!45!white, draw=#3!70!black, line width=0.3pt]
-    ($(#1,#2)+(0,0.45)$) -- ($(#1,#2)+(-0.32,-0.15)$) -- ($(#1,#2)+(0.32,-0.15)$) -- cycle;
-  \fill[#3!30!white, draw=#3!70!black, line width=0.3pt, rotate around={22:($(#1,#2)+(-0.55,0)$)}]
-    ($(#1,#2)+(-0.82,-0.45)$) rectangle ($(#1,#2)+(-0.30,0.45)$);
-  \fill[#3!30!white, draw=#3!70!black, line width=0.3pt, rotate around={-22:($(#1,#2)+(0.55,0)$)}]
-    ($(#1,#2)+(0.30,-0.45)$) rectangle ($(#1,#2)+(0.82,0.45)$);}
-\newcommand{\ribsicon}[3]{%
-  \foreach \i in {0,1,2}{%
-    \draw[#3!75!black, line width=0.5pt]
-      ($(#1,#2)+(-0.05,1.05-0.30*\i)$) to[bend left=45] ($(#1,#2)+(-0.95,0.75-0.30*\i)$);
-    \draw[#3!75!black, line width=0.5pt]
-      ($(#1,#2)+(0.05,1.05-0.30*\i)$) to[bend right=45] ($(#1,#2)+(0.95,0.75-0.30*\i)$);}}
+% Placeholder shown until a real 2-D CT-with-mask overlay is supplied.
+\newcommand{\vacph}[1]{\parbox[c][2.2cm][c]{1.75cm}{\centering
+  \scriptsize\itshape\color{vacgray}#1\\[3pt]\tiny[2-D render]}}
+% ── RENDER SLOTS — drop in a real overlay by redefining the slot, e.g. put
+%   \renewcommand{\vacSpine}{\includegraphics[width=1.9cm,height=2.4cm]{images/va/spine.png}}
+% just before \begin{figure*}. Paths are relative to the main .tex, so any
+% figure in the Overleaf project works. Each render is a CT slice with its
+% segmentation mask overlaid.
+\newcommand{\vacSpine}     {\vacph{spine GT}}
+\newcommand{\vacPelvis}    {\vacph{pelvic GT}}
+\newcommand{\vacFused}     {\vacph{spine+pelvis}}
+\newcommand{\vacSpineOnly} {\vacph{spine}}
+\newcommand{\vacPelvicOnly}{\vacph{pelvis}}
+\newcommand{\vacDense}     {\vacph{spine+pelvis}}
+\newcommand{\vacRibs}      {\vacph{+ ribs}}
 
 \jmlrvolume{[VOLUME \# TBD]}
 \jmlryear{2026}
@@ -177,72 +178,82 @@ dataset README.
 repositories.
 
 % ── FIGURE: Visual abstract ──────────────────────────────────────────────────
+% To use real renders, redefine the slots just before this figure, e.g.:
+%   \renewcommand{\vacSpine}{\includegraphics[width=1.9cm,height=2.4cm]{images/va/spine.png}}
 \begin{figure*}[t]
 \floatconts{fig:visual_abstract}
   {\caption{\textbf{How \dataset{} is built.}
     Two source mask sets---CTSpine1K spine GT and CTPelvic1K pelvic GT---are
     matched per patient by bone-HU placement. Masks traced on the \emph{same}
-    scan merge into a \textsc{fused} case (\}); masks on \emph{different} scans
-    stay \textsc{separate} ($\rightarrow$) as spine-only and pelvic-only volumes.
-    All configurations train an nnU-Net v2 under the ignore-label protocol (all
-    1{,}153 cases). The fused and spine-only cases (782) are then pelvis-completed
-    out-of-fold by that model; ribs are added in v3. Counts are shown at each
-    stage.}}
+    scan are merged (brace) into a \textsc{fused} case; masks on \emph{different}
+    scans stay \textsc{separate} ($\rightarrow$) as spine-only and pelvic-only
+    volumes. All configurations train an nnU-Net v2 under the ignore-label
+    protocol (all 1{,}153 cases). The fused and spine-only cases (782) are then
+    pelvis-completed out-of-fold by that model; ribs are pseudolabelled with
+    \textsc{TotalSegmentator} and added in v3. The page stacks are placeholders
+    for 2-D CT-with-mask overlay renders. Counts are shown at each stage.}}
   {\resizebox{\textwidth}{!}{%
   \begin{tikzpicture}[x=1cm, y=1cm]
-  \node[hdr=vacgray]   at (0,    4.2) {\textsc{Source masks}\\[-1pt]\footnotesize two TCIA datasets};
-  \node[hdr=vacgray]   at (5,    4.2) {\textsc{Patient-anchored}\\[-1pt]\footnotesize match (bone-HU)};
-  \node[hdr=vactrain]  at (9.6,  4.2) {\textsc{Partial-annotation}\\[-1pt]\footnotesize training};
-  \node[hdr=vacpseudo] at (13.8, 4.2) {\textsc{Pseudolabel}\\[-1pt]\footnotesize complete the pelvis};
-  \node[hdr=vacrib]    at (17.8, 4.2) {\textsc{+ Ribs}\\[-1pt]\footnotesize v3};
+  \useasboundingbox (-3.9,-5.7) rectangle (20.1,6.2);   % padding -> margins + caption gap
 
-  \pagestack{spine}{0}{2.2}{vacspine}   \spineicon{0}{2.2}{vacspine}
-  \node[lbl=vacspine] at (0,0.65) {CTSpine1K\\spine GT};
-  \node[cnt]          at (0,0.15) {784 masks};
-  \pagestack{pelv}{0}{-2.2}{vacpelv}    \pelvisicon{0}{-2.2}{vacpelv}
-  \node[lbl=vacpelv]  at (0,-3.75) {CTPelvic1K\\pelvic GT};
-  \node[cnt]          at (0,-4.25) {714 masks};
+  % ── phase headers (kept well above the stacks) ──
+  \node[hdr=vacgray]   at (0,    5.5) {\textsc{Source masks}\\[-1pt]\footnotesize two TCIA datasets};
+  \node[hdr=vacgray]   at (5,    5.5) {\textsc{Patient-anchored}\\[-1pt]\footnotesize match (bone-HU)};
+  \node[hdr=vactrain]  at (9.6,  5.5) {\textsc{Partial-annotation}\\[-1pt]\footnotesize training};
+  \node[hdr=vacpseudo] at (13.8, 5.5) {\textsc{Pseudolabel}\\[-1pt]\footnotesize complete the pelvis};
+  \node[hdr=vacrib]    at (17.8, 5.5) {\textsc{+ Ribs}\\[-1pt]\footnotesize TotalSegmentator, v3};
 
-  \pagestack{fused}{5}{0}{vacfuse}
-    \spineicon{4.65}{0}{vacspine}\pelvisicon{5.45}{-0.15}{vacpelv}
-  \node[lbl=vacfuse]  at (5,-1.55) {Fused (same CT)};
-  \node[cnt]          at (5,-2.05) {342};
-  \pagestack{sonly}{5}{2.5}{vacspine}   \spineicon{5}{2.5}{vacspine}
-  \node[cnt, anchor=west] at (6.25,2.9) {Spine-only \textbf{440}};
-  \pagestack{ponly}{5}{-3.0}{vacpelv}   \pelvisicon{5}{-3.0}{vacpelv}
-  \node[cnt, anchor=west] at (6.25,-2.6) {Pelvic-only \textbf{371}};
+  % ── (1) source mask stacks (labels to the LEFT, clear of the merge) ──
+  \pagestack{spine}{0}{2.5}{vacspine}{\vacSpine}
+  \node[lbl=vacspine, anchor=east, align=right] at (-1.2,2.5)
+    {CTSpine1K\\spine GT\\\textbf{784 masks}};
+  \pagestack{pelv}{0}{-2.5}{vacpelv}{\vacPelvis}
+  \node[lbl=vacpelv, anchor=east, align=right] at (-1.2,-2.5)
+    {CTPelvic1K\\pelvic GT\\\textbf{714 masks}};
 
-  \draw[decorate, decoration={brace, amplitude=8pt, mirror}, line width=1pt, draw=vacfuse!70!black]
-    ($(spine.east)+(0.9,0.1)$) -- ($(pelv.east)+(0.9,-0.1)$);
-  \draw[flow, draw=vacfuse!70!black] ($(spine.east)+(0.95,0)$) -- ++(0.35,0) |- (fused.west);
-  \node[lbl=vacfuse, font=\sffamily\scriptsize] at (2.95,0.95) {same scan\\$\Rightarrow$ merge};
+  % ── (2) match: } brace -> fused; -> arrows -> separate ──
+  \pagestack{sonly}{5}{3.4}{vacspine}{\vacSpineOnly}
+  \pagestack{fused}{5}{0}{vacfuse}{\vacFused}
+  \pagestack{ponly}{5}{-3.4}{vacpelv}{\vacPelvicOnly}
+  \node[cnt, anchor=west, fill=white, inner sep=1.5pt] at (6.15,3.4) {Spine-only \textbf{440}};
+  \node[cnt, anchor=west, fill=white, inner sep=1.5pt] at (6.15,0.85) {Fused \textbf{342}};
+  \node[cnt, anchor=west, fill=white, inner sep=1.5pt] at (6.15,-3.4) {Pelvic-only \textbf{371}};
+
+  % the } merge, drawn as an explicit path (spike points at Fused)
+  \draw[line width=0.8pt, draw=vacfuse!55!black] (spine.east) -- (2.4,2.5);
+  \draw[line width=0.8pt, draw=vacfuse!55!black] (pelv.east)  -- (2.4,-2.5);
+  \draw[line width=1.3pt, draw=vacfuse!75!black, rounded corners=2pt]
+    (2.4,2.5) -- (2.7,2.5) -- (2.7,0.35) -- (3.05,0) -- (2.7,-0.35) -- (2.7,-2.5) -- (2.4,-2.5);
+  \draw[flow, draw=vacfuse!75!black] (3.05,0) -- (fused.west);
+  \node[lbl=vacfuse, font=\sffamily\scriptsize, fill=white, inner sep=1pt] at (3.55,1.25) {same scan};
+  % separate cases: straight arrows
   \draw[flow] (spine.east) to[out=0,in=180] (sonly.west);
   \draw[flow] (pelv.east)  to[out=0,in=180] (ponly.west);
-  \node[lbl=vacgray, font=\sffamily\scriptsize] at (2.95,3.05) {different scans\\$\rightarrow$ separate};
+  \node[lbl=vacgray, font=\sffamily\scriptsize, fill=white, inner sep=1pt] at (2.55,3.75) {different scans};
 
+  % ── (3) training box ──
   \node[procbox=vactrain, minimum width=2.4cm, minimum height=5.0cm] (train) at (9.6,0)
-    {\bfseries nnU-Net v2\\[2pt]ignore-label\\training\\[6pt]
+    {\bfseries nnU-Net v2\\[2pt]ignore-label\\training\\[7pt]
      \footnotesize\textbf{all 1{,}153}\\\footnotesize cases};
   \draw[flow] (fused.east) -- (train.west);
-  \draw[flow] (sonly.east) to[out=0,in=160] ($(train.west)+(0,1.7)$);
-  \draw[flow] (ponly.east) to[out=0,in=200] ($(train.west)+(0,-1.7)$);
+  \draw[flow] (sonly.east) to[out=0,in=155] ($(train.west)+(0,1.8)$);
+  \draw[flow] (ponly.east) to[out=0,in=205] ($(train.west)+(0,-1.8)$);
 
-  \pagestack{dense}{13.8}{0}{vacpseudo}
-    \spineicon{13.45}{0}{vacpseudo}\pelvisicon{14.25}{-0.15}{vacpseudo}
-  \node[lbl=vacpseudo] at (13.8,-1.55) {dense spine\,+\,pelvis};
-  \node[cnt]           at (13.8,-2.05) {782};
-  \draw[flow, draw=vacpseudo!70!black] (train.east) -- (dense.west)
-    node[midway, above, font=\sffamily\scriptsize, text=vacpseudo!60!black, align=center]
-    {fused 342 + spine-only 440\\[-1pt]\textbf{= 782}};
-  \node[lbl=vacgray, font=\sffamily\scriptsize, align=center] at (11.7,-2.5)
+  % ── (4) pseudolabel completion ──
+  \pagestack{dense}{13.8}{0}{vacpseudo}{\vacDense}
+  \node[lbl=vacpseudo, align=center] at (13.8,-1.95) {dense spine\,+\,pelvis\\\textbf{782}};
+  \draw[flow, draw=vacpseudo!75!black] (train.east) -- (dense.west)
+    node[midway, above=2pt, font=\sffamily\scriptsize, text=vacpseudo!60!black, align=center]
+    {fused 342\\+ spine-only 440\\\textbf{= 782}};
+  \node[lbl=vacgray, font=\sffamily\scriptsize, align=center] at (11.7,-3.2)
     {pelvic-only 371\\held out};
 
-  \pagestack{ribs}{17.8}{0}{vacrib}
-    \spineicon{17.45}{0}{vacrib}\pelvisicon{18.25}{-0.15}{vacrib}\ribsicon{17.8}{0}{vacrib}
-  \node[lbl=vacrib] at (17.8,-1.55) {spine\,+\,pelvis\,+\,ribs};
-  \node[cnt]        at (17.8,-2.05) {782};
-  \draw[flow, draw=vacrib!70!black] (dense.east) -- (ribs.west)
-    node[midway, above, font=\sffamily\scriptsize, text=vacrib!60!black] {+ ribs};
+  % ── (5) ribs (TotalSegmentator) ──
+  \pagestack{ribs}{17.8}{0}{vacrib}{\vacRibs}
+  \node[lbl=vacrib, align=center] at (17.8,-1.95) {spine\,+\,pelvis\,+\,ribs\\\textbf{782}};
+  \draw[flow, draw=vacrib!75!black] (dense.east) -- (ribs.west)
+    node[midway, above=2pt, font=\sffamily\scriptsize, text=vacrib!60!black, align=center]
+    {TotalSeg.\\ribs};
   \end{tikzpicture}}}
 \end{figure*}
 % ── END FIGURE ───────────────────────────────────────────────────────────────
