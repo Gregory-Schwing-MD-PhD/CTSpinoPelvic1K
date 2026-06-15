@@ -785,6 +785,17 @@ def main() -> int:
                     merged = merge_pseudo_into_manual(manual, pred_canon)
                     prov = "pseudo"
 
+                # The model gets the hip BONE right but frequently stamps the wrong
+                # laterality (dumps both hips into one class). Where the model filled
+                # the pelvis, re-derive each hip voxel's side from the midline
+                # (lumbar/sacrum centroid) — deterministic, no registration.
+                if region == "pelvis":
+                    from relabel_hips_by_midline import lateralize_hips
+                    merged, n_lat = lateralize_hips(merged, ref.affine)
+                    if n_lat:
+                        log.info("token=%s cid=%s: lateralized %d hip voxel(s) by midline",
+                                 tok, cid, n_lat)
+
                 _link_ct(rec["ct_file"])                  # CT into v2 (one copy)
                 nib.save(nib.Nifti1Image(merged, ref.affine, ref.header),
                          str(out / rec["label_file"]))    # merged label
