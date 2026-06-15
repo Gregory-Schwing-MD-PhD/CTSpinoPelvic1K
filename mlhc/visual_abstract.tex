@@ -63,7 +63,7 @@
 \node[hdr=cgray]   at (0,    5.9) {\textsc{Source masks}\\[-1pt]\footnotesize two TCIA datasets};
 \node[hdr=cgray]   at (5,    5.9) {\textsc{Patient-anchored}\\[-1pt]\footnotesize match (bone-HU)};
 \node[hdr=ctrain]  at (9.6,  5.9) {\textsc{Partial-annotation}\\[-1pt]\footnotesize training};
-\node[hdr=cpseudo] at (14.5, 5.9) {\textsc{Pseudolabel}\\[-1pt]\footnotesize complete the pelvis};
+\node[hdr=cpseudo] at (14.5, 5.9) {\textsc{Pseudolabel}\\[-1pt]\footnotesize fill the missing region};
 \node[hdr=crib]    at (18.6, 5.9) {\textsc{+ Ribs}\\[-1pt]\footnotesize TotalSegmentator, v3};
 
 % ── (1) source mask stacks (titles hugging each render) ──
@@ -103,16 +103,16 @@
 
 % ── (4) pseudolabel completion ──
 \pagestack{dense}{14.5}{0}{cpseudo}{\rDense}
-\node[cap=cpseudo] at (14.5,-1.5) {dense spine\,+\,pelvis\\[2pt]\num{782}};
+\node[cap=cpseudo] at (14.5,-1.5) {dense spine\,+\,pelvis\\[2pt]\num{802}};
 \draw[flow, draw=cpseudo!75!black] (train.east) -- (dense.west)
   node[midway, above=2pt, font=\sffamily\scriptsize, text=cpseudo!60!black, align=center]
-  {fused 342\\+\\spine-only 440\\\textbf{= 782}};
-\node[lbl=cgray, font=\sffamily\scriptsize, align=center] at (12.0,-3.5)
-  {pelvic-only 371\\(already real pelvic GT)};
+  {782 spine-anchored\\+ 20 pelvic-only\\\textbf{= 802}};
+\node[lbl=cgray, font=\sffamily\scriptsize, align=center] at (12.2,-3.6)
+  {spine GT prioritized over pelvic;\\the 20 with no spine get a pseudo-spine,\\radiologist-verified for enumeration};
 
 % ── (5) ribs (TotalSegmentator) ──
 \pagestack{ribs}{18.6}{0}{crib}{\rRibs}
-\node[cap=crib] at (18.6,-1.5) {spine\,+\,pelvis\,+\,ribs\\[2pt]\num{782}};
+\node[cap=crib] at (18.6,-1.5) {spine\,+\,pelvis\,+\,ribs\\[2pt]\num{802}};
 \draw[flow, draw=crib!75!black] (dense.east) -- (ribs.west)
   node[midway, above=2pt, font=\sffamily\scriptsize, text=crib!60!black, align=center]
   {TotalSeg.\\ribs};
