@@ -2,15 +2,16 @@
 % CTSpinoPelvic1K — Visual Abstract / dataset-construction flow.
 %
 % Compile standalone (cropped figure):   pdflatex visual_abstract.tex
-% or paste the {tikzpicture} into the paper.  Renders to visual_abstract.pdf.
+% (this is kept in sync with fig:visual_abstract in full-paper-template.tex).
 %
-% The "book-page" stacks are placeholders: swap the front page for a real 2-D
-% render by replacing the icon macro call with, e.g.
-%     \node at (X,Y) {\includegraphics[width=1.8cm]{renders/spine.png}};
+% The "book-page" stacks are PLACEHOLDERS. To drop in a real 2-D CT-with-mask
+% overlay, redefine the matching slot before \begin{document}, e.g.
+%     \renewcommand{\rSpine}{\includegraphics[width=1.9cm,height=2.4cm]{renders/spine.png}}
 % =============================================================================
 \documentclass[border=12pt]{standalone}
+\usepackage{graphicx}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta, calc, decorations.pathreplacing, positioning}
+\usetikzlibrary{arrows.meta, calc, positioning}
 
 \definecolor{cspine}{RGB}{120,42,0}
 \definecolor{cpelv}{RGB}{80,22,100}
@@ -24,110 +25,96 @@
   pback/.style={draw=#1!55!black, fill=#1!18, rounded corners=2pt,
                 minimum width=2.0cm, minimum height=2.5cm, line width=0.4pt},
   pfront/.style={draw=#1!70!black, fill=#1!7, rounded corners=2pt,
-                 minimum width=2.0cm, minimum height=2.5cm, line width=0.8pt},
+                 minimum width=2.0cm, minimum height=2.5cm, line width=0.8pt,
+                 inner sep=1.4pt},
   flow/.style={-{Stealth[length=2.6mm]}, line width=1.0pt, draw=cgray},
   hdr/.style={font=\sffamily\bfseries\small, text=#1!55!black, align=center},
   lbl/.style={font=\sffamily\small, align=center, text=#1!50!black},
   cnt/.style={font=\sffamily\bfseries\normalsize, text=black},
   procbox/.style={draw=#1!70!black, fill=#1!9, rounded corners=5pt,
-                  line width=1.0pt, align=center, font=\sffamily,
-                  inner sep=8pt},
+                  line width=1.0pt, align=center, font=\sffamily, inner sep=8pt},
 }
 
-% --- a three-page "stack of renders"; front node is named #1 --------------
-% #1 name   #2 x   #3 y   #4 color
-\newcommand{\pagestack}[4]{%
+% Three offset "pages"; #5 = page content (a placeholder now / \includegraphics later).
+\newcommand{\pagestack}[5]{%
   \node[pback=#4] at ($(#2,#3)+(0.24,0.24)$) {};
   \node[pback=#4] at ($(#2,#3)+(0.12,0.12)$) {};
-  \node[pfront=#4] (#1) at (#2,#3) {};
+  \node[pfront=#4] (#1) at (#2,#3) {#5};
 }
-% --- tiny anatomical glyphs drawn on a page centred at (#1,#2) -------------
-\newcommand{\spineicon}[3]{% x y color
-  \foreach \i in {0,1,2,3,4}{%
-    \fill[#3!35!white, draw=#3!70!black, line width=0.3pt, rounded corners=1pt]
-      ($(#1,#2)+(-0.26, 0.82-0.40*\i)$) rectangle ($(#1,#2)+(0.26, 1.10-0.40*\i)$);}}
-\newcommand{\pelvisicon}[3]{% x y color
-  \fill[#3!45!white, draw=#3!70!black, line width=0.3pt]
-    ($(#1,#2)+(0,0.45)$) -- ($(#1,#2)+(-0.32,-0.15)$) -- ($(#1,#2)+(0.32,-0.15)$) -- cycle;
-  \fill[#3!30!white, draw=#3!70!black, line width=0.3pt, rotate around={22:($(#1,#2)+(-0.55,0)$)}]
-    ($(#1,#2)+(-0.82,-0.45)$) rectangle ($(#1,#2)+(-0.30,0.45)$);
-  \fill[#3!30!white, draw=#3!70!black, line width=0.3pt, rotate around={-22:($(#1,#2)+(0.55,0)$)}]
-    ($(#1,#2)+(0.30,-0.45)$) rectangle ($(#1,#2)+(0.82,0.45)$);}
-\newcommand{\ribsicon}[3]{% x y color  (rib arcs, both sides)
-  \foreach \i in {0,1,2}{%
-    \draw[#3!75!black, line width=0.5pt]
-      ($(#1,#2)+(-0.05,1.05-0.30*\i)$) to[bend left=45] ($(#1,#2)+(-0.95,0.75-0.30*\i)$);
-    \draw[#3!75!black, line width=0.5pt]
-      ($(#1,#2)+(0.05,1.05-0.30*\i)$) to[bend right=45] ($(#1,#2)+(0.95,0.75-0.30*\i)$);}}
+% Placeholder shown until a real overlay is supplied.
+\newcommand{\vph}[1]{\parbox[c][2.2cm][c]{1.75cm}{\centering
+  \scriptsize\itshape\color{cgray}#1\\[3pt]\tiny[2-D render]}}
+% ── RENDER SLOTS — redefine to insert a real CT-with-mask overlay ──
+\newcommand{\rSpine}     {\vph{spine GT}}
+\newcommand{\rPelvis}    {\vph{pelvic GT}}
+\newcommand{\rFused}     {\vph{spine+pelvis}}
+\newcommand{\rSpineOnly} {\vph{spine}}
+\newcommand{\rPelvicOnly}{\vph{pelvis}}
+\newcommand{\rDense}     {\vph{spine+pelvis}}
+\newcommand{\rRibs}      {\vph{+ ribs}}
 
 \begin{document}
 \begin{tikzpicture}[x=1cm, y=1cm]
+\useasboundingbox (-3.9,-5.7) rectangle (20.1,6.2);
 
-% ===================== phase headers =====================
-\node[hdr=cgray]   at (0,    4.2) {\textsc{Source masks}\\[-1pt]\footnotesize two TCIA datasets};
-\node[hdr=cgray]   at (5,    4.2) {\textsc{Patient-anchored}\\[-1pt]\footnotesize match (bone-HU)};
-\node[hdr=ctrain]  at (9.6,  4.2) {\textsc{Partial-annotation}\\[-1pt]\footnotesize training};
-\node[hdr=cpseudo] at (13.8, 4.2) {\textsc{Pseudolabel}\\[-1pt]\footnotesize complete the pelvis};
-\node[hdr=crib]    at (17.8, 4.2) {\textsc{+ Ribs}\\[-1pt]\footnotesize v3};
+% ── phase headers (kept well above the stacks) ──
+\node[hdr=cgray]   at (0,    5.5) {\textsc{Source masks}\\[-1pt]\footnotesize two TCIA datasets};
+\node[hdr=cgray]   at (5,    5.5) {\textsc{Patient-anchored}\\[-1pt]\footnotesize match (bone-HU)};
+\node[hdr=ctrain]  at (9.6,  5.5) {\textsc{Partial-annotation}\\[-1pt]\footnotesize training};
+\node[hdr=cpseudo] at (13.8, 5.5) {\textsc{Pseudolabel}\\[-1pt]\footnotesize complete the pelvis};
+\node[hdr=crib]    at (17.8, 5.5) {\textsc{+ Ribs}\\[-1pt]\footnotesize TotalSegmentator, v3};
 
-% ===================== (1) sources =====================
-\pagestack{spine}{0}{2.2}{cspine}   \spineicon{0}{2.2}{cspine}
-\node[lbl=cspine] at (0,0.65) {CTSpine1K\\spine GT};
-\node[cnt]        at (0,0.15) {784 masks};
+% ── (1) source mask stacks (labels to the LEFT, clear of the merge) ──
+\pagestack{spine}{0}{2.5}{cspine}{\rSpine}
+\node[lbl=cspine, anchor=east, align=right] at (-1.2,2.5)
+  {CTSpine1K\\spine GT\\\textbf{784 masks}};
+\pagestack{pelv}{0}{-2.5}{cpelv}{\rPelvis}
+\node[lbl=cpelv, anchor=east, align=right] at (-1.2,-2.5)
+  {CTPelvic1K\\pelvic GT\\\textbf{714 masks}};
 
-\pagestack{pelv}{0}{-2.2}{cpelv}    \pelvisicon{0}{-2.2}{cpelv}
-\node[lbl=cpelv]  at (0,-3.75) {CTPelvic1K\\pelvic GT};
-\node[cnt]        at (0,-4.25) {714 masks};
+% ── (2) match: } brace -> fused; -> arrows -> separate ──
+\pagestack{sonly}{5}{3.4}{cspine}{\rSpineOnly}
+\pagestack{fused}{5}{0}{cfuse}{\rFused}
+\pagestack{ponly}{5}{-3.4}{cpelv}{\rPelvicOnly}
+\node[cnt, anchor=west, fill=white, inner sep=1.5pt] at (6.15,3.4) {Spine-only \textbf{440}};
+\node[cnt, anchor=west, fill=white, inner sep=1.5pt] at (6.15,0.85) {Fused \textbf{342}};
+\node[cnt, anchor=west, fill=white, inner sep=1.5pt] at (6.15,-3.4) {Pelvic-only \textbf{371}};
 
-% ===================== (2) match: } -> fused, -> separate =====================
-\pagestack{fused}{5}{0}{cfuse}
-  \spineicon{4.65}{0}{cspine}\pelvisicon{5.45}{-0.15}{cpelv}
-\node[lbl=cfuse]  at (5,-1.55) {Fused (same CT)};
-\node[cnt]        at (5,-2.05) {342};
-
-\pagestack{sonly}{5}{2.5}{cspine}   \spineicon{5}{2.5}{cspine}
-\node[cnt, anchor=west] at (6.25,2.9) {Spine-only \textbf{440}};
-
-\pagestack{ponly}{5}{-3.0}{cpelv}   \pelvisicon{5}{-3.0}{cpelv}
-\node[cnt, anchor=west] at (6.25,-2.6) {Pelvic-only \textbf{371}};
-
-% the } brace: the two sources MERGE into the fused stack
-\draw[decorate, decoration={brace, amplitude=8pt, mirror}, line width=1pt, draw=cfuse!70!black]
-  ($(spine.east)+(0.9,0.1)$) -- ($(pelv.east)+(0.9,-0.1)$);
-\draw[flow, draw=cfuse!70!black] ($(spine.east)+(0.95,0)$) -- ++(0.35,0) |- (fused.west);
-\node[lbl=cfuse, font=\sffamily\scriptsize] at (2.95,0.95) {same scan\\$\Rightarrow$ merge};
-
-% the -> arrows: masks whose two scans DIFFER stay separate
+% the } merge, drawn as an explicit path (spike points at Fused)
+\draw[line width=0.8pt, draw=cfuse!55!black] (spine.east) -- (2.4,2.5);
+\draw[line width=0.8pt, draw=cfuse!55!black] (pelv.east)  -- (2.4,-2.5);
+\draw[line width=1.3pt, draw=cfuse!75!black, rounded corners=2pt]
+  (2.4,2.5) -- (2.7,2.5) -- (2.7,0.35) -- (3.05,0) -- (2.7,-0.35) -- (2.7,-2.5) -- (2.4,-2.5);
+\draw[flow, draw=cfuse!75!black] (3.05,0) -- (fused.west);
+\node[lbl=cfuse, font=\sffamily\scriptsize, fill=white, inner sep=1pt] at (3.55,1.25) {same scan};
+% separate cases: straight arrows
 \draw[flow] (spine.east) to[out=0,in=180] (sonly.west);
 \draw[flow] (pelv.east)  to[out=0,in=180] (ponly.west);
-\node[lbl=cgray, font=\sffamily\scriptsize] at (2.95,3.05) {different scans\\$\rightarrow$ separate};
+\node[lbl=cgray, font=\sffamily\scriptsize, fill=white, inner sep=1pt] at (2.55,3.75) {different scans};
 
-% ===================== (3) training box (all configs) =====================
+% ── (3) training box ──
 \node[procbox=ctrain, minimum width=2.4cm, minimum height=5.0cm] (train) at (9.6,0)
-  {\bfseries nnU-Net v2\\[2pt]ignore-label\\training\\[6pt]
+  {\bfseries nnU-Net v2\\[2pt]ignore-label\\training\\[7pt]
    \footnotesize\textbf{all 1{,}153}\\\footnotesize cases};
 \draw[flow] (fused.east) -- (train.west);
-\draw[flow] (sonly.east) to[out=0,in=160] ($(train.west)+(0,1.7)$);
-\draw[flow] (ponly.east) to[out=0,in=200] ($(train.west)+(0,-1.7)$);
+\draw[flow] (sonly.east) to[out=0,in=155] ($(train.west)+(0,1.8)$);
+\draw[flow] (ponly.east) to[out=0,in=205] ($(train.west)+(0,-1.8)$);
 
-% ===================== (4) pseudolabel: fused + spine-only -> dense =====================
-\pagestack{dense}{13.8}{0}{cpseudo}
-  \spineicon{13.45}{0}{cpseudo}\pelvisicon{14.25}{-0.15}{cpseudo}
-\node[lbl=cpseudo] at (13.8,-1.55) {dense spine\,+\,pelvis};
-\node[cnt]         at (13.8,-2.05) {782};
-\draw[flow, draw=cpseudo!70!black] (train.east) -- (dense.west)
-  node[midway, above, font=\sffamily\scriptsize, text=cpseudo!60!black, align=center]
-  {fused 342 + spine-only 440\\[-1pt]\textbf{= 782}};
-\node[lbl=cgray, font=\sffamily\scriptsize, align=center] at (11.7,-2.5)
+% ── (4) pseudolabel completion ──
+\pagestack{dense}{13.8}{0}{cpseudo}{\rDense}
+\node[lbl=cpseudo, align=center] at (13.8,-1.95) {dense spine\,+\,pelvis\\\textbf{782}};
+\draw[flow, draw=cpseudo!75!black] (train.east) -- (dense.west)
+  node[midway, above=2pt, font=\sffamily\scriptsize, text=cpseudo!60!black, align=center]
+  {fused 342\\+ spine-only 440\\\textbf{= 782}};
+\node[lbl=cgray, font=\sffamily\scriptsize, align=center] at (11.7,-3.2)
   {pelvic-only 371\\held out};
 
-% ===================== (5) + ribs (v3) =====================
-\pagestack{ribs}{17.8}{0}{crib}
-  \spineicon{17.45}{0}{crib}\pelvisicon{18.25}{-0.15}{crib}\ribsicon{17.8}{0}{crib}
-\node[lbl=crib] at (17.8,-1.55) {spine\,+\,pelvis\,+\,ribs};
-\node[cnt]      at (17.8,-2.05) {782};
-\draw[flow, draw=crib!70!black] (dense.east) -- (ribs.west)
-  node[midway, above, font=\sffamily\scriptsize, text=crib!60!black] {+ ribs};
+% ── (5) ribs (TotalSegmentator) ──
+\pagestack{ribs}{17.8}{0}{crib}{\rRibs}
+\node[lbl=crib, align=center] at (17.8,-1.95) {spine\,+\,pelvis\,+\,ribs\\\textbf{782}};
+\draw[flow, draw=crib!75!black] (dense.east) -- (ribs.west)
+  node[midway, above=2pt, font=\sffamily\scriptsize, text=crib!60!black, align=center]
+  {TotalSeg.\\ribs};
 
 \end{tikzpicture}
 \end{document}
