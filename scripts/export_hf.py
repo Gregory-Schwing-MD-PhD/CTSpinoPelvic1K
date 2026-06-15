@@ -10,42 +10,27 @@ Reads placed_manifest.json (written by place_fused_masks.py) and for each case:
      CONTRACT below)
   4. Reorient CT + label to PIR canonical orientation
   5. Strip PHI from NIfTI headers
-  6. Save to flat output:
-       ct/{token:04d}_ct.nii.gz                       (fused)
-       ct/{token:04d}_spine_ct.nii.gz                 (spine-side crop, separate mode
-                                                       OR spine_only single-mask case)
-       ct/{token:04d}_pelvic_ct.nii.gz                (pelvic-side crop, separate mode
-                                                       OR pelvic_only single-mask case)
-       labels/{token:04d}_label.nii.gz                etc.
+  6. Save to flat output with a UNIFORM, SEQUENTIAL per-volume id:
+       ct/{NNNN}_ct.nii.gz
+       labels/{NNNN}_label.nii.gz
+       qc/{NNNN}_qc.png
   7. Write manifest.json, manifest.csv, data_splits.json, splits/test.json,
      splits_summary.json
   8. Push to HuggingFace
 
-Filename schema (changed Apr 2026)
-----------------------------------
-The earlier convention baked `position` into every filename:
-    <token:04d>_<position>_[spine|pelvic]_ct.nii.gz
-That was misleading because `position` was almost always `unknown` (the
-prone/supine classifier in place_fused_masks.py rarely succeeds), and
-because `config` (fused / spine_only / pelvic_native) is what every
-downstream consumer actually filters on.
-
-The new convention is fully self-describing and position-free:
-    fused           ->  <token:04d>_ct.nii.gz
-    spine annotated ->  <token:04d>_spine_ct.nii.gz
-    pelvic annotated->  <token:04d>_pelvic_ct.nii.gz
-
-Bare `<token>_ct.nii.gz` therefore unambiguously means "fused" (both
-regions present in one mask). The `_spine` / `_pelvic` suffix is now
-applied uniformly to spine-side / pelvic-side files, regardless of
-whether the source case is `match_type="separate"` (paired but
-non-coregistered) or `match_type="spine_only" / "pelvic_only"` (only
-one side has annotation upstream). Earlier the spine_only / pelvic_only
-single-mask branches reused the bare `<token>` base, which collided
-visually with fused — now resolved.
-
-`position` still rides through `_export_one` and is persisted in the
-manifest as a metadata column. It is no longer in the filename.
+Filename schema (uniform sequential ids)
+----------------------------------------
+Every released volume is named `<NNNN>` (4-digit, zero-padded, assigned in a
+deterministic order: numeric token ascending, then non-numeric, then config).
+The name encodes NOTHING about token / config / side / position — no `_spine` /
+`_pelvic` suffixes and no `CTC-…` stems. All of that lives in the manifest:
+    volume_id  the id == the filename stem (NNNN)
+    token      the patient (COLONOG token or TCIA UID)
+    side       fused | spine | pelvic
+    config     fused | spine_only | pelvic_native
+    position   supine | prone | unknown
+So a separate-mode patient's two acquisitions are two distinct ids that both map
+to the same token; consult the manifest to see what each id is.
 
 placed_manifest.json is the single source of truth. It now carries all LSTV
 fields directly (lstv_pelvic, lstv_vertebral, lstv_agreement, lstv_confusion_zone)
@@ -204,7 +189,9 @@ MIN_VALID_SHAPE = 10
 #
 # (name, py_type, nullable)
 _MANIFEST_SCHEMA = [
+    ("volume_id",              str,   False),   # uniform per-volume id == filename stem
     ("token",                  str,   False),
+    ("side",                   str,   False),   # fused | spine | pelvic (was the filename suffix)
     ("position",               str,   True),
     # DICOM header demographics (placed_manifest schema >=2.7). Mostly
     # passed through verbatim from the internal manifest; the AGE columns
@@ -758,6 +745,9 @@ def _export_one(args: dict) -> dict:
     out_qc      = Path(args["out_qc"])
     lstv        = args.get("lstv", "unknown")
     match_type  = args.get("match_type", "unknown")
+    volume_id   = args.get("volume_id")
+    side = {"fused": "fused", "spine_only": "spine",
+            "pelvic_native": "pelvic"}.get(config, "")
 
     rel_ct_file  = _posix_rel("ct",     out_ct.name)
     rel_lbl_file = _posix_rel("labels", out_lbl.name)
@@ -773,6 +763,7 @@ def _export_one(args: dict) -> dict:
     prov_pelvis = "manual" if (pelvic_path and Path(pelvic_path).exists()) else None
 
     result = dict(
+        volume_id=volume_id, side=side,
         token=token, position=position, config=config,
         match_type=match_type, lstv_label=lstv, ok=False, error=None,
         # DICOM header demographics — pass-through (resolved upstream in the
@@ -1690,6 +1681,21 @@ def main():
                           args.pelvic_dir, include_configs=include_configs,
                           castellvi_csv=args.castellvi_csv)
         log.info("Work items: %d", len(work))
+
+        # Uniform, deterministic, sequential per-volume filenames: <NNNN>_ct.nii.gz /
+        # <NNNN>_label.nii.gz. The name no longer encodes token/config/side (no more
+        # _spine/_pelvic suffixes, no CTC- stems); the manifest's volume_id / token /
+        # side / config columns carry that. Sorted by (numeric token, then non-numeric,
+        # then config) so the ids are stable across runs.
+        _cfg_ord = {"fused": 0, "spine_only": 1, "pelvic_native": 2}
+        def _vol_key(w):
+            t = str(w["token"])
+            return (0 if t.isdigit() else 1, int(t) if t.isdigit() else 0, t,
+                    _cfg_ord.get(w.get("config"), 9))
+        work.sort(key=_vol_key)
+        for _i, _w in enumerate(work, 1):
+            _w["volume_id"] = f"{_i:04d}"
+            _w["fname_base"] = _w["volume_id"]
 
         if args.debug_n > 0:
             work = work[:args.debug_n]
