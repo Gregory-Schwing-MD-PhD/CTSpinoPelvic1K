@@ -1,5 +1,5 @@
 """
-build_v3_ribs.py — derive the v3 tree from v2 with a TotalSegmentator pass:
+build_v3_totalseg.py — derive the v3 tree from v2 with a TotalSegmentator pass:
 GT-matched ribs + femurs + an S1 carve out of the GT sacrum (bone only).
 
 v2 ships radiologist spine GT + model-pseudolabelled pelves (classes 1..9, ignore
@@ -53,7 +53,7 @@ import relabel_ribs as RR
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s",
                     datefmt="%H:%M:%S")
-log = logging.getLogger("build_v3_ribs")
+log = logging.getLogger("build_v3_totalseg")
 
 # TotalSegmentator "total"-task ROI names: 12 ribs per side + the two femurs.
 RIB_NAMES: List[str] = (
@@ -393,7 +393,7 @@ def main() -> int:
                     help="skip cases already rib-processed (default on) — a timed-out "
                          "or preempted job continues instead of restarting")
     ap.add_argument("--no_resume", dest="resume", action="store_false",
-                    help="force a full rebuild (ignore .rib_done markers)")
+                    help="force a full rebuild (ignore .totalseg_done markers)")
     args = ap.parse_args()
 
     manifest = json.loads((args.v2_dir / "manifest.json").read_text())
@@ -426,9 +426,9 @@ def main() -> int:
     # Resume: a per-case marker (holding that case's QC row) is written once a case
     # is fully rib-processed. On restart, completed cases are skipped — so a job that
     # times out / is preempted continues instead of re-running TotalSegmentator on
-    # the cases it already finished. Clear .rib_done to force a full rebuild.
+    # the cases it already finished. Clear .totalseg_done to force a full rebuild.
     # Markers live in a _work sibling, NOT inside the v3 tree, so they never ship to HF.
-    done_dir = args.v3_dir.parent / (args.v3_dir.name + "_work") / "rib_done"
+    done_dir = args.v3_dir.parent / (args.v3_dir.name + "_work") / "totalseg_done"
     done_dir.mkdir(parents=True, exist_ok=True)
     done: Dict[str, dict] = {}
     if args.resume:
@@ -456,7 +456,7 @@ def main() -> int:
     todo = [r for r in records if _released(r)]
     if args.limit:
         todo = todo[: args.limit]
-    log.info("v3 ribs: %d case(s) to process  breakdown=%s",
+    log.info("v3 TotalSegmentator: %d case(s) to process  breakdown=%s",
              len(todo), dict(Counter(r.get("config") for r in todo)))
 
     for i, r in enumerate(todo, 1):
@@ -497,7 +497,7 @@ def main() -> int:
             (done_dir / f"{cid}.json").write_text(json.dumps(qc))
 
     import csv
-    qc_path = args.v3_dir / "rib_qc.csv"
+    qc_path = args.v3_dir / "totalseg_qc.csv"
     with open(qc_path, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=["token", "ct", "status", "n_ribs",
                                            "ribs_written", "note"])
@@ -508,7 +508,7 @@ def main() -> int:
     (args.v3_dir / "dataset_labels.json").write_text(json.dumps(v3_label_dict(), indent=2))
 
     n_ok = sum(1 for r in qc_rows if r["status"] == "ok")
-    log.info("v3 ribs done: %d/%d cases got ribs -> %s  (labels: dataset_labels.json)",
+    log.info("v3 TotalSegmentator done: %d/%d cases got ribs -> %s  (labels: dataset_labels.json)",
              n_ok, len(qc_rows), qc_path)
     return 0
 

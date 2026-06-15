@@ -1,7 +1,7 @@
 """
 strip_rib_contamination.py — undo the v3-rib hardlink corruption of v2 labels.
 
-A hardlink bug in build_v3_ribs let v3's rib merge write rib classes (10..33) into
+A hardlink bug in build_v3_totalseg let v3's rib merge write rib classes (10..33) into
 v2 label files on disk. Ribs were merged onto BACKGROUND only, and the completed v2
 labelmap is strictly 0..9, so every voxel with value > 9 is contamination and
 resetting it to 0 restores the original label exactly. Idempotent; safe to re-run.

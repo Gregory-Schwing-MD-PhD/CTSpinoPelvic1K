@@ -6,7 +6,7 @@
 # (skips the expensive base export + GPU pseudolabel).
 #
 # It does NOT touch your running jobs. If you also want it to cancel the in-flight
-# pipeline jobs (pseudolabel / qc / export / v3_ribs) for this user first, pass
+# pipeline jobs (pseudolabel / qc / export / v3_totalseg) for this user first, pass
 # CANCEL=1 explicitly. Otherwise cancel whatever you want by hand, then run this.
 #
 #   HF_TOKEN=hf_xxx HF_REPO_ID=<org>/CTSpinoPelvic1K \
@@ -49,7 +49,7 @@ SB="${SB} ${SBATCH_EXTRA:-}"
 if [[ "${CANCEL}" == "1" ]]; then
     echo "[from_qc] cancelling in-flight pipeline jobs for ${USER} ..."
     for jn in ctspinopelvic1k_pseudolabel ctspinopelvic1k_qc_pseudo_pelvis \
-              ctspinopelvic1k_export_dataset ctspinopelvic1k_v3_ribs; do
+              ctspinopelvic1k_export_dataset ctspinopelvic1k_v3_totalseg; do
         scancel -u "${USER}" --name="${jn}" 2>/dev/null && echo "   scancel --name=${jn}" || true
     done
     sleep 2     # let the controller register the cancellations before resubmitting
