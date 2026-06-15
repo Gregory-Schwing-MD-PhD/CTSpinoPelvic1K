@@ -197,28 +197,28 @@ repositories.
     below each is the number of volumes in that category.}}
   {\resizebox{\textwidth}{!}{%
   \begin{tikzpicture}[x=1cm, y=1cm]
-  \useasboundingbox (-1.7,-6.3) rectangle (20.2,6.6);   % padding -> margins + caption gap
+  \useasboundingbox (-1.7,-6.3) rectangle (20.9,6.6);   % padding -> margins + caption gap
 
   % ── phase headers (kept well above the stacks) ──
   \node[hdr=vacgray]   at (0,    5.9) {\textsc{Source masks}\\[-1pt]\footnotesize two TCIA datasets};
   \node[hdr=vacgray]   at (5,    5.9) {\textsc{Patient-anchored}\\[-1pt]\footnotesize match (bone-HU)};
   \node[hdr=vactrain]  at (9.6,  5.9) {\textsc{Partial-annotation}\\[-1pt]\footnotesize training};
-  \node[hdr=vacpseudo] at (13.8, 5.9) {\textsc{Pseudolabel}\\[-1pt]\footnotesize complete the pelvis};
-  \node[hdr=vacrib]    at (17.8, 5.9) {\textsc{+ Ribs}\\[-1pt]\footnotesize TotalSegmentator, v3};
+  \node[hdr=vacpseudo] at (14.5, 5.9) {\textsc{Pseudolabel}\\[-1pt]\footnotesize complete the pelvis};
+  \node[hdr=vacrib]    at (18.6, 5.9) {\textsc{+ Ribs}\\[-1pt]\footnotesize TotalSegmentator, v3};
 
   % ── (1) source mask stacks (titles BELOW each render) ──
   \pagestack{spine}{0}{2.7}{vacspine}{\vacSpine}
-  \node[cap=vacspine] at (0,0.85) {CTSpine1K spine GT\\[2pt]\num{784} masks};
+  \node[cap=vacspine] at (0,1.2) {CTSpine1K spine GT\\[2pt]\num{784} masks};
   \pagestack{pelv}{0}{-2.7}{vacpelv}{\vacPelvis}
-  \node[cap=vacpelv] at (0,-4.55) {CTPelvic1K pelvic GT\\[2pt]\num{714} masks};
+  \node[cap=vacpelv] at (0,-4.2) {CTPelvic1K pelvic GT\\[2pt]\num{714} masks};
 
   % ── (2) match: } brace -> fused; -> arrows -> separate ──
   \pagestack{sonly}{5}{3.7}{vacspine}{\vacSpineOnly}
-  \node[cap=vacspine] at (5,1.85) {spine-only\\[2pt]\num{440}};
+  \node[cap=vacspine] at (5,2.2) {spine-only\\[2pt]\num{440}};
   \pagestack{fused}{5}{0}{vacfuse}{\vacFused}
-  \node[cap=vacfuse] at (5,-1.85) {fused (spine+pelvis)\\[2pt]\num{342}};
+  \node[cap=vacfuse] at (5,-1.5) {fused (spine+pelvis)\\[2pt]\num{342}};
   \pagestack{ponly}{5}{-3.7}{vacpelv}{\vacPelvicOnly}
-  \node[cap=vacpelv] at (5,-5.55) {pelvic-only\\[2pt]\num{371}};
+  \node[cap=vacpelv] at (5,-5.2) {pelvic-only\\[2pt]\num{371}};
 
   % the } merge, drawn as an explicit path (spike points at Fused)
   \draw[line width=0.8pt, draw=vacfuse!55!black] (spine.east) -- (2.4,2.7);
@@ -226,11 +226,12 @@ repositories.
   \draw[line width=1.3pt, draw=vacfuse!75!black, rounded corners=2pt]
     (2.4,2.7) -- (2.7,2.7) -- (2.7,0.35) -- (3.05,0) -- (2.7,-0.35) -- (2.7,-2.7) -- (2.4,-2.7);
   \draw[flow, draw=vacfuse!75!black] (3.05,0) -- (fused.west);
-  \node[lbl=vacfuse, font=\sffamily\scriptsize, fill=white, inner sep=1pt] at (3.6,1.05) {same\\acquisition};
-  % separate cases: straight arrows
+  \node[lbl=vacfuse, font=\sffamily\scriptsize, fill=white, inner sep=1pt] at (1.9,0) {same\\acquisition};
+  % separate cases: straight arrows (one label per arrow)
   \draw[flow] (spine.east) to[out=0,in=180] (sonly.west);
   \draw[flow] (pelv.east)  to[out=0,in=180] (ponly.west);
   \node[lbl=vacgray, font=\sffamily\scriptsize, fill=white, inner sep=1pt] at (2.5,4.05) {different\\acquisitions};
+  \node[lbl=vacgray, font=\sffamily\scriptsize, fill=white, inner sep=1pt] at (2.5,-4.05) {different\\acquisitions};
 
   % ── (3) training box ──
   \node[procbox=vactrain, minimum width=2.4cm, minimum height=5.0cm] (train) at (9.6,0)
@@ -241,17 +242,17 @@ repositories.
   \draw[flow] (ponly.east) to[out=0,in=208] ($(train.west)+(0,-1.9)$);
 
   % ── (4) pseudolabel completion ──
-  \pagestack{dense}{13.8}{0}{vacpseudo}{\vacDense}
-  \node[cap=vacpseudo] at (13.8,-1.85) {dense spine\,+\,pelvis\\[2pt]\num{782}};
+  \pagestack{dense}{14.5}{0}{vacpseudo}{\vacDense}
+  \node[cap=vacpseudo] at (14.5,-1.5) {dense spine\,+\,pelvis\\[2pt]\num{782}};
   \draw[flow, draw=vacpseudo!75!black] (train.east) -- (dense.west)
     node[midway, above=2pt, font=\sffamily\scriptsize, text=vacpseudo!60!black, align=center]
-    {fused 342\\+ spine-only 440\\\textbf{= 782}};
-  \node[lbl=vacgray, font=\sffamily\scriptsize, align=center] at (11.7,-3.4)
-    {pelvic-only 371\\held out};
+    {fused 342\\+\\spine-only 440\\\textbf{= 782}};
+  \node[lbl=vacgray, font=\sffamily\scriptsize, align=center] at (12.0,-3.5)
+    {pelvic-only 371\\(already real pelvic GT)};
 
   % ── (5) ribs (TotalSegmentator) ──
-  \pagestack{ribs}{17.8}{0}{vacrib}{\vacRibs}
-  \node[cap=vacrib] at (17.8,-1.85) {spine\,+\,pelvis\,+\,ribs\\[2pt]\num{782}};
+  \pagestack{ribs}{18.6}{0}{vacrib}{\vacRibs}
+  \node[cap=vacrib] at (18.6,-1.5) {spine\,+\,pelvis\,+\,ribs\\[2pt]\num{782}};
   \draw[flow, draw=vacrib!75!black] (dense.east) -- (ribs.west)
     node[midway, above=2pt, font=\sffamily\scriptsize, text=vacrib!60!black, align=center]
     {TotalSeg.\\ribs};
@@ -531,11 +532,11 @@ We solve both without spatial registration or heuristic metadata
 fallbacks.
 
 \paragraph{Identity is trivial; alignment is the problem.}
-Identity is an exact match on the DICOM \texttt{PatientID} carried
-in every mask filename; the only difference between the two releases
-is zero-padding, normalized by stripping leading zeros from the
-final UID component (Eq.~\ref{eq:canon}). This resolves 825/825
-patients with no heuristic, and we do not claim it as a
+Identity is an exact equality on the DICOM \texttt{PatientID} tag,
+which is preserved in the metadata of both the source DICOM series
+and the released mask NIfTI volumes; equal \texttt{PatientID} values
+identify the same patient with algebraic certainty. This resolves
+825/825 patients with no heuristic, and we do not claim it as a
 contribution. The real difficulty is \emph{alignment}: no mask
 carries a \texttt{SeriesInstanceUID}, and CTPelvic1K ships its
 pelvic masks without their CTs entirely, so nothing directly links a
@@ -575,8 +576,8 @@ effective training-set expansion relative to fused-only baselines.
 
 \paragraph{Scope of generalization.}
 The patient-anchored pipeline is specific to the CTSpine1K/CTPelvic1K
-fusion demonstrated here. The underlying primitives---UID
-canonicalization for identity resolution, and tissue-HU-based
+fusion demonstrated here. The underlying primitives---\texttt{PatientID}-metadata
+matching for identity resolution, and tissue-HU-based
 intrapatient series selection for alignment---are applicable
 whenever two annotation sets share a TCIA patient cohort, but we
 do not claim empirical validation beyond the single dataset pair
@@ -641,25 +642,20 @@ source for \dataset{}.
 \subsection{Phase 1: Patient-Anchored Identity Resolution}
 \label{sec:patientdb}
 
-Both CTSpine1K and CTPelvic1K mask filenames encode the TCIA
-\texttt{PatientID} DICOM tag but not the \texttt{SeriesInstanceUID}.
-Both UIDs carry zero-padded last components that vary between
-dataset releases, causing naive string matching to fail.
-We establish patient identity via canonical UID matching:
-\begin{equation}
-\text{canon}(u) = \text{prefix}(u) \,\|\, \text{int}(\text{suffix}(u))
-\label{eq:canon}
-\end{equation}
-where $\text{int}(\cdot)$ strips leading zeros from the final UID
-component. Identity is \emph{algebraically exact}---no heuristic
-required---and we do not claim it as a contribution; it merely bounds
-the search to a patient. PatientDB (schema in
-Appendix~\ref{app:patientdb}) organizes all data using canonical
-patient UID as the primary key, and resolves \textbf{825/825
-patients (100\%)}. The substantive problem is the Phase~2 series
-alignment below: the \texttt{SeriesInstanceUID} did not survive the
-DICOM-to-NIfTI conversion, so each mask must still be placed onto
-one of its patient's several scans.
+Patient identity is carried explicitly by the DICOM \texttt{PatientID}
+tag, which is preserved in the metadata of both the source TCIA DICOM
+series and the released CTSpine1K and CTPelvic1K mask NIfTI volumes.
+We establish identity by exact equality on this field: two records
+belong to the same patient if and only if their \texttt{PatientID}
+values are equal. The match is \emph{algebraically certain}---a
+metadata equality, not a heuristic---and resolves \textbf{825/825
+patients (100\%)}; we do not claim it as a contribution, as it merely
+bounds the search to a single patient. PatientDB (schema in
+Appendix~\ref{app:patientdb}) is keyed on this \texttt{PatientID}.
+The substantive problem is the Phase~2 series alignment below: the
+\texttt{SeriesInstanceUID} did not survive the DICOM-to-NIfTI
+conversion, so each mask must still be placed onto one of its
+patient's several scans.
 
 \subsection{Phase 2: Intrapatient Exhaustive Series Assignment}
 \label{sec:phase2}
@@ -1376,9 +1372,9 @@ of the present work.
 \section{PatientDB Schema}
 \label{app:patientdb}
 
-PatientDB organizes all data using canonical patient UID as the
+PatientDB organizes all data using the DICOM \texttt{PatientID} as the
 primary key, with five entities:
-\texttt{PATIENT} (root entity indexed by canonical UID);
+\texttt{PATIENT} (root entity indexed by \texttt{PatientID});
 \texttt{TCIA\_SERIES} (CT acquisitions per patient);
 \texttt{SPINE\_MASK} and \texttt{PELVIC\_MASK} (annotation entities
 from CTSpine1K and CTPelvic1K respectively); and

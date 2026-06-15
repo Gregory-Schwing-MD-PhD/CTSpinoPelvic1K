@@ -29,7 +29,7 @@
                  inner sep=1.4pt},
   flow/.style={-{Stealth[length=2.6mm]}, line width=1.0pt, draw=cgray},
   hdr/.style={font=\sffamily\bfseries\small, text=#1!55!black, align=center},
-  % caption-below-a-render: category name then bold black count
+  % caption hugging a render: category name then bold black count
   cap/.style={font=\sffamily\footnotesize, align=center, text=#1!55!black},
   lbl/.style={font=\sffamily\small, align=center, text=#1!50!black},
   procbox/.style={draw=#1!70!black, fill=#1!9, rounded corners=5pt,
@@ -57,28 +57,28 @@
 
 \begin{document}
 \begin{tikzpicture}[x=1cm, y=1cm]
-\useasboundingbox (-1.7,-6.3) rectangle (20.2,6.6);
+\useasboundingbox (-1.7,-6.3) rectangle (20.9,6.6);
 
 % ── phase headers (kept well above the stacks) ──
 \node[hdr=cgray]   at (0,    5.9) {\textsc{Source masks}\\[-1pt]\footnotesize two TCIA datasets};
 \node[hdr=cgray]   at (5,    5.9) {\textsc{Patient-anchored}\\[-1pt]\footnotesize match (bone-HU)};
 \node[hdr=ctrain]  at (9.6,  5.9) {\textsc{Partial-annotation}\\[-1pt]\footnotesize training};
-\node[hdr=cpseudo] at (13.8, 5.9) {\textsc{Pseudolabel}\\[-1pt]\footnotesize complete the pelvis};
-\node[hdr=crib]    at (17.8, 5.9) {\textsc{+ Ribs}\\[-1pt]\footnotesize TotalSegmentator, v3};
+\node[hdr=cpseudo] at (14.5, 5.9) {\textsc{Pseudolabel}\\[-1pt]\footnotesize complete the pelvis};
+\node[hdr=crib]    at (18.6, 5.9) {\textsc{+ Ribs}\\[-1pt]\footnotesize TotalSegmentator, v3};
 
-% ── (1) source mask stacks (titles BELOW each render) ──
+% ── (1) source mask stacks (titles hugging each render) ──
 \pagestack{spine}{0}{2.7}{cspine}{\rSpine}
-\node[cap=cspine] at (0,0.85) {CTSpine1K spine GT\\[2pt]\num{784} masks};
+\node[cap=cspine] at (0,1.2) {CTSpine1K spine GT\\[2pt]\num{784} masks};
 \pagestack{pelv}{0}{-2.7}{cpelv}{\rPelvis}
-\node[cap=cpelv] at (0,-4.55) {CTPelvic1K pelvic GT\\[2pt]\num{714} masks};
+\node[cap=cpelv] at (0,-4.2) {CTPelvic1K pelvic GT\\[2pt]\num{714} masks};
 
 % ── (2) match: } brace -> fused; -> arrows -> separate ──
 \pagestack{sonly}{5}{3.7}{cspine}{\rSpineOnly}
-\node[cap=cspine] at (5,1.85) {spine-only\\[2pt]\num{440}};
+\node[cap=cspine] at (5,2.2) {spine-only\\[2pt]\num{440}};
 \pagestack{fused}{5}{0}{cfuse}{\rFused}
-\node[cap=cfuse] at (5,-1.85) {fused (spine+pelvis)\\[2pt]\num{342}};
+\node[cap=cfuse] at (5,-1.5) {fused (spine+pelvis)\\[2pt]\num{342}};
 \pagestack{ponly}{5}{-3.7}{cpelv}{\rPelvicOnly}
-\node[cap=cpelv] at (5,-5.55) {pelvic-only\\[2pt]\num{371}};
+\node[cap=cpelv] at (5,-5.2) {pelvic-only\\[2pt]\num{371}};
 
 % the } merge, drawn as an explicit path (spike points at Fused)
 \draw[line width=0.8pt, draw=cfuse!55!black] (spine.east) -- (2.4,2.7);
@@ -86,11 +86,12 @@
 \draw[line width=1.3pt, draw=cfuse!75!black, rounded corners=2pt]
   (2.4,2.7) -- (2.7,2.7) -- (2.7,0.35) -- (3.05,0) -- (2.7,-0.35) -- (2.7,-2.7) -- (2.4,-2.7);
 \draw[flow, draw=cfuse!75!black] (3.05,0) -- (fused.west);
-\node[lbl=cfuse, font=\sffamily\scriptsize, fill=white, inner sep=1pt] at (3.6,1.05) {same\\acquisition};
-% separate cases: straight arrows
+\node[lbl=cfuse, font=\sffamily\scriptsize, fill=white, inner sep=1pt] at (1.9,0) {same\\acquisition};
+% separate cases: straight arrows (one label per arrow)
 \draw[flow] (spine.east) to[out=0,in=180] (sonly.west);
 \draw[flow] (pelv.east)  to[out=0,in=180] (ponly.west);
 \node[lbl=cgray, font=\sffamily\scriptsize, fill=white, inner sep=1pt] at (2.5,4.05) {different\\acquisitions};
+\node[lbl=cgray, font=\sffamily\scriptsize, fill=white, inner sep=1pt] at (2.5,-4.05) {different\\acquisitions};
 
 % ── (3) training box ──
 \node[procbox=ctrain, minimum width=2.4cm, minimum height=5.0cm] (train) at (9.6,0)
@@ -101,17 +102,17 @@
 \draw[flow] (ponly.east) to[out=0,in=208] ($(train.west)+(0,-1.9)$);
 
 % ── (4) pseudolabel completion ──
-\pagestack{dense}{13.8}{0}{cpseudo}{\rDense}
-\node[cap=cpseudo] at (13.8,-1.85) {dense spine\,+\,pelvis\\[2pt]\num{782}};
+\pagestack{dense}{14.5}{0}{cpseudo}{\rDense}
+\node[cap=cpseudo] at (14.5,-1.5) {dense spine\,+\,pelvis\\[2pt]\num{782}};
 \draw[flow, draw=cpseudo!75!black] (train.east) -- (dense.west)
   node[midway, above=2pt, font=\sffamily\scriptsize, text=cpseudo!60!black, align=center]
-  {fused 342\\+ spine-only 440\\\textbf{= 782}};
-\node[lbl=cgray, font=\sffamily\scriptsize, align=center] at (11.7,-3.4)
-  {pelvic-only 371\\held out};
+  {fused 342\\+\\spine-only 440\\\textbf{= 782}};
+\node[lbl=cgray, font=\sffamily\scriptsize, align=center] at (12.0,-3.5)
+  {pelvic-only 371\\(already real pelvic GT)};
 
 % ── (5) ribs (TotalSegmentator) ──
-\pagestack{ribs}{17.8}{0}{crib}{\rRibs}
-\node[cap=crib] at (17.8,-1.85) {spine\,+\,pelvis\,+\,ribs\\[2pt]\num{782}};
+\pagestack{ribs}{18.6}{0}{crib}{\rRibs}
+\node[cap=crib] at (18.6,-1.5) {spine\,+\,pelvis\,+\,ribs\\[2pt]\num{782}};
 \draw[flow, draw=crib!75!black] (dense.east) -- (ribs.west)
   node[midway, above=2pt, font=\sffamily\scriptsize, text=crib!60!black, align=center]
   {TotalSeg.\\ribs};
