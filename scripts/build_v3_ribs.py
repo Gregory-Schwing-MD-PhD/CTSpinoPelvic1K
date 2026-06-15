@@ -2,23 +2,21 @@
 build_v3_ribs.py — derive the v3 tree from v2 by adding instance-labelled ribs.
 
 v2 ships radiologist spine GT + model-pseudolabelled pelves (classes 1..9, ignore
-10). v3 = v2 + ribs: for each case we run TotalSegmentator restricted to the 24 rib
-ROIs (TS separates the ribs and orders them reliably) and fix the ABSOLUTE rib
-number by anchoring to the one vertebra we trust — T12 (VerSe 19), present in
-~801/802 cases. A global integer `delta` shifts every TS rib so the rib at the GT
-T12 level becomes rib 12 (delta = median over ribs of [T12-ruler number - TS
-number], usually 0). The numbered ribs are merged into the v2 label volume WITHOUT
-ever overwriting an existing v2 voxel (ribs land only on background).
+10). v3 = v2 + ribs. We run TotalSegmentator restricted to the 24 rib ROIs (TS
+separates the ribs), and emit a rib ONLY where a GT thoracic vertebra backs it:
+for each GT vertebra T_N present in the spine mask, the TS rib whose head sits at
+that level (nearest in Z, within ~1 vertebra) is labelled rib N. Ribs with no GT
+vertebra at their level are dropped; a case with no thoracic GT gets no ribs. The
+emitted ribs are merged into the v2 label volume WITHOUT ever overwriting an
+existing v2 voxel (ribs land only on background).
 
-Why anchor to T12 instead of overlapping every vertebra?
---------------------------------------------------------
-The previous version assigned a rib only if it physically OVERLAPPED a radius-4
-dilated GT vertebra. Ribs cross the costovertebral joint gap and most rib
-components are lateral fragments, so they missed even when the vertebra was right
-there -> 0..a-few ribs/case. Anchoring the numbering to T12 (no overlap needed)
-keeps rib numbers consistent with the radiologist vertebra labels, which matters
-on the LSTV/transitional cases. Cases without a T12 GT fall back to TS's own
-numbers.
+Why GT-vertebra-matched?
+------------------------
+Numbering comes entirely from the radiologist GT vertebrae, so nothing depends on
+TotalSegmentator's (un-reviewed) vertebra numbering, and every rib is grounded in
+a real GT vertebra. A mislabelled GT vertebra would simply have no rib near its
+level and produce nothing. (The earlier overlap-with-dilated-vertebra method
+missed ribs across the costovertebral joint gap; this Z-level match does not.)
 
 Output label scheme (v3 ribs)
 -----------------------------
@@ -145,21 +143,21 @@ def _sitk_to_nib_array(sitk_img, target_shape: Tuple[int, ...]) -> np.ndarray:
 
 
 # ===========================================================================
-# TotalSegmentator ribs -> binary
+# TotalSegmentator ribs, numbered from the GT thoracic vertebrae
 # ===========================================================================
-VERSE_T12 = 19          # VerSe id for T12 — the lowest thoracic, reliably in FOV.
-
-
-def _t12_world_z(spine_mask_path: Optional[Path]) -> Optional[float]:
-    """World-Z (RAS superior, mm) of the T12 (VerSe 19) centroid, or None."""
-    if not spine_mask_path or not Path(spine_mask_path).exists():
-        return None
-    img = nib.load(str(spine_mask_path))
-    m = np.asarray(img.dataobj) == VERSE_T12
-    if not m.any():
-        return None
-    ijk = np.array(np.nonzero(m)).mean(axis=1)
-    return float(nib.affines.apply_affine(img.affine, ijk)[2])
+def _gt_thoracic_z(spine_mask_path: Optional[Path]) -> Dict[int, float]:
+    """{thoracic number N: world-Z centroid (mm)} for VerSe T1..T12 (ids 8..19)
+    actually present in the GT spine mask. Empty if none / no mask."""
+    vert: Dict[int, float] = {}
+    if spine_mask_path and Path(spine_mask_path).exists():
+        img = nib.load(str(spine_mask_path))
+        arr, aff = np.asarray(img.dataobj), img.affine
+        for vid in range(8, 20):                   # VerSe 8..19 == T1..T12
+            m = arr == vid
+            if m.any():
+                ijk = np.array(np.nonzero(m)).mean(axis=1)
+                vert[vid - 7] = float(nib.affines.apply_affine(aff, ijk)[2])
+    return vert
 
 
 def _vertebra_spacing(spine_mask_path: Path, default: float = 25.0) -> float:
@@ -167,35 +165,24 @@ def _vertebra_spacing(spine_mask_path: Path, default: float = 25.0) -> float:
     img = nib.load(str(spine_mask_path))
     arr, aff = np.asarray(img.dataobj), img.affine
     zs = []
-    for vid in range(8, 26):                       # thoracic + lumbar
+    for vid in range(8, 26):                        # thoracic + lumbar
         m = arr == vid
         if m.any():
             ijk = np.array(np.nonzero(m)).mean(axis=1)
             zs.append(float(nib.affines.apply_affine(aff, ijk)[2]))
     zs.sort()
     gaps = np.diff(zs) if len(zs) > 1 else np.array([])
-    gaps = gaps[(gaps > 10) & (gaps < 50)]         # plausible vertebra heights
+    gaps = gaps[(gaps > 10) & (gaps < 50)]          # plausible vertebra heights
     return float(np.median(gaps)) if gaps.size else default
 
 
-def ts_ribs_t12_anchored(
-    ct_path: Path, ref_img: "nib.Nifti1Image", spine_mask_path: Optional[Path],
-    device: str = "gpu", min_voxels: int = 150,
-) -> Tuple[np.ndarray, Dict[str, object]]:
-    """Run TS ribs and number them by anchoring to the GT T12 vertebra.
-
-    TS separates the ribs and orders them reliably; we trust that RELATIVE order
-    but fix the ABSOLUTE number with a single global integer `delta` so the rib at
-    the GT T12 level becomes rib 12. delta = median over ribs of
-    (T12-ruler number - TS number) -- usually 0. No T12 -> TS's own numbers
-    (delta=0). Side comes from TS (rib_left/right). Returns (v3-id volume, meta).
-    """
+def _run_ts_rib_ml(ct_path: Path, ref_img: "nib.Nifti1Image", device: str):
+    """Run TS (rib ROIs, ml) -> (label array on ref grid, {ts_idx: (side, n)})."""
     from totalsegmentator.python_api import totalsegmentator
     from totalsegmentator.map_to_binary import class_map
     name_to_ts = {name: idx for idx, name in class_map["total"].items()}
     ts_meta = {name_to_ts[f"rib_{s}_{n}"]: (s, n)
                for s in ("left", "right") for n in range(1, 13)}
-
     pred = totalsegmentator(input=nib.load(str(ct_path)), output=None, task="total",
                             ml=True, device=device, roi_subset=RIB_NAMES, verbose=False)
     arr = np.asarray(pred.dataobj).astype(np.int32)
@@ -206,49 +193,67 @@ def ts_ribs_t12_anchored(
         rs = sitk.ResampleImageFilter(); rs.SetReferenceImage(_nib_to_sitk_ref(ref_img))
         rs.SetInterpolator(sitk.sitkNearestNeighbor); rs.SetTransform(sitk.Transform())
         arr = _sitk_to_nib_array(rs.Execute(m), ref_img.shape[:3]).astype(np.int32)
-
     present = set(int(v) for v in np.unique(arr)) - {0}
-    # Fallback: some TS versions compact roi_subset to 1..24 (index k == RIB_NAMES[k-1]).
-    if present and not (present & set(ts_meta)):
+    if present and not (present & set(ts_meta)):     # compacted roi_subset fallback
         ts_meta = {k: (name.split("_")[1], int(name.rsplit("_", 1)[1]))
                    for k, name in enumerate(RIB_NAMES, start=1)}
-    rib_idxs = [i for i in ts_meta if i in present]
+    return arr, ts_meta
 
-    affine = ref_img.affine
-    out = np.zeros(arr.shape, dtype=np.int32)
-    meta: Dict[str, object] = {"delta": 0, "anchored": False, "z12": None}
+
+def ts_ribs_gt_matched(
+    ct_path: Path, ref_img: "nib.Nifti1Image", spine_mask_path: Optional[Path],
+    device: str = "gpu", min_voxels: int = 150,
+) -> Tuple[np.ndarray, Dict[str, object]]:
+    """Emit ribs ONLY where a GT thoracic vertebra backs them.
+
+    For each GT vertebra T_N present in the spine mask, match the TS rib (per side)
+    whose head sits at that vertebra's Z-level (nearest, within ~1 vertebra) and
+    label it rib N. Ribs with no GT vertebra at their level are dropped; a case with
+    no thoracic GT gets no ribs. Numbering comes entirely from the GT vertebra, so
+    nothing depends on TS's vertebra numbering. Side comes from TS (rib_left/right).
+    Returns (v3-id volume, meta).
+    """
+    vert = _gt_thoracic_z(spine_mask_path)
+    out = np.zeros(ref_img.shape[:3], dtype=np.int32)
+    meta: Dict[str, object] = {"gt_thoracic": sorted(vert), "n_matched": 0}
+    if not vert:
+        return out, meta                            # GT-backed only: no GT -> no ribs
+
+    arr, ts_meta = _run_ts_rib_ml(ct_path, ref_img, device)
+    present = set(int(v) for v in np.unique(arr)) - {0}
+    rib_idxs = [i for i in ts_meta if i in present]
     if not rib_idxs:
         return out, meta
 
-    # Per-rib HEAD-Z (medial 30%, nearest the spine midline) + TS (side, number).
+    affine = ref_img.affine
     x_mid = float(np.median(nib.affines.apply_affine(
         affine, np.array(np.nonzero(np.isin(arr, rib_idxs))).T)[:, 0]))
-    recs = []                                      # (side, ts_n, head_z, mask)
+    byside: Dict[str, list] = {"left": [], "right": []}     # [head_z, mask]
     for idx in rib_idxs:
-        s, ts_n = ts_meta[idx]
+        s, _ts_n = ts_meta[idx]
         mask = arr == idx
         if int(mask.sum()) < min_voxels:
             continue
         world = nib.affines.apply_affine(affine, np.array(np.nonzero(mask)).T)
         dx = np.abs(world[:, 0] - x_mid)
         head = dx <= np.quantile(dx, 0.30)
-        recs.append((s, ts_n, float(world[head, 2].mean()), mask))
-    if not recs:
-        return out, meta
+        byside[s].append([float(world[head, 2].mean()), mask])
 
-    z12 = _t12_world_z(spine_mask_path)
-    delta = 0
-    if z12 is not None:
-        spacing = _vertebra_spacing(spine_mask_path)
-        ds = [(12 - round((hz - z12) / spacing)) - ts_n for (_, ts_n, hz, _) in recs]
-        delta = int(round(float(np.median(ds))))
-        meta.update(anchored=True, z12=round(z12, 1))
-    meta["delta"] = delta
-
-    for (s, ts_n, _hz, mask) in recs:
-        fn = ts_n + delta
-        if 1 <= fn <= 12:
-            out[mask] = (RR.LEFT_OFFSET + fn) if s == "left" else (RR.RIGHT_OFFSET + fn)
+    tol = _vertebra_spacing(spine_mask_path) * 0.9   # a rib head within ~1 vertebra
+    for s in ("left", "right"):
+        ribs = byside[s]
+        used = [False] * len(ribs)
+        for N, zN in sorted(vert.items()):           # one rib per GT vertebra per side
+            best, bestd = -1, tol
+            for j, (hz, _m) in enumerate(ribs):
+                if used[j]:
+                    continue
+                if abs(hz - zN) < bestd:
+                    best, bestd = j, abs(hz - zN)
+            if best >= 0:
+                used[best] = True
+                out[ribs[best][1]] = (RR.LEFT_OFFSET + N) if s == "left" else (RR.RIGHT_OFFSET + N)
+                meta["n_matched"] = int(meta["n_matched"]) + 1
     return out, meta
 
 
@@ -298,18 +303,17 @@ def process_case(
     qc: Dict[str, object] = {"ct": ct_path.name, "ribs_written": 0, "n_ribs": 0,
                              "status": "ok", "note": ""}
 
-    rib_vol, meta = ts_ribs_t12_anchored(ct_path, lbl_img, spine_mask_path,
-                                         device=device, min_voxels=min_voxels)
+    rib_vol, meta = ts_ribs_gt_matched(ct_path, lbl_img, spine_mask_path,
+                                       device=device, min_voxels=min_voxels)
     merged, n_written = merge_ribs_into_label(v2_label, rib_vol)
     _save_label(merged, lbl_img.affine, lbl_img.header, out_label_path)
 
     rib_ids = sorted(int(x) for x in np.unique(rib_vol) if x != 0)
-    qc.update(ribs_written=n_written, n_ribs=len(rib_ids),
-              status=("ok" if rib_ids else "no_ribs"),
-              note=f"delta={meta['delta']} T12={meta['anchored']} ids={rib_ids}")
-    log.info("  %s: %d rib(s) (delta=%+d, T12-anchored=%s) %s, %d vox merged",
-             ct_path.name, len(rib_ids), int(meta["delta"]), meta["anchored"],
-             rib_ids, n_written)
+    status = "ok" if rib_ids else ("no_thoracic_gt" if not meta["gt_thoracic"] else "no_ribs")
+    qc.update(ribs_written=n_written, n_ribs=len(rib_ids), status=status,
+              note=f"gt_thoracic={meta['gt_thoracic']} matched={meta['n_matched']} ids={rib_ids}")
+    log.info("  %s: %d rib(s) matched to GT thoracic %s -> ids %s, %d vox merged",
+             ct_path.name, len(rib_ids), meta["gt_thoracic"], rib_ids, n_written)
     return qc
 
 
