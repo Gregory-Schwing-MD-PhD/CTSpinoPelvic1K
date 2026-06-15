@@ -315,10 +315,17 @@ def main() -> int:
             log.info("resume: %d case(s) already rib-processed — skipping", len(done))
 
     qc_rows: List[Dict[str, object]] = []
-    todo = [r for r in records if r.get("config") in ("fused", "spine_only")]
+    # Rib EVERY released case (v2 = 802: 342 fused + 440 spine_only + the 20
+    # pseudo-spined pelvic_only). Ribs only ever land on background, so a
+    # pseudolabelled spine/pelvis is fine to rib. Override via $RIB_CONFIGS.
+    from collections import Counter
+    cfgs = tuple(c.strip() for c in
+                 os.environ.get("RIB_CONFIGS", "fused,spine_only,pelvic_only").split(","))
+    todo = [r for r in records if r.get("config") in cfgs]
     if args.limit:
         todo = todo[: args.limit]
-    log.info("v3 ribs: %d case(s) to process", len(todo))
+    log.info("v3 ribs: %d case(s) to process  configs=%s  breakdown=%s",
+             len(todo), cfgs, dict(Counter(r.get("config") for r in todo)))
 
     for i, r in enumerate(todo, 1):
         label_rel = r.get("label_file") or ""
