@@ -64,13 +64,17 @@ CLASS_NAMES: Dict[int, str] = {
 
 TS_TO_UNIFIED: Dict[int, int] = {
     31: 1, 30: 2, 29: 3, 28: 4, 27: 5,
-    25: 7, 77: 8, 78: 9,
+    # TS splits the sacrum: sacrum(25) is the sacral mass MINUS the S1 body, and
+    # vertebrae_S1(26) is the S1 body. Our GT class 7 is the WHOLE sacrum, so both
+    # TS labels must union onto 7 (otherwise the S1 body is scored as a TS miss).
+    25: 7, 26: 7,
+    77: 8, 78: 9,
 }
 
 TS_ROI_SUBSET = [
     "vertebrae_L1", "vertebrae_L2", "vertebrae_L3",
     "vertebrae_L4", "vertebrae_L5",
-    "sacrum", "hip_left", "hip_right",
+    "sacrum", "vertebrae_S1", "hip_left", "hip_right",
 ]
 
 FOREGROUND_CLASSES     = list(range(1, 10))

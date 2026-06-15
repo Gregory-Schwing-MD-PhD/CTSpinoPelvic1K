@@ -199,6 +199,9 @@ if [[ "${NUM_TOKENS}" -eq 0 ]]; then
     exit 0
 fi
 
+# FORCE_TS=1 re-runs TotalSegmentator even if a cached segmentation exists (needed
+# when reusing an old results dir after the roi_subset changed, e.g. adding S1).
+FORCE_TS_FLAG=""; [[ "${FORCE_TS:-0}" == "1" ]] && FORCE_TS_FLAG="--force_ts"
 _run python scripts/benchmark_totalseg.py \
     --dataset_dir /dataset \
     --out_dir     /results \
@@ -206,7 +209,7 @@ _run python scripts/benchmark_totalseg.py \
     --config      all \
     --tokens      "${TOKENS}" \
     --window_mm   40.0 \
-    --device      gpu
+    --device      gpu ${FORCE_TS_FLAG}
 
 echo ""
 echo "======================================================================"
