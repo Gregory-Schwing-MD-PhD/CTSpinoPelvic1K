@@ -1,0 +1,1687 @@
+\documentclass[pmlr]{jmlr}
+
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage[switch]{lineno}
+\usepackage{tikz}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{colortbl}
+\usepackage{array}
+\usepackage{hyperref}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, fit,
+                backgrounds, calc, shadows, matrix, decorations.pathreplacing}
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+% ── Color palette ─────────────────────────────────────────────────────────────
+\definecolor{colonog}{RGB}{25,60,110}
+\definecolor{ctspine}{RGB}{120,42,0}
+\definecolor{ctpelv}{RGB}{80,22,100}
+\definecolor{patdb}{RGB}{18,78,40}
+\definecolor{placed}{RGB}{160,20,30}
+\definecolor{tabhead}{RGB}{40,48,62}
+\definecolor{rowalt}{RGB}{248,250,255}
+\definecolor{winner}{RGB}{14,120,55}
+\definecolor{fuseblue}{RGB}{25,100,180}
+\definecolor{sepamber}{RGB}{185,100,0}
+\definecolor{arrowgray}{RGB}{80,80,90}
+\definecolor{panelbg}{RGB}{247,249,252}
+\definecolor{metalgray}{RGB}{95,105,120}
+\definecolor{lstvcol}{RGB}{180,30,30}
+\definecolor{agreem}{RGB}{14,120,55}
+\definecolor{disagr}{RGB}{180,30,30}
+\definecolor{l3draw}{RGB}{40,80,130}
+\definecolor{l3fill}{RGB}{210,220,235}
+\definecolor{l4draw}{RGB}{30,65,110}
+\definecolor{l4fill}{RGB}{200,212,228}
+\definecolor{l5draw}{RGB}{100,35,0}
+\definecolor{l5fill}{RGB}{230,210,200}
+\definecolor{s1draw}{RGB}{75,85,95}
+\definecolor{s1fill}{RGB}{215,218,222}
+\definecolor{confborder}{RGB}{160,20,30}
+\definecolor{conffill}{RGB}{245,210,210}
+
+\newcommand{\cs}[1]{\texttt{\char`\\#1}}
+\newcommand{\dataset}{\textsc{CTSpinoPelvic1K}}
+
+% ── Visual-abstract figure: colours, styles, and book-page / anatomy macros ──
+\definecolor{vacspine}{RGB}{120,42,0}
+\definecolor{vacpelv}{RGB}{80,22,100}
+\definecolor{vacfuse}{RGB}{25,100,180}
+\definecolor{vactrain}{RGB}{18,78,40}
+\definecolor{vacpseudo}{RGB}{175,95,0}
+\definecolor{vacrib}{RGB}{150,30,30}
+\definecolor{vacgray}{RGB}{90,95,105}
+\tikzset{
+  pback/.style={draw=#1!55!black, fill=#1!18, rounded corners=2pt,
+                minimum width=2.0cm, minimum height=2.5cm, line width=0.4pt},
+  pfront/.style={draw=#1!70!black, fill=#1!7, rounded corners=2pt,
+                 minimum width=2.0cm, minimum height=2.5cm, line width=0.8pt},
+  flow/.style={-{Stealth[length=2.6mm]}, line width=1.0pt, draw=vacgray},
+  hdr/.style={font=\sffamily\bfseries\small, text=#1!55!black, align=center},
+  lbl/.style={font=\sffamily\small, align=center, text=#1!50!black},
+  cnt/.style={font=\sffamily\bfseries\normalsize, text=black},
+  procbox/.style={draw=#1!70!black, fill=#1!9, rounded corners=5pt,
+                  line width=1.0pt, align=center, font=\sffamily, inner sep=8pt},
+}
+\newcommand{\pagestack}[4]{%
+  \node[pback=#4] at ($(#2,#3)+(0.24,0.24)$) {};
+  \node[pback=#4] at ($(#2,#3)+(0.12,0.12)$) {};
+  \node[pfront=#4] (#1) at (#2,#3) {};
+}
+\newcommand{\spineicon}[3]{%
+  \foreach \i in {0,1,2,3,4}{%
+    \fill[#3!35!white, draw=#3!70!black, line width=0.3pt, rounded corners=1pt]
+      ($(#1,#2)+(-0.26, 0.82-0.40*\i)$) rectangle ($(#1,#2)+(0.26, 1.10-0.40*\i)$);}}
+\newcommand{\pelvisicon}[3]{%
+  \fill[#3!45!white, draw=#3!70!black, line width=0.3pt]
+    ($(#1,#2)+(0,0.45)$) -- ($(#1,#2)+(-0.32,-0.15)$) -- ($(#1,#2)+(0.32,-0.15)$) -- cycle;
+  \fill[#3!30!white, draw=#3!70!black, line width=0.3pt, rotate around={22:($(#1,#2)+(-0.55,0)$)}]
+    ($(#1,#2)+(-0.82,-0.45)$) rectangle ($(#1,#2)+(-0.30,0.45)$);
+  \fill[#3!30!white, draw=#3!70!black, line width=0.3pt, rotate around={-22:($(#1,#2)+(0.55,0)$)}]
+    ($(#1,#2)+(0.30,-0.45)$) rectangle ($(#1,#2)+(0.82,0.45)$);}
+\newcommand{\ribsicon}[3]{%
+  \foreach \i in {0,1,2}{%
+    \draw[#3!75!black, line width=0.5pt]
+      ($(#1,#2)+(-0.05,1.05-0.30*\i)$) to[bend left=45] ($(#1,#2)+(-0.95,0.75-0.30*\i)$);
+    \draw[#3!75!black, line width=0.5pt]
+      ($(#1,#2)+(0.05,1.05-0.30*\i)$) to[bend right=45] ($(#1,#2)+(0.95,0.75-0.30*\i)$);}}
+
+\jmlrvolume{[VOLUME \# TBD]}
+\jmlryear{2026}
+\jmlrworkshop{Machine Learning for Healthcare (MLHC) 2026}
+
+\title[\dataset{}]{\dataset{}: A Unified CT Benchmark for Lumbosacral Transitional Vertebra Segmentation}
+
+\author{%
+  \Name{Anonymous Author(s)}
+  \Email{anonymous@institution.edu}\\
+  \addr Anonymous Institution
+}
+
+\linenumbers
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Machine learning models for spine segmentation face two compounding
+blind spots: a \emph{modality gap} (predominance of MRI-derived
+benchmarks despite CT being the clinical standard for surgical
+planning) and an \emph{anomaly gap} (near-complete absence of
+Lumbosacral Transitional Vertebra (LSTV) annotation in existing CT
+datasets despite a 5--35\% population prevalence).
+We introduce \dataset{}, a CT-native benchmark of 1{,}153
+colonoscopy-protocol abdominal CT volumes across 802 patients
+with a unified 10-class spinopelvic segmentation labelmap and
+LSTV phenotype labels from two independent radiology teams.
+The benchmark is assembled from CTSpine1K and CTPelvic1K---two
+independently curated public datasets sharing a patient cohort but
+using incompatible NIfTI coordinate conventions---via a
+patient-anchored pipeline: an exact \texttt{PatientID} join
+resolves identity, after which intrapatient bone-HU maximization
+selects the source CT series for each annotation, with no spatial
+registration and no metadata heuristics.
+We further describe a \emph{partial-annotation training protocol}:
+only 342 of the 1{,}153 cases carry fused spine-plus-pelvis ground
+truth, but the remaining 811 spine-only and pelvic-only cases can
+be incorporated via nnU-Net v2's \texttt{ignore\_label} mechanism,
+a 3.37$\times$ increase in effective training data without biasing
+the model toward background on unobserved structures.
+We train an nnU-Net v2 segmenter under this protocol and use it to
+densify the partially annotated cases out-of-fold: for a patient
+whose spine and pelvis were traced on different acquisitions we keep
+the spine-annotated scan as that patient's volume and model-complete
+only its pelvis, and the few model-completed spines (on pelvic-only
+patients) are manually reviewed.
+The fidelity-critical structures---lumbar counting and the
+L5/L6-versus-sacrum call---are thus always radiologist ground truth;
+only the pelvis is model-completed, since it is large high-contrast
+bone far less prone to vertebral miscounting.
+We further characterize systematic 0\% cross-source agreement
+between the two radiology teams at the sacralization boundary---not
+annotation noise but a genuine definitional boundary between
+morphological and vertebral-counting criteria---and release both
+labels with explicit disagreement flags.
+A zero-shot TotalSegmentator benchmark concretely quantifies the
+anomaly gap: junction Dice drops 19.6 points (0.770 $\rightarrow$
+0.574) from Normal to Any-LSTV cases, with lumbarization cases
+degrading to 0.421 junction Dice owing to TotalSegmentator's
+structural inability to emit an L6 class.
+The \dataset{} dataset is publicly released on HuggingFace, and the
+preprocessing pipeline, conversion scripts, nnU-Net training code,
+and trained 5-fold checkpoints are all public.
+\end{abstract}
+
+\begin{keywords}
+Spine Segmentation Benchmark, Partial-Annotation Training,
+Lumbosacral Transitional Vertebra, Multi-Dataset Label Fusion,
+Inter-rater Disagreement, TCIA, Surgical Planning, CT
+\end{keywords}
+
+\paragraph*{Data and Code Availability}
+The \dataset{} dataset (images, unified masks, and the two-source
+LSTV metadata) is derived from public TCIA collections under their
+respective data use agreements and is publicly released at
+\url{https://huggingface.co/datasets/anonymous-mlhc/CTSpinoPelvic1K}.
+The preprocessing and TotalSegmentator-benchmark code, the nnU-Net
+partial-annotation training pipeline, and the trained 5-fold
+cross-validation checkpoints are all public and reachable from the
+dataset README.
+
+\paragraph*{IRB} All scans from de-identified public TCIA
+repositories.
+
+% ── FIGURE: Visual abstract ──────────────────────────────────────────────────
+\begin{figure*}[t]
+\floatconts{fig:visual_abstract}
+  {\caption{\textbf{How \dataset{} is built.}
+    Two source mask sets---CTSpine1K spine GT and CTPelvic1K pelvic GT---are
+    matched per patient by bone-HU placement. Masks traced on the \emph{same}
+    scan merge into a \textsc{fused} case (\}); masks on \emph{different} scans
+    stay \textsc{separate} ($\rightarrow$) as spine-only and pelvic-only volumes.
+    All configurations train an nnU-Net v2 under the ignore-label protocol (all
+    1{,}153 cases). The fused and spine-only cases (782) are then pelvis-completed
+    out-of-fold by that model; ribs are added in v3. Counts are shown at each
+    stage.}}
+  {\resizebox{\textwidth}{!}{%
+  \begin{tikzpicture}[x=1cm, y=1cm]
+  \node[hdr=vacgray]   at (0,    4.2) {\textsc{Source masks}\\[-1pt]\footnotesize two TCIA datasets};
+  \node[hdr=vacgray]   at (5,    4.2) {\textsc{Patient-anchored}\\[-1pt]\footnotesize match (bone-HU)};
+  \node[hdr=vactrain]  at (9.6,  4.2) {\textsc{Partial-annotation}\\[-1pt]\footnotesize training};
+  \node[hdr=vacpseudo] at (13.8, 4.2) {\textsc{Pseudolabel}\\[-1pt]\footnotesize complete the pelvis};
+  \node[hdr=vacrib]    at (17.8, 4.2) {\textsc{+ Ribs}\\[-1pt]\footnotesize v3};
+
+  \pagestack{spine}{0}{2.2}{vacspine}   \spineicon{0}{2.2}{vacspine}
+  \node[lbl=vacspine] at (0,0.65) {CTSpine1K\\spine GT};
+  \node[cnt]          at (0,0.15) {784 masks};
+  \pagestack{pelv}{0}{-2.2}{vacpelv}    \pelvisicon{0}{-2.2}{vacpelv}
+  \node[lbl=vacpelv]  at (0,-3.75) {CTPelvic1K\\pelvic GT};
+  \node[cnt]          at (0,-4.25) {714 masks};
+
+  \pagestack{fused}{5}{0}{vacfuse}
+    \spineicon{4.65}{0}{vacspine}\pelvisicon{5.45}{-0.15}{vacpelv}
+  \node[lbl=vacfuse]  at (5,-1.55) {Fused (same CT)};
+  \node[cnt]          at (5,-2.05) {342};
+  \pagestack{sonly}{5}{2.5}{vacspine}   \spineicon{5}{2.5}{vacspine}
+  \node[cnt, anchor=west] at (6.25,2.9) {Spine-only \textbf{440}};
+  \pagestack{ponly}{5}{-3.0}{vacpelv}   \pelvisicon{5}{-3.0}{vacpelv}
+  \node[cnt, anchor=west] at (6.25,-2.6) {Pelvic-only \textbf{371}};
+
+  \draw[decorate, decoration={brace, amplitude=8pt, mirror}, line width=1pt, draw=vacfuse!70!black]
+    ($(spine.east)+(0.9,0.1)$) -- ($(pelv.east)+(0.9,-0.1)$);
+  \draw[flow, draw=vacfuse!70!black] ($(spine.east)+(0.95,0)$) -- ++(0.35,0) |- (fused.west);
+  \node[lbl=vacfuse, font=\sffamily\scriptsize] at (2.95,0.95) {same scan\\$\Rightarrow$ merge};
+  \draw[flow] (spine.east) to[out=0,in=180] (sonly.west);
+  \draw[flow] (pelv.east)  to[out=0,in=180] (ponly.west);
+  \node[lbl=vacgray, font=\sffamily\scriptsize] at (2.95,3.05) {different scans\\$\rightarrow$ separate};
+
+  \node[procbox=vactrain, minimum width=2.4cm, minimum height=5.0cm] (train) at (9.6,0)
+    {\bfseries nnU-Net v2\\[2pt]ignore-label\\training\\[6pt]
+     \footnotesize\textbf{all 1{,}153}\\\footnotesize cases};
+  \draw[flow] (fused.east) -- (train.west);
+  \draw[flow] (sonly.east) to[out=0,in=160] ($(train.west)+(0,1.7)$);
+  \draw[flow] (ponly.east) to[out=0,in=200] ($(train.west)+(0,-1.7)$);
+
+  \pagestack{dense}{13.8}{0}{vacpseudo}
+    \spineicon{13.45}{0}{vacpseudo}\pelvisicon{14.25}{-0.15}{vacpseudo}
+  \node[lbl=vacpseudo] at (13.8,-1.55) {dense spine\,+\,pelvis};
+  \node[cnt]           at (13.8,-2.05) {782};
+  \draw[flow, draw=vacpseudo!70!black] (train.east) -- (dense.west)
+    node[midway, above, font=\sffamily\scriptsize, text=vacpseudo!60!black, align=center]
+    {fused 342 + spine-only 440\\[-1pt]\textbf{= 782}};
+  \node[lbl=vacgray, font=\sffamily\scriptsize, align=center] at (11.7,-2.5)
+    {pelvic-only 371\\held out};
+
+  \pagestack{ribs}{17.8}{0}{vacrib}
+    \spineicon{17.45}{0}{vacrib}\pelvisicon{18.25}{-0.15}{vacrib}\ribsicon{17.8}{0}{vacrib}
+  \node[lbl=vacrib] at (17.8,-1.55) {spine\,+\,pelvis\,+\,ribs};
+  \node[cnt]        at (17.8,-2.05) {782};
+  \draw[flow, draw=vacrib!70!black] (dense.east) -- (ribs.west)
+    node[midway, above, font=\sffamily\scriptsize, text=vacrib!60!black] {+ ribs};
+  \end{tikzpicture}}}
+\end{figure*}
+% ── END FIGURE ───────────────────────────────────────────────────────────────
+
+% =============================================================================
+\section{Introduction}
+\label{sec:intro}
+
+The lumbosacral junction is among the most clinically consequential
+regions of the axial skeleton.
+Surgical procedures at this level---transforaminal lumbar interbody
+fusion (TLIF), pedicle screw instrumentation, laminectomy, and
+sacropelvic fixation---require preoperative planning at millimeter
+accuracy, and errors at the lumbosacral level carry the highest
+medicolegal burden in spine surgery~\citep{Carrino2011EffectImaging}.
+Accurate automated segmentation of the lumbar vertebrae, sacrum, and
+pelvic girdle supports pedicle screw trajectory optimization,
+sacropelvic parameter measurement, intervertebral implant sizing,
+and intraoperative neuronavigation registration.
+
+\paragraph{The LSTV problem.}
+A Lumbosacral Transitional Vertebra (LSTV) is a vertebra at the
+L5--S1 junction exhibiting morphological characteristics of the
+adjacent segment~\citep{Castellvi1984LumbosacralDefects}.
+\emph{Sacralization} occurs when the fifth lumbar vertebra undergoes
+bony fusion with the sacrum, reducing the mobile lumbar spine to
+four segments.
+\emph{Lumbarization} occurs when the first sacral segment detaches,
+mimicking an independent sixth lumbar vertebra.
+Prevalence estimates range from 5\% to 35\% depending on imaging
+modality and classification criterion~\citep{Sekharappa2014LumbosacralSignificance}.
+Wrong-level surgery attributable to transitional anatomy
+misidentification occurs in an estimated 4.5--15\% of cases where
+preoperative level counting relied on plain film or MRI
+alone~\citep{Konin2010LumbosacralRelevance}.
+
+\paragraph{The modality gap.}
+The most widely used spine segmentation benchmarks---SPIDER,
+Spine Generic, and TotalSpineSeg---are built entirely on
+MRI~\citep{GraafSPIDERBenchmark,Cohen-Adad2021Open-accessManufacturers,Warszawer2025TotalSpineSeg:MRI}.
+Castellvi morphology~\citep{Castellvi1984LumbosacralDefects} is defined
+by cortical bridging and transverse process ossification, features
+CT resolves at sub-millimeter resolution and MRI does not.
+A model trained on MRI and deployed on preoperative CT acquires an
+implicit domain shift that degrades lumbosacral boundary delineation
+at the junction where clinical decisions are made.
+
+\paragraph{The anomaly gap.}
+CT-trained benchmarks including
+CTSpine1K~\citep{Deng2021CTSpine1K:Tomography},
+VerSe~\citep{Sekuboyina2020VerSe:Benchmark},
+TotalSegmentator-CT~\citep{Wasserthal2023TotalSegmentator:Images}, and
+CTPelvic1K~\citep{Liu2021DeepModels} do not report or control for
+LSTV prevalence, do not stratify splits by transitional anatomy,
+and make no attempt to evaluate per-type performance at the
+lumbosacral junction.
+No prior ML benchmark has curated LSTV in CT with dense spinopelvic
+segmentation labels at scale, nor analyzed disagreement structure
+between independent LSTV annotation operationalizations.
+
+\paragraph{The annotation uncertainty problem.}
+Even when LSTV labels are attempted, independent radiologists
+applying different operationalizations of the same morphological
+concept can systematically disagree at the lumbosacral boundary.
+Existing datasets resolve this by publishing a single adjudicated
+label, discarding the disagreement signal.
+The medical machine learning community increasingly recognizes
+that inter-rater disagreement is signal, not
+noise~\citep{Dawid1979MaximumAlgorithm}:
+\dataset{} applies this principle specifically to the LSTV
+confusion zone, where disagreement reflects a genuine definitional
+ambiguity rather than annotator error.
+
+\paragraph{The partial-annotation opportunity.}
+A systematic side-effect of fusing independently curated annotation
+sets is that most cases are \emph{partially} annotated: the spine
+mask is present without a matching pelvic mask, or vice versa.
+Prior work typically discards these, retaining only the intersection
+where both annotations exist.
+For \dataset{}, this would collapse a 1{,}153-case benchmark to just
+342 usable training cases---a two-thirds reduction that especially
+penalizes rare subgroups.
+We describe how nnU-Net v2's native \texttt{ignore\_label} mechanism
+enables principled training across all 1{,}153 cases by rewriting
+unobserved background voxels to the ignore class, eliciting zero loss
+contribution from unobserved structures without biasing the model.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+  \item \textbf{\dataset{} dataset.} 1{,}153 abdominal CT volumes
+    across 802 matched patients with unified 10-class spinopelvic
+    masks and 53 LSTV-labeled volumes (from 33 distinct patients)
+    spanning four phenotypes, released as a public HuggingFace
+    dataset.
+  \item \textbf{Re-anchoring of CTSpine1K and CTPelvic1K masks that
+    shipped without scan linkage.} The released masks carry no
+    \texttt{SeriesInstanceUID}, so each must be re-attached to one
+    of its patient's TCIA scans: an exact \texttt{PatientID} join
+    resolves identity, then intrapatient bone-HU maximization
+    assigns each of the 1{,}498 masks to its source series
+    deterministically, with no metadata heuristics and no spatial
+    registration. We also characterize and correct a previously
+    undocumented Y-axis coordinate-convention mismatch that would
+    silently corrupt all fused masks.
+  \item \textbf{Partial-annotation training protocol.}
+    We describe an nnU-Net v2 \texttt{ignore\_label} protocol that
+    enables a 3.37$\times$ effective training-set expansion on this
+    multi-source setting by using all 1{,}153 cases rather than
+    only the 342 fully fused ones, and use it to model-complete the
+    missing pelvis out-of-fold (vertebral labels are never
+    pseudolabelled). Trained-baseline evaluation is deferred to
+    future work (Section~\ref{sec:discussion}).
+  \item \textbf{LSTV labels from two independent radiology teams,
+    with disagreement flags.} We retain both the CTPelvic1K
+    morphological and the CTSpine1K counting-based LSTV label per
+    case, add an independent radiologist Castellvi read of every
+    LSTV case, and document 0\% cross-source sacralization
+    agreement---not annotation noise but a definitional boundary
+    between two legitimate criteria---making the confusion zone
+    explicit and available for uncertainty-aware training.
+  \item \textbf{Zero-shot TotalSegmentator benchmark quantifying
+    the anomaly gap.} A widely used open-source multi-organ CT
+    segmentation model~\citep{Wasserthal2023TotalSegmentator:Images}
+    loses 19.6 junction-DSC points from Normal to Any-LSTV cases
+    (0.770~$\rightarrow$~0.574), collapsing to 0.421 on
+    lumbarization cases owing to the absence of an L6 output class.
+\end{enumerate}
+
+\subsection*{Generalizable Insights about Machine Learning in the
+Context of Healthcare}
+
+\textbf{(1) Partial-annotation training via ignore-label materially
+expands the usable training set when fusing federated annotation
+sources.} On \dataset{}, restricting training to fused cases would
+discard 70\% of the annotated data; ignore-label training uses all
+1{,}153 cases with principled supervision masking. The pattern
+applies directly to any multi-source dataset where different teams
+annotate different structures on the same underlying images.
+
+\textbf{(2) Inter-rater disagreement at anatomical boundaries is a
+recoverable signal, not noise.}
+Two independent radiology teams applying legitimate but distinct
+operationalizations of the same morphological concept achieve 0\%
+cross-source agreement on sacralization. Datasets should retain
+both annotations with source flags; downstream training and
+evaluation can then exploit rather than discard this disagreement.
+
+\textbf{(3) Coordinate-convention validation is a prerequisite for
+multi-source medical image fusion.}
+The Y-axis reflection between CTSpine1K and CTPelvic1K is
+undetectable from voxel spacing alone and would have silently
+corrupted all fused masks. Any pipeline combining independently
+processed NIfTI datasets must explicitly validate
+affine-derived world coordinates on representative landmarks
+before training.
+
+% =============================================================================
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{CT spine and pelvis benchmarks.}
+CTSpine1K~\citep{Deng2021CTSpine1K:Tomography} annotated 1{,}005 multi-source
+CTs with per-vertebra segmentation, and
+VerSe~\citep{Sekuboyina2020VerSe:Benchmark} contributed 460 scans in challenge
+format.
+Neither reports LSTV prevalence or stratifies evaluation by
+transitional anatomy, and many VerSe-derived scans are cropped to a
+narrow spinal field of view, discarding the pelvic anatomy required
+for spinopelvic parameter computation.
+TotalSegmentator-CT~\citep{Wasserthal2023TotalSegmentator:Images} labels 104
+structures across 1{,}204 CTs, but provides no LSTV classification and
+reports neighboring-class confusion as a known failure mode at the
+lumbosacral junction.
+CTPelvic1K~\citep{Liu2021DeepModels} encodes LSTV qualitatively in
+COLONOG mask filenames, which we leverage as a primary label source.
+
+\paragraph{MRI benchmarks and the modality gap.}
+SPIDER~\citep{GraafSPIDERBenchmark} provides 447 lumbar MRIs.
+TotalSpineSeg~\citep{Warszawer2025TotalSpineSeg:MRI} is MRI-native;
+sacrum labels were bootstrapped via CT-to-MRI rigid registration,
+introducing residual domain noise at the lumbosacral boundary.
+
+\paragraph{Multi-dataset label fusion and partial-annotation
+training.}
+\citet{Li2025LumbarMechanism} demonstrated combining CTSpine1K and
+CTPelvic1K improves joint segmentation using a 3D residual
+encoder-decoder with linear self-attention at the bottleneck and
+cross-scale feature fusion in the decoder.
+That work treats the two datasets as independent sources, provides
+no LSTV-stratified evaluation, and does not resolve their
+incompatible coordinate conventions.
+On the methodological side, \citet{Wasserthal2023TotalSegmentator:Images}
+and recent nnU-Net work~\citep{Isensee2024Nnu-netSegmentation} have
+established that ignore-label training enables principled use of
+partial-annotation cases at scale.
+We are the first to describe this mechanism applied to the
+spine+pelvis multi-source fusion setting with explicit
+LSTV-stratified evaluation.
+
+\paragraph{LSTV in the ML literature.}
+\citet{Kwak2025AutomatedModel} evaluated a CNN on lumbar radiographs for
+binary LSTV detection.
+BUU-LSPINE~\citep{Klinwichit2023BUU-LSPINE:Detection} contributes 3{,}600 lumbar X-rays with
+LSTV annotation, demonstrating clinical demand for automated LSTV
+recognition that \dataset{} extends into 3D surgical planning CT.
+No prior ML benchmark has curated LSTV in CT with dense spinopelvic
+segmentation labels at scale.
+
+\begin{table*}[t]
+\floatconts{tab:dataset_comparison}
+  {\caption{Comparison of spine, pelvis, and adjacent CT benchmarks.
+    \checkmark~= available, ---~= not available,
+    $\dagger$~= via cross-modal registration,
+    $\ddagger$~= qualitative filename encoding only.
+    \dataset{} is the only benchmark combining fused labels,
+    LSTV annotation, two independent LSTV reads, and a
+    registration-free fusion pipeline applicable to arbitrary TCIA
+    collection pairs.}}
+  {\resizebox{\textwidth}{!}{\small\begin{tabular}{lccccccccc}
+  \toprule
+  \bfseries Dataset & \bfseries Mod. & \bfseries $N$ &
+  \bfseries Vertebral & \bfseries Pelvic & \bfseries Fused &
+  \bfseries LSTV & \bfseries 2-Read &
+  \bfseries Pathological Focus & \bfseries CT-native \\
+  \midrule
+  VerSe~\citep{Sekuboyina2020VerSe:Benchmark}
+    & CT & 460 & \checkmark & --- & --- & --- & ---
+    & Normal anatomy & \checkmark \\
+  CTSpine1K~\citep{Deng2021CTSpine1K:Tomography}
+    & CT & 1{,}005 & \checkmark & --- & --- & --- & ---
+    & Normal anatomy & \checkmark \\
+  CTPelvic1K~\citep{Liu2021DeepModels}
+    & CT & 1{,}184 & partial & \checkmark & --- & $\ddagger$ & ---
+    & Normal + metal artifacts & \checkmark \\
+  TotalSegmentator~\citep{Wasserthal2023TotalSegmentator:Images}
+    & CT & 1{,}204 & \checkmark & \checkmark & \checkmark & --- & ---
+    & General multi-organ & \checkmark \\
+  SPIDER~\citep{GraafSPIDERBenchmark}
+    & MRI & 447 & \checkmark & --- & --- & --- & ---
+    & Normal anatomy & --- \\
+  TotalSpineSeg~\citep{Warszawer2025TotalSpineSeg:MRI}
+    & MRI & 1{,}404 & \checkmark & $\dagger$ & $\dagger$ & --- & ---
+    & Normal anatomy & --- \\
+  \midrule
+  BUU-LSPINE~\citep{Klinwichit2023BUU-LSPINE:Detection}
+    & X-Ray & 3{,}600 & \checkmark & --- & --- & \checkmark & ---
+    & LSTV & --- \\
+  \midrule
+  \textbf{CTSpinoPelvic1K} (ours)
+    & CT & \textbf{1{,}153} & \checkmark & \checkmark & \checkmark
+    & \checkmark & \checkmark
+    & \textbf{LSTV / congenital variants} & \checkmark \\
+  \bottomrule
+  \end{tabular}}}
+\end{table*}
+
+% =============================================================================
+\section{Dataset Construction: Patient-Anchored Fusion of CTSpine1K
+and CTPelvic1K}
+\label{sec:generalizable}
+
+CTSpine1K and CTPelvic1K share a common COLONOG patient cohort but
+were independently curated: masks are released as NIfTI files
+without the \texttt{SeriesInstanceUID} linkage to the primary DICOM
+data, and the two teams used different \texttt{dcm2niix}
+invocations, producing silently incompatible coordinate conventions
+(Section~\ref{sec:placement}).
+Fusing these annotation sets therefore requires solving two
+problems: (i)~\emph{identity}---determining which pelvic mask
+belongs to which patient in which dataset---and
+(ii)~\emph{alignment}---determining which specific CT acquisition
+each mask was drawn from, in world coordinates.
+We solve both without spatial registration or heuristic metadata
+fallbacks.
+
+\paragraph{Identity is trivial; alignment is the problem.}
+Identity is an exact match on the DICOM \texttt{PatientID} carried
+in every mask filename; the only difference between the two releases
+is zero-padding, normalized by stripping leading zeros from the
+final UID component (Eq.~\ref{eq:canon}). This resolves 825/825
+patients with no heuristic, and we do not claim it as a
+contribution. The real difficulty is \emph{alignment}: no mask
+carries a \texttt{SeriesInstanceUID}, and CTPelvic1K ships its
+pelvic masks without their CTs entirely, so nothing directly links a
+mask to a specific TCIA scan. With 825 patients spanning 3{,}451
+TCIA series, the only available metadata proxies---a filename
+SeriesNumber, the NIfTI affine geometry, the slice count---leave
+most assignments merely probable: of the 1{,}498 masks, only 5
+match a scan with certainty from metadata alone and 107 are fully
+ambiguous.
+
+\paragraph{Alignment via intrapatient bone-HU maximization.}
+Restricting candidate series to the patient's own TCIA acquisitions
+reduces the search space from a global index
+($\sim$$10^5$--$10^6$ CT series) to
+$|\mathcal{S}_p| \approx 4$ candidates. Within this bounded set,
+bone-HU maximization (Eq.~\ref{eq:bonehu}) serves as a
+metadata-free oracle for mask-to-series assignment---useful because
+the DICOM metadata fields normally relied upon
+(\texttt{SeriesDescription}, \texttt{BodyPartExamined}) are
+frequently missing or mislabeled in TCIA releases.
+It places every one of the 1{,}498 masks (784 spine, 714 pelvic) on
+its source series deterministically, with zero alignment failures;
+the distribution is shown in Section~\ref{sec:quality}.
+Re-anchoring these orphaned, as-released-unusable masks into one
+unified, ML-ready benchmark is the core construction contribution.
+
+\paragraph{Partial-annotation opportunity.}
+Because CTSpine1K and CTPelvic1K annotate overlapping but
+non-identical patient subsets, the fused benchmark is
+\emph{partially annotated}: 342 of 1{,}153 cases carry both spine
+and pelvic ground truth, 440 are spine-only, and 371 are pelvic-only.
+Prior work typically discards partial cases, retaining only the
+intersection. We instead describe an nnU-Net v2
+\texttt{ignore\_label} protocol for training across all 1{,}153
+cases (Section~\ref{sec:ignore_label}), yielding a $3.37\times$
+effective training-set expansion relative to fused-only baselines.
+
+\paragraph{Scope of generalization.}
+The patient-anchored pipeline is specific to the CTSpine1K/CTPelvic1K
+fusion demonstrated here. The underlying primitives---UID
+canonicalization for identity resolution, and tissue-HU-based
+intrapatient series selection for alignment---are applicable
+whenever two annotation sets share a TCIA patient cohort, but we
+do not claim empirical validation beyond the single dataset pair
+reported here. We discuss candidate extensions in
+Section~\ref{sec:discussion}.
+
+% =============================================================================
+\section{Source Data}
+\label{sec:source}
+
+\dataset{} assembles three interlocking public TCIA resources
+sharing a common patient cohort.
+
+\paragraph{COLONOG.}
+The CT Colonography collection~\citep{Smith2015DataCOLONOGRAPHY} provides
+paired supine and prone abdominal CTs from 825 subjects.
+Protocol: 100--120~kVp, in-plane resolution 0.625--0.977~mm, slice
+thickness 0.8--1.0~mm, soft-tissue kernel.
+The paired acquisitions---absent from all prior spine benchmarks---
+enable position-invariant training.
+
+\paragraph{CTSpine1K.}
+CTSpine1K~\citep{Deng2021CTSpine1K:Tomography} annotated 784 COLONOG cases with
+per-vertebra segmentation using the VerSe label scheme
+(IDs 20--25 encode L1--L6; ID 26 encodes sacrum).
+
+\paragraph{CTPelvic1K.}
+CTPelvic1K~\citep{Liu2021DeepModels} provides four-class pelvic
+masks (sacrum, left hip, right hip) for 714 of the same COLONOG
+patients.
+Despite originating from the same acquisitions, different
+\texttt{dcm2niix} invocations produced a systematic Y-axis
+reflection between label spaces (Section~\ref{sec:methods}).
+CTPelvic1K mask filenames encode patient UID, SeriesNumber, and
+LSTV phenotype as a qualifier, providing the primary LSTV label
+source for \dataset{}.
+
+\begin{table}[t]
+\floatconts{tab:scan_stats}
+  {\caption{COLONOG scan statistics for \dataset{}.}}
+  {\small\begin{tabular}{lc}
+  \toprule
+  \bfseries Property & \bfseries Value \\
+  \midrule
+  Patients total                  & 825 \\
+  \quad With both positions       & 694 \\
+  Spine masks (CTSpine1K)         & 784 \\
+  Pelvic masks (CTPelvic1K)       & 714 \\
+  Matched patients (\dataset{})   & 802 \\
+  Matched volumes (\dataset{})    & 1{,}153 \\
+  \quad Fused (spine + pelvis)    & 342 \\
+  \quad Spine-only                & 440 \\
+  \quad Pelvic-only               & 371 \\
+  \bottomrule
+  \end{tabular}}
+\end{table}
+
+% =============================================================================
+\section{Methods}
+\label{sec:methods}
+
+\subsection{Phase 1: Patient-Anchored Identity Resolution}
+\label{sec:patientdb}
+
+Both CTSpine1K and CTPelvic1K mask filenames encode the TCIA
+\texttt{PatientID} DICOM tag but not the \texttt{SeriesInstanceUID}.
+Both UIDs carry zero-padded last components that vary between
+dataset releases, causing naive string matching to fail.
+We establish patient identity via canonical UID matching:
+\begin{equation}
+\text{canon}(u) = \text{prefix}(u) \,\|\, \text{int}(\text{suffix}(u))
+\label{eq:canon}
+\end{equation}
+where $\text{int}(\cdot)$ strips leading zeros from the final UID
+component. Identity is \emph{algebraically exact}---no heuristic
+required---and we do not claim it as a contribution; it merely bounds
+the search to a patient. PatientDB (schema in
+Appendix~\ref{app:patientdb}) organizes all data using canonical
+patient UID as the primary key, and resolves \textbf{825/825
+patients (100\%)}. The substantive problem is the Phase~2 series
+alignment below: the \texttt{SeriesInstanceUID} did not survive the
+DICOM-to-NIfTI conversion, so each mask must still be placed onto
+one of its patient's several scans.
+
+\subsection{Phase 2: Intrapatient Exhaustive Series Assignment}
+\label{sec:phase2}
+
+For mask $m$ belonging to patient $p$, we identify its source TCIA
+series by exhaustive intrapatient search.
+COLONOG patients have $|\mathcal{S}_p| \approx 4$ CT-quality series,
+making this tractable.
+For each candidate series, we compute bone-HU coverage:
+\begin{equation}
+f_\text{bone}(m, s) =
+  \frac{\sum_{v \in \mathcal{L}(m,s)}
+        \mathbf{1}[I_s(v) > \tau_\text{bone}]}{|\mathcal{L}(m,s)|}
+\quad \tau_\text{bone} = 200~\text{HU}
+\label{eq:bonehu}
+\end{equation}
+and select $s^*(m) = \argmax_{s \in \mathcal{S}_p} f_\text{bone}(m,s)$.
+The same criterion applies to both spine and pelvic masks, differing
+only in the geometric alignment function $\mathcal{L}(m,s)$.
+This eliminates metadata-dependent heuristics: a correctly matched
+spine mask exhibits $f_\text{bone} \gg 0.5$; placement over a
+soft-tissue or scout series yields $f_\text{bone} \approx 0$
+(Figure~\ref{fig:bonehu_dist}).
+Algorithm~\ref{alg:phase2} in Appendix~\ref{app:algorithm} provides
+pseudocode.
+
+\subsection{Affine Placement: The Y-Axis Reflection}
+\label{sec:placement}
+
+The DICOM standard mandates an LPS$+$ patient basis while NIfTI
+natively encodes RAS$+$.
+When independent teams convert the same DICOM source using different
+toolchains, the resulting NIfTI affines carry silently inverted axes.
+CTSpine1K encodes center voxels at world $y \approx -181$~mm;
+CTPelvic1K at $y \approx +181$~mm for the same patients.
+Given NIfTI affine $A$ and voxel extent $N_y$:
+\begin{equation}
+y_\text{ctr} = A_{1,3} + \tfrac{N_y}{2} \cdot A_{1,1},
+\quad
+\text{flip} = \bigl(y_\text{ctr}^\text{mask} \cdot
+  y_\text{ctr}^\text{ref} < 0\bigr)
+\end{equation}
+When $\text{flip}=\text{true}$, the mask array is reversed along
+axis~1 and the affine updated exactly.
+Detection succeeds on all 714 pelvic masks; zero failures.
+CTPelvic1K masks are additionally z-cropped sub-volumes; the
+starting z-offset is recovered by cross-correlating CT bone-density
+and mask occupancy profiles.
+
+\subsection{Unified Label Map}
+\label{sec:labels}
+
+CTSpine1K VerSe labels and CTPelvic1K labels are remapped into a
+unified 10-class scheme: 0\,=\,background; 1--5\,=\,L1--L5
+(VerSe 20--24); 6\,=\,L6 / lumbarized S1 (VerSe 25; LSTV only);
+7\,=\,sacrum (VerSe 26 / CTPelvic1K label 1); 8\,=\,left hip
+(CTPelvic1K 2); 9\,=\,right hip (CTPelvic1K 3).
+Class~6 is the first evaluation class in any public benchmark
+reserved for the lumbarized transitional body.
+At voxel-level conflicts at the L5/sacrum boundary, CTPelvic1K
+takes precedence for sacral extent.
+
+\subsection{Partial-Annotation Training Protocol}
+\label{sec:ignore_label}
+
+Fusion status is derived post-hoc: a case is \textsc{fused} when
+$s^*(\text{spine}) = s^*(\text{pelvic})$, \textsc{spine-only} when
+only a spine mask exists, and \textsc{pelvic-only} when only a
+pelvic mask exists.
+Training on fused cases alone would discard 811 of 1{,}153 volumes
+(70\%), with a disproportionate penalty on rare LSTV subgroups.
+We instead define a training protocol incorporating all 1{,}153
+cases via nnU-Net v2's \texttt{ignore\_label} mechanism.
+
+Concretely, for each case we rewrite the saved label volume as
+follows:
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Config} & \textbf{Label rewrite} \\
+\midrule
+\textsc{fused}        & identity (all 10 classes valid) \\
+\textsc{spine-only}   & voxels$=0 \rightarrow 255$;
+                        classes 1--6 retained \\
+\textsc{pelvic-only}  & voxels$=0 \rightarrow 255$;
+                        classes 7--9 retained \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The \texttt{ignore} class 255 is declared in the nnU-Net
+\texttt{dataset.json}; voxels at this value contribute zero to both
+the cross-entropy and the Dice loss, so the model is supervised
+only on structures present in each case's ground truth.
+For a \textsc{spine-only} case, the model learns ``here are L1--L6''
+without being penalized on the pelvic region; symmetrically for
+\textsc{pelvic-only}.
+Spine classes receive supervision from all 342 fused plus 440
+spine-only cases (782 total); pelvic classes from 342 fused plus
+371 pelvic-only cases (713 total).
+This is a principled use of federated annotation sources.
+Per-class DSC, HD95, and mIOU are reported on the fused cases within
+each split, which carry complete ground truth.
+The nnU-Net v2 baseline is trained under this protocol (5-fold
+cross-validation; the code and the trained checkpoints are public);
+its quantitative evaluation on the fused test split, and the
+fused-only versus all-cases ablation that isolates the ignore-label
+contribution, follow at camera-ready
+(Section~\ref{sec:discussion}).
+
+\paragraph{Densifying the partial cases.}
+We additionally use the trained model to \emph{densify} the released
+labels so that every shipped volume carries a complete spine+pelvis
+labelmap, and the completion is deliberately one-sided.
+For a separate-mode patient---spine and pelvis traced on different
+acquisitions---we keep the \emph{spine}-annotated scan as that
+patient's representative volume and model-complete only its pelvis,
+predicted out-of-fold by the 5-fold model so that no case is
+densified by a network that trained on it.
+The choice is principled: the lumbar count and the
+L5/L6-versus-sacrum decision---where wrong-level error
+originates---stay radiologist ground truth, while the pelvis (large,
+high-contrast bone with no counting ambiguity) is the only
+model-generated region, so completion cannot introduce a miscount or
+a vertebral class-mix.
+The exception is the few \textsc{pelvic-only} patients, for whom no
+spine acquisition exists: there the spine is model-completed, and
+\emph{every} such case is manually reviewed by a radiologist before
+release.
+The released completed branches (raw and expert-corrected) therefore
+carry no ignore-label voxels, and the only model-generated labels are
+pelves on spine-annotated scans plus the handful of reviewed
+pelvic-only spines.
+
+\begin{table}[t]
+\floatconts{tab:splits}
+  {\caption{\dataset{} composition and five-fold stratified splits
+    (by LSTV phenotype and fusion status). Training uses all
+    configurations via ignore-label; per-class metrics are reported
+    on the fused cases, which carry complete ground truth.}}
+  {\small\begin{tabular}{lr}
+  \toprule
+  \bfseries Breakdown & \bfseries Volumes \\
+  \midrule
+  \multicolumn{2}{@{}l}{\itshape By annotated region} \\
+  \quad Fused (10 classes)      & 342 \\
+  \quad Spine-only (ignore)     & 440 \\
+  \quad Pelvic-only (ignore)    & 371 \\
+  \midrule
+  \multicolumn{2}{@{}l}{\itshape By split} \\
+  \quad Train                   & 805 \\
+  \quad Validation              & 174 \\
+  \quad Test                    & 174 \\
+  \midrule
+  \textbf{Total volumes}        & \textbf{1{,}153} \\
+  LSTV-positive (any config)    & 53 \\
+  \bottomrule
+  \end{tabular}}
+\end{table}
+
+% =============================================================================
+\section{LSTV Labels and the Lumbosacral Confusion Zone}
+\label{sec:lstv_arbitration}
+
+\subsection{Two Independent LSTV Reads}
+
+\textbf{CTPelvic1K filename qualifiers} encode a
+\emph{morphological criterion}: the annotator inspects for cortical
+bridging, transverse process hypertrophy, and pseudoarticulation
+with the sacral ala, assigning one of four classes (\textsc{Normal},
+\textsc{Lumbarization}, \textsc{Semi-sacralization},
+\textsc{Sacralization}) based on Castellvi
+morphology~\citep{Castellvi1984LumbosacralDefects}.
+This is the canonical radiological definition.
+
+\textbf{CTSpine1K vertebral heuristics} apply a
+\emph{vertebral counting criterion}: VerSe label~25 present
+$\Rightarrow$ lumbarization; VerSe label~24 absent $\Rightarrow$
+sacralization; labels 20--24 present without 25 $\Rightarrow$ normal.
+The two reads are independent: the vertebral count comes from
+CTSpine1K (25 of the 33 LSTV patients are vertebral-source), the
+pelvic morphological flag from CTPelvic1K (8 pelvic).
+
+\textbf{Independent radiologist Castellvi read.}
+Beyond the two inherited source labels, our radiologists have
+independently Castellvi-classified \emph{every} LSTV case
+(33 patients; 53 volumes, since a separate-mode patient is two
+scans), including the ambiguous cross-source-disagreement cases,
+recording the transitional type, left/right laterality (e.g.\
+type~IV: type~IIa right, type~IIIa left), the non-rib-bearing
+vertebra count, and per-case notes. This clinical read---released as
+a phenotype table on the dataset branches and reported here as a
+subset audit---is what makes the LSTV labels a deliberate clinical
+characterization rather than an inherited heuristic.
+
+Figure~\ref{fig:lstv_panel} illustrates representative cases for
+each LSTV phenotype.
+
+% ── FIGURE: LSTV 3D panel ────────────────────────────────────────────────────
+\begin{figure*}[t]
+\floatconts{fig:lstv_panel}
+  {\caption{\textbf{Representative \dataset{} lumbosacral
+    segmentation masks for each LSTV phenotype.}
+    All renders are from fused cases displayed in anterior clinical
+    view at native voxel resolution.
+    Label colors follow the 10-class scheme: L1 (royal blue),
+    L2 (sky blue), L3 (cyan-teal), L4 (green), L5 (yellow),
+    L6 (orange), spine sacrum (red), pelvic sacrum (magenta).
+    \textbf{(A)}~\textit{Normal anatomy} (COLONOG token 2):
+    five lumbar vertebrae above the sacrum in standard configuration.
+    \textbf{(B)}~\textit{Sacralization --- morphological criterion}
+    (COLONOG token 32): Castellvi-type sacral fusion encoded in the
+    CTPelvic1K filename qualifier; the CTSpine1K vertebral counting
+    criterion independently labels this case \textsc{Normal},
+    exemplifying the 0\% cross-source sacralization agreement.
+    \textbf{(C)}~\textit{Sacralization --- vertebral-count criterion}
+    (COLONOG token 107): VerSe label~24 absent; only four lumbar
+    vertebrae identifiable.
+    No CTPelvic1K morphological qualifier encodes this case as
+    abnormal, again illustrating the definitional non-overlap.
+    \textbf{(D)}~\textit{Lumbarization} (COLONOG token 167):
+    VerSe label~25 (L6, orange) present as a discrete additional
+    lumbar body between L5 (yellow) and the sacrum.}}
+  {%
+    \includegraphics[width=\textwidth]{images/LSTV_panel_4x1.jpg}%
+  }
+\end{figure*}
+
+\subsection{The Confusion Zone}
+
+Table~\ref{tab:lstv_agreement} shows cross-source agreement.
+Sacralization shows \textbf{0\% cross-source agreement}
+($n=28$ CTPelvic1K sacralization cases, zero overlap with CTSpine1K
+sacralization cases).
+This is not annotation error: a patient exhibiting Castellvi Type~II
+morphology (bilateral pseudoarticulation satisfying the morphological
+criterion) can simultaneously retain five independently countable
+lumbar vertebral bodies if the bridging is partial.
+Both annotators are correct within their own criterion; the case
+sits precisely at the boundary of both classification systems
+(panel~B of Figure~\ref{fig:lstv_panel}).
+
+\begin{table}[t]
+\floatconts{tab:lstv_agreement}
+  {\caption{Cross-source LSTV agreement. The 0\% sacralization
+    agreement quantifies the lumbosacral confusion zone.}}
+  {\small\begin{tabular}{lrrrr}
+  \toprule
+  \bfseries LSTV Class & \bfseries $N$ & \bfseries \%
+    & \bfseries Cross-val & \bfseries Agreement \\
+  \midrule
+  Normal              & 1{,}100 & 95.4 & 100\% & \checkmark \\
+  Lumbarization       & 22 & 1.9 & n/a$^\dagger$ & --- \\
+  Semi-sacralization  &  3 & 0.3 & 67\%$^\ddagger$ & partial \\
+  Sacralization       & 28 & 2.4 & 0\%$^\S$ & \textbf{0\%} \\
+  \midrule
+  \textbf{Total LSTV} & 53 & 4.6 & --- & --- \\
+  \textbf{Total}      & 1{,}153 & 100 & --- & --- \\
+  \midrule
+  \multicolumn{5}{l}{\footnotesize
+    $^\dagger$ Pelvic protocol omits lumbarization body.} \\
+  \multicolumn{5}{l}{\footnotesize
+    $^\ddagger$ $n=3$; 1 case UNKNOWN.
+    $^\S$ Definition mismatch; see text.} \\
+  \bottomrule
+  \end{tabular}}
+\end{table}
+
+Figure~\ref{fig:confusion_zone} illustrates the three anatomical
+configurations that produce systematic disagreement: Type~A
+(partial bridging with retained L5 body; Castellvi Type~II), Type~B
+(asymmetric ossification), and Type~C (definitional ambiguity
+between ``sacralized L5'' and ``lumbarized S1'' without MRI
+correlation).
+
+% ── FIGURE: Confusion Zone TikZ ──────────────────────────────────────────────
+% DO NOT MODIFY THIS FIGURE
+\begin{figure*}[t]
+\floatconts{fig:confusion_zone}
+  {\caption{\textbf{The lumbosacral confusion zone.}
+    \textbf{Left}: normal L5--S1 anatomy with discrete junction.
+    \textbf{Center}: the Type~A configuration that accounts for the
+    majority of the 0\% sacralization agreement:
+    Castellvi Type~II pseudoarticulation satisfies the morphological
+    criterion (sacralization) while a discrete L5 body satisfies the
+    counting criterion (normal).
+    The transition zone (orange, dashed outline) is the voxel region
+    at L5/S1 boundary whose class assignment is ambiguous.
+    \textbf{Right}: conceptual disagreement rate as a function of
+    cortical bridging extent.
+    The confusion zone (red bars) is concentrated at intermediate
+    bridging; full fusion and absent bridging produce reliable
+    agreement.
+    Exact values will be reported from the placed manifest.}}
+  {%
+  \begin{tikzpicture}[x=1.0cm, y=1.0cm,
+    every node/.style={font=\small},
+    arr/.style={-Stealth, thick, color=arrowgray},
+  ]
+
+  %% ── Panel A: Normal anatomy ──────────────────────────────────────────
+  \node[font=\bfseries\small] at (1.7, 6.5) {Normal L5--S1};
+  \node[rectangle, rounded corners=3pt,
+        minimum width=2.4cm, minimum height=0.55cm,
+        draw=l3draw, fill=l3fill, thick, align=center]
+    at (1.7, 5.9) {L3};
+  \node[rectangle, rounded corners=3pt,
+        minimum width=2.4cm, minimum height=0.55cm,
+        draw=l4draw, fill=l4fill, thick, align=center]
+    at (1.7, 5.25) {L4};
+  \node[rectangle, rounded corners=3pt,
+        minimum width=2.4cm, minimum height=0.55cm,
+        draw=l5draw, fill=l5fill, thick, align=center]
+    at (1.7, 4.6) {L5};
+  \draw[thick, arrowgray, dashed] (0.3, 4.27) -- (3.1, 4.27);
+  \node[font=\tiny\itshape, text=arrowgray, anchor=west]
+    at (3.15, 4.27) {L5--S1};
+  \node[rectangle, rounded corners=3pt,
+        minimum width=2.4cm, minimum height=0.55cm,
+        draw=s1draw, fill=s1fill, thick, align=center]
+    at (1.7, 3.95) {S1};
+  \node[font=\tiny, text=agreem, anchor=west] at (0.15, 2.9)
+    {\checkmark~Morph.: \textsc{Normal}};
+  \node[font=\tiny, text=agreem, anchor=west] at (0.15, 2.55)
+    {\checkmark~Count.: \textsc{Normal}};
+  \draw[thick, agreem!70!black, rounded corners=2pt]
+    (0.05, 2.4) rectangle (3.35, 3.1);
+
+  %% ── Panel B: Type A confusion ────────────────────────────────────────
+  \node[font=\bfseries\small, text=disagr] at (7.1, 6.5)
+    {Type A: Partial Bridging};
+  \node[rectangle, rounded corners=3pt,
+        minimum width=2.4cm, minimum height=0.55cm,
+        draw=l3draw, fill=l3fill, thick, align=center]
+    at (7.1, 5.9) {L3};
+  \node[rectangle, rounded corners=3pt,
+        minimum width=2.4cm, minimum height=0.55cm,
+        draw=l4draw, fill=l4fill, thick, align=center]
+    at (7.1, 5.25) {L4};
+  \node[rectangle, rounded corners=3pt,
+        minimum width=2.4cm, minimum height=0.55cm,
+        draw=l5draw, fill=l5fill, thick, align=center]
+    at (7.1, 4.6) {L5 (countable)};
+  \node[rectangle, rounded corners=4pt,
+        minimum width=2.6cm, minimum height=0.65cm,
+        draw=confborder, fill=conffill, very thick,
+        align=center, dashed]
+    at (7.1, 4.0)
+    {\footnotesize pseudoarticulation\\[-2pt]
+     \tiny (Castellvi Type~II)};
+  \node[rectangle, rounded corners=3pt,
+        minimum width=2.4cm, minimum height=0.55cm,
+        draw=s1draw, fill=s1fill, thick, align=center]
+    at (7.1, 3.35) {S1};
+  \node[font=\tiny, text=lstvcol, anchor=west] at (5.55, 2.75)
+    {\textbf{X}~Morph.: \textsc{Sacralization}};
+  \node[font=\tiny, text=agreem, anchor=west] at (5.55, 2.40)
+    {\checkmark~Count.: \textsc{Normal}};
+  \draw[thick, disagr!70!black, rounded corners=2pt]
+    (5.45, 2.25) rectangle (8.75, 2.95);
+  \node[font=\tiny\bfseries, text=disagr, anchor=west] at (5.55, 2.05)
+    {CONFUSION ZONE};
+
+  %% ── Panel C: Disagreement bar chart ──────────────────────────────────
+  \node[font=\bfseries\small] at (13.2, 6.5)
+    {Disagreement by Bridging Extent};
+  \node[font=\tiny\itshape, text=metalgray] at (13.2, 6.1)
+    {(conceptual; exact values from manifest TBD)};
+  \draw[thick, metalgray] (10.4, 2.0) -- (16.0, 2.0);
+  \draw[thick, metalgray] (10.4, 2.0) -- (10.4, 5.5);
+  \fill[agreem!60!white, draw=agreem!80!black, thin]
+    (10.6, 2.0) rectangle (11.1, 2.4);
+  \fill[agreem!60!white, draw=agreem!80!black, thin]
+    (11.2, 2.0) rectangle (11.7, 2.6);
+  \fill[disagr!60!white, draw=disagr!80!black, thin]
+    (11.8, 2.0) rectangle (12.3, 3.5);
+  \fill[disagr!60!white, draw=disagr!80!black, thin]
+    (12.4, 2.0) rectangle (12.9, 4.8);
+  \fill[disagr!60!white, draw=disagr!80!black, thin]
+    (13.0, 2.0) rectangle (13.5, 5.2);
+  \fill[disagr!60!white, draw=disagr!80!black, thin]
+    (13.6, 2.0) rectangle (14.1, 4.1);
+  \fill[disagr!60!white, draw=disagr!80!black, thin]
+    (14.2, 2.0) rectangle (14.7, 2.8);
+  \fill[agreem!60!white, draw=agreem!80!black, thin]
+    (14.8, 2.0) rectangle (15.3, 2.5);
+  \fill[agreem!60!white, draw=agreem!80!black, thin]
+    (15.4, 2.0) rectangle (15.9, 2.2);
+  \node[font=\tiny, anchor=north] at (10.85, 1.92) {none};
+  \node[font=\tiny, anchor=north] at (13.25, 1.92) {partial};
+  \node[font=\tiny, anchor=north] at (15.65, 1.92) {full};
+  \node[font=\tiny, text=metalgray, rotate=90, anchor=south]
+    at (10.2, 3.75) {\# disagreements};
+  \node[font=\tiny, anchor=south] at (10.85, 1.72)
+    {\footnotesize $\leftarrow$ bridging extent $\rightarrow$};
+  \draw[thick, disagr] (11.75, 5.4) -- (14.75, 5.4);
+  \draw[thick, disagr] (11.75, 5.3) -- (11.75, 5.4);
+  \draw[thick, disagr] (14.75, 5.3) -- (14.75, 5.4);
+  \node[font=\tiny\bfseries, text=disagr, anchor=south]
+    at (13.25, 5.4) {confusion zone};
+  \draw[thick, agreem] (10.55, 2.75) -- (11.75, 2.75);
+  \node[font=\tiny, text=agreem, anchor=east] at (10.5, 2.75)
+    {agree};
+  \draw[thick, agreem] (14.75, 2.65) -- (15.95, 2.65);
+  \node[font=\tiny, text=agreem, anchor=west] at (16.0, 2.65)
+    {agree};
+  \end{tikzpicture}
+  }
+\end{figure*}
+% ── END FIGURE ───────────────────────────────────────────────────────────────
+
+% =============================================================================
+\section{Dataset Quality Assessment}
+\label{sec:quality}
+
+Bone fraction $f_\text{bone}$ (Eq.~\ref{eq:bonehu}) provides an
+automated series-conflict detector.
+Figure~\ref{fig:bonehu_dist} shows the distribution across all
+1{,}498 placed masks.
+Spine: mean 68.3\%, SD 11.2\%, min 15.2\%.
+Pelvic: mean 66.2\%, SD 8.9\%, min 36.8\%.
+All 784 spine and 714 pelvic masks place on a valid series
+(1{,}498 total, zero alignment failures): every mask has at least one
+intrapatient series clearing the bone-HU threshold by a wide margin
+(Figure~\ref{fig:bonehu_dist}).
+Zero spine masks had fewer than four identifiable lumbar labels;
+9 had exactly four (all concordant with CTPelvic1K sacralization
+or semi-sacralization qualifiers).
+
+% ── FIGURE: Bone-HU histogram ────────────────────────────────────────────────
+\begin{figure}[t]
+\floatconts{fig:bonehu_dist}
+  {\caption{\textbf{Bone-HU coverage distribution across 1{,}498
+    placed masks.}
+    Spine ($N=784$, blue) and pelvic ($N=714$, orange) both show
+    strong bimodal separation between correctly matched
+    soft-tissue-kernel CT series ($f_\text{bone}>0.5$; dominant right
+    mode) and mismatched or scout-image series
+    ($f_\text{bone}\approx 0$; small left mode).
+    The gap between modes validates bone-HU maximization as a
+    series-selection criterion without any metadata dependence.}}
+  {%
+    \includegraphics[width=\columnwidth]{images/fig1_bone_pct_histogram.png}%
+  }
+\end{figure}
+
+% =============================================================================
+\section{Zero-Shot Benchmark: TotalSegmentator}
+\label{sec:results}
+
+We evaluate TotalSegmentator---a widely used open-source multi-organ
+CT segmentation model~\citep{Wasserthal2023TotalSegmentator:Images}---
+as a zero-shot baseline on \dataset{}.
+This isolates the \emph{anomaly gap}: the performance cost, at the
+lumbosacral junction, of a model whose training distribution and
+label vocabulary were not designed with LSTV in mind.
+
+\subsection{Inference Setup}
+
+Off-the-shelf inference with the pretrained \texttt{total}
+task~\citep{Wasserthal2023TotalSegmentator:Images}, executed in
+\emph{fast mode} (\texttt{--fast}), which resamples the input
+volume to 3~mm isotropic resolution before prediction.
+Inference was run on a single NVIDIA L40S GPU (46~GB) across the
+full \dataset{} matched cohort ($N=921$ volumes completing
+inference: 272 fused, 340 spine-only, 309 pelvic-native), of which
+46 are LSTV-positive (26 sacralization, 16 lumbarization, 4 other).
+We remap TotalSegmentator's native output labels
+(\texttt{vertebrae\_L1}--\texttt{vertebrae\_L5}, \texttt{sacrum},
+\texttt{hip\_left}, \texttt{hip\_right}) to our 10-class scheme.
+TotalSegmentator does not emit an L6 class, so class~6 performance
+is zero by construction; for lumbarization cases whose ground
+truth contains an L6 body, this contributes a hard failure mode
+that directly quantifies the clinical gap.
+Because TotalSegmentator was not trained on any \dataset{} case,
+we evaluate it zero-shot on the full matched cohort rather than
+restricting to the 52-case test split; this materially increases
+the statistical power of the LSTV-subgroup analysis
+(Section~\ref{sec:lstv_subgroup}).
+The 3~mm fast-mode setting trades approximately 1--2 DSC points of
+headline performance~\citep{Wasserthal2023TotalSegmentator:Images} for
+$\sim$20$\times$ wall-clock speedup; we report fast-mode numbers as
+a realistic deployment proxy, noting that the LSTV performance
+gap reported below is a property of TS's label vocabulary
+(no L6 class) and training distribution, not of the resampling
+resolution.
+
+\paragraph{Scoring protocol.}
+Every metric is scored only against the labels a case actually
+carries; no metric is ever computed against an unobserved region.
+Per-class DSC (Table~\ref{tab:results}) is therefore reported on the
+272 fused cases alone, which have complete ground truth. The
+subgroup junction metrics (Table~\ref{tab:lstv_ts}, over all 921
+inferred cases) are scored per configuration against only the
+present labels: a spine-only case scores L1--L6, a pelvic-only case
+scores sacrum/hips, a fused case scores all nine; the junction DSC
+and error rate count voxels only where ground truth exists, and
+cases lacking both L5 and sacrum in the ground truth are excluded.
+The scoring code is in the released repository.
+
+\subsection{Per-Class Performance on the Full Fused Cohort}
+
+Table~\ref{tab:results} reports per-class DSC on the full fused
+cohort ($n=272$).
+
+\begin{table}[t]
+\floatconts{tab:results}
+  {\caption{TotalSegmentator zero-shot per-class DSC (\%) on the
+    full \dataset{} fused cohort ($n=272$), fast mode (3~mm).
+    Junction DSC is evaluated over a 40~mm axial window centered
+    on the L5/S1 boundary. Class~6 (L6) is zero by construction:
+    TotalSegmentator does not emit an L6 class.}}
+  {\small\begin{tabular}{lcccc}
+  \toprule
+  \bfseries Model & \bfseries L1--L5 & \bfseries L6
+    & \bfseries Sacrum & \bfseries Jxn DSC \\
+  \midrule
+  TotalSegmentator & 85.4 & \phantom{0}0.0$^\star$ & 77.4 & 76.6 \\
+  \midrule
+  \multicolumn{5}{l}{\footnotesize
+    $^\star$ TotalSegmentator does not emit an L6 class
+    (structurally zero).}\\
+  \multicolumn{5}{l}{\footnotesize
+    L1--L5 is the mean of L1=84.7, L2=84.6, L3=85.7, L4=86.0,
+    L5=85.9.}\\
+  \bottomrule
+  \end{tabular}}
+\end{table}
+
+TotalSegmentator achieves 85.4\% mean L1--L5 Dice and 77.4\%
+sacrum Dice on the full fused cohort, but drops to 76.6\% at the
+L5/S1 junction window---and, critically, collapses further on
+LSTV-positive cases (Section~\ref{sec:lstv_subgroup}).
+This baseline is well motivated: TotalSegmentator is a widely used
+open-source multi-organ CT segmentation model, and its failure mode
+on \dataset{}'s LSTV subgroup constitutes the concrete anomaly gap
+our benchmark is designed to close.
+
+\subsection{LSTV Subgroup Analysis}
+\label{sec:lstv_subgroup}
+
+Because TotalSegmentator is zero-shot on \dataset{}, every matched
+case is a valid test case; we therefore evaluate its LSTV-subgroup
+performance on the full matched cohort rather than the 52-case
+fused test split.
+This yields 46 LSTV-positive cases (26 sacralization,
+16 lumbarization, 4 other) alongside 875 normal-anatomy cases---a
+sample size sufficient to resolve phenotype-stratified performance
+differences at the junction.
+Table~\ref{tab:lstv_ts} reports the stratified analysis.
+
+\begin{table}[t]
+\floatconts{tab:lstv_ts}
+  {\caption{TotalSegmentator zero-shot performance stratified by
+    LSTV phenotype (fast mode, 3~mm).
+    Jxn~DSC = 40~mm axial-window Dice at the L5/S1 boundary;
+    ErrRate = per-voxel class-mismatch fraction within that window;
+    TS\_L6 = count of cases in which TS emitted any L6 voxel
+    (structurally zero by label vocabulary).
+    The 19.6-point junction-DSC gap between Normal and Any-LSTV
+    concretely quantifies the clinical cost of the anomaly gap.}}
+  {\small\begin{tabular}{lrccc}
+  \toprule
+  \bfseries Subgroup & \bfseries $n$
+    & \bfseries Jxn DSC & \bfseries ErrRate & \bfseries TS\_L6 \\
+  \midrule
+  Normal              & 875 & 0.770 & 0.330 & 0 \\
+  Any LSTV            &  46 & 0.574 & 0.317 & 0 \\
+  \quad Sacralization &  26 & 0.651 & 0.213 & 0 \\
+  \quad Lumbarization &  16 & 0.421 & 0.526 & 0 \\
+  \bottomrule
+  \end{tabular}}
+\end{table}
+
+Three findings stand out.
+First, the junction DSC gap between Normal (0.770) and Any-LSTV
+(0.574) is 19.6 points---a clinically large disparity at the
+exact anatomic level where wrong-level surgery risk is
+concentrated.
+Second, the disparity is driven asymmetrically by phenotype:
+sacralization cases retain 0.651 junction DSC, whereas
+lumbarization cases collapse to 0.421.
+The gap is mechanistic rather than mysterious: every
+lumbarization case carries a ground-truth L6 body that TS cannot
+emit (\texttt{TS\_L6}${=}0$ across all 16 cases), so the L5/S1
+window is guaranteed to contain a voxel-count proportion of
+unrecoverable error.
+Third, per-vertebra Dice degrades monotonically from L1 (58.6\%)
+to L5 (37.2\%) within the Any-LSTV subgroup, confirming that the
+loss of performance concentrates at the caudal lumbar levels
+rather than being distributed uniformly across the spine.
+
+Per-case qualitative predictions for the 9 LSTV-positive cases in
+the fused test split, together with agreement-status
+stratification, are provided in Appendix~\ref{app:lstv_cases}.
+
+% =============================================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{Partial-annotation training unlocks the full data scale.}
+For federated annotation sources---the normal case when fusing
+independently curated datasets---discarding partial cases imposes a
+silent two-thirds data penalty at the \dataset{} scale.
+Ignore-label training lets every annotated voxel contribute
+supervision only where its class is observed.
+The pattern generalizes beyond spine/pelvis fusion: any multi-source
+dataset where different teams annotate different structures on the
+same underlying images can apply this mechanism directly.
+
+\paragraph{The confusion zone is a scientific contribution.}
+The 0\% cross-source sacralization agreement documents, at scale,
+that two legitimate expert-level annotation strategies for the same
+anatomical feature produce non-overlapping classifications at the
+Castellvi Type~I--II boundary.
+No prior spine ML benchmark has reported this because no prior
+benchmark retained both annotation sources with their labels intact.
+The \texttt{lstv\_agreement} flag makes the ambiguity explicit,
+enabling uncertainty-aware training and calibration benchmarking
+on known-ambiguous cases.
+
+\paragraph{The anomaly gap is empirically measurable.}
+The zero-shot TotalSegmentator benchmark directly quantifies the
+clinical cost of the anomaly gap: a widely used open-source
+multi-organ CT segmentation model loses 19.6 junction-DSC points
+from Normal to Any-LSTV cases, and 34.9 points on lumbarization
+specifically (0.770 $\rightarrow$ 0.421).
+Of the lumbarization-case error, a mechanically identifiable
+fraction traces to a single architectural decision---the absence of
+an L6 output class---illustrating how label vocabulary choices made
+during benchmark design propagate as hard failure modes years
+later in deployment.
+
+\paragraph{Implications for surgical planning AI.}
+Transitional anatomy is a documented driver of wrong-level spine
+surgery and altered
+instrumentation~\citep{Konin2010LumbosacralRelevance,Carrino2011EffectImaging},
+so confident mislabeling at L5/S1 carries direct clinical cost.
+A segmentation model that outputs high uncertainty at L5/S1 for a
+Castellvi Type~II case is therefore more useful to a surgeon than one
+that outputs a hard incorrect label with high confidence.
+\dataset{} provides the annotation structure necessary to train
+and evaluate such models.
+
+\paragraph{The coordinate convention problem is general.}
+The Y-axis reflection between CTSpine1K and CTPelvic1K is an
+instance of a broad failure class: whenever independent teams
+convert the same DICOM source using different toolchains, silently
+inverted NIfTI axes result.
+Any multi-source fusion pipeline must validate affine-derived world
+coordinates for representative landmarks.
+
+\paragraph{Limitations.}
+\dataset{} derives from colonoscopy-protocol CT (soft-tissue kernel),
+which may not generalize to the bone-kernel protocols used in some
+surgical planning workflows; we keep this an explicit scope
+restriction rather than claiming surgical-CT transfer.
+LSTV is a stratified subgroup, not the primary contribution: 53 LSTV
+volumes from 33 distinct patients (a separate-mode patient is two
+scans). We therefore frame \dataset{} as an LSTV-aware spinopelvic
+benchmark, and the headline findings---0\% cross-source agreement and
+the anomaly gap---do not depend on large $N$. The LSTV labels are not
+merely inherited: every LSTV case received an independent radiologist
+Castellvi read (Section~\ref{sec:lstv_arbitration}), and the 0\%
+sacralization agreement reflects a genuine criterion difference, not
+annotator error. Semi-sacralization has limited representation
+($n=3$).
+TotalSegmentator was evaluated in fast mode (3~mm isotropic
+resampling); full-resolution (1.5~mm) inference would be expected
+to recover 1--2 DSC points on standard anatomy, but the
+label-vocabulary-driven lumbarization failure mode is
+resolution-invariant.
+The nnU-Net v2 baseline is trained (5-fold cross-validation; it
+produced the out-of-fold pelvic completion), and its code and
+trained checkpoints are public; what remains for camera-ready is the
+quantitative trained-baseline evaluation on the fused test split and
+the fused-only versus all-cases ablation that directly tests the
+ignore-label claim. Consequently that head-to-head comparison is
+described here but not yet empirically reported.
+The COLONOG cohort (colonoscopy-screening age, 45--75, US academic
+centers) may not represent the full distribution of spine morphology
+in surgical planning populations.
+
+\paragraph{Future directions.}
+Immediate next steps include: evaluating the trained nnU-Net v2
+baseline under the partial-annotation protocol described in
+Section~\ref{sec:ignore_label} on the fused test split; reporting
+leak-safe out-of-fold Dice of the model-completed pelves---the only
+model-generated labels---against CTPelvic1K's pelvic-only ground
+truth; running a fused-only vs.\ all-cases ablation to isolate the
+contribution of ignore-label training; and benchmarking additional
+architectures---including the cross-scale attention architecture of
+\citet{Li2025LumbarMechanism} and other recent spine-pelvis fusion
+models---on the released benchmark.
+Within the spine domain, further extensions include Castellvi
+sub-type classification (Type~I--IV), bone-kernel protocol
+inclusion, and validation on LSTV-enriched external cohorts with
+independent re-reading.
+The patient-anchored pipeline introduced here is also applicable
+in principle to other TCIA collection pairs that share a patient
+cohort; empirical validation on such extensions is beyond the scope
+of the present work.
+
+% ACKNOWLEDGEMENTS (camera-ready only)
+% \acks{Many thanks to all collaborators and funders.}
+
+\bibliography{bib/references}
+
+\newpage
+\appendix
+
+% =============================================================================
+\section{PatientDB Schema}
+\label{app:patientdb}
+
+PatientDB organizes all data using canonical patient UID as the
+primary key, with five entities:
+\texttt{PATIENT} (root entity indexed by canonical UID);
+\texttt{TCIA\_SERIES} (CT acquisitions per patient);
+\texttt{SPINE\_MASK} and \texttt{PELVIC\_MASK} (annotation entities
+from CTSpine1K and CTPelvic1K respectively); and
+\texttt{PLACED\_CASE} (output rows in the final manifest,
+linking a mask to its selected series and fusion type).
+The separation of identity (Phase~1) from alignment (Phase~2)
+reduces a globally intractable matching problem to a locally
+bounded one per patient, and generalizes immediately to any TCIA
+collection pair sharing a patient cohort.
+
+% =============================================================================
+\section{Pipeline Construction (Detailed)}
+\label{app:pipeline}
+
+Figure~\ref{fig:pipeline} illustrates the patient-anchored
+construction pipeline in full.
+All styles in the TikZ diagram use pure named colors as style
+arguments; no compound color (of the form \texttt{A!n}) is passed
+as a parameterized argument.
+
+% ── FIGURE: Pipeline TikZ (moved to appendix) ────────────────────────────────
+% DO NOT MODIFY THIS FIGURE
+\begin{figure*}[t]
+\floatconts{fig:pipeline}
+  {\caption{\textbf{Patient-anchored \dataset{} construction pipeline.}
+    \textbf{(a)}~Phase~1: canonical UID matching builds PatientDB.
+    \textbf{(b)}~Phase~2: bone-HU exhaustive search assigns each
+    mask to its optimal series; outcomes merge into the manifest.
+    \textbf{(c)}~The manifest feeds the 10-class schema and
+    two-source LSTV summary.
+    $\star$~=~bone-HU winner.}}
+  {\centering%
+\makebox[\textwidth][c]{%
+\begin{tikzpicture}[x=1.0cm, y=1.0cm,
+  every node/.style={font=\small},
+  dsbox/.style={rectangle, rounded corners=4pt, minimum width=2.5cm,
+                minimum height=0.95cm, draw=#1!70!black, fill=#1!12,
+                thick, align=center, inner sep=4pt},
+  mainbox/.style={rectangle, rounded corners=5pt, minimum width=3.8cm,
+                  minimum height=1.0cm, draw=#1!80!black, fill=#1!15,
+                  very thick, align=center, inner sep=4pt},
+  widebin/.style={rectangle, rounded corners=3pt, minimum width=5.6cm,
+                  minimum height=0.8cm, draw=#1!70!black, fill=#1!10,
+                  thick, align=center, inner sep=4pt},
+  smallbox/.style={rectangle, rounded corners=3pt, minimum width=2.2cm,
+                   minimum height=0.75cm, draw=#1!80!black, fill=#1!13,
+                   thick, align=center, inner sep=3pt},
+  seriesbox/.style={rectangle, rounded corners=2pt, minimum width=2.8cm,
+                    minimum height=0.62cm, draw=metalgray!60!white,
+                    fill=metalgray!6!white, thin, align=left, inner sep=4pt},
+  winnerbox/.style={rectangle, rounded corners=2pt, minimum width=2.8cm,
+                    minimum height=0.62cm, draw=winner!80!black,
+                    fill=winner!10!white, thick, align=left, inner sep=4pt},
+  panellabel/.style={font=\bfseries\normalsize, text=white,
+                     fill=metalgray!80!black, rounded corners=3pt,
+                     inner sep=3pt, minimum width=0.6cm},
+  seclabel/.style={font=\bfseries\footnotesize, text=metalgray!60!black},
+  arr/.style={-Stealth, thick, color=arrowgray},
+  arrthin/.style={-Stealth, thin, color=metalgray},
+  arrgr/.style={-Stealth, thick, color=winner!80!black},
+]
+\fill[panelbg, rounded corners=6pt] (-0.3,-0.5) rectangle (4.8, 8.5);
+\fill[panelbg, rounded corners=6pt] (5.1,-0.5) rectangle (12.2, 8.5);
+\fill[panelbg, rounded corners=6pt] (12.5,-0.5) rectangle (16.8, 8.5);
+\node[panellabel] at (0.15, 8.2) {(a)};
+\node[panellabel] at (5.45, 8.2) {(b)};
+\node[panellabel] at (12.85,8.2) {(c)};
+\node[seclabel, anchor=west] at (0.55, 8.2)
+  {\textsc{Phase 1: PatientDB}};
+\node[seclabel, anchor=west, text width=5.8cm] at (5.85, 8.2)
+  {\textsc{Phase 2: Intrapatient Exhaustive Search}};
+\node[seclabel, anchor=west] at (13.25, 8.2)
+  {\textsc{Output Manifest}};
+\node[dsbox=colonog] (colonog) at (0.8, 6.7)
+  {\textbf{\color{colonog!80!black}COLONOG}\\[-2pt]
+   \scriptsize 825 patients\\[-2pt]\scriptsize paired CTs};
+\node[dsbox=ctspine] (ctspine) at (2.2, 5.0)
+  {\textbf{\color{ctspine!80!black}CTSpine1K}\\[-2pt]
+   \scriptsize 784 spine segs};
+\node[dsbox=ctpelv] (ctpelv) at (3.4, 3.3)
+  {\textbf{\color{ctpelv!80!black}CTPelvic1K}\\[-2pt]
+   \scriptsize 714 pelvic masks};
+\node[rectangle, rounded corners=3pt, draw=metalgray!50!white,
+      fill=white, minimum width=4.0cm, inner sep=4pt,
+      align=center] (canon) at (1.8, 1.8)
+  {\footnotesize\textbf{Canonical UID Matching}\\[1pt]
+   \footnotesize $\text{canon}(u)=\text{prefix}\,\|\,
+   \text{int}(\text{suffix})$};
+\draw[arr] (colonog.south) -- ++(0,-0.45)
+  -| ($(canon.north west)!0.15!(canon.north east)$);
+\draw[arr] (ctspine.south) -- ++(0,-0.28)
+  -| ($(canon.north west)!0.50!(canon.north east)$);
+\draw[arr] (ctpelv.south)  -- ++(0,-0.18)
+  -| ($(canon.north west)!0.85!(canon.north east)$);
+\node[mainbox=patdb, minimum width=4.0cm,
+      minimum height=1.3cm] (patdb) at (1.8, 0.15)
+  {\textbf{\color{patdb!80!black}PatientDB}\\[1pt]
+   \scriptsize \texttt{patient\_id}\,\textit{[PK]}\quad
+   \texttt{tcia\_series[]}\quad\texttt{masks[]}};
+\draw[arr] (canon.south) -- (patdb.north);
+\node[widebin=patdb] (ptreg) at (8.6, 7.0)
+  {\small Patient Registry\quad $p \in \{1,\ldots,802\}$};
+\node[smallbox=ctspine] (smask) at (6.7, 5.7)
+  {\footnotesize\textbf{Spine Seg} $m_s$\\[-2pt]
+   \scriptsize world-space affine};
+\node[smallbox=ctpelv] (pmask) at (10.5, 5.7)
+  {\footnotesize\textbf{Pelvic Mask} $m_p$\\[-2pt]
+   \scriptsize Y-flip + z-xcorr};
+\draw[arr] (ptreg.south) -- ++(0,-0.2) -| (smask.north);
+\draw[arr] (ptreg.south) -- ++(0,-0.2) -| (pmask.north);
+\node[winnerbox] (sc1) at (6.7, 4.6)
+  {\scriptsize $s_1$: prone\quad $f_\text{bone}{=}72\%$\;$\star$};
+\node[seriesbox] (sc2) at (6.7, 3.9)
+  {\scriptsize $s_2$: supine\quad
+   $f_\text{bone}{=}\phantom{0}5\%$};
+\node[seriesbox] (sc3) at (6.7, 3.2)
+  {\scriptsize $s_3$: scout\quad
+   $f_\text{bone}{=}\phantom{0}0\%$};
+\draw[arrthin] (smask.south)--(sc1.north);
+\draw[arrthin] (sc1.south)--(sc2.north);
+\draw[arrthin] (sc2.south)--(sc3.north);
+\node[rectangle, rounded corners=2pt, draw=winner!70!black,
+      fill=winner!8!white, inner sep=3pt, minimum width=2.8cm,
+      align=center] (sarg) at (6.7, 2.3)
+  {\scriptsize $s^*(m_s){=}\displaystyle\argmax_{s}f_\text{bone}$};
+\draw[arrgr] (sc3.south)--(sarg.north);
+\node[seriesbox] (pc1) at (10.5, 4.6)
+  {\scriptsize $s_1$: prone\quad
+   $f_\text{bone}{=}\phantom{0}8\%$};
+\node[winnerbox] (pc2) at (10.5, 3.9)
+  {\scriptsize $s_2$: supine\quad $f_\text{bone}{=}71\%$\;$\star$};
+\node[seriesbox] (pc3) at (10.5, 3.2)
+  {\scriptsize $s_3$: scout\quad
+   $f_\text{bone}{=}\phantom{0}0\%$};
+\draw[arrthin] (pmask.south)--(pc1.north);
+\draw[arrthin] (pc1.south)--(pc2.north);
+\draw[arrthin] (pc2.south)--(pc3.north);
+\node[rectangle, rounded corners=2pt, draw=winner!70!black,
+      fill=winner!8!white, inner sep=3pt, minimum width=2.8cm,
+      align=center] (parg) at (10.5, 2.3)
+  {\scriptsize $s^*(m_p){=}\displaystyle\argmax_{s}f_\text{bone}$};
+\draw[arrgr] (pc3.south)--(parg.north);
+\node[diamond, draw=arrowgray, fill=white, thick,
+      minimum width=2.2cm, minimum height=1.6cm,
+      inner sep=2pt, align=center] (fuse) at (8.6, 1.25)
+  {\footnotesize$s^*_s{=}s^*_p$?};
+\draw[arr] (sarg.south) -- ++(0,-0.15) -| (fuse.west);
+\draw[arr] (parg.south) -- ++(0,-0.15) -| (fuse.east);
+\node[smallbox=fuseblue] (fused) at (6.7, 0.1)
+  {\footnotesize\textsc{fused}\\[-2pt]\scriptsize same CT};
+\node[smallbox=sepamber] (sep) at (10.5, 0.1)
+  {\footnotesize\textsc{separate}\\[-2pt]\scriptsize own CT each};
+\draw[arr] (fuse.west)
+  -- node[above,font=\footnotesize,fill=white,inner sep=1pt,pos=0.3]
+     {\textit{yes}}
+  (fused.north east);
+\draw[arr] (fuse.east)
+  -- node[above,font=\footnotesize,fill=white,inner sep=1pt,pos=0.3]
+     {\textit{no}}
+  (sep.north west);
+\node[rectangle, rounded corners=5pt, draw=metalgray!60!black,
+      fill=white, very thick, minimum width=3.8cm,
+      minimum height=2.4cm, inner sep=6pt,
+      align=left] (mbox) at (14.65, 1.5)
+  {\footnotesize\texttt{placed\_manifest.json}\\[3pt]
+   \scriptsize\textcolor{fuseblue}{\rule{6pt}{6pt}}\enspace
+     \textsc{fused}: $N=342$\\[1pt]
+   \scriptsize\textcolor{sepamber}{\rule{6pt}{6pt}}\enspace
+     \textsc{separate}: $N=351$\\[1pt]
+   \scriptsize\textcolor{ctspine!70!black}{\rule{6pt}{6pt}}\enspace
+     \textsc{spine\_only}: $N=89$\\[1pt]
+   \scriptsize\textcolor{ctpelv!70!black}{\rule{6pt}{6pt}}\enspace
+     \textsc{pelvic\_only}: $N=20$\\[2pt]
+   \scriptsize\textbf{1{,}498/1{,}498 placed}};
+\node[rectangle, rounded corners=4pt, draw=metalgray!50!white,
+      fill=white, thick, text width=2.9cm,
+      align=center, inner sep=3pt] (schema) at (14.65, 4.6)
+  {\footnotesize\textbf{10-Class Schema}\\[3pt]
+   \resizebox{2.6cm}{!}{%
+   \begin{tikzpicture}[baseline=0pt, inner sep=0pt,
+                        x=0.38cm, y=0.34cm]
+     \foreach \i/\col/\lbl in {
+       0/colonog!70!white/{L1},
+       1/colonog!50!white/{L2},
+       2/colonog!35!white/{L3},
+       3/ctspine!50!white/{L4},
+       4/ctspine!35!white/{L5},
+       5/yellow!55!orange/{L6},
+       6/red!60!black/{Sc},
+       7/orange!80!white/{LH},
+       8/orange!50!white/{RH}}
+     {
+       \fill[\col, draw=metalgray!30!white, very thin]
+         (\i, 0) rectangle (\i+0.9, 1);
+       \node[font=\tiny] at (\i+0.45, 0.5) {\lbl};
+     }
+   \end{tikzpicture}}\\[2pt]
+   \tiny L1-5\,(1-5)\enspace L6\,(6)\\[-2pt]
+   \tiny Sc\,(7)\enspace LH\,(8)\enspace RH\,(9)};
+\node[rectangle, rounded corners=3pt,
+      draw=lstvcol!60!orange, fill=lstvcol!8!white,
+      thick, inner sep=5pt, minimum width=3.2cm,
+      align=center] (lstv) at (14.65, 7.0)
+  {\scriptsize\textbf{53 LSTV cases}\\[-2pt]
+   \tiny 22 lumb.\,$|$\,3 semi\,$|$\,28 sacral.\\[-2pt]
+   \tiny \textbf{two-source flags included}};
+\coordinate (junc) at (8.6, -0.72);
+\draw (fused.south) -- ++(0,-0.45) -| (junc);
+\draw (sep.south)   -- ++(0,-0.45) -| (junc);
+\draw[arr] (junc) -- ++(0,-0.15) -| (mbox.south);
+\draw[arrthin] (mbox.north) -- (schema.south);
+\draw[arrthin] (schema.north) -- (lstv.south);
+\end{tikzpicture}
+}
+  }
+\end{figure*}
+% ── END FIGURE ───────────────────────────────────────────────────────────────
+
+% =============================================================================
+\section{Algorithms and Implementation}
+\label{app:algorithm}
+
+\begin{algorithm}[h]
+\caption{Phase~2: Intrapatient Exhaustive Series Assignment}
+\label{alg:phase2}
+\begin{algorithmic}[1]
+\REQUIRE PatientDB $\mathcal{D}$, alignment function
+  $\textsc{Align}(m, s)$ returning placed voxels $\mathcal{L}$
+\REQUIRE Bone-HU threshold $\tau = 200$~HU
+\ENSURE Placement manifest $\mathcal{M}$
+\FOR{each patient $p \in \mathcal{D}$}
+  \STATE $\mathcal{S}_p \leftarrow$ CT-quality series for patient $p$
+  \FOR{each mask $m \in
+    \{\textsc{SpineMasks}(p) \cup \textsc{PelvicMasks}(p)\}$}
+    \STATE $f^* \leftarrow 0$, $s^* \leftarrow \varnothing$
+    \FOR{each series $s \in \mathcal{S}_p$}
+      \STATE $\mathcal{L} \leftarrow \textsc{Align}(m, s)$
+      \STATE $f \leftarrow
+        |\{v \in \mathcal{L} : I_s(v) > \tau\}| / |\mathcal{L}|$
+      \IF{$f > f^*$}
+        \STATE $f^* \leftarrow f$,\; $s^* \leftarrow s$
+      \ENDIF
+    \ENDFOR
+    \STATE $\mathcal{M}[p][m] \leftarrow (s^*,\, f^*)$
+    \STATE Persist aligned mask $\mathcal{L}^*$ to \texttt{placed/}
+  \ENDFOR
+\ENDFOR
+\RETURN $\mathcal{M}$
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{NIfTI orientation convention.}
+All placed masks are saved in PIR (Posterior-Inferior-Right)
+orientation, matching MONAI \texttt{Orientationd(axcodes=`PIR')}
+at training time.
+
+\paragraph{TotalSegmentator inference configuration.}
+TotalSegmentator v2 (\texttt{total} task) was run in fast mode
+(\texttt{--fast}), which triggers the 3~mm isotropic-resampling
+model rather than the default 1.5~mm variant.
+Inference was executed per case on a single NVIDIA L40S GPU
+(46~GB); typical per-case wall-clock time was 20--60 seconds,
+dominated by the two-stage resample/predict loop.
+Of the 1{,}153 matched volumes, 921 completed inference
+successfully and are reported in Tables~\ref{tab:results} and
+\ref{tab:lstv_ts}; failures were attributable to input-header
+edge cases and are excluded rather than imputed.
+Output labels were remapped one-to-one onto the 10-class
+\dataset{} scheme, with TS \texttt{sacrum} $\rightarrow$ class~7,
+\texttt{vertebrae\_L1}--\texttt{L5} $\rightarrow$ classes 1--5,
+\texttt{hip\_left}/\texttt{hip\_right} $\rightarrow$ classes 8/9.
+Class~6 (L6) has no TS source class by construction.
+
+\paragraph{Partial-annotation label rewrite.}
+The conversion script \texttt{tools/convert\_hf\_to\_nnunet.py}
+reads each case's label NIfTI; for
+\textsc{spine-only} and \textsc{pelvic-only} cases, voxels with
+value 0 are rewritten to 255 (the declared \texttt{ignore\_label})
+before being written to \texttt{labelsTr/}.
+\textsc{fused} cases are copied verbatim. The resulting
+\texttt{dataset.json} declares:
+\texttt{"labels":\{"background":0,\dots,"right\_hip":9,"ignore":255\}}.
+
+\paragraph{nnU-Net configuration.}
+The trained baseline uses nnU-Net v2
+with the ResEncM planner, GPU memory target 100~GB, overwritten
+plans name \texttt{nnUNetResEncUNetPlans\_100G}, configuration
+\texttt{3d\_fullres}, and a 100-epoch trainer variant.
+Loss: \texttt{DC\_and\_CE\_loss} (nnU-Net default). Precision: bf16
+mixed. One H200 GPU (140~GB HBM3e). Trained under 5-fold
+cross-validation; the \texttt{splits\_final.json} is generated by
+the conversion script to match our stratified split assignment
+exactly, and the resulting checkpoints are released.
+
+\paragraph{Two-source LSTV flag schema.}
+Each manifest record includes:
+\texttt{lstv\_pelvic} (CTPelvic1K morphological label);
+\texttt{lstv\_vertebral} (CTSpine1K counting heuristic);
+\texttt{lstv\_agreement} (Boolean: both sources agree on non-Normal
+classification);
+\texttt{lstv\_confusion\_zone} (Boolean: sources disagree on LSTV
+status, marking a confusion-zone case).
+
+% =============================================================================
+\section{LSTV Case Details}
+\label{app:lstv_cases}
+
+The 9 LSTV-positive test cases are distributed as:
+2 fused (1 lumbarization, 1 sacralization), 3 spine-only
+(1 lumbarization, 2 sacralization), and 4 pelvic-native
+(2 lumbarization, 2 sacralization).
+Per-case qualitative predictions, agreement status, and junction
+segmentation overlays are provided with the released dataset as
+\texttt{lstv\_test\_qualitative.pdf}; the small cohort size
+precludes reporting sensitivity/specificity with meaningful
+confidence intervals here.
+
+\end{document}
