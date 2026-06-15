@@ -1,10 +1,10 @@
 """
 build_v3_ribs.py — derive the v3 tree from v2 with a TotalSegmentator pass:
-GT-matched ribs + femurs + spinal_cord + intervertebral_discs.
+GT-matched ribs + femurs + spinal_cord.
 
 v2 ships radiologist spine GT + model-pseudolabelled pelves (classes 1..9, ignore
 10). v3 = v2 + a TotalSegmentator pass (one inference/case) adding GT-matched ribs
-plus extra structures (femurs, spinal_cord, intervertebral_discs). Ribs are emitted
+plus extra structures (femurs, spinal_cord). Ribs are emitted
 ONLY where a GT thoracic vertebra backs them: for each GT vertebra T_N present in
 the spine mask, the TS rib whose head sits at that level (nearest in Z, within ~1
 vertebra) is labelled rib N; ribs with no GT vertebra at their level are dropped,
@@ -24,9 +24,9 @@ missed ribs across the costovertebral joint gap; this Z-level match does not.)
 Output label scheme (v3)
 ------------------------
 Spine/pelvis GT 1..9 untouched | rib_left N -> 9+N (10..21) | rib_right N -> 21+N
-(22..33) | then EXTRA_ROIS at 34.. (femur_left, femur_right, spinal_cord,
-intervertebral_discs) | ignore highest. Additions land on background only; GT
-voxels are never overwritten. v3_label_dict() is the exact map.
+(22..33) | then EXTRA_ROIS at 34.. (femur_left, femur_right, spinal_cord) |
+ignore highest. Additions land on background only; GT voxels are never
+overwritten. v3_label_dict() is the exact map.
 
 This is the v3 build stage invoked by slurm/ship_v3.sh inside the TS container.
 """
@@ -59,10 +59,10 @@ RIB_NAMES: List[str] = (
     [f"rib_left_{i}" for i in range(1, 13)] + [f"rib_right_{i}" for i in range(1, 13)]
 )
 # Extra single-label ROIs added directly (no GT anchoring), in label-id order.
-# Any name not actually in TS's CT "total" task is skipped at runtime with a warning
-# (so it is safe to list MR-only classes like intervertebral_discs here).
-EXTRA_ROIS: List[str] = ["femur_left", "femur_right", "spinal_cord",
-                         "intervertebral_discs"]
+# Any name not in TS's CT "total" task is skipped at runtime with a warning.
+# (intervertebral_discs is MR-only on TS, so per-level discs are derived
+# geometrically from the GT vertebrae instead -- not requested here.)
+EXTRA_ROIS: List[str] = ["femur_left", "femur_right", "spinal_cord"]
 TS_ROI_NAMES: List[str] = RIB_NAMES + EXTRA_ROIS
 
 # VerSe ids 8..19 == thoracic T1..T12 (rib anchors).
