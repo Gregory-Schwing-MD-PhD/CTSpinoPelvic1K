@@ -360,9 +360,15 @@ VERSE_TO_10CLASS: Dict[int, int] = {
 #   no ribs) from the T-vs-L distinction and from native ribs once labelled.
 #   There is NO stored anchor class (the old 11/12 are retired).
 # - Classes 33-62 (femur, full rib cage, sternum, costal cartilages) are
-#   RESERVED names only — not in this map (no GT source yet), future annotation.
+#   RESERVED names only — not in this map (no GT source yet).
 # - ignore stays 10; this change is decoupled from the pseudolabeller, which
 #   only fills bg/ignore voxels and never touches these foreground labels.
+#
+# NOTE: this is the LEGACY scheme (v1/v2, the original nnU-Net training artifact).
+# It is intentionally kept as-is. The v3 bone branch does NOT use this reservation:
+# build_v3_totalseg.py emits its own training-contiguous scheme (ribs 10-33,
+# femur_left/right 34/35, S1 36, ignore 37) and ships it as v3's dataset_labels.json.
+# The two schemes are independent and per-branch self-describing; do not merge them.
 PELVIC_TO_10CLASS: Dict[int, int] = {1: 7, 2: 8, 3: 9}
 
 CLASS_NAMES = {

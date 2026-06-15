@@ -38,14 +38,20 @@ spine and pelvic labels target different prone/supine acquisitions
 1. **Vertebrae are radiologist ground truth, full stop** — we never ship a
    pseudolabelled spine. The L1–L6 / L6 / sacrum calls and the transitional
    adjudications come from CTSpine1K's radiologists.
-2. **A built-in counting anchor** — the **last rib-bearing vertebra** (T12 =
-   class 31), the vertebra directly above ground-truth L1. It is **not a separate
-   class**, just the last thoracic vertebra in the native column. You can't tell
-   L5 from L6 locally; with a fixed cranial anchor + the sacrum, the lumbar count
-   (hence L5-vs-L6) is deterministic, and the model learns rib-bearing-ness from
-   the thoracic-vs-lumbar distinction. The anchor is free from GT (present on
-   783/784 abdominopelvic studies; earlier exports just dropped the thoracic
-   column). See [docs/RIB_ANCHOR_RATIONALE.md](docs/RIB_ANCHOR_RATIONALE.md).
+2. **Two counting anchors — rostral and caudal.** You can't tell L5 from L6
+   locally, but the lumbar column is bracketed by two fixed landmarks, so the count
+   (hence L5-vs-L6) is deterministic:
+   - **Rostral — T12**, the last rib-bearing vertebra (class 31 in the legacy
+     scheme), directly above ground-truth L1. Not a separate class — just the last
+     thoracic vertebra in the native column. Free from GT (present on 783/784
+     abdominopelvic studies; earlier exports just dropped the thoracic column).
+   - **Caudal — S1**, the first sacral body, segmented in **v3** as a distinct
+     class ((GT sacrum) ∩ (TS `vertebrae_S1`)) — the bottom bracket of the lumbar
+     count, and the sacral-endplate landmark for sacral slope / pelvic incidence.
+
+   With a fixed cranial anchor above L1 and the sacrum/S1 below L5–L6, the model
+   learns rib-bearing-ness from the thoracic-vs-lumbar distinction. See
+   [docs/RIB_ANCHOR_RATIONALE.md](docs/RIB_ANCHOR_RATIONALE.md).
 3. **LSTV captured from both ends, and graded** — vertebral count (CTSpine1K)
    *and* pelvic annotation (CTPelvic1K), expert Castellvi-graded (see below).
 4. **Honest about the pelvis** — real where fused, pseudolabelled (leak-safe)
@@ -60,14 +66,19 @@ Versions:
   pelvis (real where fused, pseudolabelled on `spine_only`), `fused + spine_only`
   only. `pelvic_native` is dropped (held out for pelvis validation). This is the
   LSTV-segmenter training artifact, with no `ignore` voxels on the shipped cases.
-- **v3** *(roadmap)* — adds the student-annotated rib cage (classes 35+, reserved now).
+- **v3** — **bone-augmented** (TotalSegmentator): v2 plus GT-vertebra-matched ribs,
+  both femurs, and an S1 body carved from the sacrum. Uses its **own contiguous**
+  label scheme (see *v3 label scheme* below), distinct from the legacy scheme.
 
 > **Reviewing segmentations?** If you were asked to help correct the AI-drafted
 > labels, see **[docs/REVIEW.md](docs/REVIEW.md)** — account/token setup,
 > install, and how to connect to the distributed review system (and, for the
 > project maintainer, how to stand up the HuggingFace Space backend).
 
-## Labels
+## Labels — legacy scheme (v1 / v2)
+
+The original release scheme, **retained for the existing nnU-Net training**. v3 uses
+its own scheme (see *v3 label scheme* below).
 
 | ID | Name                  | Source                                            |
 |---:|-----------------------|---------------------------------------------------|
@@ -84,14 +95,37 @@ Versions:
 | 10 | **ignore**            | partial-annotation only — un-traced region, NOT bg |
 | 13–19 | **C1–C7**          | CTSpine1K (VerSe 1–7 → 13–19), native contiguous   |
 | 20–32 | **T1–T13**         | CTSpine1K (VerSe 8–19, 28 → 20–32); **T12 = 31** is the counting anchor |
-| 35–60 | **rib cage** *(reserved)* | rib_left/right 1–13 — reserved, not yet populated |
+| 35–60 | **rib cage** *(reserved, unused)* | superseded by the v3 scheme below — never populated |
 
 CTPelvic1K's sacrum takes priority over CTSpine1K's sacrum (VerSe label 26)
 to avoid the two labelling conventions colliding on lumbosacral transitional
 vertebrae. The vertebral column is native and contiguous (C1–C7 = 13–19,
-T1–T13 = 20–32); the counting anchor is the last thoracic vertebra (T12 = 31),
-not a stored class. The rib-cage IDs (35+) are **reserved and empty** so v3 is
-purely additive.
+T1–T13 = 20–32); the rostral counting anchor is the last thoracic vertebra
+(T12 = 31), not a stored class. The 35–60 rib-cage reservation was **superseded** —
+v3 bone labels use the separate contiguous scheme below.
+
+## v3 label scheme (TotalSegmentator bone)
+
+v3 is bone-augmented and uses its **own contiguous** scheme (ids packed for nnU-Net,
+ignore highest) — distinct from the legacy scheme above. It keeps the v2 spinopelvic
+classes 0–9 and appends bone from one TotalSegmentator pass per case:
+
+| ID | Name | Source |
+|---:|------|--------|
+| 0–9 | background, L1–L6, sacrum, hips | v2 spinopelvic GT |
+| 10–21 | rib_left_1 … rib_left_12 | TS, numbered from the GT thoracic vertebrae |
+| 22–33 | rib_right_1 … rib_right_12 | TS, numbered from the GT thoracic vertebrae |
+| 34 / 35 | femur_left / femur_right | TS |
+| 36 | **S1** (carved from sacrum) | (GT sacrum) ∩ (TS `vertebrae_S1`) |
+| 37 | **ignore** | sentinel |
+
+Ribs are emitted only where a GT thoracic vertebra backs them (numbered from the
+radiologist vertebra, **not** TS); femurs are added directly; S1 subdivides the GT
+sacrum in place (the sacrum's outer boundary stays GT). Bone lands only on
+background, so the v2 spinopelvic labels are unchanged. **Coverage is 802 of 1,153
+volumes** — the spine-anchored + orphan cases; the 351 separate-mode pelvic sides
+keep v2 labels only. The legacy scheme above is kept for the original nnU-Net
+training; v3 and future bone work use this one.
 
 ## LSTV — captured from both ends, expert-graded
 
