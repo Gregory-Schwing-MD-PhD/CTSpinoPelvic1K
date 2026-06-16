@@ -319,41 +319,47 @@ def _save_label(arr, affine, header, out_path: Path) -> None:
 
 
 def _extend_ribs_along_bone(merged: np.ndarray, ct: np.ndarray, *, bone_hu: float = 150.0,
-                            bridge_min: int = 15, bridge_max: int = 6000) -> int:
-    """Extend rib labels (26..49) along UNLABELLED bone to the vertebra.
+                            max_iter: int = 40) -> int:
+    """Extend rib labels (26..49) along connected bone up to the vertebra.
 
-    TS under-segments the posterior rib (neck/head near the spine); the full rib is
-    one continuous bone, so each connected unlabelled-bone component that touches
-    exactly ONE rib is assigned that rib. Labelled vertebrae/sacrum are excluded, so
-    the rib grows up to — never over — them. Returns voxels added."""
+    TS under-segments the posterior rib (neck/head near the spine), leaving a large
+    unlabelled-bone gap between the segmented rib and the costovertebral joint. The
+    full rib is one continuous bone, so we GROW each rib label outward through bone
+    (CT > bone_hu) one 26-connected voxel shell at a time. Growth is confined to
+    unlabelled bone and stops at any labelled structure — so a rib reaches up to, but
+    never over, the (now GT-labelled) thoracic vertebra/transverse process. max_iter
+    bounds the reach (~voxels) so it can't run away into calcified cartilage/sternum.
+    Returns voxels added. Operates on the rib bounding box for speed."""
     if ct.shape != merged.shape:
         return 0
     from scipy import ndimage
     rib_lo, rib_hi = RR.LEFT_OFFSET + 1, RR.RIGHT_OFFSET + 12     # 26..49
-    bone_bg = (ct > bone_hu) & (merged == 0)
-    if not bone_bg.any():
+    ribs0 = (merged >= rib_lo) & (merged <= rib_hi)
+    if not ribs0.any():
         return 0
-    lab, n = ndimage.label(bone_bg, structure=np.ones((3, 3, 3), bool))
-    if not n:
-        return 0
-    rib_only = np.where((merged >= rib_lo) & (merged <= rib_hi), merged, 0).astype(np.int32)
-    rib_dil = ndimage.grey_dilation(rib_only, footprint=np.ones((3, 3, 3)))
+    # crop to the rib bounding box (+ max_iter margin) so the morphology stays cheap
+    idx = np.array(np.nonzero(ribs0))
+    lo = np.maximum(idx.min(1) - (max_iter + 2), 0)
+    hi = np.minimum(idx.max(1) + (max_iter + 2) + 1, np.array(merged.shape))
+    sl = tuple(slice(int(a), int(b)) for a, b in zip(lo, hi))
+    lbl = merged[sl].copy()
+    bone = ct[sl] > bone_hu
+    struct = np.ones((3, 3, 3), bool)
     added = 0
-    for c, sl in enumerate(ndimage.find_objects(lab), 1):
-        if sl is None:
-            continue
-        sub = lab[sl] == c
-        sz = int(sub.sum())
-        if not (bridge_min <= sz <= bridge_max):
-            continue
-        touch = np.unique(rib_dil[sl][sub])
-        touch = touch[(touch >= rib_lo) & (touch <= rib_hi)]
-        if touch.size == 1:                          # bridges exactly one rib
-            block = merged[sl]
-            block[sub] = int(touch[0])
-            merged[sl] = block
-            added += sz
-    return added
+    for _ in range(max_iter):
+        ribs = (lbl >= rib_lo) & (lbl <= rib_hi)
+        rib_vals = np.where(ribs, lbl, 0).astype(np.int32)
+        dil = ndimage.grey_dilation(rib_vals, footprint=struct)     # nearest rib label
+        fill = (lbl == 0) & bone & (dil >= rib_lo) & (dil <= rib_hi)
+        if not fill.any():
+            break
+        lbl[fill] = dil[fill]
+        added += int(fill.sum())
+    ext = (lbl >= rib_lo) & (lbl <= rib_hi) & (merged[sl] == 0)
+    block = merged[sl]
+    block[ext] = lbl[ext]
+    merged[sl] = block
+    return int(added)
 
 
 def _carve_s1_slab(merged: np.ndarray, s1_mask: np.ndarray, affine) -> int:
