@@ -233,17 +233,20 @@ def ts_ribs_and_extras(
     rib_min = min(min_voxels, 50)                              # floating ribs 11/12 are small
     detected: list = []                                        # (side, ts_n, head_z, mask)
     if vert_z and present_vals:
-        x_mid = float(np.median(nib.affines.apply_affine(
-            affine, np.array(np.nonzero(np.isin(arr, present_vals))).T)[:, 0]))
         for v in present_vals:
             s, n = rib_val[v]
             mask = arr == v
             if int(mask.sum()) < rib_min:
                 continue
             world = nib.affines.apply_affine(affine, np.array(np.nonzero(mask)).T)
-            dx = np.abs(world[:, 0] - x_mid)
-            head = dx <= np.quantile(dx, 0.30)                 # medial 30% = costovertebral end
-            detected.append((s, n, float(world[head, 2].mean()), mask))
+            # articulation (costovertebral) level ~ the rib's SUPERIOR margin: the rib
+            # slopes down as it runs lateral/anterior, so its top sits near the head /
+            # vertebra even when TS misses the head itself. A high Z-percentile is
+            # robust to that. The old "mean Z of the medial voxels" read too low and
+            # skewed every offset vote downward -> spurious nonzero offset, dropping
+            # the true lowest ribs.
+            head_z = float(np.percentile(world[:, 2], 85))
+            detected.append((s, n, head_z, mask))
     if detected:
         zs = sorted(vert_z.values())                           # spacing -> match tolerance
         gaps = np.diff(zs); gaps = gaps[(gaps > 10) & (gaps < 50)]
@@ -319,46 +322,44 @@ def _save_label(arr, affine, header, out_path: Path) -> None:
 
 
 def _extend_ribs_along_bone(merged: np.ndarray, ct: np.ndarray, *, bone_hu: float = 150.0,
-                            max_iter: int = 40) -> int:
-    """Extend rib labels (26..49) along connected bone up to the vertebra.
+                            max_component: int = 12000) -> int:
+    """Extend rib labels (26..49) along UNLABELLED bone to the vertebra — safely.
 
-    TS under-segments the posterior rib (neck/head near the spine), leaving a large
-    unlabelled-bone gap between the segmented rib and the costovertebral joint. The
-    full rib is one continuous bone, so we GROW each rib label outward through bone
-    (CT > bone_hu) one 26-connected voxel shell at a time. Growth is confined to
-    unlabelled bone and stops at any labelled structure — so a rib reaches up to, but
-    never over, the (now GT-labelled) thoracic vertebra/transverse process. max_iter
-    bounds the reach (~voxels) so it can't run away into calcified cartilage/sternum.
-    Returns voxels added. Operates on the rib bounding box for speed."""
+    TS under-segments the posterior rib neck/head, leaving an unlabelled-bone gap to
+    the costovertebral joint. We label each connected unlabelled-bone component that
+    touches EXACTLY ONE rib with that rib — the single-touch test is the safety: a
+    clean neck gap touches only its own rib, whereas the sternum / costal-cartilage
+    bridge (which connects MANY ribs, especially when calcified) touches several and
+    is rejected. That single-touch rule is what stops the runaway flood that a plain
+    region-grow produces (the rib labels otherwise eat the whole anterior rib cage).
+    A generous size cap drops any remaining large bone mass. Returns voxels added."""
     if ct.shape != merged.shape:
         return 0
     from scipy import ndimage
     rib_lo, rib_hi = RR.LEFT_OFFSET + 1, RR.RIGHT_OFFSET + 12     # 26..49
-    ribs0 = (merged >= rib_lo) & (merged <= rib_hi)
-    if not ribs0.any():
+    bone_bg = (ct > bone_hu) & (merged == 0)
+    if not bone_bg.any():
         return 0
-    # crop to the rib bounding box (+ max_iter margin) so the morphology stays cheap
-    idx = np.array(np.nonzero(ribs0))
-    lo = np.maximum(idx.min(1) - (max_iter + 2), 0)
-    hi = np.minimum(idx.max(1) + (max_iter + 2) + 1, np.array(merged.shape))
-    sl = tuple(slice(int(a), int(b)) for a, b in zip(lo, hi))
-    lbl = merged[sl].copy()
-    bone = ct[sl] > bone_hu
-    struct = np.ones((3, 3, 3), bool)
+    lab, n = ndimage.label(bone_bg, structure=np.ones((3, 3, 3), bool))
+    if not n:
+        return 0
+    rib_only = np.where((merged >= rib_lo) & (merged <= rib_hi), merged, 0).astype(np.int32)
+    rib_dil = ndimage.grey_dilation(rib_only, footprint=np.ones((3, 3, 3)))
     added = 0
-    for _ in range(max_iter):
-        ribs = (lbl >= rib_lo) & (lbl <= rib_hi)
-        rib_vals = np.where(ribs, lbl, 0).astype(np.int32)
-        dil = ndimage.grey_dilation(rib_vals, footprint=struct)     # nearest rib label
-        fill = (lbl == 0) & bone & (dil >= rib_lo) & (dil <= rib_hi)
-        if not fill.any():
-            break
-        lbl[fill] = dil[fill]
-        added += int(fill.sum())
-    ext = (lbl >= rib_lo) & (lbl <= rib_hi) & (merged[sl] == 0)
-    block = merged[sl]
-    block[ext] = lbl[ext]
-    merged[sl] = block
+    for c, sl in enumerate(ndimage.find_objects(lab), 1):
+        if sl is None:
+            continue
+        sub = lab[sl] == c
+        sz = int(sub.sum())
+        if sz > max_component:                       # big bone mass (sternum/spine) — skip
+            continue
+        touch = np.unique(rib_dil[sl][sub])
+        touch = touch[(touch >= rib_lo) & (touch <= rib_hi)]
+        if touch.size == 1:                          # connects exactly one rib -> its neck gap
+            block = merged[sl]
+            block[sub] = int(touch[0])
+            merged[sl] = block
+            added += sz
     return int(added)
 
 
@@ -397,9 +398,10 @@ def _carve_s1_slab(merged: np.ndarray, s1_mask: np.ndarray, affine) -> int:
 def process_case(
     ct_path: Path, v2_label_path: Path, spine_mask_path: Optional[Path],
     out_label_path: Path, *, device: str = "gpu", min_voxels: int = 150,
+    carve_s1: bool = False,
 ) -> Dict[str, object]:
     """Build the reordered v3 label: remap v2 core -> add GT thoracic -> add TS
-    ribs/femurs -> carve S1 out of the sacrum."""
+    ribs/femurs (-> optionally carve S1 out of the sacrum)."""
     lbl_img = nib.load(str(v2_label_path))
     v2 = np.asarray(lbl_img.dataobj).astype(np.int32)
     qc: Dict[str, object] = {"ct": ct_path.name, "ribs_written": 0, "n_ribs": 0,
@@ -430,9 +432,12 @@ def process_case(
     ct_data = np.asarray(nib.load(str(ct_path)).dataobj).astype(np.float32)
     n_ext = _extend_ribs_along_bone(merged, ct_data)
 
-    # 5) carve S1 (id 7) as a clean slab of the GT sacrum, split along the sacrum's
-    #    PRINCIPAL AXIS so the S1/S2 plane follows pelvic tilt (not world-Z).
-    n_s1 = _carve_s1_slab(merged, s1_mask, lbl_img.affine) if s1_mask is not None else 0
+    # 5) (opt-in) carve S1 (id 7) as a slab of the GT sacrum, split along the sacrum's
+    #    PRINCIPAL AXIS so the S1/S2 plane follows pelvic tilt (not world-Z). Off by
+    #    default: TS-S1 over-segments on tilted/crooked pelves, and S1 is not needed
+    #    for pelvic incidence (the S1 superior endplate is the sacrum's cranial face).
+    n_s1 = (_carve_s1_slab(merged, s1_mask, lbl_img.affine)
+            if (carve_s1 and s1_mask is not None) else 0)
 
     _save_label(merged, lbl_img.affine, lbl_img.header, out_label_path)
     n_thor = len(vert_z)
@@ -459,6 +464,10 @@ def main() -> int:
     ap.add_argument("--device", default="gpu")
     ap.add_argument("--min_voxels", type=int, default=150,
                     help="drop a TS rib whose voxel count is below this (spurious blob)")
+    ap.add_argument("--carve_s1", action="store_true", default=False,
+                    help="carve an S1 (id 7) slab out of the GT sacrum (opt-in; off by "
+                         "default — TS-S1 over-segments on tilted pelves and S1 isn't "
+                         "needed for pelvic incidence)")
     ap.add_argument("--dilation_radius", type=int, default=4)
     ap.add_argument("--pad", type=int, default=10)
     ap.add_argument("--limit", type=int, default=0, help="cap cases (debug)")
@@ -551,7 +560,8 @@ def main() -> int:
         log.info("[%d/%d] token=%s config=%s", i, len(todo), r.get("token"), r.get("config"))
         try:
             qc = process_case(ct_path, v2_label_path, spine_mask, out_label_path,
-                              device=args.device, min_voxels=args.min_voxels)
+                              device=args.device, min_voxels=args.min_voxels,
+                              carve_s1=args.carve_s1)
         except Exception as exc:                                       # noqa: BLE001
             log.error("  token=%s FAILED: %s — shipping v2 label (core remapped, no bone)",
                       r.get("token"), exc)
