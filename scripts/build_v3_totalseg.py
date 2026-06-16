@@ -217,41 +217,54 @@ def ts_ribs_and_extras(
     out = np.zeros(ref_img.shape[:3], dtype=np.int32)
     meta: Dict[str, object] = {"n_ribs": 0, "femurs": []}
 
-    # ---- ribs: matched to the GT thoracic vertebrae by Z-level ----
+    # ---- ribs: numbered from the GT thoracic column via ONE integer offset ----
+    # TS reliably ORDERS ribs (rib_*_1..12, cranial->caudal) even when it under-
+    # segments a posterior rib neck; its only real unreliability is the absolute count
+    # in transitional anatomy. So we DON'T Z-match each rib independently -- that drops
+    # the lower ribs (T11/T12), whose costovertebral head TS most often misses, leaving
+    # their medial-most voxel well below the vertebra and outside tol. Instead we learn
+    # a single offset d from the ribs that DO sit near a GT vertebra, then label every
+    # detected rib n -> GT thoracic number (n + d). Output numbers still come from the
+    # radiologist column; ribs with no backing GT vertebra are dropped.
     rib_val = {name_val[f"rib_{s}_{n}"]: (s, n)
                for s in ("left", "right") for n in range(1, 13)
                if name_val.get(f"rib_{s}_{n}") is not None}
-    rib_vals = [v for v in rib_val if v in present]
-    if vert_z and rib_vals:
+    present_vals = [v for v in rib_val if v in present]
+    rib_min = min(min_voxels, 50)                              # floating ribs 11/12 are small
+    detected: list = []                                        # (side, ts_n, head_z, mask)
+    if vert_z and present_vals:
         x_mid = float(np.median(nib.affines.apply_affine(
-            affine, np.array(np.nonzero(np.isin(arr, rib_vals))).T)[:, 0]))
-        byside: Dict[str, list] = {"left": [], "right": []}    # [head_z, mask]
-        for v in rib_vals:
-            s, _n = rib_val[v]
+            affine, np.array(np.nonzero(np.isin(arr, present_vals))).T)[:, 0]))
+        for v in present_vals:
+            s, n = rib_val[v]
             mask = arr == v
-            if int(mask.sum()) < min_voxels:
+            if int(mask.sum()) < rib_min:
                 continue
             world = nib.affines.apply_affine(affine, np.array(np.nonzero(mask)).T)
             dx = np.abs(world[:, 0] - x_mid)
-            head = dx <= np.quantile(dx, 0.30)
-            byside[s].append([float(world[head, 2].mean()), mask])
-        zs = sorted(vert_z.values())                           # spacing -> tolerance
+            head = dx <= np.quantile(dx, 0.30)                 # medial 30% = costovertebral end
+            detected.append((s, n, float(world[head, 2].mean()), mask))
+    if detected:
+        zs = sorted(vert_z.values())                           # spacing -> match tolerance
         gaps = np.diff(zs); gaps = gaps[(gaps > 10) & (gaps < 50)]
         tol = (float(np.median(gaps)) if gaps.size else 25.0) * 0.9
-        for s in ("left", "right"):
-            ribs = byside[s]
-            used = [False] * len(ribs)
-            for N, zN in sorted(vert_z.items()):               # one rib per GT vertebra/side
-                best, bestd = -1, tol
-                for j, (hz, _m) in enumerate(ribs):
-                    if used[j]:
-                        continue
-                    if abs(hz - zN) < bestd:
-                        best, bestd = j, abs(hz - zN)
-                if best >= 0:
-                    used[best] = True
-                    out[ribs[best][1]] = (RR.LEFT_OFFSET + N) if s == "left" else (RR.RIGHT_OFFSET + N)
-                    meta["n_ribs"] = int(meta["n_ribs"]) + 1
+        votes = []                                             # offset votes: GT N - TS n
+        for (s, n, hz, _m) in detected:
+            N_best, d_best = None, tol
+            for N, zN in vert_z.items():
+                if abs(hz - zN) < d_best:
+                    N_best, d_best = N, abs(hz - zN)
+            if N_best is not None:
+                votes.append(N_best - n)
+        d = int(round(float(np.median(votes)))) if votes else 0
+        for (s, n, hz, mask) in detected:
+            N = n + d
+            if N not in vert_z:                                # emit only ribs backed by GT thoracic
+                continue
+            out[mask] = (RR.LEFT_OFFSET + N) if s == "left" else (RR.RIGHT_OFFSET + N)
+            meta["n_ribs"] = int(meta["n_ribs"]) + 1
+        meta["rib_offset"] = d
+        meta["ts_ribs_detected"] = sorted(set(n for (_s, n, _h, _m) in detected))
 
     # ---- femurs: direct, on background ----
     for name in FEMUR_NAMES:
@@ -417,11 +430,15 @@ def process_case(
 
     _save_label(merged, lbl_img.affine, lbl_img.header, out_label_path)
     n_thor = len(vert_z)
+    ts_det = meta.get("ts_ribs_detected", [])
     qc.update(ribs_written=n_bone, n_ribs=meta["n_ribs"], status="ok",
-              note=f"thoracic={n_thor} ribs={meta['n_ribs']} femurs={meta['femurs']} "
+              note=f"thoracic={n_thor} ribs={meta['n_ribs']} ts_detected={ts_det} "
+                   f"offset={meta.get('rib_offset')} femurs={meta['femurs']} "
                    f"rib_extend_vox={n_ext} s1_vox={n_s1}")
-    log.info("  %s: %d thoracic + %d rib(s) (+%d vox to vertebra) + %d femur(s) + S1(%d vox)",
-             ct_path.name, n_thor, meta["n_ribs"], n_ext, len(meta["femurs"]), n_s1)
+    log.info("  %s: %d thoracic + %d rib(s) [TS detected %s, offset %s] "
+             "(+%d vox to vertebra) + %d femur(s) + S1(%d vox)",
+             ct_path.name, n_thor, meta["n_ribs"], ts_det, meta.get("rib_offset"),
+             n_ext, len(meta["femurs"]), n_s1)
     return qc
 
 
