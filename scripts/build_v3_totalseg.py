@@ -1,6 +1,6 @@
 """
 build_v3_totalseg.py — derive the v3 tree from v2 with a TotalSegmentator pass:
-reordered spinopelvic core + the GT thoracic column + ribs + femurs + an S1 carve.
+reordered spinopelvic core + the GT thoracic column + femurs (+ an optional S1 carve).
 
 v2 ships radiologist spine GT + model-pseudolabelled pelves (lumbar 1..6, sacrum 7,
 hips 8/9, ignore 10). v3, per case:
@@ -8,27 +8,24 @@ hips 8/9, ignore 10). v3, per case:
      inserted at 7, so sacrum 7->8, hips 8/9->9/10, ignore 10->50).
   2. Adds the GT THORACIC COLUMN (T1..T13 -> 13..25) from the placed VerSe spine
      mask — these were always in the GT but dropped from v2; v3 ships them.
-  3. Runs ONE TotalSegmentator inference and adds, on background only:
-       * ribs (rib_left/right 1..12 -> 26..49), each matched by Z-level to the GT
-         thoracic vertebra it sits at, so the NUMBER comes from the GT vertebra,
-         not from TS;
-       * femurs (femur_left/right -> 11/12).
-  4. Carves S1 (id 7) out of the GT sacrum: only sacrum voxels that TS calls
-     vertebrae_S1 become S1, so the sacrum's outer boundary stays radiologist GT.
+  3. Runs ONE TotalSegmentator inference and adds the femurs (femur_left/right ->
+     11/12) on background.
+  4. (opt-in, --carve_s1) carves S1 (id 7) out of the GT sacrum: only sacrum voxels
+     that TS calls vertebrae_S1 become S1, so the sacrum's outer boundary stays GT.
 GT voxels are never overwritten: additions land on background, and the S1 carve
 only subdivides the existing sacrum.
 
-Why GT-anchored ribs / thoracic?
---------------------------------
-Rib numbering comes entirely from the radiologist GT thoracic vertebrae (which v3
-also emits as classes), so nothing rests on TotalSegmentator's vertebra numbering.
-A case with no thoracic GT (e.g. the pure pelvic-only orphans) gets no thoracic and
-no ribs.
+Why no ribs?
+------------
+These are FOV-limited spinopelvic scans — usually only the lower thoracic (~T8 down)
+is in view, so there is no full rib cage to count from and neither TS nor a
+point-cloud labeler (RibSeg) can NUMBER ribs reliably. v3 therefore does not emit
+ribs; ids 26-49 are reserved-but-empty for future manual / AI-assisted annotation.
 
 Output label scheme (v3) — contiguous, ignore highest
 -----------------------------------------------------
 0 bg | 1-6 L1-L6 | 7 S1 | 8 sacrum | 9 left_hip | 10 right_hip | 11 femur_left |
-12 femur_right | 13-25 T1-T13 | 26-37 rib_left_1..12 | 38-49 rib_right_1..12 |
+12 femur_right | 13-25 T1-T13 | (26-49 rib_left/right_1..12 RESERVED, not populated) |
 50 ignore.  v3_label_dict() is the exact map.
 
 This is the v3 build stage invoked by slurm/ship_v3.sh inside the TS container.
@@ -63,7 +60,9 @@ RIB_NAMES: List[str] = (
 )
 FEMUR_NAMES: List[str] = ["femur_left", "femur_right"]
 S1_TS_NAME = "vertebrae_S1"
-TS_ROI_NAMES: List[str] = RIB_NAMES + FEMUR_NAMES + [S1_TS_NAME]
+# Ribs are NOT segmented in v3 (TS can't number them on FOV-limited spinopelvic
+# scans). RIB_NAMES is kept only to reserve the rib ids 26-49 in the label scheme.
+TS_ROI_NAMES: List[str] = FEMUR_NAMES + [S1_TS_NAME]
 
 # ---------------------------------------------------------------------------
 # v3 label scheme (reordered core + GT thoracic column + bone). Contiguous, ignore
@@ -199,75 +198,25 @@ def _run_ts_ml(ct_path: Path, ref_img: "nib.Nifti1Image", device: str, roi_names
     return arr, name_val
 
 
-def ts_ribs_and_extras(
-    ct_path: Path, ref_img: "nib.Nifti1Image", vert_z: Dict[int, float],
+def ts_femurs_and_s1(
+    ct_path: Path, ref_img: "nib.Nifti1Image",
     device: str = "gpu", min_voxels: int = 150,
 ) -> Tuple[np.ndarray, Optional[np.ndarray], Dict[str, object]]:
-    """GT-thoracic-matched ribs + femurs + the TS S1 mask from ONE TS run.
+    """Femurs + the TS S1 mask from ONE TS run.
 
-    vert_z = {thoracic number N: world-Z} from the GT spine mask. Ribs: each GT
-    thoracic vertebra T_N is matched to the TS rib at its Z-level and labelled rib N
-    (numbering from the GT vertebra, not TS). Femurs: written to their fixed ids.
-    The TS vertebrae_S1 binary is returned separately (the caller carves it into the
-    GT sacrum). Returns (additions-on-bg volume, s1_mask or None, meta).
+    Femurs are written to their fixed v3 ids on background. The TS vertebrae_S1
+    binary is returned separately (the caller OPTIONALLY carves it into the GT
+    sacrum; off by default).
+
+    Ribs are deliberately NOT emitted: on these FOV-limited spinopelvic scans there
+    is no full rib cage to count from, so neither TS nor a point-cloud labeler
+    (RibSeg) can number ribs reliably. Rib ids 26-49 are left reserved-but-empty for
+    future manual / AI-assisted annotation. Returns (additions-on-bg, s1_mask, meta).
     """
     arr, name_val = _run_ts_ml(ct_path, ref_img, device, TS_ROI_NAMES)
     present = set(int(v) for v in np.unique(arr)) - {0}
-    affine = ref_img.affine
     out = np.zeros(ref_img.shape[:3], dtype=np.int32)
-    meta: Dict[str, object] = {"n_ribs": 0, "femurs": []}
-
-    # ---- ribs: numbered from the GT thoracic column via ONE integer offset ----
-    # TS reliably ORDERS ribs (rib_*_1..12, cranial->caudal) even when it under-
-    # segments a posterior rib neck; its only real unreliability is the absolute count
-    # in transitional anatomy. So we DON'T Z-match each rib independently -- that drops
-    # the lower ribs (T11/T12), whose costovertebral head TS most often misses, leaving
-    # their medial-most voxel well below the vertebra and outside tol. Instead we learn
-    # a single offset d from the ribs that DO sit near a GT vertebra, then label every
-    # detected rib n -> GT thoracic number (n + d). Output numbers still come from the
-    # radiologist column; ribs with no backing GT vertebra are dropped.
-    rib_val = {name_val[f"rib_{s}_{n}"]: (s, n)
-               for s in ("left", "right") for n in range(1, 13)
-               if name_val.get(f"rib_{s}_{n}") is not None}
-    present_vals = [v for v in rib_val if v in present]
-    rib_min = min(min_voxels, 50)                              # floating ribs 11/12 are small
-    detected: list = []                                        # (side, ts_n, head_z, mask)
-    if vert_z and present_vals:
-        for v in present_vals:
-            s, n = rib_val[v]
-            mask = arr == v
-            if int(mask.sum()) < rib_min:
-                continue
-            world = nib.affines.apply_affine(affine, np.array(np.nonzero(mask)).T)
-            # articulation (costovertebral) level ~ the rib's SUPERIOR margin: the rib
-            # slopes down as it runs lateral/anterior, so its top sits near the head /
-            # vertebra even when TS misses the head itself. A high Z-percentile is
-            # robust to that. The old "mean Z of the medial voxels" read too low and
-            # skewed every offset vote downward -> spurious nonzero offset, dropping
-            # the true lowest ribs.
-            head_z = float(np.percentile(world[:, 2], 85))
-            detected.append((s, n, head_z, mask))
-    if detected:
-        zs = sorted(vert_z.values())                           # spacing -> match tolerance
-        gaps = np.diff(zs); gaps = gaps[(gaps > 10) & (gaps < 50)]
-        tol = (float(np.median(gaps)) if gaps.size else 25.0) * 0.9
-        votes = []                                             # offset votes: GT N - TS n
-        for (s, n, hz, _m) in detected:
-            N_best, d_best = None, tol
-            for N, zN in vert_z.items():
-                if abs(hz - zN) < d_best:
-                    N_best, d_best = N, abs(hz - zN)
-            if N_best is not None:
-                votes.append(N_best - n)
-        d = int(round(float(np.median(votes)))) if votes else 0
-        for (s, n, hz, mask) in detected:
-            N = n + d
-            if N not in vert_z:                                # emit only ribs backed by GT thoracic
-                continue
-            out[mask] = (RR.LEFT_OFFSET + N) if s == "left" else (RR.RIGHT_OFFSET + N)
-            meta["n_ribs"] = int(meta["n_ribs"]) + 1
-        meta["rib_offset"] = d
-        meta["ts_ribs_detected"] = sorted(set(n for (_s, n, _h, _m) in detected))
+    meta: Dict[str, object] = {"femurs": []}
 
     # ---- femurs: direct, on background ----
     for name in FEMUR_NAMES:
@@ -278,7 +227,7 @@ def ts_ribs_and_extras(
                 out[mask] = FEMUR_ID[name]
                 meta["femurs"].append(name)
 
-    # ---- TS S1 mask (carved into the GT sacrum by the caller, not added here) ----
+    # ---- TS S1 mask (optionally carved into the GT sacrum by the caller) ----
     s1_mask = None
     sv = name_val.get(S1_TS_NAME)
     if sv is not None and sv in present:
@@ -286,22 +235,6 @@ def ts_ribs_and_extras(
         if int(m.sum()) >= min_voxels:
             s1_mask = m
     return out, s1_mask, meta
-
-
-# ===========================================================================
-# GT-safe merge
-# ===========================================================================
-def merge_ribs_into_label(v2_label: np.ndarray, rib_vol: np.ndarray) -> Tuple[np.ndarray, int]:
-    """Lay ribs onto v2 labels ONLY where v2 is background (0). GT is never touched.
-
-    Returns (merged, n_written). Ribs that would land on an existing v2 voxel
-    (spine/pelvis GT or ignore=10) are dropped, so the merge can never corrupt the
-    shipped ground truth.
-    """
-    merged = v2_label.copy()
-    place = (v2_label == 0) & (rib_vol > 0)
-    merged[place] = rib_vol[place].astype(merged.dtype)
-    return merged, int(place.sum())
 
 
 # ===========================================================================
@@ -319,48 +252,6 @@ def _save_label(arr, affine, header, out_path: Path) -> None:
         out_path.unlink()
     nib.save(nib.Nifti1Image(np.asarray(arr).astype(np.uint16), affine, header),
              str(out_path))
-
-
-def _extend_ribs_along_bone(merged: np.ndarray, ct: np.ndarray, *, bone_hu: float = 150.0,
-                            max_component: int = 12000) -> int:
-    """Extend rib labels (26..49) along UNLABELLED bone to the vertebra — safely.
-
-    TS under-segments the posterior rib neck/head, leaving an unlabelled-bone gap to
-    the costovertebral joint. We label each connected unlabelled-bone component that
-    touches EXACTLY ONE rib with that rib — the single-touch test is the safety: a
-    clean neck gap touches only its own rib, whereas the sternum / costal-cartilage
-    bridge (which connects MANY ribs, especially when calcified) touches several and
-    is rejected. That single-touch rule is what stops the runaway flood that a plain
-    region-grow produces (the rib labels otherwise eat the whole anterior rib cage).
-    A generous size cap drops any remaining large bone mass. Returns voxels added."""
-    if ct.shape != merged.shape:
-        return 0
-    from scipy import ndimage
-    rib_lo, rib_hi = RR.LEFT_OFFSET + 1, RR.RIGHT_OFFSET + 12     # 26..49
-    bone_bg = (ct > bone_hu) & (merged == 0)
-    if not bone_bg.any():
-        return 0
-    lab, n = ndimage.label(bone_bg, structure=np.ones((3, 3, 3), bool))
-    if not n:
-        return 0
-    rib_only = np.where((merged >= rib_lo) & (merged <= rib_hi), merged, 0).astype(np.int32)
-    rib_dil = ndimage.grey_dilation(rib_only, footprint=np.ones((3, 3, 3)))
-    added = 0
-    for c, sl in enumerate(ndimage.find_objects(lab), 1):
-        if sl is None:
-            continue
-        sub = lab[sl] == c
-        sz = int(sub.sum())
-        if sz > max_component:                       # big bone mass (sternum/spine) — skip
-            continue
-        touch = np.unique(rib_dil[sl][sub])
-        touch = touch[(touch >= rib_lo) & (touch <= rib_hi)]
-        if touch.size == 1:                          # connects exactly one rib -> its neck gap
-            block = merged[sl]
-            block[sub] = int(touch[0])
-            merged[sl] = block
-            added += sz
-    return int(added)
 
 
 def _carve_s1_slab(merged: np.ndarray, s1_mask: np.ndarray, affine) -> int:
@@ -404,7 +295,7 @@ def process_case(
     ribs/femurs (-> optionally carve S1 out of the sacrum)."""
     lbl_img = nib.load(str(v2_label_path))
     v2 = np.asarray(lbl_img.dataobj).astype(np.int32)
-    qc: Dict[str, object] = {"ct": ct_path.name, "ribs_written": 0, "n_ribs": 0,
+    qc: Dict[str, object] = {"ct": ct_path.name, "femur_vox": 0,
                              "status": "ok", "note": ""}
 
     # 1) remap the v2 core labels into the reordered v3 ids (lumbar 1-6 unchanged;
@@ -414,25 +305,21 @@ def process_case(
     for old, new in V2_TO_V3.items():
         merged[v2 == old] = new
 
-    # 2) GT thoracic column (output classes 13-25) + per-vertebra Z for rib anchoring
+    # 2) GT thoracic column (output classes 13-25), on background
     thor_vol, vert_z = gt_thoracic_labels(spine_mask_path, lbl_img)
     pl = (merged == 0) & (thor_vol > 0)
     merged[pl] = thor_vol[pl]
 
-    # 3) TS ribs (matched to the GT thoracic Z) + femurs, on background only
-    add_vol, s1_mask, meta = ts_ribs_and_extras(ct_path, lbl_img, vert_z,
-                                                device=device, min_voxels=min_voxels)
+    # 3) TS femurs (+ the S1 mask) on background. Ribs are NOT emitted in v3 — TS
+    #    can't number them on the FOV-limited spinopelvic scans; ids 26-49 stay
+    #    reserved for future manual / AI-assisted annotation.
+    add_vol, s1_mask, meta = ts_femurs_and_s1(ct_path, lbl_img,
+                                              device=device, min_voxels=min_voxels)
     pl = (merged == 0) & (add_vol > 0)
     n_bone = int(pl.sum())
     merged[pl] = add_vol[pl]
 
-    # 4) extend the ribs along unlabelled bone to the vertebra (TS misses the
-    #    posterior rib neck/head). The full rib is one continuous bone, so we grow
-    #    each rib label into the connected unlabelled-bone it touches.
-    ct_data = np.asarray(nib.load(str(ct_path)).dataobj).astype(np.float32)
-    n_ext = _extend_ribs_along_bone(merged, ct_data)
-
-    # 5) (opt-in) carve S1 (id 7) as a slab of the GT sacrum, split along the sacrum's
+    # 4) (opt-in) carve S1 (id 7) as a slab of the GT sacrum, split along the sacrum's
     #    PRINCIPAL AXIS so the S1/S2 plane follows pelvic tilt (not world-Z). Off by
     #    default: TS-S1 over-segments on tilted/crooked pelves, and S1 is not needed
     #    for pelvic incidence (the S1 superior endplate is the sacrum's cranial face).
@@ -441,15 +328,10 @@ def process_case(
 
     _save_label(merged, lbl_img.affine, lbl_img.header, out_label_path)
     n_thor = len(vert_z)
-    ts_det = meta.get("ts_ribs_detected", [])
-    qc.update(ribs_written=n_bone, n_ribs=meta["n_ribs"], status="ok",
-              note=f"thoracic={n_thor} ribs={meta['n_ribs']} ts_detected={ts_det} "
-                   f"offset={meta.get('rib_offset')} femurs={meta['femurs']} "
-                   f"rib_extend_vox={n_ext} s1_vox={n_s1}")
-    log.info("  %s: %d thoracic + %d rib(s) [TS detected %s, offset %s] "
-             "(+%d vox to vertebra) + %d femur(s) + S1(%d vox)",
-             ct_path.name, n_thor, meta["n_ribs"], ts_det, meta.get("rib_offset"),
-             n_ext, len(meta["femurs"]), n_s1)
+    qc.update(femur_vox=n_bone, status="ok",
+              note=f"thoracic={n_thor} femurs={meta['femurs']} s1_vox={n_s1}")
+    log.info("  %s: %d thoracic vertebra(e) + %d femur(s) + S1(%d vox)",
+             ct_path.name, n_thor, len(meta["femurs"]), n_s1)
     return qc
 
 
@@ -573,7 +455,7 @@ def main() -> int:
                 la[base == old] = new
             _save_label(la, li.affine, li.header, out_label_path)
             qc = {"ct": ct_path.name, "status": "error", "note": str(exc)[:200],
-                  "ribs_written": 0, "n_ribs": 0}
+                  "femur_vox": 0}
         qc["token"] = r.get("token")
         qc_rows.append(qc)
         # Mark done only after the output label is on disk (a timeout mid-case leaves
@@ -584,8 +466,7 @@ def main() -> int:
     import csv
     qc_path = args.v3_dir / "totalseg_qc.csv"
     with open(qc_path, "w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=["token", "ct", "status", "n_ribs",
-                                           "ribs_written", "note"])
+        w = csv.DictWriter(fh, fieldnames=["token", "ct", "status", "femur_vox", "note"])
         w.writeheader()
         for row in qc_rows:
             w.writerow({k: row.get(k, "") for k in w.fieldnames})
