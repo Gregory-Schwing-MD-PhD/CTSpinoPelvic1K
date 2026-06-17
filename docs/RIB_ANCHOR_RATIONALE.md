@@ -13,10 +13,12 @@ We anchor the lumbar count from **both ends**:
   simply the last thoracic vertebra already present in the native vertebral column
   (class 31 in the legacy scheme). Earlier drafts reserved separate
   `last_rib_vertebra`/`rib` classes (11/12); those were retired. The anchor is free
-  from the native labels, and the rib cage itself is segmented in v3 by
-  TotalSegmentator, numbered from the GT thoracic vertebrae.
-- **Caudal — S1.** The first sacral body, segmented in v3 as its own class,
-  `(GT sacrum) ∩ (TS vertebrae_S1)` (see *The caudal anchor: S1* below).
+  from the native labels. (Rib-cage *segmentation* — distinct from this rib-bearing
+  *anchor* — is **deferred to a future v4**; FOV-limited spinopelvic scans can't be
+  rib-numbered reliably, so v3 reserves but does not populate rib ids 26–49.)
+- **Caudal — S1 / sacrum.** The sacrum (radiologist GT) is the caudal anchor; v3 can
+  optionally carve a distinct S1 body, `(GT sacrum) ∩ (TS vertebrae_S1)`, but that
+  carve is off by default (see *The caudal anchor: S1* below).
 
 (Independently of the anchors, label-defect cleanup — class-mixing, a single
 vertebra labelled with two numbers, and partially-coloured bodies — is handled
@@ -81,6 +83,11 @@ body is L6 (class 6), never the GT sacrum, so the carve cannot touch it; in
 sacralization the fused mass stays radiologist-bounded. S1 is a **landmark** class
 (the S1/S2 edge is an intrinsically fuzzy fused boundary), not a precise-volume one.
 
+> **Released-v3 status:** the S1 carve is **opt-in** (`--carve_s1`) and **off by
+> default** — TS-S1 over-segments on tilted pelves, and the PI/SS landmark is the
+> sacrum's cranial face (already GT), so the carve isn't required for it. The
+> rationale above is why the slot (id 7) exists; it is unpopulated unless enabled.
+
 ## The payoff
 
 This is the piece that lets a single end-to-end model correctly label
@@ -91,8 +98,10 @@ rib-bearing top (T12) and an S1 bottom — in a single forward pass, the cleanes
 test of whether a segmentation network can resolve the level shift end-to-end
 without a downstream sequence predictor.
 
-The rib cage and S1 are produced automatically by TotalSegmentator (GT-anchored —
-see `scripts/build_v3_totalseg.py`), GT-bounded so they never overwrite radiologist
-labels, while the rostral T12 anchor is free from the native vertebral column.
-Label-defect cleanup remains light, AI-assisted review — see
-`docs/RIB_ANCHOR_REVIEW_GUIDE.md` and `docs/STUDENT_ANNOTATION_PROTOCOL.md`.
+The femurs are produced automatically by TotalSegmentator (see
+`scripts/build_v3_totalseg.py`), GT-bounded so they never overwrite radiologist
+labels, while the rostral T12 anchor is free from the native vertebral column. The
+**rib cage is deferred to v4** and the **S1 carve is opt-in** (both id ranges
+reserved but unpopulated in released v3). Label-defect cleanup remains light,
+AI-assisted review — see `docs/RIB_ANCHOR_REVIEW_GUIDE.md` and
+`docs/STUDENT_ANNOTATION_PROTOCOL.md`.
