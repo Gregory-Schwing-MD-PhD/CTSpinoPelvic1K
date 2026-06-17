@@ -106,7 +106,8 @@ The vertebral column is **native and contiguous** (C1–C7 = 13–19, T1–T13 =
 vertebra (T12 = 31). This is the **legacy scheme**, kept for the original nnU-Net
 training. The 35–60 rib-cage reservation was **superseded** — v3 uses a separate
 contiguous scheme (1-6 L1-L6 | 7 S1 | 8 sacrum | 9/10 hips | 11/12 femurs |
-13-25 T1-T13 | 26-37 rib_left | 38-49 rib_right | 50 ignore).
+13-25 T1-T13 | 26-49 rib_left/right *reserved* | 50 ignore). In the released v3,
+ids 26-49 (ribs) are **deferred to v4** and id 7 (S1) is **opt-in** — both unpopulated.
 
 ---
 
@@ -122,9 +123,10 @@ intervening bodies → L5, 6 → L6** — the LSTV question answers itself, in a
 forward pass, on exactly the patients where the stakes are highest. See
 `docs/RIB_ANCHOR_RATIONALE.md`.
 
-v3 adds the **caudal** anchor explicitly: **S1** is segmented as its own class
-((GT sacrum) ∩ (TS `vertebrae_S1`)), bracketing the lumbar count from below and
-giving the sacral endplate for sacral slope / pelvic incidence.
+The **caudal** anchor is the **sacrum** (radiologist GT), bracketing the lumbar
+count from below and giving the sacral endplate for sacral slope / pelvic incidence.
+v3 can optionally carve a distinct **S1** body out of it
+((GT sacrum) ∩ (TS `vertebrae_S1`)), but that carve is off by default.
 
 ---
 
@@ -141,12 +143,14 @@ giving the sacral endplate for sacral slope / pelvic incidence.
   held back as the **pelvis-pseudolabel validation set**. No `ignore` voxels
   remain on the shipped cases — this is the LSTV-segmenter training artifact.
 - **v3** — **bone-augmented** (TotalSegmentator): v2 re-indexed into an anatomical
-  order (S1 after L6) + the GT thoracic column (T1-T13) + GT-matched ribs + both
-  femurs + an **S1** carve of the sacrum. Own contiguous scheme, **not**
-  id-compatible with v2: `1-6 L1-L6 | 7 S1 | 8 sacrum | 9/10 hips | 11/12 femurs |
-  13-25 T1-T13 | 26-37 rib_left | 38-49 rib_right | 50 ignore`. The thoracic column
-  was always in the source GT, just dropped from v2; bone coverage is the 802
-  spine-anchored + orphan cases.
+  order (an S1 slot after L6) + the GT thoracic column (FOV-visible, ~T8 down) +
+  both femurs. Own contiguous scheme, **not** id-compatible with v2: `1-6 L1-L6 |
+  7 S1 | 8 sacrum | 9/10 hips | 11/12 femurs | 13-25 T1-T13 | 26-49 rib_left/right
+  reserved | 50 ignore`. The thoracic column was always in the source GT, just
+  dropped from v2; bone coverage is the 802 spine-anchored + orphan cases. **Ribs
+  (26-49) are deferred to a future v4** — FOV-limited scans can't be rib-numbered
+  reliably — and the **S1 carve (id 7) is opt-in**, off by default; both id ranges
+  are reserved but unpopulated in the released v3.
 
 ---
 
