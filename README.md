@@ -45,10 +45,9 @@ spine and pelvic labels target different prone/supine acquisitions
      scheme), directly above ground-truth L1. Not a separate class — just the last
      thoracic vertebra in the native column. Free from GT (present on 783/784
      abdominopelvic studies; earlier exports just dropped the thoracic column).
-   - **Caudal — S1 / sacrum**, the bottom bracket of the lumbar count and the
-     sacral-endplate landmark for sacral slope / pelvic incidence. The sacrum is
-     radiologist GT; **v3** can optionally carve a distinct S1 body out of it
-     ((GT sacrum) ∩ (TS `vertebrae_S1`)), but that carve is off by default.
+   - **Caudal — S1**, the first sacral body, segmented in **v3** as a distinct class
+     ((GT sacrum) ∩ (TS `vertebrae_S1`)) — the bottom bracket of the lumbar count and
+     the sacral-endplate landmark for sacral slope / pelvic incidence.
 
    With a fixed cranial anchor above L1 and the sacrum/S1 below L5–L6, the model
    learns rib-bearing-ness from the thoracic-vs-lumbar distinction. See
@@ -67,10 +66,11 @@ Versions:
   pelvis (real where fused, pseudolabelled on `spine_only`), `fused + spine_only`
   only. `pelvic_native` is dropped (held out for pelvis validation). This is the
   LSTV-segmenter training artifact, with no `ignore` voxels on the shipped cases.
-- **v3** — **bone-augmented** (TotalSegmentator): v2 plus both femurs and the GT
-  thoracic column, re-indexed into its **own contiguous** label scheme (see *v3 label
-  scheme* below), distinct from the legacy scheme. **Ribs are deferred to a future
-  v4**; an S1 carve is opt-in — both id ranges are reserved but unpopulated here.
+- **v3** — **bone-augmented** (TotalSegmentator): v2 plus both femurs, the GT
+  thoracic column, and an S1 carve of the sacrum, re-indexed into its **own
+  contiguous** label scheme (see *v3 label scheme* below), distinct from the legacy
+  scheme. **Ribs are deferred to a future v4** — their ids are reserved but
+  unpopulated here.
 
 > **Reviewing segmentations?** If you were asked to help correct the AI-drafted
 > labels, see **[docs/REVIEW.md](docs/REVIEW.md)** — account/token setup,
@@ -116,7 +116,7 @@ and **not** id-compatible with v2 (sacrum/hips shift to make room for the S1 slo
 | ID | Name | Source | populated in v3? |
 |---:|------|--------|---|
 | 1–6 | L1–L6 | radiologist GT | yes |
-| 7 | **S1** (carved from sacrum) | (GT sacrum) ∩ (TS `vertebrae_S1`) | opt-in (off by default) |
+| 7 | **S1** (carved from sacrum) | (GT sacrum) ∩ (TS `vertebrae_S1`) | yes |
 | 8 | sacrum | radiologist GT | yes |
 | 9 / 10 | left_hip / right_hip | radiologist GT | yes |
 | 11 / 12 | femur_left / femur_right | TS | yes |
@@ -131,12 +131,14 @@ from v2; v3 ships it — but only the vertebrae **inside each scan's field of vi
 to T1; T1–T13 is the id range, not the per-case extent). Femurs are added directly
 on background, so the underlying anatomy is unchanged.
 
-**Ribs are deferred to v4.** On these FOV-limited scans there is no full rib cage to
-count from, so no automatic segmenter (TotalSegmentator, or point-cloud labelers like
-RibSeg) can *number* ribs reliably; ids 26–49 are reserved for a future v4 built on
-manual / AI-assisted rib annotation. **S1 (id 7) is opt-in** (`--carve_s1`) and off
-by default — it over-segments on tilted pelves and isn't needed for pelvic incidence
-(the sacrum's cranial face is the S1 endplate), so id 7 is unpopulated here.
+**S1 (id 7)** is the part of the GT sacrum that TS identifies as the S1 body: the
+carve splits the sacrum along its principal axis (so the S1/S2 plane follows pelvic
+tilt) and relabels the cranial slab in place — the sacrum's **outer boundary stays
+radiologist GT**. It gives the S1 superior-endplate landmark for sacral slope /
+pelvic incidence. **Ribs are deferred to v4**: on these FOV-limited scans there is no
+full rib cage to count from, so no automatic segmenter (TotalSegmentator, or
+point-cloud labelers like RibSeg) can *number* ribs reliably; ids 26–49 are reserved
+for a future v4 built on manual / AI-assisted rib annotation.
 
 **Coverage is 802 of 1,153 volumes** — the spine-anchored + orphan cases; the 351
 separate-mode pelvic sides keep v2 labels only. The legacy scheme above is kept for
