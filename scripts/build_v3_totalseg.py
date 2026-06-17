@@ -10,8 +10,9 @@ hips 8/9, ignore 10). v3, per case:
      mask — these were always in the GT but dropped from v2; v3 ships them.
   3. Runs ONE TotalSegmentator inference and adds the femurs (femur_left/right ->
      11/12) on background.
-  4. (opt-in, --carve_s1) carves S1 (id 7) out of the GT sacrum: only sacrum voxels
-     that TS calls vertebrae_S1 become S1, so the sacrum's outer boundary stays GT.
+  4. carves S1 (id 7) out of the GT sacrum (default on; --no_carve_s1 to disable):
+     only sacrum voxels that TS calls vertebrae_S1 become S1, so the sacrum's outer
+     boundary stays GT.
 GT voxels are never overwritten: additions land on background, and the S1 carve
 only subdivides the existing sacrum.
 
@@ -205,8 +206,8 @@ def ts_femurs_and_s1(
     """Femurs + the TS S1 mask from ONE TS run.
 
     Femurs are written to their fixed v3 ids on background. The TS vertebrae_S1
-    binary is returned separately (the caller OPTIONALLY carves it into the GT
-    sacrum; off by default).
+    binary is returned separately (the caller carves it into the GT sacrum by
+    default; --no_carve_s1 disables it).
 
     Ribs are deliberately NOT emitted: on these FOV-limited spinopelvic scans there
     is no full rib cage to count from, so neither TS nor a point-cloud labeler
@@ -289,7 +290,7 @@ def _carve_s1_slab(merged: np.ndarray, s1_mask: np.ndarray, affine) -> int:
 def process_case(
     ct_path: Path, v2_label_path: Path, spine_mask_path: Optional[Path],
     out_label_path: Path, *, device: str = "gpu", min_voxels: int = 150,
-    carve_s1: bool = False,
+    carve_s1: bool = True,
 ) -> Dict[str, object]:
     """Build the reordered v3 label: remap v2 core -> add GT thoracic -> add TS
     ribs/femurs (-> optionally carve S1 out of the sacrum)."""
@@ -319,10 +320,10 @@ def process_case(
     n_bone = int(pl.sum())
     merged[pl] = add_vol[pl]
 
-    # 4) (opt-in) carve S1 (id 7) as a slab of the GT sacrum, split along the sacrum's
-    #    PRINCIPAL AXIS so the S1/S2 plane follows pelvic tilt (not world-Z). Off by
-    #    default: TS-S1 over-segments on tilted/crooked pelves, and S1 is not needed
-    #    for pelvic incidence (the S1 superior endplate is the sacrum's cranial face).
+    # 4) carve S1 (id 7) as a slab of the GT sacrum, split along the sacrum's
+    #    PRINCIPAL AXIS so the S1/S2 plane follows pelvic tilt (not world-Z). On by
+    #    default (--no_carve_s1 to disable). Only subdivides the existing sacrum in
+    #    place — the sacrum's outer boundary stays radiologist GT.
     n_s1 = (_carve_s1_slab(merged, s1_mask, lbl_img.affine)
             if (carve_s1 and s1_mask is not None) else 0)
 
@@ -346,10 +347,10 @@ def main() -> int:
     ap.add_argument("--device", default="gpu")
     ap.add_argument("--min_voxels", type=int, default=150,
                     help="drop a TS rib whose voxel count is below this (spurious blob)")
-    ap.add_argument("--carve_s1", action="store_true", default=False,
-                    help="carve an S1 (id 7) slab out of the GT sacrum (opt-in; off by "
-                         "default — TS-S1 over-segments on tilted pelves and S1 isn't "
-                         "needed for pelvic incidence)")
+    ap.add_argument("--carve_s1", action="store_true", default=True,
+                    help="carve an S1 (id 7) slab out of the GT sacrum (default ON)")
+    ap.add_argument("--no_carve_s1", dest="carve_s1", action="store_false",
+                    help="disable the S1 carve (id 7 left empty)")
     ap.add_argument("--dilation_radius", type=int, default=4)
     ap.add_argument("--pad", type=int, default=10)
     ap.add_argument("--limit", type=int, default=0, help="cap cases (debug)")
