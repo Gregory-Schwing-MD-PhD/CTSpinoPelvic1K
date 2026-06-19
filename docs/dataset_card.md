@@ -133,6 +133,21 @@ subdivides the GT sacrum in place — the sacrum's outer boundary stays radiolog
 
 ## Versions
 
+`main` tracks the **latest** release — currently **v3** (bone-augmented). Every
+version is also pinned on its own branch; load a specific one with `revision=`:
+
+```python
+load_dataset("anonymous-mlhc/CTSpinoPelvic1K")                  # = main = v3 (latest)
+load_dataset("anonymous-mlhc/CTSpinoPelvic1K", revision="v2")  # a specific version
+```
+
+| branch | version | what it is |
+|---|---|---|
+| **main** | = v3 | the latest release (identical to the `v3` branch) |
+| **v1** | v1 | original partial-annotation release |
+| **v2** | v2 | model-completed dense spinopelvic labels |
+| **v3** | v3 | bone-augmented (femurs + thoracic + S1); also served as `main` |
+
 - **v1** — the **partial-annotation** artifact (all configs, `ignore` protocol):
   **the input used to train the pseudolabeller**, now carrying the T12 anchor.
   `pelvic_native` keeps `ignore` on the un-traced spine (an honest absence, never

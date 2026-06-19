@@ -21,14 +21,20 @@ fusing CTSpine1K and CTPelvic1K over the shared COLONOG patient cohort into a
 unified 10-class spinopelvic labelmap (0 background; 1-5 L1-L5; 6 L6/lumbarized
 S1; 7 sacrum; 8 left hip; 9 right hip).
 
+> **Note:** this file is **not** the published dataset card — the card pushed to
+> HuggingFace is `docs/dataset_card.md`. Kept here for reference only.
+
 ## Branches
 
-- **main** — original release: source annotations only, so each case is
-  spine-only, pelvic-only, or fused (partial annotation via nnU-Net ignore-label).
+`main` tracks the **latest** release (currently **v3**); each version is also pinned
+on its own branch, loadable with `revision=`.
+
+- **main** — the latest release, identical to **v3** below.
+- **v1** — original release: source annotations only, so each case is spine-only,
+  pelvic-only, or fused (partial annotation via nnU-Net ignore-label).
 - **v2** — model-completed: every case densely labelled by an out-of-fold,
   5-fold nnU-Net (the unified 10-class spinopelvic map, no ignore-label voxels).
-  Recommended release for the LSTV / spinopelvic benchmark.
-- **v3** — bone-augmented: v2 plus a single TotalSegmentator pass per case, and
+- **v3** — bone-augmented (`== main`): v2 plus a single TotalSegmentator pass per case, and
   re-indexed into an anatomical order — the GT thoracic column (FOV-visible), both
   femurs, and an S1 body carved from the sacrum (see *v3 label scheme*). The same
   spinopelvic anatomy as v2, but the **core ids are renumbered** (S1 is inserted
