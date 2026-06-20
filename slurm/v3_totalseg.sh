@@ -59,6 +59,30 @@ export XDG_RUNTIME_DIR="${NFS_SCRATCH}/xdg_runtime"
 mkdir -p "${SINGULARITY_TMPDIR}" "${HOST_CONTAINER_TMP}" "${XDG_RUNTIME_DIR}"
 trap 'rm -rf "${NODE_SCRATCH}" "${NFS_SCRATCH}" 2>/dev/null || true' EXIT TERM INT
 
+# Preflight: fail loud & early if scratch is too tight — instead of dying ~100
+# cases in when the NFS-bound container /tmp fills (the original v3 failure mode).
+# Same thresholds as pseudolabel.sh / benchmark_totalseg.sh. build_v3_totalseg.py
+# now also purges TS temp files per case, so /tmp stays bounded during the run.
+_free_gib() {
+    local kb
+    kb=$(df -k --output=avail "$1" 2>/dev/null | tail -1 | tr -d ' ')
+    echo $(( ${kb:-0} / 1024 / 1024 ))
+}
+NODE_FREE_GIB=$(_free_gib "${NODE_SCRATCH}")
+NFS_FREE_GIB=$(_free_gib "${NFS_SCRATCH}")
+if [[ "${NODE_FREE_GIB}" -lt 15 ]]; then
+    echo "ERROR: node /tmp (${NODE_SCRATCH}) has only ${NODE_FREE_GIB} GiB free;" >&2
+    echo "       need 15 for the singularity sandbox unpack. Likely too many" >&2
+    echo "       concurrent jobs on $(hostname); re-submit, optionally with" >&2
+    echo "       --exclude=$(hostname)." >&2
+    exit 1
+fi
+if [[ "${NFS_FREE_GIB}" -lt 30 ]]; then
+    echo "ERROR: project NFS (${NFS_SCRATCH}) has only ${NFS_FREE_GIB} GiB free;" >&2
+    echo "       need 30. Free up space under ${PROJECT_ROOT}." >&2
+    exit 1
+fi
+
 echo "======================================================================"
 echo " v3 TotalSegmentator  (resume=${RESUME})"
 echo "   Job ID    : ${SLURM_JOB_ID:-local}   Node: $(hostname)"

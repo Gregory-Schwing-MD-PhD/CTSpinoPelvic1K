@@ -34,6 +34,7 @@ This is the v3 build stage invoked by slurm/ship_v3.sh inside the TS container.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import os
@@ -41,7 +42,7 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Iterator, Optional, Tuple
 
 import nibabel as nib
 import numpy as np
@@ -241,6 +242,37 @@ def ts_femurs_and_s1(
 # ===========================================================================
 # Per-case + driver
 # ===========================================================================
+@contextlib.contextmanager
+def case_tmpdir(base: Path, cid: str) -> Iterator[Path]:
+    """Pin TS/nnUNet temp I/O to a fresh per-case dir and delete it afterwards.
+
+    The TS python API (output=None) and nnUNet write hundreds of MB of temp
+    NIfTIs per case under tempfile.gettempdir() (the NFS-bound container /tmp) and
+    do NOT clean them up. Left to accumulate they fill the scratch after ~100
+    cases, and every TS call past that point dies with
+    `FileNotFoundError: /tmp/...` — silently shipping bone-less labels. Pinning
+    TMPDIR per case and rmtree-ing it keeps /tmp bounded to a single case's
+    footprint, so the run can't fill. Restores the env on exit even on error."""
+    d = base / f"case_{cid}"
+    shutil.rmtree(d, ignore_errors=True)
+    d.mkdir(parents=True, exist_ok=True)
+    saved = {k: os.environ.get(k) for k in ("TMPDIR", "TMP", "TEMP")}
+    prev_tempdir = tempfile.tempdir
+    for k in ("TMPDIR", "TMP", "TEMP"):
+        os.environ[k] = str(d)
+    tempfile.tempdir = str(d)
+    try:
+        yield d
+    finally:
+        tempfile.tempdir = prev_tempdir
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def _save_label(arr, affine, header, out_path: Path) -> None:
     """Write a uint16 label, FIRST breaking any pre-existing hardlink at the target.
 
@@ -424,6 +456,11 @@ def main() -> int:
     log.info("v3 TotalSegmentator: %d case(s) to process  breakdown=%s",
              len(todo), dict(Counter(r.get("config") for r in todo)))
 
+    # Root for per-case temp dirs (see case_tmpdir): a sibling of the original
+    # tempdir so TS's temp NIfTIs stay on the same fs but get purged each case.
+    tmp_root = Path(tempfile.gettempdir()) / f"v3_work_{os.getpid()}"
+    tmp_root.mkdir(parents=True, exist_ok=True)
+
     for i, r in enumerate(todo, 1):
         label_rel = r.get("label_file") or ""
         ct_rel = r.get("ct_file") or ""
@@ -442,12 +479,15 @@ def main() -> int:
             if (args.spine_dir and spine_uid) else None
         log.info("[%d/%d] token=%s config=%s", i, len(todo), r.get("token"), r.get("config"))
         try:
-            qc = process_case(ct_path, v2_label_path, spine_mask, out_label_path,
-                              device=args.device, min_voxels=args.min_voxels,
-                              carve_s1=args.carve_s1)
+            with case_tmpdir(tmp_root, cid):
+                qc = process_case(ct_path, v2_label_path, spine_mask, out_label_path,
+                                  device=args.device, min_voxels=args.min_voxels,
+                                  carve_s1=args.carve_s1)
         except Exception as exc:                                       # noqa: BLE001
-            log.error("  token=%s FAILED: %s — shipping v2 label (core remapped, no bone)",
-                      r.get("token"), exc)
+            # log.exception so the REAL TS/nnUNet traceback lands in the .err log —
+            # a bare str(exc) ("FileNotFoundError: /tmp/...") hides the root cause.
+            log.exception("  token=%s FAILED: %s — shipping v2 label (core remapped, no bone)",
+                          r.get("token"), exc)
             # Still apply the v2->v3 core remap so the scheme stays uniform.
             li = nib.load(str(v2_label_path))
             la = np.asarray(li.dataobj).astype(np.int32)
@@ -474,9 +514,25 @@ def main() -> int:
     # Emit the v3 label scheme (training-contiguous, ignore=34) for dataset.json.
     (args.v3_dir / "dataset_labels.json").write_text(json.dumps(v3_label_dict(), indent=2))
 
-    n_ok = sum(1 for r in qc_rows if r["status"] == "ok")
-    log.info("v3 TotalSegmentator done: %d/%d cases got ribs -> %s  (labels: dataset_labels.json)",
-             n_ok, len(qc_rows), qc_path)
+    shutil.rmtree(tmp_root, ignore_errors=True)
+
+    n_ok = sum(1 for r in qc_rows if r.get("status") == "ok")
+    n_err = sum(1 for r in qc_rows if r.get("status") == "error")
+    log.info("v3 TotalSegmentator done: %d ok / %d error of %d -> %s  (labels: dataset_labels.json)",
+             n_ok, n_err, len(qc_rows), qc_path)
+
+    # Fail-fast: a TS crash (filled /tmp, bad container, …) makes every case ship a
+    # bone-less label while main() still returns 0 — which lets ship_v3's afterok
+    # push upload a half-bone tree. Refuse to signal success when TS errored on more
+    # than a tolerated handful, so the push does NOT run on a broken build. Resume
+    # markers keep the cases that DID succeed, so a fixed resubmit only redoes the rest.
+    tolerance = max(5, len(qc_rows) // 100)
+    if n_err > tolerance:
+        log.error("ABORT: %d/%d cases errored (> tolerance %d) — likely a TS temp/IO "
+                  "failure. NOT signalling success so the push is blocked; check the "
+                  "traceback above, fix, and resubmit (the %d good cases are kept).",
+                  n_err, len(qc_rows), tolerance, n_ok)
+        return 1
     return 0
 
 
