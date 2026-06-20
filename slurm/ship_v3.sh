@@ -2,9 +2,11 @@
 # =============================================================================
 # ship_v3.sh — build + push v3 = v2 + a TotalSegmentator pass (bone).
 #
-#   (1) v3_totalseg  — GT-matched ribs + femurs + S1 carve, merged onto the
-#                  v2 labels (GT boundaries never overwritten).            [GPU]
+#   (1) v3_totalseg  — femurs + S1 carve (+ GT thoracic) merged onto the v2
+#                  labels (GT boundaries never overwritten).               [GPU]
 #   (2) push     — the v3 tree -> <repo>@v3.                              [CPU]
+#   (3) promote  — re-push the SAME tree -> <repo>@main so main tracks v3
+#                  (afterok the v3 push; SYNC_MAIN=0 to skip).             [CPU]
 #
 # Standalone:
 #   HF_TOKEN=hf_xxx HF_REPO_ID=<org>/CTSpinoPelvic1K bash slurm/ship_v3.sh
@@ -29,6 +31,8 @@ SPINE_DIR="${SPINE_DIR:-${DATA_DIR}/placed/spine}"
 HF_WORKERS="${HF_WORKERS:-8}"
 HF_PRIVATE="${HF_PRIVATE:-0}"
 WIPE="${WIPE:-1}"
+SYNC_MAIN="${SYNC_MAIN:-1}"     # 1 = after the v3 push, also push the SAME tree to
+                                # @main so main tracks v3 (set 0 to leave main alone)
 MANIFEST_FILE="${MANIFEST_FILE:-placed_manifest_orientation_fixed.json}"
 SB=""; [[ -n "${SBATCH_QOS:-}" ]] && SB="-q ${SBATCH_QOS}"
 SB="${SB} ${SBATCH_EXTRA:-}"
@@ -47,5 +51,26 @@ JP=$(sbatch --parsable ${SB} --dependency=afterok:${JR} \
   slurm/export_dataset.sh)
 
 echo "V3_PUSH_JOB=${JP}"
-echo "[ship_v3] submitted:  ribs=${JR}  push=${JP}"
-echo "[ship_v3]   monitor:  tail -f logs/*${JR}* logs/*${JP}*"
+
+# (3) Promote main -> v3: re-push the SAME v3 tree to @main, ONLY after the v3
+# push succeeds (afterok:${JP}). ship_v3 itself never touches main, so without
+# this main would be left at whatever it pointed to before (e.g. the prior,
+# possibly-broken commit) while v3 moved ahead. We re-use the proven push path
+# (export_hf.py upload_large_folder) with HF_REVISION=main; the LFS blobs already
+# exist on the remote from the v3 push, so HF dedupes them by hash and this just
+# writes a commit on main referencing the same files -> main becomes
+# content-identical to v3. Additive (WIPE_REMOTE=0): the v3 filename schema is
+# stable (NNNN_*), so re-pushing overwrites every file in place with no orphans,
+# and main (the default branch / live review URL) never passes through an empty
+# state. Set SYNC_MAIN=0 to skip.
+JM=""
+if [[ "${SYNC_MAIN}" == "1" ]]; then
+  echo "[ship_v3] (3) promote ${HF_REPO_ID}@main -> v3 content (re-push ${V3_DIR}) [CPU]  after ${JP}"
+  JM=$(sbatch --parsable ${SB} --dependency=afterok:${JP} \
+    --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=1,WIPE_REMOTE=0,HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=main,HF_EXPORT_DIR=${V3_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
+    slurm/export_dataset.sh)
+  echo "MAIN_PROMOTE_JOB=${JM}"
+fi
+
+echo "[ship_v3] submitted:  ribs=${JR}  push=${JP}${JM:+  main=${JM}}"
+echo "[ship_v3]   monitor:  tail -f logs/*${JR}* logs/*${JP}*${JM:+ logs/*${JM}*}"
