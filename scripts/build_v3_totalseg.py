@@ -243,7 +243,7 @@ def ts_femurs_and_s1(
 # Per-case + driver
 # ===========================================================================
 @contextlib.contextmanager
-def case_tmpdir(base: Path, cid: str) -> Iterator[Path]:
+def case_tmpdir(cid: str) -> Iterator[Path]:
     """Pin TS/nnUNet temp I/O to a fresh per-case dir and delete it afterwards.
 
     The TS python API (output=None) and nnUNet write hundreds of MB of temp
@@ -252,12 +252,16 @@ def case_tmpdir(base: Path, cid: str) -> Iterator[Path]:
     cases, and every TS call past that point dies with
     `FileNotFoundError: /tmp/...` — silently shipping bone-less labels. Pinning
     TMPDIR per case and rmtree-ing it keeps /tmp bounded to a single case's
-    footprint, so the run can't fill. Restores the env on exit even on error."""
-    d = base / f"case_{cid}"
-    shutil.rmtree(d, ignore_errors=True)
-    d.mkdir(parents=True, exist_ok=True)
+    footprint, so the run can't fill.
+
+    Uses mkdtemp (a FRESH unique dir under the current system tempdir each case)
+    rather than a persistent root we pre-create: a SLURM teardown trap that wipes
+    the job's NFS scratch must not be able to delete a long-lived root out from
+    under the loop and cascade into FileNotFoundError on every remaining case.
+    Restores TMPDIR/tempfile state on exit even on error."""
     saved = {k: os.environ.get(k) for k in ("TMPDIR", "TMP", "TEMP")}
     prev_tempdir = tempfile.tempdir
+    d = Path(tempfile.mkdtemp(prefix=f"v3_{cid}_"))
     for k in ("TMPDIR", "TMP", "TEMP"):
         os.environ[k] = str(d)
     tempfile.tempdir = str(d)
@@ -427,15 +431,22 @@ def main() -> int:
     # Markers live in a _work sibling, NOT inside the v3 tree, so they never ship to HF.
     done_dir = args.v3_dir.parent / (args.v3_dir.name + "_work") / "totalseg_done"
     done_dir.mkdir(parents=True, exist_ok=True)
+    # Only cases that SUCCEEDED (status ok = bone actually added) are skippable on
+    # resume. A prior run wrote a marker for every case including TS failures, so
+    # filtering on status here means a resubmit re-runs the failed/bone-less cases
+    # instead of locking in the v2-remap-only fallback they shipped.
     done: Dict[str, dict] = {}
     if args.resume:
         for m in done_dir.glob("*.json"):
             try:
-                done[m.stem] = json.loads(m.read_text())
+                row = json.loads(m.read_text())
             except Exception:
-                pass
+                continue
+            if row.get("status") == "ok":
+                done[m.stem] = row
         if done:
-            log.info("resume: %d case(s) already rib-processed — skipping", len(done))
+            log.info("resume: %d case(s) already done with bone (ok) — skipping; "
+                     "any previously-failed cases will re-run", len(done))
 
     qc_rows: List[Dict[str, object]] = []
     # Rib the RELEASED set = 802: 342 fused + 440 spine_only + the 20 PURE
@@ -456,11 +467,6 @@ def main() -> int:
     log.info("v3 TotalSegmentator: %d case(s) to process  breakdown=%s",
              len(todo), dict(Counter(r.get("config") for r in todo)))
 
-    # Root for per-case temp dirs (see case_tmpdir): a sibling of the original
-    # tempdir so TS's temp NIfTIs stay on the same fs but get purged each case.
-    tmp_root = Path(tempfile.gettempdir()) / f"v3_work_{os.getpid()}"
-    tmp_root.mkdir(parents=True, exist_ok=True)
-
     for i, r in enumerate(todo, 1):
         label_rel = r.get("label_file") or ""
         ct_rel = r.get("ct_file") or ""
@@ -479,7 +485,7 @@ def main() -> int:
             if (args.spine_dir and spine_uid) else None
         log.info("[%d/%d] token=%s config=%s", i, len(todo), r.get("token"), r.get("config"))
         try:
-            with case_tmpdir(tmp_root, cid):
+            with case_tmpdir(cid):
                 qc = process_case(ct_path, v2_label_path, spine_mask, out_label_path,
                                   device=args.device, min_voxels=args.min_voxels,
                                   carve_s1=args.carve_s1)
@@ -499,9 +505,11 @@ def main() -> int:
                   "femur_vox": 0}
         qc["token"] = r.get("token")
         qc_rows.append(qc)
-        # Mark done only after the output label is on disk (a timeout mid-case leaves
-        # no marker -> that case re-runs next time; finished cases never re-run).
-        if out_label_path.exists():
+        # Mark done ONLY for cases that succeeded (bone added). A failed/bone-less
+        # case writes no marker, so a resubmit re-runs it instead of locking in the
+        # v2-remap fallback. (Resume also filters on status, so old error markers
+        # from prior runs don't cause skips either.)
+        if out_label_path.exists() and qc.get("status") == "ok":
             (done_dir / f"{cid}.json").write_text(json.dumps(qc))
 
     import csv
@@ -513,8 +521,6 @@ def main() -> int:
             w.writerow({k: row.get(k, "") for k in w.fieldnames})
     # Emit the v3 label scheme (training-contiguous, ignore=34) for dataset.json.
     (args.v3_dir / "dataset_labels.json").write_text(json.dumps(v3_label_dict(), indent=2))
-
-    shutil.rmtree(tmp_root, ignore_errors=True)
 
     n_ok = sum(1 for r in qc_rows if r.get("status") == "ok")
     n_err = sum(1 for r in qc_rows if r.get("status") == "error")
