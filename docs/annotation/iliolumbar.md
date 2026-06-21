@@ -37,6 +37,16 @@ Small structure — usually fastest to paint by hand, or seed with **nnInteracti
 (a scribble along the band) and tidy. Ossified ligaments can be thresholded from the
 CT then trimmed to the band.
 
+## Reference images
+- **Anatomy + CT/MRI appearance:**
+  [Radiopaedia — Iliolumbar ligament](https://radiopaedia.org/articles/iliolumbar-ligament)
+  — see *Case 1 (iliolumbar ligament on CT)* and *Case 3 (ossified iliolumbar ligaments)*.
+- **LSTV labelling context:**
+  [Radiopaedia — Lumbosacral transitional vertebra](https://radiopaedia.org/articles/lumbosacral-transitional-vertebra)
+  (*Case 4: iliolumbar ligaments on CT*) for how it's used as a level landmark.
+- **Worked example (add one):** place an annotated CT screenshot at
+  `figs/iliolumbar_annotated_example.png` and embed it here — see [figs/README.md](figs/README.md).
+
 ## QC checklist before submit
 - [ ] Band **originates at the L5 (GT id 5) transverse process** (or note the level
       it actually arises from).

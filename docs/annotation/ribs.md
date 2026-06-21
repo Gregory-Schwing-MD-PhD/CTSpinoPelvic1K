@@ -41,6 +41,13 @@ blank and add a `reviewtool` note "T12 no rib". A GT-T12 without a rib (or an L1
 *with* a rib) is a **thoracolumbar transitional** signal; these flagged cases feed
 the LSTV/TLTV analysis. Your job is to record what's there, accurately.
 
+## Reference images
+- **Rib count → numbering (LSTV context):**
+  [Radiopaedia — Lumbosacral transitional vertebra](https://radiopaedia.org/articles/lumbosacral-transitional-vertebra)
+  — see *Case 8 (11 rib pairs and L5 sacralization)* for how rib count drives level numbering.
+- **Worked example (add one):** place an annotated CT screenshot at
+  `figs/ribs_annotated_example.png` and embed it here — see [figs/README.md](figs/README.md).
+
 ## QC checklist before submit
 - [ ] Each painted rib is one connected structure on the correct **side**.
 - [ ] The **number** matches the GT thoracic vertebra at its costovertebral joint.

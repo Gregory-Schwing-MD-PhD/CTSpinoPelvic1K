@@ -45,6 +45,16 @@ the foraminal fat on the root, generate, prune over-segmentation into vessels/fa
 - All disagreements go to the **expert adjudicator** (this task's IRR will be lower
   than ribs — that's expected; the adjudication + MRI spot-checks are the safeguard).
 
+## Reference images
+- **Nerve-morphology enumeration at the lateral sacrum** (the L5-vs-L4 caliber/split
+  rule): [Radiopaedia — Lumbosacral transitional vertebra](https://radiopaedia.org/articles/lumbosacral-transitional-vertebra)
+  — see *Case 9 (left S1 partial lumbarization)* for the axial nerve appearance.
+- **CT feasibility + Kambin's geometry:** the SPINECT (Fan 2019) and Tabarestani
+  2023 figures are in the project PDFs — use them to calibrate what a root looks
+  like in foraminal fat before you start.
+- **Worked example (add one):** place an annotated CT screenshot at
+  `figs/ls_nerve_annotated_example.png` and embed it here — see [figs/README.md](figs/README.md).
+
 ## QC checklist before submit
 - [ ] Correct **level** (read off the GT vertebra) and **side**.
 - [ ] Root traced only where genuinely visible in fat; no intrathecal guessing.
