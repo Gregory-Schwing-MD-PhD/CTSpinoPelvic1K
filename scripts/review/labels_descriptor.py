@@ -33,35 +33,73 @@ _RGB: Dict[int, Tuple[int, int, int]] = {
     # v4 rib-anchor classes — off the JET ramp so the anchor + rib pop against
     # the vertebra/pelvis colours: last_rib_vertebra magenta, rib white.
     11: (255, 0, 255), 12: (255, 255, 255),
+    # v4 overlay: iliolumbar (51/52) + LS-nerve roots (53–58) — bright, off-ramp
+    # colours so the overlay pops against the grey base context. Ribs (26–49) get
+    # an auto JET ramp from _rib_rgb() (24 ids — not worth hardcoding).
+    51: (255, 0, 128), 52: (200, 0, 128),                   # iliolumbar L/R
+    53: (255, 255, 0), 54: (255, 200, 0),                   # nerve L4 L/R
+    55: (0, 255, 0), 56: (0, 200, 0),                       # nerve L5 L/R
+    57: (0, 255, 255), 58: (0, 200, 200),                   # nerve S1 L/R
 }
 
 
-def descriptor_text() -> str:
+def _rib_rgb(idx: int) -> Tuple[int, int, int]:
+    """Auto colour for a rib id 26–49 — left ribs warm, right ribs cool, brightness
+    ramped by rib number so adjacent ribs are distinguishable."""
+    if 26 <= idx <= 37:          # rib_left_1..12 — magenta ramp
+        t = (idx - 26) / 11
+        return (255, int(40 + 160 * t), 255)
+    t = (idx - 38) / 11          # rib_right_1..12 — cyan ramp
+    return (int(40 + 160 * t), 255, 255)
+
+
+def _rgb(idx: int) -> Tuple[int, int, int]:
+    if idx in _RGB:
+        return _RGB[idx]
+    if 26 <= idx <= 49:
+        return _rib_rgb(idx)
+    return (200, 200, 200)       # safe fallback (shouldn't happen)
+
+
+def descriptor_text(task: str | None = None) -> str:
+    """ITK-SNAP label file. `task=None` → the canonical base scheme (back-compat).
+    `task` in schema.OVERLAY_TASKS → base anatomical context (1–9) for spatial
+    reference + IGNORE + ONLY that task's overlay palette, so a task's reviewers
+    paint exactly its structures and nothing collides."""
     lines = [
         "################################################",
         "# ITK-SnAP Label Description File",
         "# CTSpinoPelvic1K canonical scheme — DO NOT renumber.",
+        f'# task: {task or "canonical"}',
         '# Fields: IDX  -R-  -G-  -B-  -A--  VIS MSH  "LABEL"',
         "################################################",
         '    0     0    0    0        0  0  0    "Clear Label"',
     ]
-    # Drive the palette off CLASS_NAMES so the v4 rib-anchor classes (11/12)
-    # appear automatically; skip 0 (Clear, above) and IGNORE (added below).
-    for idx in sorted(k for k in schema.CLASS_NAMES if k not in (0,)):
-        r, g, b = _RGB[idx]
-        name = schema.CLASS_NAMES[idx]
+    if task is None:
+        idxs = sorted(k for k in schema.CLASS_NAMES if k != 0)
+        names = schema.CLASS_NAMES
+    else:
+        if task not in schema.OVERLAY_CLASSES:
+            raise ValueError(f"unknown task {task!r}; expected one of "
+                             f"{schema.OVERLAY_TASKS}")
+        # base anatomical context (1–9) as read-only reference + the task overlay
+        names = {k: schema.CLASS_NAMES[k] for k in range(1, 10)}
+        names.update(schema.OVERLAY_CLASSES[task])
+        idxs = sorted(names)
+    for idx in idxs:
+        r, g, b = _rgb(idx)
         lines.append(f'{idx:5d} {r:5d} {g:4d} {b:4d}'
-                     f'        1  1  1    "{name}"')
+                     f'        1  1  1    "{names[idx]}"')
     # IGNORE_LABEL: present in partial masks; show but de-emphasised.
     lines.append(f'{schema.IGNORE_LABEL:5d}   128  128  128'
                  f'        1  1  0    "IGNORE"')
     return "\n".join(lines) + "\n"
 
 
-def write_label_descriptor(path) -> Path:
+def write_label_descriptor(path, task: str | None = None) -> Path:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(descriptor_text())
+    p.write_text(descriptor_text(task))
     return p
 
 
@@ -69,5 +107,8 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", default="labels.txt", type=Path)
+    ap.add_argument("--task", default=None,
+                    help="overlay task palette (rib_anchor|ribs|ls_nerve|"
+                         "iliolumbar); omit for the canonical base scheme")
     a = ap.parse_args()
-    print("wrote", write_label_descriptor(a.out))
+    print("wrote", write_label_descriptor(a.out, a.task))

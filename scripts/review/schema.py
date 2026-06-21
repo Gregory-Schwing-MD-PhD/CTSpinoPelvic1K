@@ -38,15 +38,48 @@ IGNORE_LABEL = 10
 SPINE_CLASSES = frozenset({1, 2, 3, 4, 5, 6})
 PELVIC_CLASSES = frozenset({7, 8, 9})
 RIB_ANCHOR_CLASSES = frozenset({11, 12})
-REGION_CLASSES: Dict[str, frozenset] = {"spine": SPINE_CLASSES,
-                                        "pelvis": PELVIC_CLASSES,
-                                        "rib_anchor": RIB_ANCHOR_CLASSES}
+
+# ── v4 overlay TASKS ─────────────────────────────────────────────────────────
+# Each v4 task is annotated in its OWN Space (separate ledger). Overlay ids REUSE
+# the dataset scheme so finalized labels drop straight in (no remap), and never
+# collide with the v3 base label the student edits (ids 0–49 + ignore 50):
+#   * Ribs REUSE v3's reserved-but-empty rib ids 26–49 (rib_left_1..12 → 26–37,
+#     rib_right_1..12 → 38–49, matching build_v3_totalseg). The rib NUMBER is read
+#     off the adjacent GT thoracic vertebra (costovertebral joint), not guessed —
+#     so on FOV-limited scans students paint only the visible ribs at true number.
+#   * Iliolumbar (51/52) + LS-nerve roots (53–58) take NEW ids ABOVE the v3 base
+#     ignore (50) so they don't clash with ignore voxels in the editable base.
+# In the v4 DATASET, ignore relocates 50 -> 255 (stays the highest sentinel); that
+# is a v4-build/reduce step. The review-space ignore is separate (IGNORE_LABEL=10).
+# Reviewers for a task load ONLY that task's palette
+# (labels_descriptor.descriptor_text(task=...)). See docs/annotation/.
+RIBS_CLASSES = {25 + n: f"rib_left_{n}" for n in range(1, 13)}     # 26–37
+RIBS_CLASSES.update({37 + n: f"rib_right_{n}" for n in range(1, 13)})  # 38–49
+ILIOLUMBAR_CLASSES = {51: "iliolumbar_left", 52: "iliolumbar_right"}
+LS_NERVE_CLASSES = {53: "nerve_L4_left", 54: "nerve_L4_right",
+                    55: "nerve_L5_left", 56: "nerve_L5_right",
+                    57: "nerve_S1_left", 58: "nerve_S1_right"}
+# task -> {review-space id: name}. "rib_anchor" is the original minimal LSTV
+# rostral anchor (kept for back-compat); ribs/ls_nerve/iliolumbar are the new v4
+# overlays. All are "add structures onto a good v3 label" passes.
+OVERLAY_CLASSES: Dict[str, Dict[int, str]] = {
+    "rib_anchor": {11: "last_rib_vertebra", 12: "rib"},
+    "ribs": RIBS_CLASSES,
+    "ls_nerve": LS_NERVE_CLASSES,
+    "iliolumbar": ILIOLUMBAR_CLASSES,
+}
+OVERLAY_TASKS = tuple(OVERLAY_CLASSES)          # the v4 add-an-overlay passes
+
+REGION_CLASSES: Dict[str, frozenset] = {
+    "spine": SPINE_CLASSES, "pelvis": PELVIC_CLASSES,
+    **{t: frozenset(ids) for t, ids in OVERLAY_CLASSES.items()},
+}
 REGIONS = ("spine", "pelvis")
 # Regions a review record may name. "both" = a fused gold re-review (re-checks
-# spine+pelvis); "rib_anchor" = the v4 pass that ADDS the counting anchor
-# (classes 11/12) to an already-good v3 label and opportunistically fixes
-# class-mixing/partial vertebrae.
-VALID_REGIONS = REGIONS + ("both", "rib_anchor")
+# spine+pelvis); the OVERLAY_TASKS each ADD new structures onto an already-good
+# v3 label (and may opportunistically tidy class-mixing/partial vertebrae)
+# without re-correcting the spine/pelvis source provenance.
+VALID_REGIONS = REGIONS + ("both",) + OVERLAY_TASKS
 
 PROV_VALUES = ("manual", "pseudo", "pseudo_corrected", None)
 DECISIONS = ("accept", "corrected", "reject")
@@ -106,11 +139,12 @@ def provenance_after(prov_before: Dict[str, Optional[str]],
             if out.get(r) == "pseudo":
                 out[r] = "pseudo_corrected"
         return out
-    if region == "rib_anchor":
-        # The rib-anchor pass adds NEW structures (11/12) and may tidy
-        # class-mixing, but it is not a re-correction of the spine/pelvis
-        # source provenance — those axes are unchanged. The addition itself is
-        # recorded in the decision + label diff (classes 11/12 appear there).
+    if region in OVERLAY_TASKS:
+        # An overlay pass (rib_anchor / ribs / ls_nerve / iliolumbar) ADDS new
+        # structures and may tidy class-mixing, but it is not a re-correction of
+        # the spine/pelvis source provenance — those axes are unchanged. The
+        # addition itself is recorded in the decision + label diff (the overlay
+        # classes appear there).
         return out
     if region not in REGIONS:
         return out

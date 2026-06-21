@@ -286,33 +286,38 @@ def init_cases_from_manifest(store: ReviewStore, records: List[dict],
     return len(new_cases)
 
 
-# rib-anchor (v4) seeding ----------------------------------------------------
-# Only configs with REAL radiologist spine GT are eligible. The anchor is
-# defined relationally as "the vertebra directly above ground-truth L1" — so it
-# is only trustworthy where L1 itself is radiologist truth. `fused` and
+# v4 overlay-task seeding -----------------------------------------------------
+# Only configs with REAL radiologist spine GT are eligible for ALL overlay tasks.
+# Each overlay is anchored to ground-truth lumbar/sacral anatomy: the rib anchor
+# is "the vertebra above GT L1"; rib NUMBERING is derived from GT thoracic
+# costovertebral adjacency; the iliolumbar ligament arises from the GT L5
+# transverse process; LS-nerve roots are read against GT L4/L5/S1. `fused` and
 # `spine_only` carry the CTSpine1K spine GT; `pelvic_native` has a PSEUDOLABELLED
-# spine (its L1 is a model guess), so its anchor would be untrustworthy — those
-# cases are dropped from the numbering task entirely.
-RIB_ANCHOR_CONFIGS = frozenset({"fused", "spine_only"})
+# spine (an untrusted L1), so its overlays can't be trusted — those cases are
+# dropped from every overlay task.
+SPINE_GT_CONFIGS = frozenset({"fused", "spine_only"})
+RIB_ANCHOR_CONFIGS = SPINE_GT_CONFIGS            # back-compat alias
 
 
-def init_rib_anchor_cases(store: ReviewStore, records: List[dict],
-                          source_revision: str = "v3",
-                          include_configs: frozenset = RIB_ANCHOR_CONFIGS) -> int:
-    """Seed the v4 rib-anchor task: one case per spine-GT v3 record.
+def init_overlay_cases(store: ReviewStore, records: List[dict], task: str,
+                       source_revision: str = "v3",
+                       include_configs: frozenset = SPINE_GT_CONFIGS) -> int:
+    """Seed a v4 overlay task (one Space + ledger per task; see docs/annotation/).
 
-    Unlike the pseudo-label review (init_cases_from_manifest), this serves the
-    EXISTING v3 label as the editable base — the anchor (`last_rib_vertebra` 11
-    + `rib` 12) is defined as "the vertebra above ground-truth L1"; reviewers
-    confirm/segment it and may tidy class-mixing / partly coloured vertebrae
-    (docs/RIB_ANCHOR_RATIONALE.md). region_to_review is "rib_anchor" so
-    IRR/provenance treat it as the add-the-anchor pass.
+    `task` is one of schema.OVERLAY_TASKS (rib_anchor | ribs | ls_nerve |
+    iliolumbar). Unlike the pseudo-label review (init_cases_from_manifest), this
+    serves the EXISTING v3 label as the editable base — the student ADDS the
+    task's overlay structures onto it (and may tidy class-mixing / partial
+    vertebrae). `region_to_review` is the task name, so IRR runs over the overlay
+    classes and provenance treats it as an additive pass (the spine/pelvis source
+    axes are unchanged — see schema.provenance_after).
 
-    Only spine-GT configs are enqueued (fused / spine_only). `pelvic_native`
-    cases have a pseudolabelled spine — an untrusted L1 — so their anchor cannot
-    be trusted and they are excluded. Idempotent: never clobbers a case that
+    Only spine-GT configs are enqueued. Idempotent: never clobbers a case that
     already has claims/reviews. All new cases land in a SINGLE commit.
     """
+    if task not in schema.OVERLAY_TASKS:
+        raise ValueError(f"unknown overlay task {task!r}; expected one of "
+                         f"{schema.OVERLAY_TASKS}")
     existing = {p[len("cases/"):-len(".json")]
                 for p in store.b.list("cases/")
                 if p.startswith("cases/") and p.endswith(".json")}
@@ -330,14 +335,14 @@ def init_rib_anchor_cases(store: ReviewStore, records: List[dict],
             "case_id": cid,
             "token": str(rec.get("token")),
             "config": cfg,
-            "task": "rib_anchor",
+            "task": task,
             "stratum": rec.get("lstv_label") or "normal",
             "priority": 0,
             "source_revision": source_revision,
             "ct_file": rec.get("ct_file"),
-            # the v3 label IS the base the student edits (adds 11/12 onto)
+            # the v3 label IS the base the student edits (adds the overlay onto)
             "pseudo_label_file": rec.get("label_file"),
-            "region_to_review": "rib_anchor",
+            "region_to_review": task,
             "prov_before": {"spine": rec.get("prov_spine"),
                             "pelvis": rec.get("prov_pelvis")},
             "slots": {},
@@ -345,3 +350,12 @@ def init_rib_anchor_cases(store: ReviewStore, records: List[dict],
         })
     store.put_cases(new_cases)                   # single commit (no-op if empty)
     return len(new_cases)
+
+
+def init_rib_anchor_cases(store: ReviewStore, records: List[dict],
+                          source_revision: str = "v3",
+                          include_configs: frozenset = SPINE_GT_CONFIGS) -> int:
+    """Back-compat wrapper: seed the rib-anchor overlay (see init_overlay_cases)."""
+    return init_overlay_cases(store, records, task="rib_anchor",
+                              source_revision=source_revision,
+                              include_configs=include_configs)

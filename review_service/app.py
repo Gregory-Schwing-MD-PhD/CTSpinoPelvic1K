@@ -45,6 +45,7 @@ from fastapi.responses import HTMLResponse, JSONResponse  # noqa: E402
 
 import store as store_mod      # noqa: E402
 import service as svc          # noqa: E402
+from review import schema      # noqa: E402   (overlay-task registry)
 
 # ── config + wiring ──────────────────────────────────────────────────────────
 
@@ -87,11 +88,16 @@ SERVICE: Optional[svc.ReviewService] = None
 _LOCK = threading.Lock()       # serialize writes (single-worker Space)
 
 
-# TASK selects what this Space serves:
+# TASK selects what this Space serves (run ONE Space per task — see
+# docs/annotation/ and docs/REVIEW.md for the per-task Space + ledger map):
 #   "lstv"       (default) — correct v2 pseudo-labels (init_cases_from_manifest,
 #                 optional crops/crops_index triage). SOURCE_REVISION defaults v2.
-#   "rib_anchor" — the v4 pass: ADD the counting anchor (11/12) onto v3 labels
-#                 (init_rib_anchor_cases). Point SOURCE_REVISION at v3.
+#   v4 overlays (schema.OVERLAY_TASKS) — ADD structures onto the v3 label
+#   (init_overlay_cases); point SOURCE_REVISION at v3:
+#     "rib_anchor" minimal LSTV rostral anchor (11/12)
+#     "ribs"       per-rib segmentation, reusing reserved ids 26–49
+#     "ls_nerve"   L4/L5/S1 nerve roots (53–58)
+#     "iliolumbar" iliolumbar ligament (51/52)
 TASK = os.environ.get("TASK", "lstv").strip().lower()
 
 
@@ -112,10 +118,14 @@ def _startup():
         data = json.loads(Path(mp).read_text())
         recs = data if isinstance(data, list) else data.get("records", [])
 
-        if TASK == "rib_anchor":
-            n = store_mod.init_rib_anchor_cases(
-                SERVICE.store, recs, source_revision=SERVICE.source_revision)
-            tag = f"rib-anchor (v4) case(s) from {SERVICE.v2_repo}@{SERVICE.source_revision}"
+        if TASK in schema.OVERLAY_TASKS:
+            # v4 overlay pass (rib_anchor | ribs | ls_nerve | iliolumbar): serve
+            # the v3 label as the editable base; the student ADDS this task's
+            # overlay onto it. Point SOURCE_REVISION at v3 (one Space per task).
+            n = store_mod.init_overlay_cases(
+                SERVICE.store, recs, task=TASK,
+                source_revision=SERVICE.source_revision)
+            tag = f"{TASK} (v4 overlay) case(s) from {SERVICE.v2_repo}@{SERVICE.source_revision}"
         else:
             # TRIAGE: if the repo carries crops/crops_index.json (the QC-flagged
             # worklist), seed ONLY those cases and attach their review-crop info.
