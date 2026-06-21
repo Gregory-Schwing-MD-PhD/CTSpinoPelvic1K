@@ -33,13 +33,29 @@ starting with **Pelvic Incidence** (the one sagittal parameter valid on supine C
 Shared mask-I/O contract + the PI spec are in `SPEC.md`; SVA/TPA are out of scope
 for this FOV.
 
-**Publication plan & deadlines**
-- **P1 — v3 dataset paper:** at **MLHC 2026** (in review). Backup: BIBM if needed; ML4H Findings for visibility; Scientific Data as the durable citation.
-- **P2 — toolbox (PI/LL):** **BIBM 2026 — Jul 5** (full paper) or **SPIE Medical Imaging 2027 — abstract Aug 5** (2–4 pp; manuscript Jan 27, 2027).
-- **P3 — LS-nerve segmentation:** MICCAI/MIDL 2027; AJNR/World Neurosurgery.
-- **P4 — ribs + iliolumbar + LSTV/TLTV (+VerSeFusion):** the v4 dataset paper — Scientific Data / MICCAI 2027.
+**Publication plan — one project = one paper, each with aims + deadline**
 
-Full project + deadline matrix is in `docs/ROADMAP.md`.
+**Paper 1 — CTSpinoPelvic1K v3 (bone) dataset** · *MLHC 2026 — in review (conf Aug 12–14, 2026); backups: BIBM, ML4H Findings, Scientific Data*
+- Aim 1: Build v3 — add femurs + carve S1 + GT thoracic onto v2.
+- Aim 2: Baseline nnU-Net (pseudolabels L1–L5 + sacrum) + the reviewer-requested ablation.
+- Aim 3: Publish v3 to HF (`@v3`, promote `@main`).
+
+**Paper 2 — Spinopelvic parameters from CT masks (OpenSpineToolbox)** · *BIBM 2026 — Jul 5 (full paper), or SPIE Medical Imaging 2027 — abstract Aug 5, 2026 (mss Jan 27, 2027)*
+- Aim 1: Develop PI extraction code (femoral-head sphere-fit + S1 endplate + sagittal projection).
+- Aim 2: Manually verify PI (MAE / ICC / Bland–Altman vs manual).
+- Aim 3: Extend to LL + PI–LL mismatch (develop + verify).
+
+**Paper 3 — Lumbosacral nerve segmentation & Kambin's-triangle mapping** · *MICCAI 2027 (~Feb) / MIDL 2027 (~Dec 2026); clinical: AJNR / World Neurosurgery*
+- Aim 1: Annotate L4/L5/S1 nerve roots on v3 (student task + IRR).
+- Aim 2: Train + validate a nerve segmentation model (vs MRI subset).
+- Aim 3: Derive Kambin's-triangle / foraminal geometry + LSTV neural enumeration.
+
+**Paper 4 — v4 dataset: ribs, iliolumbar ligament & LSTV/TLTV detection** · *BIBM 2027 (~Jul) / Scientific Data (rolling) / MICCAI 2027*
+- Aim 1: Segment ribs on v3 (student task; numbering read from GT thoracic).
+- Aim 2: Segment the iliolumbar ligament (student task).
+- Aim 3: LSTV/TLTV detection via three anchors (rib / S1-bony / neural + iliolumbar) + VerSeFusion augmentation; publish v4.
+
+Full matrix is in `docs/ROADMAP.md`.
 
 **Students:** any code you write goes to OpenSpineToolbox via pull request — see its README.
 

@@ -22,42 +22,44 @@ Ship pipeline: [`slurm/ship_v3.sh`](../slurm/ship_v3.sh) (build → push `@v3` �
 
 ## Projects
 
-### P1 — CTSpinoPelvic1K v3 dataset paper
-v3 (femurs + S1 + thoracic) with the **baseline** (pseudolabels L1–L5 + sacrum) and
-the reviewer-requested **ablation**.
-- **Primary home:** MLHC 2026 — *in review, score 2.75/4, awaiting decision.*
-- **Fallback (archival):** BIBM 2026 — only if MLHC rejects before its deadline;
-  **no dual-submission while MLHC is pending.**
-- **Visibility (non-archival, no conflict):** ML4H 2026 Findings.
-- **Durable citation:** Scientific Data (rolling) — complements the conference paper.
+One project = one paper. Each paper's **aims** are concrete deliverables.
 
-### P2 — OpenSpineToolbox: spinopelvic parameters from masks
-Automated PI / LL / PI–LL (+ Kambin/foraminal geometry) from v3 masks, validated
-vs. manual. Spec: [OpenSpineToolbox `SPEC.md`](https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolbox/blob/main/SPEC.md).
-Build order = clinical utility, **PI first** (posture-invariant → valid on supine CT).
-- **Independent of MLHC** (no dual-submission conflict).
-- **Routes:** BIBM 2026 (if PI/LL validation lands by the deadline) · SPIE Medical
-  Imaging 2027 · JOSS (software) / J. Imaging Informatics in Medicine / Operative
-  Neurosurgery (clinical-utility angle).
+### Paper 1 — CTSpinoPelvic1K v3 (bone) dataset
+*Deadline: **MLHC 2026** — in review, score 2.75/4 (conf Aug 12–14, 2026). Backups:
+BIBM (no dual-submission while MLHC pending), ML4H Findings (non-archival), Scientific
+Data (durable citation).*
+- **Aim 1:** Build v3 — add femurs + carve S1 + GT thoracic onto v2.
+- **Aim 2:** Baseline nnU-Net (pseudolabels L1–L5 + sacrum) + the reviewer-requested ablation.
+- **Aim 3:** Publish v3 to HF (`@v3`, promote `@main`).
 
-### P3 — LS-nerve segmentation (v4)
-Per-root **instance** segmentation on CT (caliber + branching). Dual payload:
-**Kambin's-triangle/foraminal mapping** *and* **LSTV neural enumeration** (L5-nerve
-caliber/count at the lateral sacrum). Precedent: Fan 2019 (SPINECT, CT, Dice 0.905);
+### Paper 2 — Spinopelvic parameters from CT masks (OpenSpineToolbox)
+*Deadline: **BIBM 2026 — Jul 5** (full paper), or **SPIE Medical Imaging 2027 —
+abstract Aug 5, 2026** (mss Jan 27, 2027). Independent of MLHC. Other homes: JOSS /
+J. Imaging Informatics in Medicine / Operative Neurosurgery.*
+Spec: [OpenSpineToolbox `SPEC.md`](https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolbox/blob/main/SPEC.md) (PI first — posture-invariant → valid on supine CT).
+- **Aim 1:** Develop PI extraction code (femoral-head sphere-fit + S1 endplate + sagittal projection).
+- **Aim 2:** Manually verify PI (MAE / ICC / Bland–Altman vs manual).
+- **Aim 3:** Extend to LL + PI–LL mismatch (develop + verify).
+
+### Paper 3 — Lumbosacral nerve segmentation & Kambin's-triangle mapping
+*Deadline: **MICCAI 2027** (~Feb) / **MIDL 2027** (~Dec 2026); clinical: AJNR /
+World Neurosurgery; ML4H 2027.* Precedent: Fan 2019 (SPINECT, CT, Dice 0.905);
 clinical motivation: Tabarestani 2023 (MRI, percLIF).
-- **Routes:** MICCAI 2027 · MIDL 2027 · AJNR / World Neurosurgery · ML4H 2027.
+- **Aim 1:** Annotate L4/L5/S1 nerve roots on v3 (student task + IRR).
+- **Aim 2:** Train + validate a per-root nerve segmentation model (vs MRI subset).
+- **Aim 3:** Derive Kambin's-triangle / foraminal geometry + LSTV neural enumeration
+  (L5-nerve caliber/count at the lateral sacrum).
 
-### P4 — Ribs + iliolumbar ligament + LSTV/TLTV (v4 expansion)
-Three independent **enumeration anchors** for transitional anatomy:
-1. **Rostral bony** — lowest rib-bearing vertebra (rib mask).
-2. **Caudal bony** — S1 endplate + transitional-body morphology (Castellvi).
-3. **Neural** — L5-nerve caliber/count + **iliolumbar ligament** (arises from L5 TP).
-
-Rib-status ↔ GT-numbering mismatch auto-flags candidate TLTV/LSTV (a feature/flag,
-not a numbering authority — GT stays authoritative). VerSeFusion contributes ~50
-additional LSTV/TLTV (current LSTV n=33 → ~83) — **must be annotated in the v3 label
-scheme** to pool for training.
-- **Routes:** Scientific Data (v4 descriptor) · MICCAI 2027 · BIBM 2027.
+### Paper 4 — v4 dataset: ribs, iliolumbar ligament & LSTV/TLTV detection
+*Deadline: **BIBM 2027** (~Jul) / **Scientific Data** (rolling, v4 descriptor) /
+**MICCAI 2027**.* Three independent enumeration anchors: rostral bony (lowest
+rib-bearing vertebra), caudal bony (S1 endplate + Castellvi morphology), neural
+(L5-nerve caliber + iliolumbar ligament, which arises from the L5 TP).
+- **Aim 1:** Segment ribs on v3 (student task; numbering read from GT thoracic).
+- **Aim 2:** Segment the iliolumbar ligament (student task).
+- **Aim 3:** LSTV/TLTV detection from the three anchors (rib-status ↔ GT-numbering
+  mismatch flags candidates; GT stays authoritative) + VerSeFusion augmentation
+  (~50 more LSTV/TLTV; n=33 → ~83, annotated in the v3 scheme); publish v4.
 
 ---
 
