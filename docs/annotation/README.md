@@ -36,15 +36,29 @@ You paint into the **dataset id scheme** so your work drops straight in:
 
 ---
 
-## The workflow (same for every task)
+## One-time setup (any task)
 
-1. **Authenticate once:** `hf auth login` (your own HF token), then
-   `reviewtool login --service https://anonymous-mlhc-ctspinopelvic1k-review-<task>.hf.space`.
-2. **Claim a case:** `reviewtool claim` → it downloads the CT + the v3 base label +
-   the task `labels.txt` and opens ITK-SNAP.
-3. **Annotate** your task's overlay (see the guide). Use **AI-assist** to start
-   (pre-seeded predictions / nnInteractive scribbles) — then correct by hand.
-4. **Submit:** `reviewtool submit` (uploads your label + a review record).
+```bash
+git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git
+cd CTSpinoPelvic1K
+pip install requests huggingface_hub numpy nibabel
+hf auth login          # paste your HuggingFace token (free account)
+```
+ITK-SNAP must be installed (`reviewtool` auto-detects it).
+
+## Reviewing (same shape for every task)
+
+Each task guide has the exact copy-paste block with **its** Space URL. The shape:
+
+```bash
+python -m reviewtool login --service <YOUR TASK'S SPACE URL>
+python -m reviewtool next      # claims a case + opens ITK-SNAP; annotate, save & close to submit
+python -m reviewtool next      # ...repeat for each case
+python -m reviewtool status    # your progress
+```
+`next` auto-assigns the next case (double-review enforces A≠B; no cherry-picking).
+If a session drops mid-edit, `python -m reviewtool resume` re-sends it. Use
+**AI-assist** (nnInteractive scribbles) to start each structure, then correct by hand.
 
 **Double review + IRR:** every case is independently annotated by **two** students
 (slots 1 and 2; you can't hold both). Agreement = per-class Dice; if it clears the

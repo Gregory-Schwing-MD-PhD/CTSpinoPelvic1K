@@ -14,10 +14,15 @@ of the things you'll be adding.
 - **Lumbosacral nerves** *(hardest)* → https://anonymous-mlhc-ctspinopelvic1k-review-nerve.hf.space
 - **Iliolumbar ligament** → https://anonymous-mlhc-ctspinopelvic1k-review-ili.hf.space
 
-**How it works:**
-1. `hf auth login` (free HuggingFace account), then `reviewtool login --service <your task's URL above>`.
-2. `reviewtool claim` — it downloads a case and opens it in ITK-SNAP with AI-assist to get you started.
-3. Annotate your structure, then `reviewtool submit`.
+**How it works** (one-time setup, then repeat per case):
+```bash
+git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git && cd CTSpinoPelvic1K
+pip install requests huggingface_hub numpy nibabel
+hf auth login                                    # free HuggingFace account
+python -m reviewtool login --service <your task's URL above>
+python -m reviewtool next                         # opens ITK-SNAP with AI-assist; annotate, save & close to submit
+```
+Then just repeat `python -m reviewtool next` for each case (`python -m reviewtool status` shows your progress).
 
 Every case is done independently by **two** students so we can measure agreement —
 so just claim whatever the tool gives you. Step-by-step protocols (with reference

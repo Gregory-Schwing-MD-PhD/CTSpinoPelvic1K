@@ -2,7 +2,16 @@
 
 **Difficulty: easier** · paints ids **26–49** · Space `…/CTSpinoPelvic1K-review-ribs`
 
-Read [README.md](README.md) first (workflow, login, IRR, label-space rules).
+Read [README.md](README.md) first (one-time setup, IRR, label-space rules).
+
+## Copy-paste to start
+After the one-time setup in [README.md](README.md) (clone + `pip install` + `hf auth login`):
+```bash
+python -m reviewtool login --service https://anonymous-mlhc-ctspinopelvic1k-review-ribs.hf.space
+python -m reviewtool next      # claims a case + opens ITK-SNAP; annotate ribs, save & close to submit
+python -m reviewtool next      # ...repeat for each case
+python -m reviewtool status    # your progress
+```
 
 ## Goal
 Segment each **visible rib**, painted at its **correct number and side**, onto the
@@ -30,10 +39,10 @@ ids 13–25 = T1–T13, so **id 13→T1 … 24→T12, 25→T13**.
   as far as it's in view.
 
 ## AI-assist
-Start from **TotalSegmentator** rib predictions (it segments ribs well but
-**cannot number them reliably** on truncated scans — that's exactly the part you
-do, using the GT vertebra). Load the TS prediction, then correct boundaries and
-**assign the number** from the adjacent GT thoracic vertebra.
+Seed each rib with **nnInteractive** — a scribble along the rib generates a mask —
+then correct the boundaries. (We are **not** using TotalSegmentator rib seeds.) The
+key manual step is **numbering**: give each rib the number of the GT thoracic
+vertebra its head articulates with (below).
 
 ## The LSTV/TLTV flag (why this matters)
 If the vertebra labelled **T12 (24) has no rib**, do **not** invent one — leave it

@@ -4,6 +4,15 @@
 
 Read [README.md](README.md) first.
 
+## Copy-paste to start
+After the one-time setup in [README.md](README.md) (clone + `pip install` + `hf auth login`):
+```bash
+python -m reviewtool login --service https://anonymous-mlhc-ctspinopelvic1k-review-ili.hf.space
+python -m reviewtool next      # claims a case + opens ITK-SNAP; annotate ligament, save & close to submit
+python -m reviewtool next      # ...repeat for each case
+python -m reviewtool status    # your progress
+```
+
 ## Goal
 Segment the **iliolumbar ligament** bilaterally onto the v3 base:
 
