@@ -1,13 +1,40 @@
-# Email draft — team / collaborator update
+# Email draft — team / collaborator + student update
 
-**Subject: CTSpinoPelvic1K — v3 status, v4 annotation launch, and publication timeline**
+**Subject: CTSpinoPelvic1K — vision, v4 annotation tasks, roadmap & how to contribute**
 
 Hi all,
 
-A consolidated update on where the dataset, the toolbox, and the annotation effort
-stand, plus the deadlines we're aiming at.
+A consolidated update on where CTSpinoPelvic1K is headed, the annotation tasks
+starting now, the publication timeline, and how to contribute code.
 
-**Dataset (v3 — bone)**
+---
+
+## The vision
+
+I've come across a paper that segmented **lumbosacral nerves on non-contrast CT**,
+so I'd like to add these nerves — as they branch off the spinal cord — to
+CTSpinoPelvic1K. For those unaware, the latest version of the dataset has the
+**femurs** segmented, which can be used to isolate the **hip joint** by finding
+where the femur mask interfaces with the hip mask.
+
+While the fidelity of the LS nerves won't be as high as MRI, it will permit mapping
+of the **foramina** and **Kambin's triangle** by finding where the LS nerve
+interfaces with the vertebra. This simplifies locating the foramina on the vertebra,
+permits analysis of **stenosis**, and in the future could help **plan surgeries**.
+
+The **LSTV project** is also moving forward. By adding the **ribs**, we get a
+**rostral anchor** for the lumbar vertebrae, which — together with the **S1
+endplate** as the **caudal anchor** — brackets the start and stop of the lumbar
+classes. (The **iliolumbar ligament**, which arises from the L5 transverse process,
+gives a third, independent level anchor.) I don't expect a neural net to segment
+anomalies automatically from a dataset this small — but by also bringing the
+**VerSeFusion** dataset up to high-quality annotations, we may get the samples
+needed to train a network to segment spinal anomalies as accurately as normal spines.
+
+---
+
+## Dataset status (v3 — bone)
+
 v3 = v2 + femurs + carved S1 + GT thoracic. The build pipeline had a scratch-fill
 bug that was silently shipping bone-less labels; that's fixed (per-case temp
 cleanup, fail-fast so a broken run can't push, resume that only skips
@@ -15,28 +42,37 @@ genuinely-completed cases). v3 is currently re-segmenting on the grid and has no
 yet been pushed to HF — once it finishes cleanly it auto-pushes to `@v3` and
 promotes `@main` to match.
 
-**v4 annotation (now standing up)**
-Three med-student tasks, each AI-assisted with double-annotation + inter-rater
-reliability (per-class Dice, faculty adjudication on disagreement):
-- **Ribs** (easier) — paint into the reserved ids 26–49; rib number read off the adjacent GT thoracic vertebra.
-- **LS nerves** (hard) — L4/L5/S1 roots; serves Kambin's-triangle mapping *and* LSTV neural enumeration.
-- **Iliolumbar ligament** — LSTV level-anchor cross-check.
+---
 
-Each runs as its own HuggingFace Space + private review ledger (all reading `@v3`).
-The three Spaces are deployed and configured but idle until v3 lands — once it's
-pushed we factory-reboot them and cases populate. Annotation protocols are in the
-repo under `docs/annotation/`.
+## Annotation tasks (students)
 
-**Toolbox (OpenSpineToolbox)**
-Spinopelvic-parameter extraction from the masks, built in order of clinical utility
-starting with **Pelvic Incidence** (the one sagittal parameter valid on supine CT).
-Shared mask-I/O contract + the PI spec are in `SPEC.md`; SVA/TPA are out of scope
-for this FOV.
+Each task is AI-assisted, with every case independently annotated by **two** students
+for inter-rater reliability (per-class Dice; faculty adjudication on disagreement).
+Per-structure protocols (with reference images):
 
-**Publication plan — one project = one paper, each with aims + deadline**
+**On CTSpinoPelvic1K v3 (n = 801):**
+- **Ribs** *(easier)* — [guide](https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K/blob/master/docs/annotation/ribs.md)
+- **LS nerves** *(hard)* — [guide](https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K/blob/master/docs/annotation/ls_nerves.md)
+- **Iliolumbar ligament** — [guide](https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K/blob/master/docs/annotation/iliolumbar.md)
+
+**On VerSeFusion (m = 200):** vertebra + ribs + LS nerves, re-annotated to
+high quality (the anomaly-training set; tooling to follow).
+
+Each CTSpinoPelvic1K task runs as its own HuggingFace Space + private review ledger
+(all reading `@v3`). The three Spaces are **deployed and configured but idle until
+v3 lands** — once it's pushed we factory-reboot them and cases populate. Workflow +
+the Space/ledger map are here:
+[docs/annotation/](https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K/blob/master/docs/annotation/README.md).
+I'll confirm when cases are ready to claim (within ~24 h of the v3 push).
+
+---
+
+## Publication roadmap — one project = one paper, each with aims + deadline
+
+Full matrix: [docs/ROADMAP.md](https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K/blob/master/docs/ROADMAP.md).
 
 **Paper 1 — CTSpinoPelvic1K v3 (bone) dataset** · *MLHC 2026 — in review (conf Aug 12–14, 2026); backups: BIBM, ML4H Findings, Scientific Data*
-- Aim 1: Build v3 — add femurs + carve S1 + GT thoracic onto v2.
+- Aim 1: Build v3 (femurs + carved S1 + GT thoracic on v2).
 - Aim 2: Baseline nnU-Net (pseudolabels L1–L5 + sacrum) + the reviewer-requested ablation.
 - Aim 3: Publish v3 to HF (`@v3`, promote `@main`).
 
@@ -55,9 +91,25 @@ for this FOV.
 - Aim 2: Segment the iliolumbar ligament (student task).
 - Aim 3: LSTV/TLTV detection via three anchors (rib / S1-bony / neural + iliolumbar) + VerSeFusion augmentation; publish v4.
 
-Full matrix is in `docs/ROADMAP.md`.
+---
 
-**Students:** any code you write goes to OpenSpineToolbox via pull request — see its README.
+## Contributing code (required)
+
+Anyone who develops code for their miniproject must upload it to GitHub, or the
+contribution to the toolbox will be removed.
+
+**Repository:** <https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolbox>
+
+**What to do:** upload your miniproject code via a pull request. The
+[README](https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolbox/blob/main/README.md)
+walks you through it step by step — create a GitHub account → fork the repo → clone
+your fork → make a branch → drop your code into your project's folder → push → open a
+pull request. There's a pre-created folder for every miniproject under `projects/`,
+each with a short README — find yours and copy your code in. Start from the shared
+contract in [`SPEC.md`](https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolbox/blob/main/SPEC.md)
+(how to read the masks; build PI first). *(First-time Git note: GitHub no longer
+takes your password on the command line — use `gh auth login` or a Personal Access
+Token; there's a troubleshooting section in the README.)*
 
 Happy to walk anyone through their piece.
 
