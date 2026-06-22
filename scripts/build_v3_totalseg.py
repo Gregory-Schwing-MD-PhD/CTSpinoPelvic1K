@@ -62,9 +62,12 @@ RIB_NAMES: List[str] = (
 )
 FEMUR_NAMES: List[str] = ["femur_left", "femur_right"]
 S1_TS_NAME = "vertebrae_S1"
-# Ribs are NOT segmented in v3 (TS can't number them on FOV-limited spinopelvic
-# scans). RIB_NAMES is kept only to reserve the rib ids 26-49 in the label scheme.
-TS_ROI_NAMES: List[str] = FEMUR_NAMES + [S1_TS_NAME]
+# v3 emits TS ribs with TS's OWN (raw) numbering mapped straight to the class
+# scheme — NO GT-vertebra renumbering. TS numbers ribs from the top of its FOV, so
+# on these FOV-limited spinopelvic scans the numbers are not the true anatomical
+# rib levels; students renumber to the GT thoracic level and add the lower ribs TS
+# misses. (This pre-segments the upper ribs to save annotation time.)
+TS_ROI_NAMES: List[str] = FEMUR_NAMES + RIB_NAMES + [S1_TS_NAME]
 
 # ---------------------------------------------------------------------------
 # v3 label scheme (reordered core + GT thoracic column + bone). Contiguous, ignore
@@ -92,6 +95,10 @@ VERSE_THORACIC[28] = THORACIC_BASE + 13
 # rib_right_N -> 37+N (38..49).
 RR.LEFT_OFFSET = 25
 RR.RIGHT_OFFSET = 37
+
+# rib name -> v3 id, raw TS numbering (rib_left_N -> 25+N, rib_right_N -> 37+N).
+RIB_ID: Dict[str, int] = {f"rib_left_{n}": RR.LEFT_OFFSET + n for n in range(1, 13)}
+RIB_ID.update({f"rib_right_{n}": RR.RIGHT_OFFSET + n for n in range(1, 13)})
 
 
 def v3_label_dict() -> Dict[str, int]:
@@ -204,16 +211,17 @@ def ts_femurs_and_s1(
     ct_path: Path, ref_img: "nib.Nifti1Image",
     device: str = "gpu", min_voxels: int = 150,
 ) -> Tuple[np.ndarray, Optional[np.ndarray], Dict[str, object]]:
-    """Femurs + the TS S1 mask from ONE TS run.
+    """Femurs + TS ribs + the TS S1 mask from ONE TS run.
 
-    Femurs are written to their fixed v3 ids on background. The TS vertebrae_S1
-    binary is returned separately (the caller carves it into the GT sacrum by
-    default; --no_carve_s1 disables it).
+    Femurs and ribs are written to their fixed v3 ids on background; the TS
+    vertebrae_S1 binary is returned separately (the caller carves it into the GT
+    sacrum by default; --no_carve_s1 disables it).
 
-    Ribs are deliberately NOT emitted: on these FOV-limited spinopelvic scans there
-    is no full rib cage to count from, so neither TS nor a point-cloud labeler
-    (RibSeg) can number ribs reliably. Rib ids 26-49 are left reserved-but-empty for
-    future manual / AI-assisted annotation. Returns (additions-on-bg, s1_mask, meta).
+    Ribs use TS's RAW numbering mapped to ids 26-49 (rib_left_N -> 25+N,
+    rib_right_N -> 37+N) — NOT renumbered to the GT thoracic level. TS numbers ribs
+    from the top of its FOV, so on these FOV-limited scans the numbers aren't the
+    true anatomical levels; students renumber + add the lower ribs TS misses.
+    Returns (additions-on-bg, s1_mask, meta).
     """
     arr, name_val = _run_ts_ml(ct_path, ref_img, device, TS_ROI_NAMES)
     present = set(int(v) for v in np.unique(arr)) - {0}
@@ -228,6 +236,16 @@ def ts_femurs_and_s1(
             if int(mask.sum()) >= min_voxels:
                 out[mask] = FEMUR_ID[name]
                 meta["femurs"].append(name)
+
+    # ---- ribs: raw TS numbering -> class scheme, on background. No GT-vertebra
+    #      renumbering (students do that); TS's numbers are from the top of the FOV.
+    for name in RIB_NAMES:
+        v = name_val.get(name)
+        if v is not None and v in present:
+            mask = arr == v
+            if int(mask.sum()) >= min_voxels:
+                out[mask] = RIB_ID[name]
+                meta.setdefault("ribs", []).append(name)
 
     # ---- TS S1 mask (optionally carved into the GT sacrum by the caller) ----
     s1_mask = None
@@ -396,10 +414,11 @@ def process_case(
 
     _save_label(merged, lbl_img.affine, lbl_img.header, out_label_path)
     n_thor = len(vert_z)
+    n_ribs = len(meta.get("ribs", []))
     qc.update(femur_vox=n_bone, status="ok",
-              note=f"thoracic={n_thor} femurs={meta['femurs']} s1_vox={n_s1}")
-    log.info("  %s: %d thoracic vertebra(e) + %d femur(s) + S1(%d vox)",
-             ct_path.name, n_thor, len(meta["femurs"]), n_s1)
+              note=f"thoracic={n_thor} femurs={meta['femurs']} ribs={meta.get('ribs', [])} s1_vox={n_s1}")
+    log.info("  %s: %d thoracic vertebra(e) + %d femur(s) + %d rib(s) + S1(%d vox)",
+             ct_path.name, n_thor, len(meta["femurs"]), n_ribs, n_s1)
     return qc
 
 
