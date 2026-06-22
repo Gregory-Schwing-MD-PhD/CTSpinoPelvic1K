@@ -242,6 +242,35 @@ def ts_femurs_and_s1(
 # ===========================================================================
 # Per-case + driver
 # ===========================================================================
+_STABLE_CWD: Optional[str] = None      # set in main(): a persistent dir to fall back to
+_TMP_ROOT: Optional[str] = None        # base for per-case tmp dirs (node-local scratch)
+
+
+def _ensure_cwd() -> None:
+    """Guarantee the process has a VALID working directory.
+
+    If the job's scratch is wiped mid-run (NFS teardown trap, /tmp purge), the
+    cwd can be deleted out from under us. After that os.getcwd() raises, and every
+    getcwd-dependent call (tempfile.abspath, NamedTemporaryFile, multiprocessing
+    'spawn') fails — cascading FileNotFoundError onto every remaining case and
+    shipping bone-less labels. Re-anchoring cwd to a stable dir stops the cascade,
+    so a single wiped case can't poison the rest of the job."""
+    try:
+        os.getcwd()
+        return
+    except OSError:
+        pass
+    for target in (_STABLE_CWD, "/"):
+        if not target:
+            continue
+        try:
+            os.chdir(target)
+            log.warning("cwd was deleted; re-anchored to %s", target)
+            return
+        except OSError:
+            continue
+
+
 @contextlib.contextmanager
 def case_tmpdir(cid: str) -> Iterator[Path]:
     """Pin TS/nnUNet temp I/O to a fresh per-case dir and delete it afterwards.
@@ -259,9 +288,10 @@ def case_tmpdir(cid: str) -> Iterator[Path]:
     the job's NFS scratch must not be able to delete a long-lived root out from
     under the loop and cascade into FileNotFoundError on every remaining case.
     Restores TMPDIR/tempfile state on exit even on error."""
+    _ensure_cwd()                                      # cwd may have been wiped last case
     saved = {k: os.environ.get(k) for k in ("TMPDIR", "TMP", "TEMP")}
     prev_tempdir = tempfile.tempdir
-    d = Path(tempfile.mkdtemp(prefix=f"v3_{cid}_"))
+    d = Path(tempfile.mkdtemp(prefix=f"v3_{cid}_", dir=_TMP_ROOT))
     for k in ("TMPDIR", "TMP", "TEMP"):
         os.environ[k] = str(d)
     tempfile.tempdir = str(d)
@@ -275,6 +305,7 @@ def case_tmpdir(cid: str) -> Iterator[Path]:
             else:
                 os.environ[k] = v
         shutil.rmtree(d, ignore_errors=True)
+        _ensure_cwd()                                  # rmtree / TS may have left cwd dangling
 
 
 def _save_label(arr, affine, header, out_path: Path) -> None:
@@ -390,6 +421,9 @@ def main() -> int:
     ap.add_argument("--dilation_radius", type=int, default=4)
     ap.add_argument("--pad", type=int, default=10)
     ap.add_argument("--limit", type=int, default=0, help="cap cases (debug)")
+    ap.add_argument("--tmp_root", type=Path, default=None,
+                    help="base dir for per-case temp (prefer fast node-local scratch, "
+                         "e.g. $SLURM_TMPDIR). Default: $SLURM_TMPDIR if set, else system temp.")
     ap.add_argument("--resume", action="store_true", default=True,
                     help="skip cases already rib-processed (default on) — a timed-out "
                          "or preempted job continues instead of restarting")
@@ -404,6 +438,19 @@ def main() -> int:
     # it is absent in v3, so a RESUME does NOT re-copy ~188 GB of CTs every run.
     # process_case overwrites the labels it ribs; everything else is left in place.
     args.v3_dir.mkdir(parents=True, exist_ok=True)
+
+    # Anchor the working directory to the (persistent) v3 output tree and pick a
+    # per-case temp root, so a scratch wipe can't delete the cwd and cascade-fail
+    # the rest of the job (see _ensure_cwd / case_tmpdir).
+    global _STABLE_CWD, _TMP_ROOT
+    _STABLE_CWD = str(args.v3_dir.resolve())
+    os.chdir(_STABLE_CWD)
+    _TMP_ROOT = (str(args.tmp_root.resolve()) if args.tmp_root
+                 else os.environ.get("SLURM_TMPDIR") or None)
+    if _TMP_ROOT:
+        Path(_TMP_ROOT).mkdir(parents=True, exist_ok=True)
+    log.info("stable cwd=%s  tmp_root=%s", _STABLE_CWD, _TMP_ROOT or "<system temp>")
+
     def _mirror(src: Path, dst: Path, *, hardlink: bool) -> None:
         if dst.exists():
             return
@@ -484,6 +531,7 @@ def main() -> int:
         spine_mask = (args.spine_dir / f"{spine_uid}_seg_placed.nii.gz") \
             if (args.spine_dir and spine_uid) else None
         log.info("[%d/%d] token=%s config=%s", i, len(todo), r.get("token"), r.get("config"))
+        _ensure_cwd()                                  # recover if a prior case's scratch wipe killed cwd
         try:
             with case_tmpdir(cid):
                 qc = process_case(ct_path, v2_label_path, spine_mask, out_label_path,
