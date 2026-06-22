@@ -113,6 +113,22 @@ def v3_label_dict() -> Dict[str, int]:
     for n in range(1, 13):
         d[f"rib_right_{n}"] = RR.RIGHT_OFFSET + n
     d["ignore"] = V3_IGNORE
+    # v4 soft-tissue block — RESERVED-but-empty in v3 (populated by the v4 student /
+    # AI / TS annotation passes). Keeps the id scheme stable across v3 -> v4.
+    #   51/52 iliolumbar ligament | 53-58 LS nerve roots (L4/L5/S1 ×2)
+    #   59/60 psoas (XLIF corridor) | 61-66 great vessels (anterior-approach planning)
+    d["iliolumbar_left"] = 51
+    d["iliolumbar_right"] = 52
+    for i, nm in enumerate(["nerve_L4_left", "nerve_L4_right", "nerve_L5_left",
+                            "nerve_L5_right", "nerve_S1_left", "nerve_S1_right"]):
+        d[nm] = 53 + i
+    d["psoas_left"] = 59
+    d["psoas_right"] = 60
+    # great vessels TS can segment in the lumbar/pelvic FOV (vessel-to-vertebra
+    # distance for ALIF/anterior approaches; left common iliac vein over L5-S1).
+    for i, nm in enumerate(["aorta", "inferior_vena_cava", "iliac_artery_left",
+                            "iliac_artery_right", "iliac_vena_left", "iliac_vena_right"]):
+        d[nm] = 61 + i
     return d
 
 
