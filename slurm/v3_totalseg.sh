@@ -50,14 +50,21 @@ RESUME="${RESUME:-1}"          # 1 = continue from .totalseg_done markers (defau
 [[ -f "${V2_DIR}/manifest.json" ]] || { echo "ERROR: no v2 tree at ${V2_DIR} (run ship_v2 first)"; exit 1; }
 mkdir -p "${LOGS_DIR}" "${V3_DIR}" "${TOTALSEG_WEIGHTS}" "${TOTALSEG_CONFIG_DIR}"
 
-# Scratch policy mirrors slurm/benchmark_totalseg.sh: sandbox on node /tmp, runtime on NFS.
+# Scratch policy: EVERYTHING heavy goes on NODE-LOCAL /tmp, not NFS. The container
+# /tmp (where TS/nnUNet write hundreds of MB of temp NIfTIs per case) was bound to
+# NFS, which is slow and was getting wiped out from under the run (deleting the
+# per-case temp AND, via getcwd, cascading FileNotFoundError onto every remaining
+# case -> bone-less labels). Node-local /tmp is fast and private to this job.
 NODE_SCRATCH="/tmp/${USER}_${SLURM_JOB_ID:-$$}"
 NFS_SCRATCH="${PROJECT_ROOT}/.scratch/${USER}_${SLURM_JOB_ID:-$$}"
 export SINGULARITY_TMPDIR="${NODE_SCRATCH}/singularity_unpack"
-HOST_CONTAINER_TMP="${NFS_SCRATCH}/container_tmp"
-export XDG_RUNTIME_DIR="${NFS_SCRATCH}/xdg_runtime"
+HOST_CONTAINER_TMP="${NODE_SCRATCH}/container_tmp"     # node-local, NOT NFS
+export XDG_RUNTIME_DIR="${NODE_SCRATCH}/xdg_runtime"
 mkdir -p "${SINGULARITY_TMPDIR}" "${HOST_CONTAINER_TMP}" "${XDG_RUNTIME_DIR}"
-trap 'rm -rf "${NODE_SCRATCH}" "${NFS_SCRATCH}" 2>/dev/null || true' EXIT TERM INT
+# Clean up only on a CLEAN exit. Do NOT rm on TERM/INT: a preemption/requeue
+# signal must not delete scratch out from under a still-running child (that was a
+# way the run could lose its /tmp mid-case). SLURM's epilog reclaims node /tmp.
+trap 'rm -rf "${NODE_SCRATCH}" "${NFS_SCRATCH}" 2>/dev/null || true' EXIT
 
 # Preflight: fail loud & early if scratch is too tight — instead of dying ~100
 # cases in when the NFS-bound container /tmp fills (the original v3 failure mode).
@@ -68,18 +75,14 @@ _free_gib() {
     kb=$(df -k --output=avail "$1" 2>/dev/null | tail -1 | tr -d ' ')
     echo $(( ${kb:-0} / 1024 / 1024 ))
 }
-NODE_FREE_GIB=$(_free_gib "${NODE_SCRATCH}")
-NFS_FREE_GIB=$(_free_gib "${NFS_SCRATCH}")
-if [[ "${NODE_FREE_GIB}" -lt 15 ]]; then
-    echo "ERROR: node /tmp (${NODE_SCRATCH}) has only ${NODE_FREE_GIB} GiB free;" >&2
-    echo "       need 15 for the singularity sandbox unpack. Likely too many" >&2
-    echo "       concurrent jobs on $(hostname); re-submit, optionally with" >&2
-    echo "       --exclude=$(hostname)." >&2
-    exit 1
-fi
-if [[ "${NFS_FREE_GIB}" -lt 30 ]]; then
-    echo "ERROR: project NFS (${NFS_SCRATCH}) has only ${NFS_FREE_GIB} GiB free;" >&2
-    echo "       need 30. Free up space under ${PROJECT_ROOT}." >&2
+# Everything (sandbox unpack + container /tmp) is on node-local /tmp now, so only
+# that needs checking: ~15 GiB sandbox + per-case TS temp (bounded by per-case
+# cleanup, a couple GiB). Require 25 GiB headroom.
+NODE_FREE_GIB=$(_free_gib "/tmp")
+if [[ "${NODE_FREE_GIB}" -lt 25 ]]; then
+    echo "ERROR: node /tmp has only ${NODE_FREE_GIB} GiB free; need 25 for the" >&2
+    echo "       singularity sandbox + per-case TS temp. Likely too many concurrent" >&2
+    echo "       jobs on $(hostname); re-submit, optionally with --exclude=$(hostname)." >&2
     exit 1
 fi
 
