@@ -31,7 +31,7 @@ images) for each task are here: **`docs/annotation/`** in the dataset repo.
 Cases go live within ~24 hours (once v3 finishes uploading) — I'll confirm when
 they're ready to claim.
 
-Any code you write goes into **OpenSpineToolbox** via a pull request (its README
+Any code you write goes into **OpenSpineToolkit** via a pull request (its README
 walks you through it).
 
 Thanks!

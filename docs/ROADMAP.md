@@ -32,11 +32,11 @@ Data (durable citation).*
 - **Aim 2:** Baseline nnU-Net (pseudolabels L1–L5 + sacrum) + the reviewer-requested ablation.
 - **Aim 3:** Publish v3 to HF (`@v3`, promote `@main`).
 
-### Paper 2 — Spinopelvic parameters from CT masks (OpenSpineToolbox)
+### Paper 2 — Spinopelvic parameters from CT masks (OpenSpineToolkit)
 *Deadline: **BIBM 2026 — Jul 5** (full paper), or **SPIE Medical Imaging 2027 —
 abstract Aug 5, 2026** (mss Jan 27, 2027). Independent of MLHC. Other homes: JOSS /
 J. Imaging Informatics in Medicine / Operative Neurosurgery.*
-Spec: [OpenSpineToolbox `SPEC.md`](https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolbox/blob/main/SPEC.md) (PI first — posture-invariant → valid on supine CT).
+Spec: [OpenSpineToolkit `SPEC.md`](https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolkit/blob/main/SPEC.md) (PI first — posture-invariant → valid on supine CT).
 - **Aim 1:** Develop PI extraction code (femoral-head sphere-fit + S1 endplate + sagittal projection).
 - **Aim 2:** Manually verify PI (MAE / ICC / Bland–Altman vs manual).
 - **Aim 3:** Extend to LL + PI–LL mismatch (develop + verify).

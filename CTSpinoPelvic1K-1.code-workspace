@@ -1,0 +1,25 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../NextPaper/spinopelvic-seg"
+		},
+		{
+			"path": "../spinesurg-ct-nnunet"
+		},
+		{
+			"path": "../NextPaper/AR"
+		},
+		{
+			"path": "../openspineconsortium.github.io"
+		},
+		{
+			"path": "../OpenSpineToolkit"
+		}
+	],
+	"settings": {
+		"makefile.configureOnOpen": false
+	}
+}

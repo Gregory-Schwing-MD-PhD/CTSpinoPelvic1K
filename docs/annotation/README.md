@@ -102,6 +102,6 @@ auto-created on first write.
 
 ## Credit & code
 
-Per the OpenSpineToolbox policy, any code you write (AI-assist scripts, QC, analysis)
-must be PR'd into <https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolbox> to
+Per the OpenSpineToolkit policy, any code you write (AI-assist scripts, QC, analysis)
+must be PR'd into <https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolkit> to
 count toward your contribution.

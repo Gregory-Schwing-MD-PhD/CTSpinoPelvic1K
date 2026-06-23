@@ -76,7 +76,7 @@ Full matrix: [docs/ROADMAP.md](https://github.com/Gregory-Schwing-MD-PhD/CTSpino
 - Aim 2: Baseline nnU-Net (pseudolabels L1–L5 + sacrum) + the reviewer-requested ablation.
 - Aim 3: Publish v3 to HF (`@v3`, promote `@main`).
 
-**Paper 2 — Spinopelvic parameters from CT masks (OpenSpineToolbox)** · *BIBM 2026 — Jul 5 (full paper), or SPIE Medical Imaging 2027 — abstract Aug 5, 2026 (mss Jan 27, 2027)*
+**Paper 2 — Spinopelvic parameters from CT masks (OpenSpineToolkit)** · *BIBM 2026 — Jul 5 (full paper), or SPIE Medical Imaging 2027 — abstract Aug 5, 2026 (mss Jan 27, 2027)*
 - Aim 1: Develop PI extraction code (femoral-head sphere-fit + S1 endplate + sagittal projection).
 - Aim 2: Manually verify PI (MAE / ICC / Bland–Altman vs manual).
 - Aim 3: Extend to LL + PI–LL mismatch (develop + verify).
@@ -98,15 +98,15 @@ Full matrix: [docs/ROADMAP.md](https://github.com/Gregory-Schwing-MD-PhD/CTSpino
 Anyone who develops code for their miniproject must upload it to GitHub, or the
 contribution to the toolbox will be removed.
 
-**Repository:** <https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolbox>
+**Repository:** <https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolkit>
 
 **What to do:** upload your miniproject code via a pull request. The
-[README](https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolbox/blob/main/README.md)
+[README](https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolkit/blob/main/README.md)
 walks you through it step by step — create a GitHub account → fork the repo → clone
 your fork → make a branch → drop your code into your project's folder → push → open a
 pull request. There's a pre-created folder for every miniproject under `projects/`,
 each with a short README — find yours and copy your code in. Start from the shared
-contract in [`SPEC.md`](https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolbox/blob/main/SPEC.md)
+contract in [`SPEC.md`](https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolkit/blob/main/SPEC.md)
 (how to read the masks; build PI first). *(First-time Git note: GitHub no longer
 takes your password on the command line — use `gh auth login` or a Personal Access
 Token; there's a troubleshooting section in the README.)*
