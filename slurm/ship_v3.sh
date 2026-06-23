@@ -40,12 +40,21 @@ SB="${SB} ${SBATCH_EXTRA:-}"
 # EXTRA_DEP chains the rib job AFTER the v2 push (so v3 reads a finished v2 tree).
 RIB_DEP=""; [[ -n "${EXTRA_DEP:-}" ]] && RIB_DEP="--dependency=afterok:${EXTRA_DEP}"
 
-echo "[ship_v3] (1) v3 TotalSegmentator (TS ribs, native numbering, merge onto v2) [GPU]  ${RIB_DEP:-no dep}"
+# Shard the TS pass across an --array of GPU tasks (like benchmark_totalseg.sh): each
+# does a disjoint 1/N of the cases, so the run finishes ~N× faster and a short shard
+# is far less exposed to the NFS/scratch events that orphaned the old single 48h job.
+# N_SHARDS_OVERRIDE pins the count so the per-shard case split is stable on resubmit.
+V3_SHARDS="${V3_SHARDS:-8}"            # number of shards (array tasks)
+V3_CONCURRENT="${V3_CONCURRENT:-8}"   # max simultaneously running (GPUs permitting)
+
+echo "[ship_v3] (1) v3 TotalSegmentator — ${V3_SHARDS}-way array, %${V3_CONCURRENT} concurrent [GPU]  ${RIB_DEP:-no dep}"
 JR=$(sbatch --parsable ${SB} ${RIB_DEP} \
-  --export=ALL,NNUNET_SIF=${NNUNET_SIF},V2_DIR=${V2_DIR},V3_DIR=${V3_DIR},SPINE_DIR=${SPINE_DIR},RESUME=${RESUME:-1} \
+  --array=0-$((V3_SHARDS - 1))%${V3_CONCURRENT} \
+  --export=ALL,NNUNET_SIF=${NNUNET_SIF},V2_DIR=${V2_DIR},V3_DIR=${V3_DIR},SPINE_DIR=${SPINE_DIR},RESUME=${RESUME:-1},N_SHARDS_OVERRIDE=${V3_SHARDS} \
   slurm/v3_totalseg.sh)
 
-echo "[ship_v3] (2) push ${V3_DIR} -> ${HF_REPO_ID}@v3 [CPU]  after ${JR}"
+# afterok on the ARRAY job id waits for EVERY shard (incl. shard 0's mirror) to finish ok.
+echo "[ship_v3] (2) push ${V3_DIR} -> ${HF_REPO_ID}@v3 [CPU]  after all ${V3_SHARDS} shards of ${JR}"
 JP=$(sbatch --parsable ${SB} --dependency=afterok:${JR} \
   --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=1,WIPE_REMOTE=${WIPE},HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v3,HF_EXPORT_DIR=${V3_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
   slurm/export_dataset.sh)

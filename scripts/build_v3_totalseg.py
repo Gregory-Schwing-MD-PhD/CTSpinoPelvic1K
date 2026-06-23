@@ -501,14 +501,36 @@ def main() -> int:
                          "or preempted job continues instead of restarting")
     ap.add_argument("--no_resume", dest="resume", action="store_false",
                     help="force a full rebuild (ignore .totalseg_done markers)")
+    ap.add_argument("--shard_id", type=int, default=0,
+                    help="this shard's index in [0, n_shards) for array runs")
+    ap.add_argument("--n_shards", type=int, default=1,
+                    help="total shards; the case list is split by index %% n_shards so "
+                         "an --array job processes disjoint subsets in parallel")
     args = ap.parse_args()
+    if not (0 <= args.shard_id < args.n_shards):
+        ap.error(f"--shard_id {args.shard_id} out of range for --n_shards {args.n_shards}")
 
     manifest = json.loads((args.v2_dir / "manifest.json").read_text())
     records = manifest["records"] if isinstance(manifest, dict) and "records" in manifest else manifest
 
-    # Mirror the v2 tree IDEMPOTENTLY: hardlink (fallback copy) each CT/label only if
-    # it is absent in v3, so a RESUME does NOT re-copy ~188 GB of CTs every run.
-    # process_case overwrites the labels it ribs; everything else is left in place.
+    from collections import Counter
+
+    def _released(r) -> bool:
+        # The RELEASED set = 342 fused + 440 spine_only + the 20 PURE pelvic-only
+        # orphans (config=pelvic_native AND match_type=pelvic_only). The ~351
+        # separate-mode pelvic sides are NOT ribbed (their spine acquisition is the
+        # released spine_only volume). Mirrors the scoping in pseudolabel.py.
+        if r.get("config") in ("fused", "spine_only"):
+            return True
+        return (r.get("config") == "pelvic_native"
+                and r.get("match_type") == "pelvic_only")
+
+    # Labels the SHARDS will write (ribbed on success, v2-remapped on failure — see the
+    # except branch). The mirror must NOT copy these, or it can race a shard writing the
+    # ribbed version and clobber it with the plain v2 label.
+    released_cids = {Path(r["label_file"]).name for r in records
+                     if _released(r) and r.get("label_file")}
+
     args.v3_dir.mkdir(parents=True, exist_ok=True)
 
     # Anchor the working directory to the (persistent) v3 output tree and pick a
@@ -523,6 +545,10 @@ def main() -> int:
         Path(_TMP_ROOT).mkdir(parents=True, exist_ok=True)
     log.info("stable cwd=%s  tmp_root=%s", _STABLE_CWD, _TMP_ROOT or "<system temp>")
 
+    # Mirror the v2 tree IDEMPOTENTLY (hardlink CTs, copy the rest, only if absent).
+    # ONE shard owns the shared mirror (shard 0) so parallel array tasks don't race on
+    # the CTs / manifest; and it SKIPS released-case labels (each shard writes its own,
+    # success or failure), so the mirror can never clobber a shard's ribbed label.
     def _mirror(src: Path, dst: Path, *, hardlink: bool) -> None:
         if dst.exists():
             return
@@ -535,13 +561,17 @@ def main() -> int:
                 pass
         shutil.copy2(src, dst)                 # labels: independent copy (v3 OVERWRITES them;
                                                # a hardlink here would corrupt the v2 label)
-    for sub in ("ct", "labels"):
-        sd = args.v2_dir / sub
-        if sd.exists():
-            for f in sd.glob("*.nii.gz"):
-                _mirror(f, args.v3_dir / sub / f.name, hardlink=(sub == "ct"))
-    for f in args.v2_dir.glob("*.json"):
-        shutil.copy2(f, args.v3_dir / f.name)
+    if args.shard_id == 0:
+        for sub in ("ct", "labels"):
+            sd = args.v2_dir / sub
+            if sd.exists():
+                for f in sd.glob("*.nii.gz"):
+                    if sub == "labels" and f.name in released_cids:
+                        continue               # owned by a shard's process_case
+                    _mirror(f, args.v3_dir / sub / f.name, hardlink=(sub == "ct"))
+        for f in args.v2_dir.glob("*.json"):
+            shutil.copy2(f, args.v3_dir / f.name)
+    (args.v3_dir / "labels").mkdir(parents=True, exist_ok=True)   # all shards write here
 
     # Resume: a per-case marker (holding that case's QC row) is written once a case
     # is fully rib-processed. On restart, completed cases are skipped — so a job that
@@ -568,23 +598,17 @@ def main() -> int:
                      "any previously-failed cases will re-run", len(done))
 
     qc_rows: List[Dict[str, object]] = []
-    # Rib the RELEASED set = 802: 342 fused + 440 spine_only + the 20 PURE
-    # pelvic-only orphans (config=pelvic_native AND match_type=pelvic_only) whose
-    # ONLY acquisition is the pelvic scan, so they were pseudo-spined and shipped.
-    # The ~351 separate-mode pelvic sides (match_type=separate) are NOT ribbed:
-    # that patient's spine acquisition is the released spine_only volume instead.
-    # (Mirrors the scoping in pseudolabel.py.)
-    from collections import Counter
-    def _released(r) -> bool:
-        if r.get("config") in ("fused", "spine_only"):
-            return True
-        return (r.get("config") == "pelvic_native"
-                and r.get("match_type") == "pelvic_only")
     todo = [r for r in records if _released(r)]
+    # Deterministic order so a given shard always owns the SAME cases across resubmits
+    # (so its own failures re-run on it, not silently on another shard).
+    todo.sort(key=lambda r: r.get("label_file") or "")
     if args.limit:
         todo = todo[: args.limit]
-    log.info("v3 TotalSegmentator: %d case(s) to process  breakdown=%s",
-             len(todo), dict(Counter(r.get("config") for r in todo)))
+    if args.n_shards > 1:
+        todo = [r for k, r in enumerate(todo) if k % args.n_shards == args.shard_id]
+    log.info("v3 TotalSegmentator: shard %d/%d — %d case(s)  breakdown=%s",
+             args.shard_id, args.n_shards, len(todo),
+             dict(Counter(r.get("config") for r in todo)))
 
     for i, r in enumerate(todo, 1):
         label_rel = r.get("label_file") or ""
@@ -593,6 +617,7 @@ def main() -> int:
             continue
         cid = Path(label_rel).name[: -len(".nii.gz")]
         out_label_path = args.v3_dir / label_rel
+        out_label_path.parent.mkdir(parents=True, exist_ok=True)   # shard-independent
         # Skip ONLY if marked done AND the output label is actually present.
         if args.resume and cid in done and out_label_path.exists():
             qc_rows.append(done[cid])
@@ -633,14 +658,24 @@ def main() -> int:
             (done_dir / f"{cid}.json").write_text(json.dumps(qc))
 
     import csv
-    qc_path = args.v3_dir / "totalseg_qc.csv"
+    # Sharded runs write a PER-SHARD QC csv into the off-tree _work dir (so parallel
+    # shards never clobber a shared csv, and the shard files don't ship to HF). A
+    # single-shard run keeps the original in-tree totalseg_qc.csv.
+    if args.n_shards > 1:
+        qc_dir = done_dir.parent / "qc"
+        qc_dir.mkdir(parents=True, exist_ok=True)
+        qc_path = qc_dir / f"totalseg_qc_shard{args.shard_id}of{args.n_shards}.csv"
+    else:
+        qc_path = args.v3_dir / "totalseg_qc.csv"
     with open(qc_path, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=["token", "ct", "status", "femur_vox", "note"])
         w.writeheader()
         for row in qc_rows:
             w.writerow({k: row.get(k, "") for k in w.fieldnames})
-    # Emit the v3 label scheme (training-contiguous, ignore=34) for dataset.json.
-    (args.v3_dir / "dataset_labels.json").write_text(json.dumps(v3_label_dict(), indent=2))
+    # Emit the v3 label scheme (training-contiguous, ignore=34) for dataset.json —
+    # static content; only shard 0 writes it so parallel shards don't race the file.
+    if args.shard_id == 0:
+        (args.v3_dir / "dataset_labels.json").write_text(json.dumps(v3_label_dict(), indent=2))
 
     n_ok = sum(1 for r in qc_rows if r.get("status") == "ok")
     n_err = sum(1 for r in qc_rows if r.get("status") == "error")

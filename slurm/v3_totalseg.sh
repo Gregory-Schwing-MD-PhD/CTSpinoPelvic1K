@@ -6,14 +6,23 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --gres=gpu:nvidia_h200:1
-#SBATCH --time=48:00:00
-#SBATCH --output=logs/v3_totalseg_%j.out
-#SBATCH --error=logs/v3_totalseg_%j.err
+#SBATCH --time=12:00:00
+#SBATCH --array=0-7%8
+#SBATCH --output=logs/v3_totalseg_%A_%a.out
+#SBATCH --error=logs/v3_totalseg_%A_%a.err
 #SBATCH --mail-type=END,FAIL
 #SBATCH --exclude=msa1
 # =============================================================================
-# Same GPU directives as the known-good pseudolabel.sh. 48h wall, but the job is
-# RESUMABLE (per-case markers) so a wall-hit/preemption just continues on resubmit.
+# SHARDED like benchmark_totalseg.sh: an --array of GPU tasks each processing a
+# disjoint 1/N of the released cases (split by index %% N in build_v3_totalseg.py).
+# Short per-shard wall (12h) + parallel = far less exposure to the NFS/scratch
+# events that orphaned the old single 48h job, and it finishes much faster. Still
+# RESUMABLE (per-case markers) so a wall-hit/preemption continues on resubmit.
+# Shard 0 owns the one-time v2->v3 mirror (CTs + manifest); every shard writes only
+# its own labels. ship_v3.sh sets the array size + N_SHARDS_OVERRIDE.
+#
+# Resubmit a failed subset (pin the ORIGINAL shard count, as in benchmark):
+#   N_SHARDS_OVERRIDE=8 sbatch --array=3,5 slurm/v3_totalseg.sh
 #
 # v3 TotalSegmentator — derive the v3 tree from v2 with one TS pass per case:
 # GT-vertebra-matched ribs + femurs + an S1 carve out of the GT sacrum (bone only).
@@ -45,6 +54,13 @@ TOTALSEG_WEIGHTS="${TOTALSEG_WEIGHTS:-${HOME}/totalseg_weights}"
 TOTALSEG_CONFIG_DIR="${TOTALSEG_CONFIG_DIR:-${HOME}/.totalseg}"
 V3_LIMIT="${V3_LIMIT:-0}"
 RESUME="${RESUME:-1}"          # 1 = continue from .totalseg_done markers (default)
+
+# Shard identity. N_SHARDS_OVERRIDE pins the ORIGINAL shard count so a partial
+# resubmit (e.g. --array=3,5) keeps the SAME case split — without it,
+# SLURM_ARRAY_TASK_COUNT would be the count of the resubmitted subset and re-shard
+# the cases. (Same lesson as benchmark_totalseg.sh.)
+SHARD_ID="${SLURM_ARRAY_TASK_ID:-0}"
+N_SHARDS="${N_SHARDS_OVERRIDE:-${SLURM_ARRAY_TASK_COUNT:-1}}"
 
 [[ -f "${NNUNET_SIF}" ]] || { echo "ERROR: TS container missing at ${NNUNET_SIF}"; exit 1; }
 [[ -f "${V2_DIR}/manifest.json" ]] || { echo "ERROR: no v2 tree at ${V2_DIR} (run ship_v2 first)"; exit 1; }
@@ -88,7 +104,8 @@ fi
 
 echo "======================================================================"
 echo " v3 TotalSegmentator  (resume=${RESUME})"
-echo "   Job ID    : ${SLURM_JOB_ID:-local}   Node: $(hostname)"
+echo "   Shard     : ${SHARD_ID} / ${N_SHARDS}  $([[ -n "${N_SHARDS_OVERRIDE:-}" ]] && echo '(N pinned via N_SHARDS_OVERRIDE)')"
+echo "   Job       : ${SLURM_ARRAY_JOB_ID:-${SLURM_JOB_ID:-local}}  Task: ${SLURM_ARRAY_TASK_ID:-0}   Node: $(hostname)"
 echo "   GPU       : $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo '?')"
 echo "   v2 source : ${V2_DIR}"
 echo "   v3 out    : ${V3_DIR}"
@@ -106,7 +123,8 @@ CENV+=",HOME=${TOTALSEG_CONFIG_DIR},PYTORCH_CUDA_ALLOC_CONF=expandable_segments:
 ARGS=( --v2_dir   "/data/$(realpath --relative-to="${DATA_DIR}" "${V2_DIR}")"
        --v3_dir   "/data/$(realpath --relative-to="${DATA_DIR}" "${V3_DIR}")"
        --spine_dir "/data/$(realpath --relative-to="${DATA_DIR}" "${SPINE_DIR}")"
-       --device gpu )
+       --device gpu
+       --shard_id "${SHARD_ID}" --n_shards "${N_SHARDS}" )
 [[ "${V3_LIMIT}" != "0" ]] && ARGS+=( --limit "${V3_LIMIT}" )
 [[ "${RESUME}" == "0" ]] && ARGS+=( --no_resume )
 
