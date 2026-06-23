@@ -305,6 +305,33 @@ def _ensure_cwd() -> None:
             continue
 
 
+def _stabilize_main_script() -> None:
+    """Make ``__main__`` immortal against a mid-run scratch/NFS wipe, then re-exec.
+
+    TotalSegmentator/nnUNet inference uses multiprocessing 'spawn' (required by
+    CUDA): every worker re-imports ``__main__`` by its ABSOLUTE file path. If the
+    job's scratch holding this script is wiped partway through (a SLURM teardown
+    trap, an NFS drop), that path vanishes and from then on EVERY TotalSegmentator
+    call's workers die with `FileNotFoundError: .../build_v3_totalseg.py` ->
+    "Background workers died" -> a bone-less v2 label is shipped for every remaining
+    case. `_ensure_cwd` cannot help: the spawn target is the script file, not the
+    cwd. So copy ourselves to a node-local tmpfs (immune to the scratch/NFS wipe)
+    and re-exec from there, making the spawn re-import target undeletable."""
+    here = os.path.abspath(sys.argv[0] or __file__)
+    for stable_dir in ("/dev/shm", "/opt", tempfile.gettempdir()):
+        stable = os.path.join(stable_dir, "build_v3_totalseg_main.py")
+        if os.path.abspath(stable) == here:
+            return                                  # already running from the stable copy
+        try:
+            os.makedirs(stable_dir, exist_ok=True)
+            shutil.copy2(here, stable)
+            log.info("stabilized __main__ -> %s (re-exec; survives scratch wipe)", stable)
+            os.execv(sys.executable, [sys.executable, stable, *sys.argv[1:]])
+        except Exception as e:                       # not writable -> try the next dir
+            log.warning("could not stabilize script to %s: %s", stable_dir, e)
+            continue
+
+
 @contextlib.contextmanager
 def case_tmpdir(cid: str) -> Iterator[Path]:
     """Pin TS/nnUNet temp I/O to a fresh per-case dir and delete it afterwards.
@@ -439,6 +466,8 @@ def process_case(
 
 
 def main() -> int:
+    _stabilize_main_script()   # re-exec from node-local tmpfs so spawn workers can't
+                               # be orphaned by a mid-run scratch wipe (see fn docstring)
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--v2_dir", required=True, type=Path, help="v2 tree (ct/, labels/, manifest.json)")
