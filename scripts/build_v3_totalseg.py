@@ -315,20 +315,28 @@ def _stabilize_main_script() -> None:
     call's workers die with `FileNotFoundError: .../build_v3_totalseg.py` ->
     "Background workers died" -> a bone-less v2 label is shipped for every remaining
     case. `_ensure_cwd` cannot help: the spawn target is the script file, not the
-    cwd. So copy ourselves to a node-local tmpfs (immune to the scratch/NFS wipe)
-    and re-exec from there, making the spawn re-import target undeletable."""
+    cwd. So copy this script AND its sibling repo-local modules (relabel_ribs, …) to
+    a node-local tmpfs (immune to the scratch/NFS wipe) and re-exec from there,
+    making both the spawn re-import target AND its imports undeletable."""
     here = os.path.abspath(sys.argv[0] or __file__)
-    for stable_dir in ("/dev/shm", "/opt", tempfile.gettempdir()):
-        stable = os.path.join(stable_dir, "build_v3_totalseg_main.py")
+    src_dir = os.path.dirname(here)
+    name = os.path.basename(here)
+    for base in ("/dev/shm", "/opt", tempfile.gettempdir()):
+        stable_dir = os.path.join(base, "v3_build")
+        stable = os.path.join(stable_dir, name)
         if os.path.abspath(stable) == here:
             return                                  # already running from the stable copy
         try:
             os.makedirs(stable_dir, exist_ok=True)
-            shutil.copy2(here, stable)
-            log.info("stabilized __main__ -> %s (re-exec; survives scratch wipe)", stable)
+            for f in os.listdir(src_dir):           # all sibling .py (relabel_ribs, etc.)
+                if f.endswith(".py"):
+                    shutil.copy2(os.path.join(src_dir, f), os.path.join(stable_dir, f))
+            # spawn workers re-run our imports too; point PYTHONPATH at the tmpfs copy
+            os.environ["PYTHONPATH"] = stable_dir + os.pathsep + os.environ.get("PYTHONPATH", "")
+            log.info("stabilized scripts -> %s (re-exec; survives scratch wipe)", stable_dir)
             os.execv(sys.executable, [sys.executable, stable, *sys.argv[1:]])
         except Exception as e:                       # not writable -> try the next dir
-            log.warning("could not stabilize script to %s: %s", stable_dir, e)
+            log.warning("could not stabilize scripts to %s: %s", stable_dir, e)
             continue
 
 
