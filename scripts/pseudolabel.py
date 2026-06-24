@@ -79,12 +79,13 @@ logging.basicConfig(
 )
 log = logging.getLogger("ctspinopelvic1k.pseudolabel")
 
-# Kept in sync with export_hf.py (re-declared, not imported, so the merge
-# core stays a pure dependency-light unit that is trivially testable).
-IGNORE_LABEL = 10
-CANONICAL_SPINE  = frozenset({1, 2, 3, 4, 5, 6})
-CANONICAL_PELVIS = frozenset({7, 8, 9})
-CLASS_NAMES_PELVIS = {7: "sacrum", 8: "left_hip", 9: "right_hip"}
+# Kept in sync with scripts/label_scheme.py (THE source of truth). Re-declared (not
+# imported) so this merge core stays a pure dependency-light, trivially-testable unit.
+# VerSe-native: lumbar L1-L6 = 20-25, sacrum 26, hips 30/31, ignore 255.
+IGNORE_LABEL = 255
+CANONICAL_SPINE  = frozenset({20, 21, 22, 23, 24, 25})       # L1-L6 (VerSe)
+CANONICAL_PELVIS = frozenset({26, 30, 31})                  # sacrum, left_hip, right_hip
+CLASS_NAMES_PELVIS = {26: "sacrum", 30: "left_hip", 31: "right_hip"}
 REGION_CANONICAL = {"spine": CANONICAL_SPINE, "pelvis": CANONICAL_PELVIS}
 
 # Which region a scoped record is MISSING (and therefore which canonical

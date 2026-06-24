@@ -10,10 +10,10 @@
     "nnUNetv2_predict with ONLY that single fold. Tokens absent from every",
     "val set (test-only / never trained) fall back to the 5-fold ensemble.",
     "",
-    "label_remap: model-output int -> canonical CTSpinoPelvic1K 10-class id.",
+    "label_remap: model-output int -> canonical VerSe-native id (scripts/label_scheme.py).",
     "Dataset803 scheme: 1-4=L1-L4, 5=last_lumbar(merged L5+L6), 6=sacrum,",
-    "7=left_hip, 8=right_hip. Canonical: 1-6=L1-L6, 7=sacrum, 8/9=hips.",
-    "5 -> 5 maps merged last_lumbar to L5; the L5/L6 split is a deferred",
+    "7=left_hip, 8=right_hip. Canonical (VerSe): L1-L5=20-24, sacrum=26, hips=30/31.",
+    "5 -> 24 maps merged last_lumbar to L5 (VerSe); the L5/L6 split is a deferred",
     "downstream refinement (count last_lumbar components sup->inf), NOT done",
     "here. Change this mapping if you retrain with un-merged L5/L6."
   ],
@@ -29,10 +29,10 @@
       "checkpoint": "checkpoint_best.pth"
     },
     "label_remap": {
-      "1": 1, "2": 2, "3": 3, "4": 4,
-      "5": 5,
-      "6": 7, "7": 8, "8": 9
+      "1": 20, "2": 21, "3": 22, "4": 23,
+      "5": 24,
+      "6": 26, "7": 30, "8": 31
     },
-    "notes": "model class 5 = merged last_lumbar -> canonical 5 (L5); L5/L6 split deferred."
+    "notes": "VerSe-native: L1-L4 -> 20-23, last_lumbar(5) -> L5=24, sacrum(6) -> 26, hips(7/8) -> 30/31. L5/L6 split deferred."
   }
 }

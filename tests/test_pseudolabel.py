@@ -233,28 +233,29 @@ def test_load_propagated_map_missing_manifest_is_empty():
 def test_union_completes_only_bone_and_never_overwrites_gt():
     # GT pelvis (manual) covers half the sacrum; model predicts the whole sacrum;
     # only the bone-HU, GT-free half is completed; the GT half is untouched.
-    manual = np.array([7, 7, 0, 0, 0], dtype=np.int16)        # GT sacrum on [0,1]
-    pred   = np.array([7, 7, 7, 7, 7], dtype=np.int16)        # model: full sacrum
+    # sacrum = VerSe id 26 (CANONICAL_PELVIS).
+    manual = np.array([26, 26, 0, 0, 0], dtype=np.int16)      # GT sacrum on [0,1]
+    pred   = np.array([26, 26, 26, 26, 26], dtype=np.int16)   # model: full sacrum
     ct     = np.array([300, 300, 300, 300, 50], dtype=np.int16)  # last voxel = soft tissue
     merged, m = complete_pelvis_with_model(manual, pred, ct, bone_hu=200)
     # [0,1] stay GT; [2,3] completed (bone); [4] NOT completed (soft tissue)
-    assert merged.tolist() == [7, 7, 7, 7, 0]
-    assert m[7]["gt_vox"] == 2 and m[7]["added_vox"] == 2      # incompleteness = 2
-    assert abs(m[7]["completeness"] - 0.5) < 1e-9             # GT had half the bone
+    assert merged.tolist() == [26, 26, 26, 26, 0]
+    assert m[26]["gt_vox"] == 2 and m[26]["added_vox"] == 2    # incompleteness = 2
+    assert abs(m[26]["completeness"] - 0.5) < 1e-9           # GT had half the bone
 
 
 def test_union_dice_is_voxel_overlap_gt_vs_model():
-    manual = np.array([8, 8, 0, 0], dtype=np.int16)
-    pred   = np.array([8, 0, 8, 8], dtype=np.int16)           # overlaps GT on 1 voxel
+    manual = np.array([30, 30, 0, 0], dtype=np.int16)         # left_hip = VerSe id 30
+    pred   = np.array([30, 0, 30, 30], dtype=np.int16)        # overlaps GT on 1 voxel
     merged, m = complete_pelvis_with_model(manual, pred, ct=None)
     # dice = 2*inter/(gt+pred) = 2*1/(2+3)
-    assert abs(m[8]["dice"] - (2 * 1 / (2 + 3))) < 1e-9
+    assert abs(m[30]["dice"] - (2 * 1 / (2 + 3))) < 1e-9
 
 
 def test_union_complete_false_keeps_gt_only():
-    manual = np.array([7, 0, 0], dtype=np.int16)
-    pred   = np.array([7, 7, 7], dtype=np.int16)
+    manual = np.array([26, 0, 0], dtype=np.int16)             # sacrum = VerSe id 26
+    pred   = np.array([26, 26, 26], dtype=np.int16)
     ct     = np.array([300, 300, 300], dtype=np.int16)
     merged, m = complete_pelvis_with_model(manual, pred, ct, complete=False)
-    assert merged.tolist() == [7, 0, 0]                       # GT only, no completion
-    assert m[7]["added_vox"] == 2                             # still MEASURED
+    assert merged.tolist() == [26, 0, 0]                      # GT only, no completion
+    assert m[26]["added_vox"] == 2                            # still MEASURED
