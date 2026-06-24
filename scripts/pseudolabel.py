@@ -300,23 +300,53 @@ def download_checkpoints(ckpt_cfg: dict, nnunet_results: Path,
     if not miss:
         log.info("Checkpoints complete at %s — skip download", model_dir)
         return model_root
-    log.info("Model dir incomplete (missing: %s) — (re)downloading",
-             ", ".join(miss))
+
+    # Sharded array: every worker would otherwise snapshot_download into the SAME
+    # nnunet_results at once and corrupt it. Serialize with an atomic mkdir lock on
+    # NFS — exactly one shard downloads; the others poll until it's complete (or the
+    # lock goes stale after ~30 min, then proceed defensively).
+    import time
+    nnunet_results.mkdir(parents=True, exist_ok=True)
+    lock = nnunet_results / ".ckpt_download.lock"
+    acquired = False
+    for _ in range(600):
+        if not _missing(model_dir):
+            log.info("Checkpoints completed by another shard — skip download")
+            return model_root
+        try:
+            os.mkdir(lock); acquired = True; break
+        except FileExistsError:
+            time.sleep(3)
+    if acquired and not _missing(model_dir):
+        try:
+            os.rmdir(lock)
+        except OSError:
+            pass
+        log.info("Checkpoints complete (downloaded by a peer) — skip download")
+        return model_root
+    log.info("Model dir incomplete (missing: %s) — (re)downloading%s",
+             ", ".join(miss), "" if acquired else "  [lock stale, proceeding]")
 
     from huggingface_hub import snapshot_download
     # An empty/blank token (HF_TOKEN="" from default.env) makes
     # huggingface_hub emit an illegal `Authorization: Bearer ` header. The
     # checkpoints repo is public, so coerce blank -> None (anonymous).
     token = (hf_token or "").strip() or None
-    nnunet_results.mkdir(parents=True, exist_ok=True)
     log.info("Downloading %s -> %s  (auth=%s)", ckpt_cfg["hf_repo_id"],
              nnunet_results, "token" if token else "anonymous")
-    snapshot_download(
-        repo_id=ckpt_cfg["hf_repo_id"],
-        repo_type=ckpt_cfg.get("hf_repo_type", "model"),
-        local_dir=str(nnunet_results),     # repo already has <subdir>/ inside
-        token=token,
-    )
+    try:
+        snapshot_download(
+            repo_id=ckpt_cfg["hf_repo_id"],
+            repo_type=ckpt_cfg.get("hf_repo_type", "model"),
+            local_dir=str(nnunet_results),     # repo already has <subdir>/ inside
+            token=token,
+        )
+    finally:
+        if acquired:
+            try:
+                os.rmdir(lock)
+            except OSError:
+                pass
     miss = _missing(model_dir)
     if miss:
         log.error("Download finished but %s still missing %s — the HF repo "
@@ -445,6 +475,13 @@ def main() -> int:
     ap.add_argument("--hf_token", default=os.environ.get("HF_TOKEN"))
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--shard_id", type=int, default=0,
+                    help="this shard's index (0..n_shards-1) for --array runs")
+    ap.add_argument("--n_shards", type=int, default=1,
+                    help="total shards; each processes records where index %% n_shards "
+                         "== shard_id (like build_v3_totalseg). n_shards=1 (default) "
+                         "processes ALL records and writes the manifest — this is also "
+                         "the single assembly pass that runs after a sharded array.")
     ap.add_argument("--work_dir", type=Path, default=None,
                     help="Scratch for staged inputs / raw predictions / "
                          "resume markers (default: <out>_work). Kept OUT of "
@@ -558,6 +595,19 @@ def main() -> int:
                  sorted(include_configs), n_ponly, total, len(kept), total - len(kept))
         records = kept
         total = len(records)
+
+    # Shard across an --array (like build_v3_totalseg): each shard takes a disjoint
+    # 1/N of the records by index. Order is deterministic (manifest order is stable),
+    # so a partial resubmit keeps the same split. Each shard writes its own labels +
+    # CTs + resume markers; the manifest/splits are written by the single assembly pass
+    # (n_shards == 1, run after the array) which resumes every shard's markers.
+    if args.n_shards > 1:
+        sharded = [r for i, r in enumerate(records) if i % args.n_shards == args.shard_id]
+        log.info("shard %d/%d: this shard handles %d of %d records",
+                 args.shard_id, args.n_shards, len(sharded), len(records))
+        records = sharded
+        total = len(records)
+
     in_scope = [r for r in records
                 if r.get("ok", True) and r.get("config") in SCOPE_CONFIGS
                 and r.get("ct_file") and r.get("label_file")]
@@ -777,10 +827,11 @@ def main() -> int:
                             if m["completeness"] == m["completeness"] else ""
                     prop_metrics.append(row)
                     n_prop += 1
+                    _sac = next(iter(sorted(CANONICAL_PELVIS)))   # sacrum = lowest pelvis id (26)
                     log.info("token=%s cid=%s: pelvis <- REAL GT + model-complete "
                              "(added %d vox, sacrum dice=%.3f) [%s]", tok, cid,
                              sum(mtr[c]["added_vox"] for c in CANONICAL_PELVIS),
-                             mtr[7]["dice"] if mtr[7]["dice"] == mtr[7]["dice"]
+                             mtr[_sac]["dice"] if mtr[_sac]["dice"] == mtr[_sac]["dice"]
                              else float("nan"), key)
                 else:
                     merged = merge_pseudo_into_manual(manual, pred_canon)
@@ -838,6 +889,18 @@ def main() -> int:
                      "total added(completed) vox=%d", nm, _avg(f"{nm}_dice"),
                      _avg(f"{nm}_completeness"),
                      sum(r.get(f"{nm}_added_vox", 0) or 0 for r in prop_metrics))
+
+    # Sharded WORKER (n_shards > 1): it only saw its 1/N of records, so its
+    # new_records is partial — do NOT write the manifest here. The assembly pass
+    # (n_shards == 1, chained afterok the array) resumes every shard's markers and
+    # writes the full manifest/splits.
+    if args.n_shards > 1:
+        log.info("shard %d/%d done: %d labels + markers written; manifest/splits are "
+                 "produced by the assembly pass (n_shards=1).",
+                 args.shard_id, args.n_shards, n_fill + n_resume)
+        log.info("  filled=%d resumed=%d passthrough=%d failed=%d",
+                 n_fill, n_resume, n_pass, n_fail)
+        return 0
 
     log.info("writing v2 manifest (%d records) ...", len(new_records))
     sys.path.insert(0, str(Path(__file__).parent))

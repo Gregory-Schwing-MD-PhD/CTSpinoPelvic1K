@@ -103,20 +103,42 @@ export INCLUDE_CONFIGS="fused,spine_only"
 PSEUDO_DEP="afterok${BASE_DEP}"
 [[ "${PSEUDO_DEP}" == "afterok" ]] && PSEUDO_DEP=""    # no dep (base skipped)
 DEP_ARG=""; [[ -n "${PSEUDO_DEP}" ]] && DEP_ARG="--dependency=${PSEUDO_DEP}"
-echo "[ship_v2] (2) pseudolabel: GT spines + MODEL pelves, keep ${INCLUDE_CONFIGS} (DRY_RUN=${DRY_RUN}) [GPU]  ${DEP_ARG:-no dep}"
-J2=$(sbatch --parsable ${SB} ${DEP_ARG} \
-  --export=ALL,SIF_PATH=${SIF_PATH},NNUNET_SIF=${NNUNET_SIF},NNUNET_RESULTS=${NNUNET_RESULTS},HF_EXPORT_DIR=${HF_EXPORT_DIR},PSEUDO_OUT_DIR=${PSEUDO_OUT_DIR},MODELS_CONFIG=${MODELS_CONFIG},DRY_RUN=${DRY_RUN},HF_TOKEN=${HF_TOKEN},USE_PROPAGATED=0 \
-  slurm/pseudolabel.sh)
+
+PSEUDO_EXPORT="SIF_PATH=${SIF_PATH},NNUNET_SIF=${NNUNET_SIF},NNUNET_RESULTS=${NNUNET_RESULTS},HF_EXPORT_DIR=${HF_EXPORT_DIR},PSEUDO_OUT_DIR=${PSEUDO_OUT_DIR},MODELS_CONFIG=${MODELS_CONFIG},DRY_RUN=${DRY_RUN},HF_TOKEN=${HF_TOKEN},USE_PROPAGATED=0"
+
+if [[ "${DRY_RUN}" == "1" ]]; then
+    # plan-only: single job, no sharding / assembly.
+    echo "[ship_v2] (2) pseudolabel PLAN (DRY_RUN) keep ${INCLUDE_CONFIGS} [CPU]  ${DEP_ARG:-no dep}"
+    J2=$(sbatch --parsable ${SB} ${DEP_ARG} --export=ALL,${PSEUDO_EXPORT} slurm/pseudolabel.sh)
+    PSEUDO_FINAL="${J2}"
+else
+    # SHARDED like ship_v3's TS pass: an --array of GPU workers each predicting a
+    # disjoint 1/N of the cases (split by index %% N in pseudolabel.py); predictions +
+    # labels + resume markers land in the shared v2 tree on NFS. The assembly pass (2b)
+    # then REUSES every shard's markers — no re-inference — and writes the manifest.
+    PSEUDO_SHARDS="${PSEUDO_SHARDS:-8}"
+    PSEUDO_CONCURRENT="${PSEUDO_CONCURRENT:-8}"
+    echo "[ship_v2] (2) pseudolabel: GT spines + MODEL pelves — ${PSEUDO_SHARDS}-way array, %${PSEUDO_CONCURRENT} concurrent [GPU]  ${DEP_ARG:-no dep}"
+    J2=$(sbatch --parsable ${SB} ${DEP_ARG} \
+      --array=0-$((PSEUDO_SHARDS - 1))%${PSEUDO_CONCURRENT} \
+      --export=ALL,${PSEUDO_EXPORT},N_SHARDS_OVERRIDE=${PSEUDO_SHARDS} \
+      slurm/pseudolabel.sh)
+    echo "[ship_v2] (2b) pseudolabel assemble (reduce) -> ${PSEUDO_OUT_DIR}/manifest.json [CPU]  after all ${PSEUDO_SHARDS} shards of ${J2}"
+    J2B=$(sbatch --parsable ${SB} --dependency=afterok:${J2} \
+      --export=ALL,SIF_PATH=${SIF_PATH},HF_EXPORT_DIR=${HF_EXPORT_DIR},PSEUDO_OUT_DIR=${PSEUDO_OUT_DIR},MODELS_CONFIG=${MODELS_CONFIG},NNUNET_RESULTS=${NNUNET_RESULTS} \
+      slurm/pseudolabel_assemble.sh)
+    PSEUDO_FINAL="${J2B}"
+fi
 
 # ---------------------------------------------------------------------------
 # (3) QC triage — score every model-pseudolabelled pelvis on anatomical plausibility
 # and write qc/pseudo_pelvis_triage.csv INTO the v2 tree so it ships with the push
 # (review worst-first). Non-fatal: the job always exits 0, so it never blocks the
 # push. Runs after pseudolabel (needs the v2 labels). [CPU]
-QC_DEP=":${J2}"
+QC_DEP=":${PSEUDO_FINAL}"
 if [[ "${SKIP_QC}" != "1" ]]; then
-    echo "[ship_v2] (3) qc_pseudo_pelvis triage -> ${PSEUDO_OUT_DIR}/qc [CPU]  after ${J2}"
-    JQC=$(sbatch --parsable ${SB} --dependency=afterok:${J2} \
+    echo "[ship_v2] (3) qc_pseudo_pelvis triage -> ${PSEUDO_OUT_DIR}/qc [CPU]  after ${PSEUDO_FINAL}"
+    JQC=$(sbatch --parsable ${SB} --dependency=afterok:${PSEUDO_FINAL} \
       --export=ALL,SIF_PATH=${SIF_PATH},PSEUDO_OUT_DIR=${PSEUDO_OUT_DIR} \
       slurm/qc_pseudo_pelvis.sh)
     QC_DEP=":${JQC}"      # push waits for the CSV so it ships inside v2
@@ -135,7 +157,8 @@ J3=$(sbatch --parsable ${SB} --dependency=afterok${QC_DEP} \
 echo "V2_PUSH_JOB=${J3}"
 echo "[ship_v2] submitted:"
 echo "[ship_v2]   v1 build+push : ${J1:-<skipped>}"
-echo "[ship_v2]   pseudolabel   : ${J2}   (GT spines + MODEL pelves)"
+echo "[ship_v2]   pseudolabel   : ${J2}   (GT spines + MODEL pelves${J2B:+, ${PSEUDO_SHARDS:-?}-way array})"
+echo "[ship_v2]   assemble      : ${J2B:-<single run>}   (reduce: reuse markers -> manifest)"
 echo "[ship_v2]   qc triage     : ${JQC:-<skipped>}"
 echo "[ship_v2]   v2 push       : ${J3}   (completeness-gated: aborts if labels/CTs missing)"
 echo "[ship_v2]   monitor       : tail -f logs/*${J2}* logs/*${J3}*"

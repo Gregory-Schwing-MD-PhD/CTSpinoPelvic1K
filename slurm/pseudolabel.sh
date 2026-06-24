@@ -85,6 +85,15 @@ SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
 PSEUDO_LIMIT="${PSEUDO_LIMIT:-0}"
 PREDICT_FUSED="${PREDICT_FUSED:-0}"   # 1 = also predict fused GT (cache for eval)
 
+# Shard identity (mirrors v3_totalseg.sh). Each --array task predicts a disjoint 1/N
+# of the cases; predictions + merged labels + resume markers land in the SHARED out/
+# + _work/ dirs on NFS, so the assembly pass (slurm/pseudolabel_assemble.sh) reuses
+# every shard's work with NO re-inference. N_SHARDS_OVERRIDE pins the count so a
+# partial resubmit (--array=3,5) keeps the SAME split. Default = single shard (n=1):
+# processes everything AND writes the manifest (back-compatible standalone run).
+SHARD_ID="${SLURM_ARRAY_TASK_ID:-0}"
+N_SHARDS="${N_SHARDS_OVERRIDE:-${SLURM_ARRAY_TASK_COUNT:-1}}"
+
 mkdir -p "${LOGS_DIR}" "${PSEUDO_OUT_DIR}" "${NNUNET_RESULTS}"
 
 # ── Split scratch (mirrors slurm/benchmark_totalseg.sh) ──────────────────────
@@ -287,6 +296,8 @@ echo "${SINGULARITY_TMPDIR} — node-local, a few minutes with NO output;"
 echo "it is NOT hung) ..."
 echo ""
 
+echo "   Shard         : ${SHARD_ID} / ${N_SHARDS}  $([[ "${N_SHARDS}" != "1" ]] && echo '(array worker — manifest deferred to assembly)' || echo '(single run — writes manifest)')"
+
 _run stdbuf -oL -eL python3 -u /workspace/scripts/pseudolabel.py \
     --hf_export      "/data/$(basename "${HF_EXPORT_DIR}")" \
     --out            "/data/$(basename "${PSEUDO_OUT_DIR}")" \
@@ -294,6 +305,7 @@ _run stdbuf -oL -eL python3 -u /workspace/scripts/pseudolabel.py \
     --splits         "/data/$(basename "${HF_EXPORT_DIR}")/splits_5fold.json" \
     --nnunet_results "${NNUNET_RESULTS}" \
     --device         "${PSEUDO_DEVICE}" \
+    --shard_id       "${SHARD_ID}" --n_shards "${N_SHARDS}" \
     ${EXTRA_ARGS}
 
 echo ""
