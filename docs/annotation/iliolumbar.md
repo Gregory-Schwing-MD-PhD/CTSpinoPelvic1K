@@ -1,6 +1,6 @@
 # Annotation guide — Iliolumbar ligament (`TASK=iliolumbar`)
 
-**Difficulty: moderate** · paints ids **51/52** · Space `…/CTSpinoPelvic1K-review-ili`
+**Difficulty: moderate** · paints ids **58/59** · Space `…/CTSpinoPelvic1K-review-ili`
 
 Read [README.md](README.md) first.
 
@@ -18,15 +18,15 @@ Segment the **iliolumbar ligament** bilaterally onto the v3 base:
 
 | id | structure |
 |---|---|
-| 51 | `iliolumbar_left` |
-| 52 | `iliolumbar_right` |
+| 58 | `iliolumbar_left` |
+| 59 | `iliolumbar_right` |
 
 ## Anatomy (what you're tracing)
 A strong band running from the **transverse process of L5** (its origin in **>96%**
 of people) **postero-laterally to the iliac crest / posterior iliac wing**. It
 stabilises L5 on the sacrum.
 
-- The GT **L5 (id 5)** transverse process is your origin landmark (grey context).
+- The GT **L5 (id 24)** transverse process is your origin landmark (grey context).
 - Trace the band from the **L5 TP tip** to its **iliac insertion**; do both sides.
 - It is often **ossified** in DISH / seronegative spondyloarthropathy — when ossified
   it follows bone density and is easy to see; when not, it's a soft-tissue band
@@ -57,7 +57,7 @@ CT then trimmed to the band.
   `figs/iliolumbar_annotated_example.png` and embed it here — see [figs/README.md](figs/README.md).
 
 ## QC checklist before submit
-- [ ] Band **originates at the L5 (GT id 5) transverse process** (or note the level
+- [ ] Band **originates at the L5 (GT id 24) transverse process** (or note the level
       it actually arises from).
 - [ ] **Inserts on the ilium** (crest / posterior wing); both sides done.
 - [ ] Ossified portions included; soft-tissue band traced conservatively, not into

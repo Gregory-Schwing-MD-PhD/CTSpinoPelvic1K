@@ -18,8 +18,8 @@ tags:
 
 A CT-native benchmark for lumbosacral transitional vertebra (LSTV) segmentation,
 fusing CTSpine1K and CTPelvic1K over the shared COLONOG patient cohort into a
-unified 10-class spinopelvic labelmap (0 background; 1-5 L1-L5; 6 L6/lumbarized
-S1; 7 sacrum; 8 left hip; 9 right hip).
+unified VerSe-native spinopelvic labelmap (0 background; 20-24 L1-L5; 25 L6/lumbarized
+S1; 26 sacrum; 30 left hip; 31 right hip).
 
 > **Note:** this file is **not** the published dataset card — the card pushed to
 > HuggingFace is `docs/dataset_card.md`. Kept here for reference only.
@@ -33,32 +33,34 @@ on its own branch, loadable with `revision=`.
 - **v1** — original release: source annotations only, so each case is spine-only,
   pelvic-only, or fused (partial annotation via nnU-Net ignore-label).
 - **v2** — model-completed: every case densely labelled by an out-of-fold,
-  5-fold nnU-Net (the unified 10-class spinopelvic map, no ignore-label voxels).
-- **v3** — bone-augmented (`== main`): v2 plus a single TotalSegmentator pass per case, and
-  re-indexed into an anatomical order — the GT thoracic column (FOV-visible), both
-  femurs, and an S1 body carved from the sacrum (see *v3 label scheme*). The same
-  spinopelvic anatomy as v2, but the **core ids are renumbered** (S1 is inserted
-  after L6, so sacrum/hips shift): v3 is **not** id-compatible with v2. **Ribs are
-  deferred to a future v4 release** — their ids are reserved but not populated here.
+  5-fold nnU-Net (the unified VerSe-native spinopelvic map, no ignore-label voxels).
+- **v3** — bone-augmented (`== main`): v2 plus a single TotalSegmentator pass per case —
+  the GT thoracic column (FOV-visible), both femurs, and an S1 body carved from the
+  sacrum (see *label scheme*). The same VerSe-native ids as v2, plus the new bone
+  structures above the VerSe range. **Ribs are deferred to a future v4 release** —
+  their ids are reserved but not populated here.
 
-## v3 label scheme (bone-augmented)
+## Label scheme (VerSe-native)
 
-v3 re-indexes the spinopelvic core into an anatomical order (S1 inserted right after
-L6) and appends the GT thoracic column, both femurs, and an S1 carve (one TS
-inference per case). Contiguous, ignore highest:
+The spine keeps its VerSe ids verbatim; every non-VerSe structure (S1, hips, femurs,
+ribs) gets a fixed id above the VerSe range. v3 adds the GT thoracic column, both
+femurs, and an S1 carve (one TS inference per case):
 
 | id | class | source | populated in v3? |
 |---|---|---|---|
 | 0 | background | | yes |
-| 1–6 | L1–L6 | radiologist GT | yes |
-| 7 | S1 (carved from sacrum) | (GT sacrum) ∩ (TS vertebrae_S1) | yes |
-| 8 | sacrum | radiologist GT | yes |
-| 9 / 10 | left hip / right hip | radiologist GT | yes |
-| 11 / 12 | femur_left / femur_right | TS | yes |
-| 13–25 | T1 … T13 | radiologist GT thoracic column (placed VerSe masks) | yes (FOV-visible) |
-| 26–37 | rib_left_1 … rib_left_12 | *reserved* | **no — deferred to v4** |
-| 38–49 | rib_right_1 … rib_right_12 | *reserved* | **no — deferred to v4** |
-| 50 | ignore | sentinel | yes |
+| 1–7 | C1–C7 | radiologist GT | yes (FOV-visible) |
+| 8–19 | T1 … T12 | radiologist GT thoracic column (placed VerSe masks) | yes (FOV-visible) |
+| 20–25 | L1–L6 | radiologist GT | yes |
+| 26 | sacrum | radiologist GT | yes |
+| 27 | coccyx | radiologist GT | yes (FOV-visible) |
+| 28 | T13 | radiologist GT | yes (FOV-visible) |
+| 29 | S1 (carved from sacrum) | (GT sacrum) ∩ (TS vertebrae_S1) | yes |
+| 30 / 31 | left hip / right hip | radiologist GT | yes |
+| 32 / 33 | femur_left / femur_right | TS | yes |
+| 34–45 | rib_left_1 … rib_left_12 | *reserved* | **no — deferred to v4** |
+| 46–57 | rib_right_1 … rib_right_12 | *reserved* | **no — deferred to v4** |
+| 255 | ignore | sentinel | yes |
 
 The **thoracic column** was always in the source GT (the placed VerSe spine masks)
 but was dropped from v2; v3 ships it. Only the thoracic vertebrae **inside each
@@ -66,7 +68,7 @@ scan's field of view** are labelled — on these spinopelvic acquisitions that i
 usually the lower thoracic (about **T8 down**, not up to T1); T1–T13 is the id
 range, not the per-case extent. Femurs are added directly on background.
 
-**S1 (id 7)** is the part of the GT sacrum that TS identifies as the S1 body: the
+**S1 (id 29)** is the part of the GT sacrum that TS identifies as the S1 body: the
 carve splits the sacrum along its principal axis (so the S1/S2 plane follows pelvic
 tilt) and relabels the cranial slab in place. The sacrum's **outer boundary always
 stays radiologist GT** — only the internal S1/sacrum split comes from TS. It gives
@@ -75,7 +77,7 @@ the S1 superior endplate landmark for sacral slope / pelvic incidence.
 **Ribs are deferred to v4.** On these FOV-limited scans there is no full rib cage to
 count from, so no automatic segmenter (TotalSegmentator, or point-cloud labelers
 such as RibSeg) can *number* ribs reliably; rather than ship mis-numbered ribs, ids
-26–49 are reserved for a future v4 built on manual / AI-assisted rib annotation.
+34–57 are reserved for a future v4 built on manual / AI-assisted rib annotation.
 
 **Bone coverage is heterogeneous by design.** The TotalSegmentator pass runs on the
 802 released per-patient representatives (342 fused + 440 spine-only + the 20 pure
@@ -88,7 +90,7 @@ All code for this benchmark is public and reachable from here:
 
 - **Dataset construction, TotalSegmentator benchmark, and QC** — patient-anchored
   fusion, bone-HU series placement, affine / Y-axis correction, the unified
-  10-class label scheme, the zero-shot TotalSegmentator scoring
+  VerSe-native label scheme, the zero-shot TotalSegmentator scoring
   (`benchmark_totalseg.py`), and the topology/structure QC:
   https://github.com/anonymous-mlhc/CTSpinoPelvic1K
 

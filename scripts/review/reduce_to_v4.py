@@ -5,14 +5,14 @@ v4 = v3 (bone) + the human overlay tasks (ribs, LS nerves, iliolumbar), each
 reviewed in its OWN Space/ledger. Unlike reduce_to_v3 (which SWAPS a whole
 corrected label), this MERGES each task's overlay classes onto the v3 base:
 
-  * ribs        -> ids 26-49 (rib_left_1..12 / rib_right_1..12)  [reuse v3 reserved]
-  * iliolumbar  -> ids 51/52
-  * ls_nerve    -> ids 53-58
-  * ignore      -> relocated 50 -> 255 (stays the highest sentinel)
+  * ribs        -> ids 34-57 (rib_left_1..12 / rib_right_1..12)  [VerSe-native dataset ids]
+  * iliolumbar  -> ids 58/59
+  * ls_nerve    -> ids 60-65
+  * ignore      -> 255 (already 255 in v3; no relocation)
 
 Only the OVERLAY-class voxels are taken from each task's final, and only where the
 merged label is still background — so overlays are purely additive and the v3 base
-structures (1-25) are preserved verbatim from the v3 tree (a student's incidental
+structures (VerSe-native spine + pelvis) are preserved verbatim from the v3 tree (a student's incidental
 tidy-ups to base classes are NOT folded here). A case with no overlay finals passes
 through as its v3 label with ignore relocated, so v4 is a strict superset of v3.
 
@@ -42,14 +42,16 @@ from pathlib import Path
 from typing import Dict, List
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # scripts/ for label_scheme
 import schema  # noqa: E402
+import label_scheme as LS  # noqa: E402  (THE single source of truth for label ids)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s  %(levelname)-8s  %(message)s",
                     datefmt="%Y-%m-%d %H:%M:%S")
 log = logging.getLogger("ctspinopelvic1k.review.reduce_v4")
 
-V3_IGNORE, V4_IGNORE = 50, 255
+V3_IGNORE, V4_IGNORE = LS.IGNORE_LABEL, LS.IGNORE_LABEL   # both 255 (no relocation needed)
 # overlay tasks folded into v4 (rib_anchor is a separate minimal LSTV pass, not a
 # v4 dataset structure, so it is intentionally NOT merged here).
 V4_OVERLAY_TASKS = ("ribs", "iliolumbar", "ls_nerve")
@@ -57,17 +59,12 @@ TASK_PROV_KEY = {t: f"prov_{t}" for t in V4_OVERLAY_TASKS}
 
 
 def v4_label_dict() -> Dict[str, int]:
-    """The full v4 {name: id} map (background..ignore=255) for dataset.json."""
-    d = {"background": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4, "L5": 5, "L6": 6,
-         "S1": 7, "sacrum": 8, "left_hip": 9, "right_hip": 10,
-         "femur_left": 11, "femur_right": 12}
-    for n in range(1, 14):                              # T1..T13 -> 13..25
-        d[f"T{n}"] = 12 + n
-    for oid, name in {**schema.RIBS_CLASSES, **schema.ILIOLUMBAR_CLASSES,
-                      **schema.LS_NERVE_CLASSES}.items():
-        d[name] = oid
-    d["ignore"] = V4_IGNORE
-    return d
+    """The full v4 {name: id} map for dataset.json — VerSe-native (label_scheme).
+
+    v4 has the same legend as v3 (the overlay structures already have reserved ids in
+    label_scheme); the overlays just go from reserved-but-empty to populated.
+    """
+    return LS.label_dict()
 
 
 def apply_overlays_to_records(records: List[dict],

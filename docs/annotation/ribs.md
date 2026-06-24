@@ -1,6 +1,6 @@
 # Annotation guide — Ribs (`TASK=ribs`)
 
-**Difficulty: easier** · paints ids **26–49** · Space `…/CTSpinoPelvic1K-review-ribs`
+**Difficulty: easier** · paints ids **34–57** · Space `…/CTSpinoPelvic1K-review-ribs`
 
 Read [README.md](README.md) first (one-time setup, IRR, label-space rules).
 
@@ -19,16 +19,16 @@ v3 base label. Ribs reuse the v3 reserved ids:
 
 | side | ids | name |
 |---|---|---|
-| left | 26–37 | `rib_left_1` … `rib_left_12` |
-| right | 38–49 | `rib_right_1` … `rib_right_12` |
+| left | 34–45 | `rib_left_1` … `rib_left_12` |
+| right | 46–57 | `rib_right_1` … `rib_right_12` |
 
 ## The numbering rule (objective — do not guess)
 Rib number = the number of the **GT thoracic vertebra its head articulates with**
 (the costovertebral joint). The v3 thoracic GT is shown as grey context:
-ids 13–25 = T1–T13, so **id 13→T1 … 24→T12, 25→T13**.
+ids 8–19 = T1–T12 and id 28 = T13, so **id 8→T1 … 19→T12, 28→T13**.
 
-- A rib whose head joins the vertebra labelled **24 (T12)** → paint it
-  `rib_left_12` (37) / `rib_right_12` (49).
+- A rib whose head joins the vertebra labelled **19 (T12)** → paint it
+  `rib_left_12` (45) / `rib_right_12` (57).
 - Always read the number off the vertebra; never count "down from the top" on a
   FOV-limited scan.
 
@@ -45,7 +45,7 @@ key manual step is **numbering**: give each rib the number of the GT thoracic
 vertebra its head articulates with (below).
 
 ## The LSTV/TLTV flag (why this matters)
-If the vertebra labelled **T12 (24) has no rib**, do **not** invent one — leave it
+If the vertebra labelled **T12 (19) has no rib**, do **not** invent one — leave it
 blank and add a `reviewtool` note "T12 no rib". A GT-T12 without a rib (or an L1
 *with* a rib) is a **thoracolumbar transitional** signal; these flagged cases feed
 the LSTV/TLTV analysis. Your job is to record what's there, accurately.

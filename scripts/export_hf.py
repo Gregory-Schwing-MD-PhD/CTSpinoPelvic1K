@@ -314,49 +314,12 @@ _POSTWRITE_HIP_BONE_PCT_WARN = 30.0
 _POSTWRITE_MIN_HIP_VOXELS    = 1000
 
 # -- Label maps ---------------------------------------------------------------
-
-# Ignore label for partial-annotation cases. Voxels with this value are
-# masked out of both CE and Dice loss by nnU-Net's DC_and_CE_loss when
-# ignore_label is configured (see trainer's _maybe_apply_ce_reweighting
-# and the dataset.json's "ignore": 10 entry).
-IGNORE_LABEL = 10
-
-VERSE_TO_10CLASS: Dict[int, int] = {
-    # cervical C1-C7 (VerSe 1-7) -> 13-19. Previously DROPPED; now retained from
-    # CTSpine1K GT (present on a handful of cases — see DATASET_PRINCIPLES.md).
-    1: 13, 2: 14, 3: 15, 4: 16, 5: 17, 6: 18, 7: 19,
-    # thoracic T1-T12 (VerSe 8-19) -> 20-31. Previously DROPPED; now retained,
-    # CONTIGUOUS through T12 (so the column is in order, no orphaned vertebra).
-    8: 20, 9: 21, 10: 22, 11: 23, 12: 24, 13: 25,
-    14: 26, 15: 27, 16: 28, 17: 29, 18: 30,
-    19: 31,                       # T12 -> per-level (NOT the anchor; see below)
-    20: 1, 21: 2, 22: 3, 23: 4, 24: 5,
-    25: 6,
-    26: 7,
-    28: 32,                       # T13 (supernumerary) -> per-level T13
-}
-# Append-only law (DATASET_PRINCIPLES.md): the existing 0-12 scheme is FROZEN;
-# everything above is purely additive and never renumbers a published value.
-#
-# - Vertebrae are NATIVE and CONTIGUOUS: cervical C1-C7 -> 13-19, thoracic
-#   T1-T13 -> 20-32 (T12 -> 31, T13 -> 32), lumbar L1-L6 -> 1-6, sacrum -> 7.
-#   They are the spine annotator's word, written authoritatively by merge_labels.
-# - The counting anchor is DERIVED, not a stored class: it is the last
-#   rib-bearing vertebra = the last thoracic (T12=31 / T13=32 when present),
-#   already in the native labels. The model learns rib-bearing-ness (lumbar bear
-#   no ribs) from the T-vs-L distinction and from native ribs once labelled.
-#   There is NO stored anchor class (the old 11/12 are retired).
-# - Classes 33-62 (femur, full rib cage, sternum, costal cartilages) are
-#   RESERVED names only — not in this map (no GT source yet).
-# - ignore stays 10; this change is decoupled from the pseudolabeller, which
-#   only fills bg/ignore voxels and never touches these foreground labels.
-#
-# NOTE: this is the LEGACY scheme (v1/v2, the original nnU-Net training artifact).
-# It is intentionally kept as-is. The v3 bone branch does NOT use this reservation:
-# build_v3_totalseg.py emits its own training-contiguous scheme (ribs 10-33,
-# femur_left/right 34/35, S1 36, ignore 37) and ships it as v3's dataset_labels.json.
-# The two schemes are independent and per-branch self-describing; do not merge them.
-PELVIC_TO_10CLASS: Dict[int, int] = {1: 7, 2: 8, 3: 9}
+# VerSe-NATIVE scheme — see scripts/label_scheme.py (THE single source of truth).
+# The spine passes through VERBATIM (no remap — that was the v3 thoracic bug); the
+# pelvis goes to fixed ids above the VerSe range; ignore = 255. NEVER define ids here.
+from label_scheme import (IGNORE_LABEL, SACRUM_ID,
+                          VERSE_SPINE as VERSE_TO_10CLASS,    # identity {1..28}: passthrough
+                          PELVIC_REMAP as PELVIC_TO_10CLASS)  # CTPelvic1K 1/2/3 -> 26/29/30 (4 dropped)
 
 CLASS_NAMES = {
     # ── Lumbosacral + pelvis core (frozen; never renumber) ──────────────────
@@ -595,12 +558,12 @@ def merge_labels(spine_path, pelvic_path, ref_shape):
         mn = tuple(min(a, b) for a, b in zip(ref_shape, sp.shape))
         sl = tuple(slice(0, m) for m in mn)
         for vid, cls in VERSE_TO_10CLASS.items():
-            if cls == 7:
-                # Sacrum from VerSe id 26: only fill where pelvic didn't
+            if cls == SACRUM_ID:
+                # Sacrum (VerSe id 26): only fill where pelvic didn't
                 # already claim it (fused mode -> result==0) or where
                 # the slot is still unassigned (partial mode -> result==IGNORE).
-                # Do NOT overwrite a pelvic-claimed sacrum, hip (7-9), or
-                # an already-placed lumbar vertebra (1-6).
+                # Do NOT overwrite a pelvic-claimed sacrum/hip or an
+                # already-placed vertebra.
                 fill_mask = (sp[sl] == vid) & (
                     (result[sl] == 0) | (result[sl] == IGNORE_LABEL)
                 )

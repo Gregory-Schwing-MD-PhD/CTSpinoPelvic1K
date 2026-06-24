@@ -41,24 +41,23 @@ RIB_ANCHOR_CLASSES = frozenset({11, 12})
 
 # ── v4 overlay TASKS ─────────────────────────────────────────────────────────
 # Each v4 task is annotated in its OWN Space (separate ledger). Overlay ids REUSE
-# the dataset scheme so finalized labels drop straight in (no remap), and never
-# collide with the v3 base label the student edits (ids 0–49 + ignore 50):
-#   * Ribs REUSE v3's reserved-but-empty rib ids 26–49 (rib_left_1..12 → 26–37,
-#     rib_right_1..12 → 38–49, matching build_v3_totalseg). The rib NUMBER is read
-#     off the adjacent GT thoracic vertebra (costovertebral joint), not guessed —
-#     so on FOV-limited scans students paint only the visible ribs at true number.
-#   * Iliolumbar (51/52) + LS-nerve roots (53–58) take NEW ids ABOVE the v3 base
-#     ignore (50) so they don't clash with ignore voxels in the editable base.
-# In the v4 DATASET, ignore relocates 50 -> 255 (stays the highest sentinel); that
-# is a v4-build/reduce step. The review-space ignore is separate (IGNORE_LABEL=10).
-# Reviewers for a task load ONLY that task's palette
+# the VerSe-native DATASET scheme (scripts/label_scheme.py) so finalized labels drop
+# straight in (no remap), and never collide with the v3 base label the student edits:
+#   * Ribs use the dataset rib ids (rib_left_1..12 → 34–45, rib_right_1..12 → 46–57,
+#     matching label_scheme / build_v3_totalseg). The rib NUMBER is read off the
+#     adjacent GT thoracic vertebra (costovertebral joint), not guessed — so on
+#     FOV-limited scans students paint only the visible ribs at true number.
+#   * Iliolumbar (58/59) + LS-nerve roots (60–65) take their dataset ids, above the
+#     bone block so they never clash with the editable base.
+# Dataset ignore is 255 (label_scheme). The review-space ignore is separate
+# (IGNORE_LABEL=10). Reviewers for a task load ONLY that task's palette
 # (labels_descriptor.descriptor_text(task=...)). See docs/annotation/.
-RIBS_CLASSES = {25 + n: f"rib_left_{n}" for n in range(1, 13)}     # 26–37
-RIBS_CLASSES.update({37 + n: f"rib_right_{n}" for n in range(1, 13)})  # 38–49
-ILIOLUMBAR_CLASSES = {51: "iliolumbar_left", 52: "iliolumbar_right"}
-LS_NERVE_CLASSES = {53: "nerve_L4_left", 54: "nerve_L4_right",
-                    55: "nerve_L5_left", 56: "nerve_L5_right",
-                    57: "nerve_S1_left", 58: "nerve_S1_right"}
+RIBS_CLASSES = {33 + n: f"rib_left_{n}" for n in range(1, 13)}     # 34–45
+RIBS_CLASSES.update({45 + n: f"rib_right_{n}" for n in range(1, 13)})  # 46–57
+ILIOLUMBAR_CLASSES = {58: "iliolumbar_left", 59: "iliolumbar_right"}
+LS_NERVE_CLASSES = {60: "nerve_L4_left", 61: "nerve_L4_right",
+                    62: "nerve_L5_left", 63: "nerve_L5_right",
+                    64: "nerve_S1_left", 65: "nerve_S1_right"}
 # task -> {review-space id: name}. "rib_anchor" is the original minimal LSTV
 # rostral anchor (kept for back-compat); ribs/ls_nerve/iliolumbar are the new v4
 # overlays. All are "add structures onto a good v3 label" passes.

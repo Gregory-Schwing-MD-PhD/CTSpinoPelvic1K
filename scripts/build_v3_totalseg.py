@@ -51,6 +51,7 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 import relabel_ribs as RR
+import label_scheme as LS          # THE single source of truth for label ids (VerSe-native)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s",
                     datefmt="%H:%M:%S")
@@ -70,66 +71,40 @@ S1_TS_NAME = "vertebrae_S1"
 TS_ROI_NAMES: List[str] = FEMUR_NAMES + RIB_NAMES + [S1_TS_NAME]
 
 # ---------------------------------------------------------------------------
-# v3 label scheme (reordered core + GT thoracic column + bone). Contiguous, ignore
-# HIGHEST:
-#   0 bg | 1-6 L1-L6 | 7 S1 | 8 sacrum | 9 left_hip | 10 right_hip
-#   11 femur_left | 12 femur_right | 13-25 T1-T13 (GT thoracic)
-#   26-37 rib_left_1..12 | 38-49 rib_right_1..12 | 50 ignore
-S1_ID, SACRUM_ID = 7, 8
-LEFT_HIP_ID, RIGHT_HIP_ID = 9, 10
-FEMUR_LEFT, FEMUR_RIGHT = 11, 12
+# VerSe-NATIVE scheme — see scripts/label_scheme.py (THE single source of truth).
+# export_hf now emits VerSe-native v2 (spine VERBATIM 1-28, sacrum 26, hips 30/31,
+# ignore 255). So build_v3 only ADDS S1/femurs/ribs on top: NO v2->v3 remap, and the
+# thoracic is NOT re-added (it's already in v2 verbatim — the v3 bug was re-adding it
+# at a colliding offset). Full legend: LS.label_dict().
+#   1-7 C · 8-19 T1-T12 · 20-25 L1-L6 · 26 sacrum · 27 coccyx · 28 T13 · 29 S1
+#   30 left_hip · 31 right_hip · 32/33 femurs · 34-45 rib_left · 46-57 rib_right · 255 ignore
+S1_ID, SACRUM_ID = LS.S1_ID, LS.SACRUM_ID                 # 29, 26
+LEFT_HIP_ID, RIGHT_HIP_ID = 30, 31                        # from CTPelvic1K via export_hf
+FEMUR_LEFT, FEMUR_RIGHT = LS.FEMUR_LEFT, LS.FEMUR_RIGHT   # 32, 33
 FEMUR_ID = {"femur_left": FEMUR_LEFT, "femur_right": FEMUR_RIGHT}
-THORACIC_BASE = 12                                # T_N -> 12 + N  (T1=13 … T13=25)
-V2_IGNORE, V3_IGNORE = 10, 50
+V3_IGNORE = LS.IGNORE_LABEL                               # 255 (v2 already uses 255)
 
-# v2 (1-9, ignore 10) -> v3 ids: lumbar 1-6 unchanged; sacrum/hips shift down by the
-# S1 insertion; v2 ignore -> 50. (S1 itself is carved from the sacrum, below.)
-V2_TO_V3 = {7: SACRUM_ID, 8: LEFT_HIP_ID, 9: RIGHT_HIP_ID, V2_IGNORE: V3_IGNORE}
+# v2 is ALREADY VerSe-native -> identity (no remap). The thoracic column (VerSe
+# 8-19 = T1-T12, 28 = T13) is carried verbatim from v2 — never re-added here.
+V2_TO_V3: Dict[int, int] = {}
 
-# GT thoracic column from the placed VerSe spine masks: VerSe 8..19 = T1..T12,
-# VerSe 28 = T13. Emitted as output classes 13..25 AND used to number the ribs.
-VERSE_THORACIC = {v: THORACIC_BASE + (v - 7) for v in range(8, 20)}
-VERSE_THORACIC[28] = THORACIC_BASE + 13
-
-# rib output ids via relabel_ribs offsets: rib_left_N -> 25+N (26..37),
-# rib_right_N -> 37+N (38..49).
-RR.LEFT_OFFSET = 25
-RR.RIGHT_OFFSET = 37
-
-# rib name -> v3 id, raw TS numbering (rib_left_N -> 25+N, rib_right_N -> 37+N).
+# ribs: raw TS numbering -> fixed v3 ids (rib_left_N -> 34..45, rib_right_N -> 46..57).
+# TS numbers ribs from the top of its FOV; students renumber to true anatomical levels.
+RR.LEFT_OFFSET = LS.RIB_LEFT_OFFSET                       # 33  (rib_left_N -> 33+N)
+RR.RIGHT_OFFSET = LS.RIB_RIGHT_OFFSET                     # 45  (rib_right_N -> 45+N)
 RIB_ID: Dict[str, int] = {f"rib_left_{n}": RR.LEFT_OFFSET + n for n in range(1, 13)}
 RIB_ID.update({f"rib_right_{n}": RR.RIGHT_OFFSET + n for n in range(1, 13)})
 
 
 def v3_label_dict() -> Dict[str, int]:
-    """The full v3 {name: id} label map (background..ignore), for dataset.json."""
-    d = {"background": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4, "L5": 5, "L6": 6,
-         "S1": S1_ID, "sacrum": SACRUM_ID, "left_hip": LEFT_HIP_ID,
-         "right_hip": RIGHT_HIP_ID, "femur_left": FEMUR_LEFT, "femur_right": FEMUR_RIGHT}
-    for n in range(1, 14):                         # T1..T13 -> 13..25
-        d[f"T{n}"] = THORACIC_BASE + n
-    for n in range(1, 13):
-        d[f"rib_left_{n}"] = RR.LEFT_OFFSET + n
-    for n in range(1, 13):
-        d[f"rib_right_{n}"] = RR.RIGHT_OFFSET + n
-    d["ignore"] = V3_IGNORE
-    # v4 soft-tissue block — RESERVED-but-empty in v3 (populated by the v4 student /
-    # AI / TS annotation passes). Keeps the id scheme stable across v3 -> v4.
-    #   51/52 iliolumbar ligament | 53-58 LS nerve roots (L4/L5/S1 ×2)
-    #   59/60 psoas (XLIF corridor) | 61-66 great vessels (anterior-approach planning)
-    d["iliolumbar_left"] = 51
-    d["iliolumbar_right"] = 52
-    for i, nm in enumerate(["nerve_L4_left", "nerve_L4_right", "nerve_L5_left",
-                            "nerve_L5_right", "nerve_S1_left", "nerve_S1_right"]):
-        d[nm] = 53 + i
-    d["psoas_left"] = 59
-    d["psoas_right"] = 60
-    # great vessels TS can segment in the lumbar/pelvic FOV (vessel-to-vertebra
-    # distance for ALIF/anterior approaches; left common iliac vein over L5-S1).
-    for i, nm in enumerate(["aorta", "inferior_vena_cava", "iliac_artery_left",
-                            "iliac_artery_right", "iliac_vena_left", "iliac_vena_right"]):
-        d[nm] = 61 + i
-    return d
+    """The full {name: id} legend (background..ignore), for dataset.json.
+
+    Single source of truth: scripts/label_scheme.py. VerSe-native spine (verbatim),
+    S1/pelvis/femurs/ribs/soft-tissue appended above 28, ignore = 255. The v4
+    soft-tissue block (iliolumbar / LS nerve roots / psoas / great vessels) is
+    RESERVED-but-empty in v3 and populated by later annotation passes.
+    """
+    return LS.label_dict()
 
 
 def _nib_to_sitk_ref(ref_img: "nib.Nifti1Image") -> "object":
@@ -156,40 +131,10 @@ def _sitk_to_nib_array(sitk_img, target_shape: Tuple[int, ...]) -> np.ndarray:
 
 
 # ===========================================================================
-# GT thoracic column (output classes + rib anchors) + the TotalSegmentator pass
+# TotalSegmentator pass (femurs + ribs + S1). The thoracic column is NOT produced
+# here — it is VerSe-native and already present in v2 verbatim (the v3 thoracic bug
+# was re-adding it at a colliding offset; that step is removed).
 # ===========================================================================
-def gt_thoracic_labels(
-    spine_mask_path: Optional[Path], ref_img: "nib.Nifti1Image",
-) -> Tuple[np.ndarray, Dict[int, float]]:
-    """Thoracic vertebrae from the placed VerSe spine mask, remapped to v3 ids
-    (T1..T13 -> 13..25) and resampled onto the ref grid. Returns (label array,
-    {thoracic number N: world-Z centroid mm}). Empty if no mask / no thoracic GT.
-    """
-    out = np.zeros(ref_img.shape[:3], dtype=np.int32)
-    zmap: Dict[int, float] = {}
-    if not spine_mask_path or not Path(spine_mask_path).exists():
-        return out, zmap
-    import SimpleITK as sitk
-    img = sitk.ReadImage(str(spine_mask_path), sitk.sitkInt32)
-    arr = sitk.GetArrayFromImage(img)
-    remap = np.zeros_like(arr)
-    for verse_id, v3id in VERSE_THORACIC.items():
-        remap[arr == verse_id] = v3id
-    if not remap.any():
-        return out, zmap
-    rimg = sitk.GetImageFromArray(remap); rimg.CopyInformation(img)
-    rs = sitk.ResampleImageFilter(); rs.SetReferenceImage(_nib_to_sitk_ref(ref_img))
-    rs.SetInterpolator(sitk.sitkNearestNeighbor); rs.SetTransform(sitk.Transform())
-    out = _sitk_to_nib_array(rs.Execute(rimg), ref_img.shape[:3])
-    aff = ref_img.affine
-    for v3id in (int(v) for v in np.unique(out)):
-        if v3id == 0:
-            continue
-        ijk = np.array(np.nonzero(out == v3id)).mean(axis=1)
-        zmap[v3id - THORACIC_BASE] = float(nib.affines.apply_affine(aff, ijk)[2])
-    return out, zmap
-
-
 def _run_ts_ml(ct_path: Path, ref_img: "nib.Nifti1Image", device: str, roi_names):
     """Run TS (valid roi_names, ml) -> (label array on ref grid, {roi_name: value}).
 
@@ -428,35 +373,32 @@ def process_case(
     out_label_path: Path, *, device: str = "gpu", min_voxels: int = 150,
     carve_s1: bool = True,
 ) -> Dict[str, object]:
-    """Build the reordered v3 label: remap v2 core -> add GT thoracic -> add TS
-    ribs/femurs (-> optionally carve S1 out of the sacrum)."""
+    """Build the v3 label: v2 is ALREADY VerSe-native (spine verbatim, sacrum 26,
+    hips 30/31, ignore 255) -> just ADD TS femurs/ribs (-> optionally carve S1 out of
+    the sacrum). The thoracic column is NOT re-added: it's already in v2 verbatim."""
     lbl_img = nib.load(str(v2_label_path))
     v2 = np.asarray(lbl_img.dataobj).astype(np.int32)
     qc: Dict[str, object] = {"ct": ct_path.name, "femur_vox": 0,
                              "status": "ok", "note": ""}
 
-    # 1) remap the v2 core labels into the reordered v3 ids (lumbar 1-6 unchanged;
-    #    sacrum 7->8, hips 8/9->9/10, ignore 10->50). Index by the original v2 so the
-    #    shifts can't collide.
+    # 1) v2 is already VerSe-native -> no remap (V2_TO_V3 is empty). The spine
+    #    (cervical/thoracic/lumbar VerSe ids, sacrum 26, hips 30/31) is carried verbatim.
     merged = v2.copy()
     for old, new in V2_TO_V3.items():
         merged[v2 == old] = new
 
-    # 2) GT thoracic column (output classes 13-25), on background
-    thor_vol, vert_z = gt_thoracic_labels(spine_mask_path, lbl_img)
-    pl = (merged == 0) & (thor_vol > 0)
-    merged[pl] = thor_vol[pl]
+    # 2) thoracic count, straight from v2 (VerSe T1-T12 = 8-19, T13 = 28). No re-add.
+    n_thor = sum(1 for v in list(range(8, 20)) + [28] if np.any(v2 == v))
 
-    # 3) TS femurs (+ the S1 mask) on background. Ribs are NOT emitted in v3 — TS
-    #    can't number them on the FOV-limited spinopelvic scans; ids 26-49 stay
-    #    reserved for future manual / AI-assisted annotation.
+    # 3) TS femurs + ribs (+ the S1 mask) on background. Ribs use raw TS numbering
+    #    (ids 34-57); students renumber to true anatomical levels.
     add_vol, s1_mask, meta = ts_femurs_and_s1(ct_path, lbl_img,
                                               device=device, min_voxels=min_voxels)
     pl = (merged == 0) & (add_vol > 0)
     n_bone = int(pl.sum())
     merged[pl] = add_vol[pl]
 
-    # 4) carve S1 (id 7) as a slab of the GT sacrum, split along the sacrum's
+    # 4) carve S1 (id 29) as a slab of the GT sacrum, split along the sacrum's
     #    PRINCIPAL AXIS so the S1/S2 plane follows pelvic tilt (not world-Z). On by
     #    default (--no_carve_s1 to disable). Only subdivides the existing sacrum in
     #    place — the sacrum's outer boundary stays radiologist GT.
@@ -464,7 +406,6 @@ def process_case(
             if (carve_s1 and s1_mask is not None) else 0)
 
     _save_label(merged, lbl_img.affine, lbl_img.header, out_label_path)
-    n_thor = len(vert_z)
     n_ribs = len(meta.get("ribs", []))
     qc.update(femur_vox=n_bone, status="ok",
               note=f"thoracic={n_thor} femurs={meta['femurs']} ribs={meta.get('ribs', [])} s1_vox={n_s1}")
@@ -672,8 +613,9 @@ def main() -> int:
         w.writeheader()
         for row in qc_rows:
             w.writerow({k: row.get(k, "") for k in w.fieldnames})
-    # Emit the v3 label scheme (training-contiguous, ignore=34) for dataset.json —
-    # static content; only shard 0 writes it so parallel shards don't race the file.
+    # Emit the VerSe-native label scheme (ignore=255) for dataset.json — static content;
+    # only shard 0 writes it so parallel shards don't race the file. (nnU-Net training
+    # applies its own reversible contiguous-id squeeze downstream; the dataset stays VerSe.)
     if args.shard_id == 0:
         (args.v3_dir / "dataset_labels.json").write_text(json.dumps(v3_label_dict(), indent=2))
 

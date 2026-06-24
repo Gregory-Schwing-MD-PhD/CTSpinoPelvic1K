@@ -12,7 +12,7 @@ year (verify on the live CFP before relying on it).
 |---|---|---|
 | **v1** | full release (all configs) | published (HF `@v1`) |
 | **v2** | radiologist spine GT + pseudolabelled pelves (L1–L6, sacrum, hips, ignore) | published (HF `@v2`) |
-| **v3** | v2 + **femurs (11/12) + carved S1 (7) + GT thoracic (13–25)**; reordered scheme; ribs reserved-but-empty | **rebuild in progress** — pipeline fixed (per-case `/tmp` cleanup + fail-fast + resume-on-ok); clean run then push to `@v3` **and** `@main` |
+| **v3** | v2 + **femurs (32/33) + carved S1 (29) + GT thoracic (8–19, 28)**; VerSe-native scheme; ribs reserved-but-empty | **rebuild in progress** — pipeline fixed (per-case `/tmp` cleanup + fail-fast + resume-on-ok); clean run then push to `@v3` **and** `@main` |
 | **v4** (planned) | v3 + **ribs + LS nerves + iliolumbar ligament + VerSeFusion anomalies** | annotation phase (student tasks below) |
 
 Label scheme + build logic: [`scripts/build_v3_totalseg.py`](../scripts/build_v3_totalseg.py).
@@ -96,7 +96,7 @@ rib-bearing vertebra), caudal bony (S1 endplate + Castellvi morphology), neural
 
 | Task | Difficulty | Output | Anchor role |
 |---|---|---|---|
-| **Ribs** | easier (TS-assisted; value-add = numbering + partials) | rib masks 26–49 | rostral enumeration |
+| **Ribs** | easier (TS-assisted; value-add = numbering + partials) | rib masks 34–57 | rostral enumeration |
 | **Iliolumbar ligament** | moderate (CT-friendly; sometimes ossified) | ligament mask | LSTV cross-check |
 | **LS nerves** | hard (per-root instance; CT contrast-limited) | per-root nerve instances | Kambin's + neural enumeration |
 

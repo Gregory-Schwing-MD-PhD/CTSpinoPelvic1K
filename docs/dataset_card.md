@@ -45,7 +45,7 @@ indistinguishable from a wrong-level plan. Four decisions shape this dataset:
    you cannot tell L5 from L6 by looking at one vertebra. The **last rib-bearing
    vertebra (T12)** is the cranial anchor: the vertebra directly above
    ground-truth L1. It is **not a separate class** — it is just the last thoracic
-   vertebra (T12 = class 31) in the native column, which CTSpine1K already segments
+   vertebra (T12 = class 19) in the native column, which CTSpine1K already segments
    on 783/784 abdominopelvic studies; earlier exports simply discarded the thoracic
    column. With a fixed cranial anchor in the field of view and the sacrum as the
    caudal anchor, the lumbar count — and therefore L5-vs-L6 — becomes
@@ -78,37 +78,40 @@ acquisition (**spine_only**) and the pelvis is pseudolabelled.
 
 ## Labels
 
-Annotators / consumers work in this scheme (the merged training scheme is a
-documented reduction, provided as a conversion script):
+Annotators / consumers work in this **VerSe-native** scheme (the spine keeps its
+VerSe ids verbatim; non-VerSe structures get fixed ids above the VerSe range):
 
 | ID | Name                | Source                                              |
 |---:|---------------------|-----------------------------------------------------|
 | 0  | background          | —                                                   |
-| 1  | L1                  | CTSpine1K (VerSe 20 → 1)                             |
-| 2  | L2                  | CTSpine1K (VerSe 21 → 2)                             |
-| 3  | L3                  | CTSpine1K (VerSe 22 → 3)                             |
-| 4  | L4                  | CTSpine1K (VerSe 23 → 4)                             |
-| 5  | L5                  | CTSpine1K (VerSe 24 → 5)                             |
-| 6  | L6 / LSTV           | CTSpine1K (VerSe 25 → 6) — lumbarized S1            |
-| 7  | sacrum              | CTPelvic1K (dataset2 1 → 7); CTSpine1K VerSe 26 fallback |
-| 8  | left hip            | CTPelvic1K (dataset2 2 → 8)                          |
-| 9  | right hip           | CTPelvic1K (dataset2 3 → 9)                          |
-| 10 | **ignore**          | partial-annotation only — un-traced region, NOT bg  |
-| 13–19 | **C1–C7**        | CTSpine1K (VerSe 1–7 → 13–19), native contiguous     |
-| 20–32 | **T1–T13**       | CTSpine1K (VerSe 8–19, 28 → 20–32); **T12 = 31** is the counting anchor |
-| 35–60 | **rib cage** *(reserved, unused)* | superseded by the v3 scheme — never populated |
+| 1–7 | **C1–C7**          | CTSpine1K (VerSe 1–7), native                        |
+| 8–19 | **T1–T12**        | CTSpine1K (VerSe 8–19); **T12 = 19** is the counting anchor |
+| 20 | L1                  | CTSpine1K (VerSe 20)                                 |
+| 21 | L2                  | CTSpine1K (VerSe 21)                                 |
+| 22 | L3                  | CTSpine1K (VerSe 22)                                 |
+| 23 | L4                  | CTSpine1K (VerSe 23)                                 |
+| 24 | L5                  | CTSpine1K (VerSe 24)                                 |
+| 25 | L6 / LSTV           | CTSpine1K (VerSe 25) — lumbarized S1                 |
+| 26 | sacrum              | CTPelvic1K (dataset2 1 → 26); CTSpine1K VerSe 26 fallback |
+| 27 | coccyx              | CTSpine1K (VerSe 27)                                 |
+| 28 | T13                 | CTSpine1K (VerSe 28) — supernumerary thoracic        |
+| 29 | **S1** (carved from sacrum) | (GT sacrum) ∩ (TS `vertebrae_S1`)           |
+| 30 | left hip            | CTPelvic1K (dataset2 2 → 30)                         |
+| 31 | right hip           | CTPelvic1K (dataset2 3 → 31)                         |
+| 32 / 33 | femur_left / femur_right | TS                                       |
+| 34–45 | rib_left_1 … rib_left_12 | RibSeg (numbered off GT thoracic)            |
+| 46–57 | rib_right_1 … rib_right_12 | RibSeg (numbered off GT thoracic)           |
+| 255 | **ignore**         | partial-annotation only — un-traced region, NOT bg  |
 
 CTPelvic1K's sacrum takes priority over CTSpine1K's sacrum (VerSe 26) so the two
 labelling conventions don't collide at the lumbosacral junction.
 
-The vertebral column is **native and contiguous** (C1–C7 = 13–19, T1–T13 =
-20–32); the rostral counting anchor is **not** a stored class but the last thoracic
-vertebra (T12 = 31). This is the **legacy scheme**, kept for the original nnU-Net
-training. The 35–60 rib-cage reservation was **superseded** — v3 uses a separate
-contiguous scheme (1-6 L1-L6 | 7 S1 | 8 sacrum | 9/10 hips | 11/12 femurs |
-13-25 T1-T13 | 26-49 rib_left/right *reserved* | 50 ignore). In the released v3,
-ids 26-49 (ribs) are **deferred to v4** (reserved, unpopulated); the rest, incl. the
-S1 carve (id 7), is populated.
+The vertebral column is **VerSe-native** (C1–C7 = 1–7, T1–T12 = 8–19, L1–L6 =
+20–25, sacrum = 26, coccyx = 27, T13 = 28); the rostral counting anchor is **not**
+a stored class but the last thoracic vertebra (T12 = 19). v3 adds bone structures
+above the VerSe range (29 S1 | 30/31 hips | 32/33 femurs | 34–57 rib_left/right
+*reserved*). In the released v3, ids 34–57 (ribs) are **deferred to v4** (reserved,
+unpopulated); the rest, incl. the S1 carve (id 29), is populated.
 
 ---
 
@@ -158,14 +161,14 @@ load_dataset("anonymous-mlhc/CTSpinoPelvic1K", revision="v2")  # a specific vers
   only. `pelvic_native` (real pelvis, *pseudo* spine) is dropped from the ship and
   held back as the **pelvis-pseudolabel validation set**. No `ignore` voxels
   remain on the shipped cases — this is the LSTV-segmenter training artifact.
-- **v3** — **bone-augmented** (TotalSegmentator): v2 re-indexed into an anatomical
-  order (S1 after L6) + the GT thoracic column (FOV-visible, ~T8 down) + both femurs
-  + an **S1** carve of the sacrum. Own contiguous scheme, **not** id-compatible with
-  v2: `1-6 L1-L6 | 7 S1 | 8 sacrum | 9/10 hips | 11/12 femurs | 13-25 T1-T13 |
-  26-49 rib_left/right reserved | 50 ignore`. The thoracic column was always in the
-  source GT, just dropped from v2; bone coverage is the 802 spine-anchored + orphan
-  cases. **Ribs (26-49) are deferred to a future v4** — FOV-limited scans can't be
-  rib-numbered reliably — so those ids are reserved but unpopulated in the released v3.
+- **v3** — **bone-augmented** (TotalSegmentator): v2 + the GT thoracic column
+  (FOV-visible, ~T8 down) + both femurs + an **S1** carve of the sacrum, in the
+  VerSe-native scheme: `1-7 C1-C7 | 8-19 T1-T12 | 20-25 L1-L6 | 26 sacrum |
+  27 coccyx | 28 T13 | 29 S1 | 30/31 hips | 32/33 femurs | 34-57 rib_left/right
+  reserved | 255 ignore`. The thoracic column was always in the source GT, just
+  dropped from v2; bone coverage is the 802 spine-anchored + orphan cases. **Ribs
+  (34-57) are deferred to a future v4** — FOV-limited scans can't be rib-numbered
+  reliably — so those ids are reserved but unpopulated in the released v3.
 
 ---
 

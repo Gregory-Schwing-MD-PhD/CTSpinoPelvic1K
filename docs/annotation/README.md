@@ -7,9 +7,9 @@ you **add** your task's overlay onto the label that's served to you.
 
 | Task | Guide | `TASK` | Space | Private ledger (`REVIEW_REPO`) | Paints ids |
 |---|---|---|---|---|---|
-| **Ribs** | [ribs.md](ribs.md) | `ribs` | `anonymous-mlhc/CTSpinoPelvic1K-review-ribs` | `anonymous-mlhc/CTSpinoPelvic1K-reviews-ribs` | **26–49** (reuses v3 reserved) |
-| **LS nerves** | [ls_nerves.md](ls_nerves.md) | `ls_nerve` | `…-review-nerve` | `…-reviews-nerve` | **53–58** |
-| **Iliolumbar** | [iliolumbar.md](iliolumbar.md) | `iliolumbar` | `…-review-ili` | `…-reviews-ili` | **51/52** |
+| **Ribs** | [ribs.md](ribs.md) | `ribs` | `anonymous-mlhc/CTSpinoPelvic1K-review-ribs` | `anonymous-mlhc/CTSpinoPelvic1K-reviews-ribs` | **34–57** (reuses v3 reserved) |
+| **LS nerves** | [ls_nerves.md](ls_nerves.md) | `ls_nerve` | `…-review-nerve` | `…-reviews-nerve` | **60–65** |
+| **Iliolumbar** | [iliolumbar.md](iliolumbar.md) | `iliolumbar` | `…-review-ili` | `…-reviews-ili` | **58/59** |
 
 > The earlier `lstv` (v2 pseudo-correction) and `rib_anchor` Spaces are separate and
 > unchanged. "What is what": the **public dataset** `…/CTSpinoPelvic1K` holds the CTs
@@ -23,16 +23,16 @@ you **add** your task's overlay onto the label that's served to you.
 
 You paint into the **dataset id scheme** so your work drops straight in:
 
-- Existing v3 structures (do **not** touch): 1–6 L1–L6, 7 S1, 8 sacrum, 9/10 hips,
-  11/12 femurs, 13–25 T1–T13, 50 ignore. These appear as **grey context** in your
-  ITK-SNAP palette.
+- Existing v3 structures (do **not** touch): 1–7 C1–C7, 8–19 T1–T12, 20–25 L1–L6,
+  26 sacrum, 27 coccyx, 28 T13, 29 S1, 30/31 hips, 32/33 femurs, 255 ignore. These
+  appear as **grey context** in your ITK-SNAP palette.
 - Your task's overlay ids are the only ones you paint (see each guide).
 - The palette is locked per task — launch ITK-SNAP with the task's label file:
   ```bash
   python scripts/review/labels_descriptor.py --task <ribs|ls_nerve|iliolumbar> --out labels.txt
   ```
   **Never renumber or recolour labels** — if your "rib_left_11" isn't everyone's id
-  48, the IRR/merge is silently wrong.
+  45, the IRR/merge is silently wrong.
 
 ---
 

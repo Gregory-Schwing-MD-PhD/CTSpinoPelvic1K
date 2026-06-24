@@ -1,6 +1,6 @@
 # Annotation guide — Lumbosacral nerve roots (`TASK=ls_nerve`)
 
-**Difficulty: hard** · paints ids **53–58** · Space `…/CTSpinoPelvic1K-review-nerve`
+**Difficulty: hard** · paints ids **60–65** · Space `…/CTSpinoPelvic1K-review-nerve`
 
 Read [README.md](README.md) first. This is the hardest task — read the limits.
 
@@ -18,11 +18,11 @@ Segment the **exiting nerve roots** L4, L5, S1 **bilaterally** onto the v3 base:
 
 | id | root | id | root |
 |---|---|---|---|
-| 53 | `nerve_L4_left` | 54 | `nerve_L4_right` |
-| 55 | `nerve_L5_left` | 56 | `nerve_L5_right` |
-| 57 | `nerve_S1_left` | 58 | `nerve_S1_right` |
+| 60 | `nerve_L4_left` | 61 | `nerve_L4_right` |
+| 62 | `nerve_L5_left` | 63 | `nerve_L5_right` |
+| 64 | `nerve_S1_left` | 65 | `nerve_S1_right` |
 
-Level reference: the GT vertebrae **L4 (4), L5 (5), S1 (7)** are grey context. The
+Level reference: the GT vertebrae **L4 (23), L5 (24), S1 (29)** are grey context. The
 exiting root at a foramen is named for the vertebra **above** that foramen (the L4
 root exits the L4–L5 foramen, etc.).
 
