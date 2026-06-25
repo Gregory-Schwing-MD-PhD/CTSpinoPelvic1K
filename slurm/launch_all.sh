@@ -11,7 +11,9 @@
 #   HF_TOKEN=hf_xxx HF_REPO_ID=<org>/CTSpinoPelvic1K \
 #     NNUNET_SIF=$(pwd)/containers/ctspinopelvic1k-ts.sif bash slurm/launch_all.sh
 #
-# Toggles:  SHIP_V3=0 (stop after v2),  SKIP_BASE=1 (reuse v1 base),
+# Toggles:  NUKE=1 (wipe ALL hf_export* first, as a SLURM job — clean rebuild, no
+#               login-node wait; forces SKIP_BASE=0),
+#           SHIP_V3=0 (stop after v2),  SKIP_BASE=1 (reuse v1 base),
 #           SBATCH_QOS=secondary (run the whole DAG on another queue),
 #           DRY_RUN=1 (plan the pseudolabel step only).
 # =============================================================================

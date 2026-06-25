@@ -28,8 +28,10 @@ source configs/default.env
 : "${HF_TOKEN:?paste your token -> HF_TOKEN=hf_xxx HF_REPO_ID=<org>/Name bash slurm/rebuild_verse_native.sh}"
 : "${HF_REPO_ID:?set HF_REPO_ID=<org>/CTSpinoPelvic1K}"
 
-# The decisive flag: re-export the v1 base (where export_hf.merge_labels writes the
-# spine ids) instead of reusing the stale old-scheme base.
+# The decisive flags: NUKE everything first (so no old-scheme leftover can survive)
+# and re-export the v1 base. NUKE=1 forces SKIP_BASE=0 and submits the wipe as a SLURM
+# job (no login-node wait). Override with NUKE=0 to keep existing trees + reuse caches.
+export NUKE="${NUKE:-1}"
 export SKIP_BASE=0
 export SHIP_V3=1
 V3_DIR="${V3_DIR:-${DATA_DIR}/hf_export_v3}"

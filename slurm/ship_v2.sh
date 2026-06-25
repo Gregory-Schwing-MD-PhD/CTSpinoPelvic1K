@@ -73,9 +73,23 @@ if [[ -z "${SKIP_BASE:-}" ]]; then
         SKIP_BASE=0; echo "[ship_v2] no v1 base -> will build + push @v1"
     fi
 fi
-echo "[ship_v2] clearing stale v2 labels    ${PSEUDO_OUT_DIR}/{labels,qc,manifest.json}  (KEEPING ${PSEUDO_OUT_DIR}_work)"
-rm -rf "${PSEUDO_OUT_DIR}"/labels "${PSEUDO_OUT_DIR}"/qc "${PSEUDO_OUT_DIR}"/manifest.json \
-       "${PSEUDO_OUT_DIR}"/propagated_completion_qc.csv
+# NUKE=1 wipes EVERYTHING, so the base must be rebuilt regardless of SKIP_BASE.
+[[ "${NUKE:-0}" == "1" ]] && { SKIP_BASE=0; echo "[ship_v2] NUKE=1 -> forcing SKIP_BASE=0 (base rebuilt)"; }
+
+# (0) NUKE=1: wipe ALL hf_export* (trees + _work resume markers/pred caches) as a
+# SLURM job, so the login node does NOT block on a big NFS delete. The whole DAG is
+# chained afterok the wipe, so nothing old can leak into the clean VerSe-native rebuild.
+WIPE_DEP_ARG=""
+if [[ "${NUKE:-0}" == "1" ]]; then
+    echo "[ship_v2] (0) NUKE=1 — wiping ${DATA_DIR}/hf_export* via SLURM (no login-node wait) [CPU]"
+    J0=$(sbatch --parsable ${SB} --export=ALL,DATA_DIR=${DATA_DIR} slurm/wipe_exports.sh)
+    WIPE_DEP_ARG="--dependency=afterok:${J0}"
+    echo "[ship_v2] wipe job: ${J0}"
+else
+    echo "[ship_v2] clearing stale v2 labels    ${PSEUDO_OUT_DIR}/{labels,qc,manifest.json}  (KEEPING ${PSEUDO_OUT_DIR}_work)"
+    rm -rf "${PSEUDO_OUT_DIR}"/labels "${PSEUDO_OUT_DIR}"/qc "${PSEUDO_OUT_DIR}"/manifest.json \
+           "${PSEUDO_OUT_DIR}"/propagated_completion_qc.csv
+fi
 
 # ---------------------------------------------------------------------------
 # (1) Build the v1 BASE = ALL configs + anchor (NOT filtered). v2 is derived
@@ -86,10 +100,12 @@ if [[ "${SKIP_BASE}" == "1" ]]; then
     echo "[ship_v2] (1) SKIP_BASE=1 — reusing existing all-configs base at ${HF_EXPORT_DIR}"
     [[ -f "${HF_EXPORT_DIR}/manifest.json" ]] || { echo "ERROR: no base at ${HF_EXPORT_DIR}; run ship_v1 first or unset SKIP_BASE"; exit 1; }
 else
-    echo "[ship_v2] clearing stale base labels  ${HF_EXPORT_DIR}/{labels,qc,manifest.json}"
-    rm -rf "${HF_EXPORT_DIR}"/labels "${HF_EXPORT_DIR}"/qc "${HF_EXPORT_DIR}"/manifest.json
-    echo "[ship_v2] (1) export the v1 base (ALL configs + anchor) + PUSH @v1 [CPU]"
-    J1=$(sbatch --parsable ${SB} \
+    if [[ "${NUKE:-0}" != "1" ]]; then        # under NUKE the wipe job owns deletion
+        echo "[ship_v2] clearing stale base labels  ${HF_EXPORT_DIR}/{labels,qc,manifest.json}"
+        rm -rf "${HF_EXPORT_DIR}"/labels "${HF_EXPORT_DIR}"/qc "${HF_EXPORT_DIR}"/manifest.json
+    fi
+    echo "[ship_v2] (1) export the v1 base (ALL configs + anchor) + PUSH @v1 [CPU]  ${WIPE_DEP_ARG:-no wipe dep}"
+    J1=$(sbatch --parsable ${SB} ${WIPE_DEP_ARG} \
       --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=0,SKIP_QC=${SKIP_QC},NO_PIR=${NO_PIR},WIPE_REMOTE=${WIPE},HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v1,HF_EXPORT_DIR=${HF_EXPORT_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
       slurm/export_dataset.sh)
     BASE_DEP=":${J1}"
@@ -156,6 +172,7 @@ J3=$(sbatch --parsable ${SB} --dependency=afterok${QC_DEP} \
 # Emit the terminal push job id so a parent launcher can chain v3 onto it.
 echo "V2_PUSH_JOB=${J3}"
 echo "[ship_v2] submitted:"
+echo "[ship_v2]   wipe exports  : ${J0:-<skipped>}   (NUKE=1 -> rm hf_export* on a compute node)"
 echo "[ship_v2]   v1 build+push : ${J1:-<skipped>}"
 echo "[ship_v2]   pseudolabel   : ${J2}   (GT spines + MODEL pelves${J2B:+, ${PSEUDO_SHARDS:-?}-way array})"
 echo "[ship_v2]   assemble      : ${J2B:-<single run>}   (reduce: reuse markers -> manifest)"
