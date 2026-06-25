@@ -56,11 +56,13 @@ published — train on the RibSeg v2 dataset (H200s).
 
 ### TotalSegmentator — the full-body diversity engine (use selectively)
 1204 routine CTs, 104 structures, **CC-BY-4.0** (cleanest license here). Annotation: **5 manual →
-iterative nnU-Net pseudolabel + manual review** (retrain @5/20/100; all 1204 reviewed). **Key caveat:
-the TS *tool* is trained on this dataset**, so its **vertebra + lower-rib** labels carry the same
-weaknesses we're escaping — do **not** use them as spine/rib GT. **Do** use its strong structures
-(**femur, hip, sacrum**, sternum, scapula) and its **domain diversity** (scanners/phases/institutions).
-Integrate the RibSeg way: keep trusted structures, `ignore` the rest.
+iterative nnU-Net pseudolabel + manual review** (retrain @5/20/100; all 1204 reviewed). **Correction:**
+the *dataset* labels are human-reviewed GT (and community-vetted) — *usable for all structures incl.
+spine/ribs*; it's the released *tool's inference* that degrades on OOD / FOV-limited scans (a separate
+problem). So treat TS as legit GT, **spot-check vertebra numbering** on a sample, expect a small
+residual error rate, and keep a hand-checked subset for test. Strong structures (femur/hip/sacrum) +
+**domain diversity** (1204 routine CTs) are its main value. meta.csv = `image_id, age, gender,
+institute, study_type, split` (no anomaly fields → derive geometrically).
 
 ### CADS / VertebralBodiesCT-Labels — derived aggregates
 Whole-body / vertebral-bodies, derived from TS+VerSe. Useful for breadth but inherit source quality;
@@ -114,7 +116,47 @@ public crosswalk + license ledger — for massive training and external testing.
 
 ---
 
+## North star — the anomaly cohort
+Build the first large, auto-phenotyped, multi-source **spinal-anomaly cohort** (LSTV, TLTV/stump,
+enumeration T13/L6/≠5-lumbar, scoliosis, deformity, rib fracture) by pooling all sources (~4–5k CTs),
+unifying to VerSe-native labels, and running geometric/counting **detectors** to mine each phenotype at
+scale. Train on noisy auto-mined labels; **hand-verify a few-hundred-case TEST split**. Detectors mostly
+exist already: Castellvi+lstv (your manifest), counting (VerSe centroid JSON), stump-rib (Möller), rib
+fracture (RibFrac), Cobb/spinopelvic (ostk). Clinical thread = **miscount → wrong-level surgery**.
+Caveat: pooled prevalence is selection-biased (trauma/pathology-enriched sources) — report per-source.
+
+## Densify by provenance (not by faith)
+Partial-label `ignore` is the safe default. Densify a missing structure with pseudolabels ONLY where a
+trustworthy model exists, and: **tag provenance per-structure-per-case** (extend `prov_spine`/`prov_pelvis`),
+weight expert > pseudo, **confidence-gate** (keep `ignore` where unsure), **iterate** (self-train), and
+**never** pseudolabel the test split. Cross-pseudolabel single-structure sets (VerSe←ribs/pelvis,
+RibSeg←spine) using models trained on the sets that have them. TS is already full — no densify needed.
+
+## Verified links + anomaly-metadata crosswalk
+
+| Dataset | Paper | Code | Data | License | Anomaly signal already present |
+|---|---|---|---|---|---|
+| CTSpinoPelvic1K (hub) | — | this repo | HF `anonymous-mlhc/CTSpinoPelvic1K` | CC-BY-NC | **LSTV/Castellvi per case** (manifest: `lstv_class/label/pelvic/vertebral`, `castellvi_*`, `has_l6`, `n_lumbar_labels`) |
+| VerSe '19/'20 | [2001.09193](https://arxiv.org/abs/2001.09193) | [anjany/verse](https://github.com/anjany/verse) | [OSF nqjyw](https://osf.io/nqjyw/) / [t98fz](https://osf.io/t98fz/) | CC-BY-SA-4.0 | transitional n≈161, enum n≈77 (47 L6, 6 T13) → flag label 25/28 in `*_ctd.json` |
+| CTSpine1K | [2105.14711](https://arxiv.org/abs/2105.14711) | [MIRACLE-Center/CTSpine1K](https://github.com/MIRACLE-Center/CTSpine1K) | HF `alexanderdann/CTSpine1K` | CC-BY (mixed) | `Pathology` col (COLONOG xlsx); counts from 25-class |
+| CTPelvic1K | [2012.08721](https://arxiv.org/abs/2012.08721) | [MIRACLE-Center/CTPelvic1K](https://github.com/MIRACLE-Center/CTPelvic1K) | HF `Angelou0516/ctpelvic1k` | CC-BY-NC | metal cases in filenames (`*_CLINIC_metal_*`) |
+| RibFrac | [2402.09372](https://arxiv.org/abs/2402.09372) | [FracNet](https://m3dv.github.io/FracNet/) | [grand-challenge](https://ribfrac.grand-challenge.org/) · [Zenodo 3893508](https://zenodo.org/records/3893508)/[3993380](https://zenodo.org/records/3993380) | CC-BY-NC-4.0 | **fracture 4-type labels** (~5k: buckle/nondisp/disp/segmental) |
+| RibSeg v2 | [2210.09309](https://arxiv.org/abs/2210.09309) | [HINTLab/RibSeg @ribsegv2](https://github.com/HINTLab/RibSeg/tree/ribsegv2) | [Drive](https://drive.google.com/file/d/1ZZGGrhd0y1fLyOZGo_Y-wlVUP4lkHVgm/view) · [desc sheet](https://docs.google.com/spreadsheets/d/1lz9liWPy8yHybKCdO3BCA9K76QH8a54XduiZS_9fK70/edit) | Apache (CTs NC) | challenging-case sheet: scoliosis/metal/T13/incomplete/missing-floating |
+| **⭐ Stump-rib (Möller)** | [**2505.05004**](https://arxiv.org/abs/2505.05004) | [**Hendrik-code/rib-segmentation**](https://github.com/Hendrik-code/rib-segmentation) | [**Zenodo 14850928**](https://doi.org/10.5281/zenodo.14850928) | Apache | **rib + stump-rib masks on VerSe+RibFrac + runnable nnU-Net weights** (stump 20.5%) |
+| TotalSegmentator | [2208.05868](https://arxiv.org/abs/2208.05868) | [wasserth/TotalSegmentator](https://github.com/wasserth/TotalSegmentator) | [Zenodo 6802614](https://zenodo.org/records/6802614)·[10047292](https://zenodo.org/records/10047292) | CC-BY-4.0 | none (derive); meta.csv age/sex/institute/study_type |
+| CADS | [2507.22953](https://arxiv.org/abs/2507.22953) | [murong-xu/CADS](https://github.com/murong-xu/CADS) | [HF mrmrx/CADS-dataset](https://huggingface.co/datasets/mrmrx/CADS-dataset) | mixed | none; 22k vols, fixed vert mislabel + costovertebral (Jan'26) |
+| VertebralBodiesCT-Labels | under submission | — | [HF fhofmann/VertebralBodiesCT-Labels](https://huggingface.co/datasets/fhofmann/VertebralBodiesCT-Labels) | CC-BY-SA-4.0 | numbered bodies T1–T13/L1–L6/S1 (counting) |
+
+### Already labeled vs must-derive (per anomaly)
+- **LSTV** → your hub (Castellvi/lstv); derive elsewhere (VerSe L6 count, CTSpine1K, TS).
+- **TLTV / stump rib** → **Möller Zenodo** (VerSe+RibFrac ready); derive on your data via T12 anchor.
+- **Enumeration (T13/L6/≠5 lumbar)** → VerSe `ctd.json`, VertebralBodies slots; any numbered spine.
+- **Rib fracture** → RibFrac (4-type).
+- **Scoliosis / deformity** → none ship it → compute (coronal Cobb / ostk spinopelvic).
+- **Metal / artifact** → CTPelvic1K filenames, RibSeg sheet.
+
 ## Open tasks
+- [ ] **pull Möller Zenodo (14850928) rib + stump-rib masks** for VerSe+RibFrac → highest-leverage ready anomaly labels; eval its nnU-Net rib weights on our CTs (the rib model RibSeg never released).
 - [ ] `scripts/convert_ribseg.py` — RibFrac CT + RibSeg rib-seg → ribs 34–57 + ignore (HU split, side-audit).
 - [ ] `scripts/convert_totalsegmentator.py` — keep femur/hip/sacrum(/sternum/scapula); ignore rest.
 - [ ] `scripts/convert_verse.py` — vertebrae → VerSe-native + **QC report** (flag mislabels).
