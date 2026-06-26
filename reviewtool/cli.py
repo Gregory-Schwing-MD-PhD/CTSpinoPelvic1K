@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 import subprocess
 import time
@@ -1309,6 +1310,82 @@ def cmd_download(a):
     return 0
 
 
+def cmd_review_cases(a):
+    """Review SPECIFIC cases (by --tokens and/or --config) pulled straight from a
+    HuggingFace dataset revision in ITK-SNAP, saving the corrected labels locally
+    and (optionally) pushing them back. LOCAL editing, NO review Space — the way to
+    owner-review a small, named cohort (e.g. the pelvic_native spines). Resumable:
+    a case already in --out is skipped (use --redo to re-open).
+
+      python -m reviewtool review-cases --repo anonymous-mlhc/CTSpinoPelvic1K \
+          --revision v4 --config pelvic_native --out ./pelvic_review [--push]
+      python -m reviewtool review-cases --repo ... --revision v4 --tokens 22,46,61 --out ./r
+    """
+    from huggingface_hub import hf_hub_download
+    import shutil as _shutil
+    work = Path(a.out).expanduser()
+    (work / "labels").mkdir(parents=True, exist_ok=True)
+    man = json.loads(Path(hf_hub_download(a.repo, "manifest.json", repo_type="dataset",
+                                          revision=a.revision)).read_text())
+    if isinstance(man, dict):
+        man = man.get("records") or man.get("cases") or []
+    toks = set(t.strip() for t in a.tokens.split(",")) if a.tokens else None
+    sel = [r for r in man
+           if (toks is None or str(r.get("token")) in toks)
+           and (a.config is None or r.get("config") == a.config)]
+    if a.limit:
+        sel = sel[:a.limit]
+    if not sel:
+        print("no matching cases (check --tokens / --config against the manifest).")
+        return
+    labels_txt = work / "labels.txt"
+    labels_txt.write_text(labels_descriptor.descriptor_text())
+    itksnap = a.itksnap or _default_itksnap()
+    print(f"{len(sel)} case(s) to review from {a.repo}@{a.revision} — corrected labels "
+          f"-> {work}/labels/\n(edit in ITK-SNAP, Save Segmentation, quit to advance; "
+          f"Ctrl-C to stop)\n")
+    n = 0
+    for i, rec in enumerate(sel, 1):
+        cf, lf = rec.get("ct_file"), rec.get("label_file")
+        if not cf or not lf:
+            print(f"[{i}] token {rec.get('token')}: no ct/label in manifest — skip"); continue
+        dst = work / lf
+        if dst.exists() and not a.redo:
+            print(f"[{i}] token {rec.get('token')}: already reviewed — skip"); continue
+        cdir = work / "_dl" / str(rec.get("token"))
+        cdir.mkdir(parents=True, exist_ok=True)
+        try:
+            ct = hf_hub_download(a.repo, cf, repo_type="dataset", revision=a.revision,
+                                 local_dir=str(cdir), token=a.token or os.environ.get("HF_TOKEN"))
+            lbl = hf_hub_download(a.repo, lf, repo_type="dataset", revision=a.revision,
+                                  local_dir=str(cdir), token=a.token or os.environ.get("HF_TOKEN"))
+        except Exception as exc:                       # noqa: BLE001
+            print(f"[{i}] token {rec.get('token')}: download failed ({str(exc)[:80]}) — skip"); continue
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        _shutil.copy2(lbl, str(dst))                   # editable copy — SAVE here in ITK-SNAP
+        print(f"[{i}/{len(sel)}] token={rec.get('token')}  {rec.get('config')}  "
+              f"(LSTV={rec.get('lstv_label', '?')})")
+        rc = _launch_itksnap(itksnap, Path(ct), dst, labels_txt)
+        if rc != 0:
+            print("    ITK-SNAP failed — rerun to redo this case."); _itksnap_failure_hint(rc); continue
+        n += 1
+    print(f"\ndone: {n} reviewed. Corrected labels in {work}/labels/ (same paths as the dataset).")
+    if a.push and n:
+        from huggingface_hub import HfApi, CommitOperationAdd
+        tok = a.token or os.environ.get("HF_TOKEN")
+        if not tok:
+            print("--push needs a write token (--token or HF_TOKEN)."); return
+        ops = [CommitOperationAdd(path_in_repo=r["label_file"], path_or_fileobj=str(work / r["label_file"]))
+               for r in sel if (work / r["label_file"]).exists()]
+        HfApi(token=tok).create_commit(
+            repo_id=a.repo, repo_type="dataset", revision=a.revision, operations=ops,
+            commit_message=f"review-cases: corrected {len(ops)} label(s)")
+        print(f"pushed {len(ops)} corrected label(s) to {a.repo}@{a.revision}. "
+              f"(promote main separately if needed.)")
+    elif not a.push:
+        print("Not pushed. When satisfied, re-run with --push (or fold into your tree + re-export).")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="reviewtool", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1384,6 +1461,30 @@ def main(argv=None) -> int:
                    help="re-open cases already present in the out tree")
     p.add_argument("--limit", type=int, default=0)
     p.set_defaults(fn=cmd_fix_list)
+
+    p = sub.add_parser("review-cases",
+                       help="owner-review SPECIFIC cases (by --tokens and/or --config) "
+                            "pulled from a HF revision in ITK-SNAP; save corrected "
+                            "labels locally (+ optional --push). No Space.")
+    p.add_argument("--repo", default="anonymous-mlhc/CTSpinoPelvic1K",
+                   help="HuggingFace dataset repo id")
+    p.add_argument("--revision", default="v4", help="branch/tag to review (default v4)")
+    p.add_argument("--tokens", default=None,
+                   help="comma-separated manifest tokens to review (e.g. 22,46,61)")
+    p.add_argument("--config", default=None,
+                   help="only this config (e.g. pelvic_native)")
+    p.add_argument("--out", default=str(Path.home() / ".reviewtool" / "review_cases"),
+                   help="output dir; corrected labels land in <out>/labels/")
+    p.add_argument("--push", action="store_true",
+                   help="commit the corrected labels back to --repo@--revision "
+                        "(needs --token/HF_TOKEN write access)")
+    p.add_argument("--token", default=None, help="HF token (or HF_TOKEN env)")
+    p.add_argument("--itksnap", default=None,
+                   help="ITK-SNAP executable (auto-detected if omitted)")
+    p.add_argument("--redo", action="store_true",
+                   help="re-open cases already saved in --out")
+    p.add_argument("--limit", type=int, default=0)
+    p.set_defaults(fn=cmd_review_cases)
 
     p = sub.add_parser("status"); p.set_defaults(fn=cmd_status)
     p = sub.add_parser("resume"); p.set_defaults(fn=cmd_resume)
