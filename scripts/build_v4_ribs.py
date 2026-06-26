@@ -143,7 +143,14 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path)
     if not anchors.any():
         log.warning("%s: no thoracic anchors (8-19) — ribs cannot be numbered", out_path.name)
 
-    binary = (np.asanyarray(nib.load(str(rib_pred_path)).dataobj) > 0).astype(np.uint8)
+    # UNION of the two rib segmentations: Möller's binary (clean, reaches the
+    # costovertebral joint) ∪ the v3 TS ribs already in `lab` (catches ribs Möller
+    # missed). The anchor below only keeps components overlapping a GT thoracic
+    # vertebra, so this adds completeness while still dropping unanchored ribs AND
+    # TS's off-spine false positives (scapula/sternum never overlap a vertebra).
+    moller = np.asanyarray(nib.load(str(rib_pred_path)).dataobj) > 0
+    ts_ribs = np.isin(lab, list(RIB_IDS))                    # v3 TS rib voxels (34-57)
+    binary = (moller | ts_ribs).astype(np.uint8)
 
     # canonical rib ids via relabel_ribs offsets (rib_left_N -> 33+N, rib_right_N -> 45+N)
     RR.LEFT_OFFSET, RR.RIGHT_OFFSET = LS.RIB_LEFT_OFFSET, LS.RIB_RIGHT_OFFSET
