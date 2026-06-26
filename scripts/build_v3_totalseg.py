@@ -360,6 +360,11 @@ def _carve_s1_slab(merged: np.ndarray, s1_mask: np.ndarray, affine) -> int:
         axis = evecs[:, int(np.argmax(evals))].copy()
     if axis[2] < 0:                                  # orient cranially (superior = +)
         axis = -axis
+    # SYMMETRY: drop the left-right (world-X) component so the S1/S2 cut plane is level
+    # across the sacral midline (symmetric L/R) while still tilting sagittally for slope.
+    axis[0] = 0.0
+    _n = np.linalg.norm(axis)
+    axis = axis / _n if _n else axis
     sac_proj = (sac_w - center) @ axis
     seed_proj = (nib.affines.apply_affine(affine, np.array(np.nonzero(seed)).T) - center) @ axis
     cut = float(np.percentile(seed_proj, 10))        # S1/S2 boundary along the axis

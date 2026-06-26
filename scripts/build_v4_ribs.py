@@ -90,6 +90,45 @@ def predict_ribs_for_shard(cts, work, model_folder, folds, checkpoint, device) -
     return pred_dir
 
 
+def recarve_s1_symmetric(lab: np.ndarray, affine) -> int:
+    """Re-carve S1 (29) from the GT sacrum SYMMETRICALLY, in-place, with NO TS/rebuild.
+
+    The v3 carve tilted left-right (PCA axis had a world-X component) -> asymmetric S1.
+    Here we reconstitute the whole GT sacrum (26 ∪ 29), use the EXISTING v3 S1 as the
+    seed for the cut HEIGHT, and cut along a sagittally-tilted axis with its left-right
+    component zeroed -> the S1/S2 plane is level across the midline (symmetric). The
+    sacrum's outer boundary stays GT. Returns the new S1 voxel count (0 if no S1/sacrum).
+    """
+    sac = (lab == LS.SACRUM_ID) | (lab == LS.S1_ID)
+    seed = (lab == LS.S1_ID)
+    if not seed.any() or not sac.any():
+        return 0
+    lab[lab == LS.S1_ID] = LS.SACRUM_ID                       # reconstitute whole sacrum
+    sac_ijk = np.array(np.nonzero(sac)).T
+    sac_w = nib.affines.apply_affine(affine, sac_ijk)
+    center = sac_w.mean(0)
+    evals, evecs = np.linalg.eigh(np.cov((sac_w - center).T))
+    axis = None
+    for k in np.argsort(evals)[::-1]:                          # prefer a cranio-caudal axis
+        if abs(evecs[2, k]) > 0.3:
+            axis = evecs[:, k].copy(); break
+    if axis is None:
+        axis = evecs[:, int(np.argmax(evals))].copy()
+    if axis[2] < 0:
+        axis = -axis
+    axis[0] = 0.0                                              # symmetry: no left-right roll
+    n = np.linalg.norm(axis)
+    if n == 0:
+        return 0
+    axis = axis / n
+    sac_proj = (sac_w - center) @ axis
+    seed_w = nib.affines.apply_affine(affine, np.array(np.nonzero(seed)).T)
+    cut = float(np.percentile((seed_w - center) @ axis, 10))   # S1/S2 boundary from the old S1
+    promote = sac_ijk[sac_proj >= cut]
+    lab[promote[:, 0], promote[:, 1], promote[:, 2]] = LS.S1_ID
+    return int(promote.shape[0])
+
+
 def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path) -> int:
     """relabel_ribs the binary rib mask onto v3 thoracic, overlay onto v3 -> v4 label."""
     v3 = nib.load(str(v3_label_path))
@@ -119,6 +158,7 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path)
     v4[np.isin(v4, list(RIB_IDS))] = 0                        # drop any prior (TS) ribs
     place = (rib_vol > 0) & (v4 == 0)                         # ribs only on background
     v4[place] = rib_vol[place]
+    recarve_s1_symmetric(v4, affine)                         # fix the asymmetric v3 S1 carve
     out_path.parent.mkdir(parents=True, exist_ok=True)
     nib.save(nib.Nifti1Image(v4, affine, v3.header), str(out_path))
     return int(place.sum())
