@@ -3,8 +3,8 @@
 #SBATCH -q primary
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=24
-#SBATCH --mem=128G
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=96G
 #SBATCH --time=06:00:00
 #SBATCH --output=logs/export_dataset_%j.out
 #SBATCH --error=logs/export_dataset_%j.err

@@ -305,7 +305,10 @@ def assign_ribs(
         # Number = the most-overlapped vertebra.
         best_vert = max(votes, key=votes.get)
         # Side = which side of that vertebra the rib centroid sits on (RAS world X).
-        dx = rib_centroids[comp][lr_axis] - vert_centroids[best_vert][lr_axis]
+        # robust scalar extraction of the world L-R coordinate (centroids may come back
+        # shaped (3,) or (1,3) depending on numpy/scipy version).
+        dx = float(np.ravel(rib_centroids[comp])[lr_axis]
+                   - np.ravel(vert_centroids[best_vert])[lr_axis])
         side = "right" if dx * right_sign > 0 else "left"
         assignments[comp] = (side, int(best_vert))
         log.info("Assigning Component %d to %s Rib %d  (overlap=%d vox, dx=%+.1f mm)",

@@ -210,8 +210,11 @@ def main() -> int:
         rib_pred = pred_dir / f"{cid}.nii.gz"
         if not rib_pred.exists():
             log.warning("%s: no rib prediction — skip", cid); continue
-        n = number_and_overlay(a.v3_dir / "labels" / f"{cid}_label.nii.gz", rib_pred,
-                               a.out_dir / "labels" / f"{cid}_label.nii.gz")
+        try:
+            n = number_and_overlay(a.v3_dir / "labels" / f"{cid}_label.nii.gz", rib_pred,
+                                   a.out_dir / "labels" / f"{cid}_label.nii.gz")
+        except Exception as exc:                              # one odd case must not kill the shard
+            log.warning("%s: rib overlay failed (%s) — skip", cid, str(exc)[:140]); continue
         (done_dir / f"{cid}.json").write_text(f'{{"ct":"{cid}","rib_vox":{n}}}')
         n_ok += 1
         log.info("%s: %d rib voxels numbered -> v4", cid, n)
