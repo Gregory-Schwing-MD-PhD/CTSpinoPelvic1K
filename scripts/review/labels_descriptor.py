@@ -96,6 +96,52 @@ def descriptor_text(task: str | None = None) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _verse_rgb(idx: int) -> Tuple[int, int, int]:
+    """Colour for a VerSe-native id: spine 1-28 blue→red ramp, S1/hips/femurs
+    distinct, ribs 34-57 magenta(L)/cyan(R) ramps, soft-tissue grey-ish."""
+    import colorsys
+    if 1 <= idx <= 28:                              # vertebrae + sacrum/coccyx/T13
+        t = (idx - 1) / 27.0
+        r, g, b = colorsys.hsv_to_rgb((1 - t) * 0.66, 0.9, 1.0)   # blue→red by level
+        return (int(r * 255), int(g * 255), int(b * 255))
+    if idx == 29:  return (255, 255, 0)            # S1
+    if idx == 30:  return (0, 220, 220)            # hip L
+    if idx == 31:  return (0, 160, 210)            # hip R
+    if idx == 32:  return (70, 70, 255)            # femur L
+    if idx == 33:  return (140, 90, 255)           # femur R
+    if 34 <= idx <= 45:                            # rib_left magenta ramp
+        return (255, int(40 + 160 * (idx - 34) / 11), 255)
+    if 46 <= idx <= 57:                            # rib_right cyan ramp
+        return (int(40 + 160 * (idx - 46) / 11), 255, 255)
+    return (180, 180, 180)                         # soft-tissue / other
+
+
+def verse_native_descriptor_text() -> str:
+    """ITK-SNAP palette for the ACTUAL VerSe-native dataset labels (scripts/
+    label_scheme.py): spine 1-28, S1 29, hips 30/31, femurs 32/33, ribs 34-57,
+    soft-tissue 58-73, ignore 255. Use this when reviewing real v3/v4 labels
+    (reviewtool review-cases). The review-space LSTV palette (descriptor_text, a
+    separate 1-9 scheme) is intentionally left untouched."""
+    import sys as _sys
+    _sd = str(Path(__file__).resolve().parents[1])     # scripts/ for label_scheme
+    if _sd not in _sys.path:
+        _sys.path.insert(0, _sd)
+    import label_scheme as LS
+    id2name = {v: k for k, v in LS.label_dict().items()}
+    lines = [
+        "################################################",
+        "# ITK-SnAP Label Description File — CTSpinoPelvic1K VerSe-native",
+        '# Fields: IDX  -R-  -G-  -B-  -A--  VIS MSH  "LABEL"',
+        "################################################",
+        '    0     0    0    0        0  0  0    "Clear Label"',
+    ]
+    for idx in sorted(i for i in id2name if i not in (0, LS.IGNORE_LABEL)):
+        r, g, b = _verse_rgb(idx)
+        lines.append(f'{idx:5d} {r:5d} {g:4d} {b:4d}        1  1  1    "{id2name[idx]}"')
+    lines.append(f'{LS.IGNORE_LABEL:5d}   128  128  128        1  1  0    "ignore"')
+    return "\n".join(lines) + "\n"
+
+
 def write_label_descriptor(path, task: str | None = None) -> Path:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)

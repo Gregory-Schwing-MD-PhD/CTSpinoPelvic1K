@@ -1339,7 +1339,7 @@ def cmd_review_cases(a):
         print("no matching cases (check --tokens / --config against the manifest).")
         return
     labels_txt = work / "labels.txt"
-    labels_txt.write_text(labels_descriptor.descriptor_text())
+    labels_txt.write_text(labels_descriptor.verse_native_descriptor_text())  # real v3/v4 ids
     itksnap = a.itksnap or _default_itksnap()
     print(f"{len(sel)} case(s) to review from {a.repo}@{a.revision} — corrected labels "
           f"-> {work}/labels/\n(edit in ITK-SNAP, Save Segmentation, quit to advance; "
