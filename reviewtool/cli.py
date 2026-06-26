@@ -1370,13 +1370,15 @@ def cmd_review_cases(a):
             print("    ITK-SNAP failed — rerun to redo this case."); _itksnap_failure_hint(rc); continue
         n += 1
     print(f"\ndone: {n} reviewed. Corrected labels in {work}/labels/ (same paths as the dataset).")
-    if a.push and n:
+    if a.push:                                          # push whatever is in --out (this run or prior)
         from huggingface_hub import HfApi, CommitOperationAdd
         tok = a.token or os.environ.get("HF_TOKEN")
         if not tok:
             print("--push needs a write token (--token or HF_TOKEN)."); return
         ops = [CommitOperationAdd(path_in_repo=r["label_file"], path_or_fileobj=str(work / r["label_file"]))
                for r in sel if (work / r["label_file"]).exists()]
+        if not ops:
+            print("nothing to push — no reviewed labels in --out yet."); return
         HfApi(token=tok).create_commit(
             repo_id=a.repo, repo_type="dataset", revision=a.revision, operations=ops,
             commit_message=f"review-cases: corrected {len(ops)} label(s)")
