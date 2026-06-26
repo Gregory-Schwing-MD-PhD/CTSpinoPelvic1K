@@ -318,6 +318,51 @@ def assign_ribs(
     return assignments
 
 
+def assign_unassigned_by_nearest(
+    labeled_ribs: np.ndarray,
+    unassigned: List[int],
+    vert_data: np.ndarray,
+    vert_labels: List[int],
+    affine: np.ndarray,
+    *,
+    span_tol_mm: float = 20.0,
+) -> Dict[int, Tuple[str, int]]:
+    """Fallback numbering for rib components the overlap vote (assign_ribs) left
+    UNASSIGNED: number each by the NEAREST vertebra along the cranio-caudal (world
+    Z) axis, side from world X.
+
+    This recovers a REAL rib that doesn't reach within the dilation radius of any
+    vertebra (e.g. a rib only one segmenter caught that stops short medially). It is
+    CONSTRAINED to the cranio-caudal span of the labelled vertebrae (± span_tol_mm):
+    a component above the topmost / below the bottommost labelled vertebra has no
+    vertebra to inherit a number from, so it is left dropped rather than piling onto
+    the end vertebra and creating a duplicate. Returns {comp:(side,number)} for the
+    components it could number.
+    """
+    if not unassigned or not vert_labels:
+        return {}
+    rib_c = _world_centroids(labeled_ribs > 0, labeled_ribs, unassigned, affine)
+    vert_c = _world_centroids(vert_data > 0, vert_data, vert_labels, affine)
+    lr_axis, right_sign = _lr_world_axis(affine)
+    zc = {v: float(np.ravel(vert_c[v])[2]) for v in vert_labels}
+    zmin, zmax = min(zc.values()), max(zc.values())
+
+    out: Dict[int, Tuple[str, int]] = {}
+    for comp in unassigned:
+        rc = np.ravel(rib_c[comp])
+        if not (zmin - span_tol_mm <= rc[2] <= zmax + span_tol_mm):
+            log.info("Component %d (z=%.0f mm) outside labelled vertebra span "
+                     "[%.0f, %.0f] — cannot number, left dropped", comp, rc[2], zmin, zmax)
+            continue
+        best = min(vert_labels, key=lambda v: abs(rc[2] - zc[v]))
+        dx = float(rc[lr_axis] - np.ravel(vert_c[best])[lr_axis])
+        side = "right" if dx * right_sign > 0 else "left"
+        out[comp] = (side, int(best))
+        log.info("Fallback: Component %d -> %s Rib %d  (nearest by z, dz=%.0f mm)",
+                 comp, side.capitalize(), best, abs(rc[2] - zc[best]))
+    return out
+
+
 # ===========================================================================
 # Step E — Output Generation
 # ===========================================================================
