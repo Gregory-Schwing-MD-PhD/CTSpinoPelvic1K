@@ -15,14 +15,15 @@
 # =============================================================================
 # v4_ribs — v4 = v3 + Möller binary rib nnU-Net, numbered by our v3 thoracic
 # (relabel_ribs) and overlaid on v3. Sharded GPU --array like v3_totalseg.sh; resumable.
-# Reuses the TS container (has nnUNetv2_predict) — no TPTBox/SPINEPS needed.
+# Reuses the TS container (has nnunetv2) — no TPTBox/SPINEPS needed.
 #
-# ONE-TIME: download ribseg_model_weights.zip (Zenodo 10.5281/zenodo.14850928) and unzip
-# into  ${MOLLER_RESULTS}/Dataset<ID>_<name>/<trainer>__<plans>__<config>/  then set
-# MOLLER_DATASET_ID (and trainer/plans/config if non-default) from its dataset.json.
+# ONE-TIME: download ribseg_model_weights.zip (Zenodo 10.5281/zenodo.14850928 ->
+# record 14864106) and unzip; it expands to a FLATTENED nnU-Net model dir
+# (ribseg_model_weights/ with dataset.json, plans.json, fold_0/1/2/). Point MOLLER_MODEL
+# at that dir. No Dataset-id needed — the nnU-Net Python API reads the folder directly.
 #
-#   MOLLER_DATASET_ID=<id> N_SHARDS_OVERRIDE=8 sbatch slurm/v4_ribs.sh
-#   resubmit a subset:  MOLLER_DATASET_ID=<id> N_SHARDS_OVERRIDE=8 sbatch --array=1 slurm/v4_ribs.sh
+#   N_SHARDS_OVERRIDE=8 sbatch slurm/v4_ribs.sh
+#   resubmit a subset:  N_SHARDS_OVERRIDE=8 sbatch --array=1 slurm/v4_ribs.sh
 # =============================================================================
 set -euo pipefail
 PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$(pwd)}"
@@ -32,19 +33,16 @@ source configs/default.env
 V3_DIR="${V3_DIR:-${DATA_DIR}/hf_export_v3}"
 V4_DIR="${V4_DIR:-${DATA_DIR}/hf_export_v4}"
 NNUNET_SIF="${NNUNET_SIF:-${PROJECT_ROOT}/containers/ctspinopelvic1k-ts.sif}"
-MOLLER_RESULTS="${MOLLER_RESULTS:-${PROJECT_ROOT}/models/moller_ribseg}"   # unzipped weights root
-MOLLER_DATASET_ID="${MOLLER_DATASET_ID:?set MOLLER_DATASET_ID (read it from the unzipped dataset.json)}"
-MOLLER_TRAINER="${MOLLER_TRAINER:-nnUNetTrainer}"
-MOLLER_PLANS="${MOLLER_PLANS:-nnUNetPlans}"
-MOLLER_CONFIG="${MOLLER_CONFIG:-3d_fullres}"
-MOLLER_FOLDS="${MOLLER_FOLDS:-0}"
+MOLLER_MODEL="${MOLLER_MODEL:-${PROJECT_ROOT}/models/moller_ribseg/ribseg_model_weights}"  # flattened model dir
+MOLLER_FOLDS="${MOLLER_FOLDS:-0}"                   # "0" (fast) or "0,1,2" (ensemble)
+MOLLER_CHECKPOINT="${MOLLER_CHECKPOINT:-checkpoint_final.pth}"
 RESUME="${RESUME:-1}"
 SHARD_ID="${SLURM_ARRAY_TASK_ID:-0}"
 N_SHARDS="${N_SHARDS_OVERRIDE:-${SLURM_ARRAY_TASK_COUNT:-1}}"
 
-[[ -f "${NNUNET_SIF}" ]]            || { echo "ERROR: container missing ${NNUNET_SIF}"; exit 1; }
-[[ -f "${V3_DIR}/manifest.json" ]]  || { echo "ERROR: no v3 tree at ${V3_DIR}"; exit 1; }
-[[ -d "${MOLLER_RESULTS}" ]]        || { echo "ERROR: Möller weights not at ${MOLLER_RESULTS} (unzip the Zenodo zip there)"; exit 1; }
+[[ -f "${NNUNET_SIF}" ]]              || { echo "ERROR: container missing ${NNUNET_SIF}"; exit 1; }
+[[ -f "${V3_DIR}/manifest.json" ]]   || { echo "ERROR: no v3 tree at ${V3_DIR}"; exit 1; }
+[[ -f "${MOLLER_MODEL}/plans.json" ]] || { echo "ERROR: no nnU-Net model at ${MOLLER_MODEL} (need dataset.json/plans.json/fold_*); unzip the Zenodo weights"; exit 1; }
 mkdir -p "${LOGS_DIR}" "${V4_DIR}/labels"
 
 NODE_SCRATCH="/tmp/${USER}_${SLURM_JOB_ID:-$$}"
@@ -63,16 +61,14 @@ if [[ "${SHARD_ID}" == "0" ]]; then
     done
 fi
 
-echo "[v4_ribs] shard ${SHARD_ID}/${N_SHARDS}  v3=${V3_DIR} -> v4=${V4_DIR}  Möller d=${MOLLER_DATASET_ID}  $(date)"
+echo "[v4_ribs] shard ${SHARD_ID}/${N_SHARDS}  v3=${V3_DIR} -> v4=${V4_DIR}  model=${MOLLER_MODEL} folds=${MOLLER_FOLDS}  $(date)"
 
-BINDS="${PROJECT_ROOT}:/workspace,${DATA_DIR}:/data,${MOLLER_RESULTS}:${MOLLER_RESULTS},${HOST_CONTAINER_TMP}:/tmp"
+BINDS="${PROJECT_ROOT}:/workspace,${DATA_DIR}:/data,${MOLLER_MODEL}:${MOLLER_MODEL},${HOST_CONTAINER_TMP}:/tmp"
 CENV="PYTHONPATH=/workspace/scripts:/workspace,PYTHONUNBUFFERED=1,PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
 
 ARGS=( --v3_dir  "/data/$(realpath --relative-to="${DATA_DIR}" "${V3_DIR}")"
        --out_dir "/data/$(realpath --relative-to="${DATA_DIR}" "${V4_DIR}")"
-       --nnunet_results "${MOLLER_RESULTS}"
-       --dataset_id "${MOLLER_DATASET_ID}" --trainer "${MOLLER_TRAINER}"
-       --plans "${MOLLER_PLANS}" --config "${MOLLER_CONFIG}" --folds "${MOLLER_FOLDS}"
+       --model_folder "${MOLLER_MODEL}" --folds "${MOLLER_FOLDS}" --checkpoint "${MOLLER_CHECKPOINT}"
        --device cuda --shard_id "${SHARD_ID}" --n_shards "${N_SHARDS}" )
 [[ "${RESUME}" == "0" ]] && ARGS+=( --no_resume )
 

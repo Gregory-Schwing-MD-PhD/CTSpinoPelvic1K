@@ -50,32 +50,37 @@ THORACIC_TO_RIBNUM = {8 + i: 1 + i for i in range(12)}        # 8->1 … 19->12
 RIB_IDS = set(range(LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 13))   # 34..57
 
 
-def predict_ribs_for_shard(cts, work, nnunet_results, dataset_id, trainer, plans,
-                           config, folds, device) -> Path:
-    """Stage the shard's CTs and run Möller's binary rib nnU-Net once over the folder.
-    Returns the predictions dir (one binary rib mask per case, named <cid>.nii.gz)."""
+def predict_ribs_for_shard(cts, work, model_folder, folds, checkpoint, device) -> Path:
+    """Stage the shard's CTs and run Möller's binary rib nnU-Net over the folder via the
+    nnU-Net v2 PYTHON API, pointing straight at the (flattened) model folder. Möller's
+    zip is just one model dir (dataset.json + plans.json + fold_*/), NOT a Dataset<ID>
+    hierarchy, so the predictor's folder init is the right entry point (no id/trainer/
+    plans/config needed — it reads them from the folder). Returns the predictions dir."""
     in_dir, pred_dir = work / "in", work / "pred"
     in_dir.mkdir(parents=True, exist_ok=True); pred_dir.mkdir(parents=True, exist_ok=True)
     staged = 0
     for ct in cts:
         cid = ct.name[:-len(".nii.gz")]
-        dst = in_dir / f"{cid}_0000.nii.gz"
         if pred_dir.joinpath(f"{cid}.nii.gz").exists():       # already predicted (resume)
             continue
+        dst = in_dir / f"{cid}_0000.nii.gz"
         if not dst.exists():
             try:
                 os.symlink(os.path.abspath(ct), dst)
             except OSError:
                 import shutil; shutil.copy2(str(ct), str(dst))
-            staged += 1
-    if staged:
-        env = {**os.environ, "nnUNet_results": str(nnunet_results)}
-        cmd = ["nnUNetv2_predict", "-i", str(in_dir), "-o", str(pred_dir),
-               "-d", str(dataset_id), "-tr", trainer, "-p", plans, "-c", config,
-               "-f", *[str(f) for f in folds], "-device", device,
-               "--disable_tta"]                               # TTA off: 8x faster, fine for bone
-        log.info("nnUNetv2_predict (Möller ribs) on %d CT(s): %s", staged, " ".join(cmd))
-        subprocess.run(cmd, check=True, env=env)
+        staged += 1
+    if not staged:
+        return pred_dir
+    import torch
+    from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor
+    predictor = nnUNetPredictor(tile_step_size=0.5, use_gaussian=True,
+                                use_mirroring=False,          # mirror TTA off: ~8x faster, fine for bone
+                                device=torch.device(device), verbose=False, allow_tqdm=True)
+    predictor.initialize_from_trained_model_folder(
+        str(model_folder), use_folds=tuple(int(f) for f in folds), checkpoint_name=checkpoint)
+    log.info("Möller rib nnU-Net: predicting %d CT(s) (folds=%s, ckpt=%s)", staged, folds, checkpoint)
+    predictor.predict_from_files(str(in_dir), str(pred_dir), save_probabilities=False, overwrite=False)
     return pred_dir
 
 
@@ -117,12 +122,10 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--v3_dir", type=Path, required=True, help="v3 tree (ct/ + labels/)")
     ap.add_argument("--out_dir", type=Path, required=True, help="v4 tree to write")
-    ap.add_argument("--nnunet_results", type=Path, required=True, help="dir holding the Möller weights")
-    ap.add_argument("--dataset_id", required=True, help="Möller nnU-Net Dataset id (from the weights zip's dataset.json)")
-    ap.add_argument("--trainer", default="nnUNetTrainer")
-    ap.add_argument("--plans", default="nnUNetPlans")
-    ap.add_argument("--config", default="3d_fullres")
-    ap.add_argument("--folds", default="0", help="comma-separated folds, or 'all'")
+    ap.add_argument("--model_folder", type=Path, required=True,
+                    help="Möller model dir (unzipped ribseg_model_weights/ with dataset.json, plans.json, fold_*/)")
+    ap.add_argument("--checkpoint", default="checkpoint_final.pth")
+    ap.add_argument("--folds", default="0", help="comma-separated folds, e.g. 0 or 0,1,2 (ensemble)")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--shard_id", type=int, default=0)
     ap.add_argument("--n_shards", type=int, default=1)
@@ -152,9 +155,8 @@ def main() -> int:
     if not todo:
         return 0
 
-    folds = [f.strip() for f in a.folds.split(",")] if a.folds != "all" else ["all"]
-    pred_dir = predict_ribs_for_shard(todo, work, a.nnunet_results, a.dataset_id,
-                                      a.trainer, a.plans, a.config, folds, a.device)
+    folds = [f.strip() for f in a.folds.split(",")]
+    pred_dir = predict_ribs_for_shard(todo, work, a.model_folder, folds, a.checkpoint, a.device)
 
     n_ok = 0
     for ct in todo:
