@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# =============================================================================
+# ship_v4.sh — build + push v4 = v3 + Möller-segmented, our-numbered ribs.
+#   (1) v4_ribs   — sharded GPU array: binary rib nnU-Net + relabel_ribs -> overlay [GPU]
+#   (2) push      — the v4 tree -> <repo>@v4                                        [CPU]
+#
+# v4 keeps the entire VerSe-native v3 (spine/pelvis/femurs/S1) and replaces the ribs
+# with the Möller-segmented, T12-anchored numbered ribs (ids 34-57). Runs AFTER v3.
+#
+#   MOLLER_DATASET_ID=<id> HF_TOKEN=hf_xxx HF_REPO_ID=<org>/CTSpinoPelvic1K \
+#     NNUNET_SIF=$(pwd)/containers/ctspinopelvic1k-ts.sif bash slurm/ship_v4.sh
+#
+# Prereqs: v3 already built/pushed; Möller weights unzipped at $MOLLER_RESULTS
+# (default models/moller_ribseg) — see slurm/v4_ribs.sh header for the one-time setup.
+# Toggles: V4_SHARDS (default 8), V4_CONCURRENT (8), SYNC_MAIN=1 to also move @main.
+# =============================================================================
+set -euo pipefail
+
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "${PROJECT_ROOT}"
+export SLURM_JOB_ID="${SLURM_JOB_ID:-launcher$$}"
+source configs/default.env
+
+: "${HF_TOKEN:?HF_TOKEN=hf_xxx HF_REPO_ID=<org>/Name MOLLER_DATASET_ID=<id> bash slurm/ship_v4.sh}"
+: "${HF_REPO_ID:?set HF_REPO_ID=<org>/CTSpinoPelvic1K}"
+: "${MOLLER_DATASET_ID:?set MOLLER_DATASET_ID from the unzipped Möller weights dataset.json}"
+
+SIF_PATH="${SIF_PATH:-${CONTAINER:-${PROJECT_ROOT}/containers/ctspinopelvic1k.sif}}"
+NNUNET_SIF="${NNUNET_SIF:-${PROJECT_ROOT}/containers/ctspinopelvic1k-ts.sif}"
+V4_DIR="${V4_DIR:-${DATA_DIR}/hf_export_v4}"
+V4_SHARDS="${V4_SHARDS:-8}"; V4_CONCURRENT="${V4_CONCURRENT:-8}"
+HF_WORKERS="${HF_WORKERS:-8}"; HF_PRIVATE="${HF_PRIVATE:-0}"; WIPE="${WIPE:-1}"
+SYNC_MAIN="${SYNC_MAIN:-0}"     # v4 is new/experimental -> don't move @main by default
+MANIFEST_FILE="${MANIFEST_FILE:-placed_manifest_orientation_fixed.json}"
+SB=""; [[ -n "${SBATCH_QOS:-}" ]] && SB="-q ${SBATCH_QOS}"; SB="${SB} ${SBATCH_EXTRA:-}"
+RIB_DEP=""; [[ -n "${EXTRA_DEP:-}" ]] && RIB_DEP="--dependency=afterok:${EXTRA_DEP}"
+
+echo "[ship_v4] (1) v4 ribs — ${V4_SHARDS}-way array %${V4_CONCURRENT} [GPU]  Möller d=${MOLLER_DATASET_ID}  ${RIB_DEP:-no dep}"
+JR=$(sbatch --parsable ${SB} ${RIB_DEP} \
+  --array=0-$((V4_SHARDS - 1))%${V4_CONCURRENT} \
+  --export=ALL,NNUNET_SIF=${NNUNET_SIF},V4_DIR=${V4_DIR},MOLLER_DATASET_ID=${MOLLER_DATASET_ID},MOLLER_RESULTS=${MOLLER_RESULTS:-${PROJECT_ROOT}/models/moller_ribseg},MOLLER_TRAINER=${MOLLER_TRAINER:-nnUNetTrainer},MOLLER_PLANS=${MOLLER_PLANS:-nnUNetPlans},MOLLER_CONFIG=${MOLLER_CONFIG:-3d_fullres},MOLLER_FOLDS=${MOLLER_FOLDS:-0},RESUME=${RESUME:-1},N_SHARDS_OVERRIDE=${V4_SHARDS} \
+  slurm/v4_ribs.sh)
+
+echo "[ship_v4] (2) push ${V4_DIR} -> ${HF_REPO_ID}@v4 [CPU]  after all ${V4_SHARDS} shards of ${JR}"
+JP=$(sbatch --parsable ${SB} --dependency=afterok:${JR} \
+  --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=1,WIPE_REMOTE=${WIPE},HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v4,HF_EXPORT_DIR=${V4_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
+  slurm/export_dataset.sh)
+echo "V4_PUSH_JOB=${JP}"
+
+JM=""
+if [[ "${SYNC_MAIN}" == "1" ]]; then
+  JM=$(sbatch --parsable ${SB} --dependency=afterok:${JP} \
+    --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=1,WIPE_REMOTE=0,HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=main,HF_EXPORT_DIR=${V4_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
+    slurm/export_dataset.sh)
+  echo "MAIN_PROMOTE_JOB=${JM}"
+fi
+echo "[ship_v4] submitted:  ribs=${JR}  push=${JP}${JM:+  main=${JM}}"
+echo "[ship_v4]   monitor:  tail -f logs/*${JR}* logs/*${JP}*"
