@@ -50,6 +50,12 @@ THORACIC_TO_RIBNUM = {8 + i: 1 + i for i in range(12)}        # 8->1 … 19->12
 RIB_IDS = set(range(LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 13))   # 34..57
 
 
+def _base(ct_path) -> str:
+    """CT '<base>_ct.nii.gz' (or '<base>.nii.gz') -> '<base>'; label is '<base>_label.nii.gz'."""
+    n = ct_path.name
+    return n[:-len("_ct.nii.gz")] if n.endswith("_ct.nii.gz") else n[:-len(".nii.gz")]
+
+
 def predict_ribs_for_shard(cts, work, model_folder, folds, checkpoint, device) -> Path:
     """Stage the shard's CTs and run Möller's binary rib nnU-Net over the folder via the
     nnU-Net v2 PYTHON API, pointing straight at the (flattened) model folder. Möller's
@@ -60,7 +66,7 @@ def predict_ribs_for_shard(cts, work, model_folder, folds, checkpoint, device) -
     in_dir.mkdir(parents=True, exist_ok=True); pred_dir.mkdir(parents=True, exist_ok=True)
     staged = 0
     for ct in cts:
-        cid = ct.name[:-len(".nii.gz")]
+        cid = _base(ct)
         if pred_dir.joinpath(f"{cid}.nii.gz").exists():       # already predicted (resume)
             continue
         dst = in_dir / f"{cid}_0000.nii.gz"
@@ -144,7 +150,7 @@ def main() -> int:
 
     todo = []
     for ct in cts:
-        cid = ct.name[:-len(".nii.gz")]
+        cid = _base(ct)
         out = a.out_dir / "labels" / f"{cid}_label.nii.gz"
         if not a.no_resume and (done_dir / f"{cid}.json").exists() and out.exists():
             continue
@@ -160,7 +166,7 @@ def main() -> int:
 
     n_ok = 0
     for ct in todo:
-        cid = ct.name[:-len(".nii.gz")]
+        cid = _base(ct)
         rib_pred = pred_dir / f"{cid}.nii.gz"
         if not rib_pred.exists():
             log.warning("%s: no rib prediction — skip", cid); continue
