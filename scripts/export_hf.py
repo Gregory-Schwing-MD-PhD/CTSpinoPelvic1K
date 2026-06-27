@@ -1558,7 +1558,13 @@ def push_to_hub(
         # rejects later deletes under .cache/, so uploading it also breaks
         # WIPE_REMOTE — exclude it here so it never lands remotely.
         ignore_patterns=["qc/*", "qc/**/*", ".hf_staging/*",
-                         ".cache/*", ".cache/**/*"],
+                         ".cache/*", ".cache/**/*",
+                         # Build state that lives INSIDE the export tree but must never
+                         # be published: the v4 rib build's staged CT symlinks (HF
+                         # follows them -> re-uploads every CT, ~240 GB), Möller
+                         # predictions, and per-case QC. Match any _v*ribs_work/_done.
+                         "_v*ribs_work/*", "_v*ribs_work/**/*",
+                         "_v*ribs_done/*", "_v*ribs_done/**/*"],
     )
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text(target)        # remember what this cache now represents
