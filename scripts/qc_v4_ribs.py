@@ -71,21 +71,21 @@ def main() -> int:
         return drops[min(len(drops) - 1, int(p * len(drops)))] if drops else 0.0
 
     tot_overlap = sum(int(r.get("n_overlap", 0)) for r in recs)
-    tot_fallback = sum(int(r.get("n_fallback", 0)) for r in recs)
-    tot_frag = sum(int(r.get("n_fragment", 0)) for r in recs)
+    tot_tsoff = sum(int(r.get("n_tsoff", 0)) for r in recs)
+    tot_extrap = sum(int(r.get("n_extrap", 0)) for r in recs)
     gappy = [r for r in recs if r.get("left_gaps") or r.get("right_gaps")]
     dupy = [r for r in recs if r.get("duplicate_rib_ids")]
     review = [r for r in recs if r.get("review_ribs")]
 
-    print(f"=== v4 rib connection QC  ({n} cases) ===")
-    print(f"  ribs numbered by overlap vote   : {tot_overlap}")
-    print(f"  ribs recovered by nearest-vertebra fallback (small gap): {tot_fallback}")
-    print(f"  fragments dropped (partial FOV / far) : {tot_frag}")
-    print(f"  drop_frac (union bone not numbered)   : median {pct(0.5):.3f}  "
+    print(f"=== v4 rib numbering QC  ({n} cases) ===")
+    print(f"  ribs numbered by overlap vote (anchored)  : {tot_overlap}")
+    print(f"  ribs from TS numbering (offset-corrected) : {tot_tsoff}")
+    print(f"  ribs numbered by counting (Möller-only)   : {tot_extrap}")
+    print(f"  drop_frac (union bone unnumbered = noise) : median {pct(0.5):.3f}  "
           f"p90 {pct(0.9):.3f}  max {drops[-1] if drops else 0:.3f}")
-    print(f"  numbering-gap cases (bridge suspects) : {len(gappy)}")
-    print(f"  duplicate-id cases  (merge suspects)  : {len(dupy)}")
-    print(f"  cases needing MANUAL rib correction   : {len(review)}")
+    print(f"  numbering-gap cases (bridge suspects)     : {len(gappy)}")
+    print(f"  duplicate-id cases  (merge suspects)      : {len(dupy)}")
+    print(f"  cases with extrapolated ribs to verify    : {len(review)}")
 
     if gappy:
         print("\n  -- numbering-gap / merge suspects (a rib may be bridged into its neighbour) --")
@@ -95,24 +95,19 @@ def main() -> int:
         if len(gappy) > a.show:
             print(f"    ... and {len(gappy) - a.show} more")
 
-    # ---- manual-correction worklist -----------------------------------------
-    work = []
-    for r in review:
-        cid = r.get("ct")
-        ribs = [rr for rr in r["review_ribs"] if float(rr.get("gap_mm", 0)) >= a.gap_min]
-        if ribs:
-            work.append((cid, cid2tok.get(cid), ribs))
-
+    # ---- extrapolated-rib verify worklist (advisory; nothing was dropped) ----
+    work = [(r.get("ct"), cid2tok.get(r.get("ct")), r["review_ribs"]) for r in review]
     if work:
-        print(f"\n=== RIB MANUAL-CORRECTION WORKLIST  ({len(work)} cases) ===")
-        print("  (whole rib, small gap to the spine, MISSED by Möller — connect/verify it)")
+        print(f"\n=== EXTRAPOLATED-RIB VERIFY WORKLIST  ({len(work)} cases) ===")
+        print("  (ribs numbered purely by counting — no TS number, no vertebra anchor; "
+              "all kept + masked, just confirm the number)")
         for cid, tok, ribs in work[: a.show]:
-            desc = ", ".join(f"{rr['side']} rib {rr['number']} (gap {rr['gap_mm']}mm)" for rr in ribs)
+            desc = ", ".join(f"{rr['side']} rib {rr['number']}" for rr in ribs)
             print(f"    {cid}  token={tok}: {desc}")
         if len(work) > a.show:
             print(f"    ... and {len(work) - a.show} more")
         toks = sorted({t for _, t, _ in work if t})
-        print("\n  ship as its OWN review cohort (separate from pelvic_native):")
+        print("\n  spot-check as its OWN cohort (separate from pelvic_native):")
         if toks:
             print(f"    python -m reviewtool review-cases --repo {a.repo} --revision {a.revision} \\")
             print(f"        --tokens {','.join(toks)} --check ribs --out ./rib_review")
@@ -120,18 +115,17 @@ def main() -> int:
             print("    (no manifest.json token map in --v4_dir — copy manifest into the tree to "
                   "emit --tokens, or review by case id)")
     else:
-        print("\nNo ribs need manual correction (no Möller-missing small-gap ribs).")
+        print("\nNo extrapolated ribs to verify — every rib was anchored or TS-numbered.")
 
     if a.csv:
         import csv
         with open(a.csv, "w", newline="") as fh:
             w = csv.writer(fh)
-            w.writerow(["ct", "token", "side", "number", "rib_id", "gap_mm", "size_vox", "moller_frac"])
+            w.writerow(["ct", "token", "side", "number", "rib_id", "size_vox"])
             for cid, tok, ribs in work:
                 for rr in ribs:
-                    w.writerow([cid, tok, rr["side"], rr["number"], rr["rib_id"],
-                                rr["gap_mm"], rr["size_vox"], rr["moller_frac"]])
-        print(f"\nwrote worklist CSV -> {a.csv}")
+                    w.writerow([cid, tok, rr["side"], rr["number"], rr["rib_id"], rr.get("size_vox", "")])
+        print(f"\nwrote verify-worklist CSV -> {a.csv}")
     return 0
 
 

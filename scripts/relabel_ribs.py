@@ -363,6 +363,60 @@ def assign_unassigned_by_nearest(
     return out
 
 
+def extrapolate_ribs_by_count(
+    labeled_ribs: np.ndarray,
+    kept_labels: List[int],
+    assignments: Dict[int, Tuple[str, int]],
+    vert_data: np.ndarray,
+    affine: np.ndarray,
+) -> Dict[int, Tuple[str, int]]:
+    """Number EVERY still-unassigned rib component (drops NONE) by counting cranio-
+    caudally from the ribs already numbered: one rib-spacing more cranial => one lower
+    rib number ("increment up 1 at a time"). This keeps the full rib cage masked even
+    where a rib's vertebra isn't labelled (partial-FOV top of the scan) — important for
+    DRR/XR, where every rib must project, fragment or whole.
+
+    side    : world-X of the component vs the spine centre (RAS +X = patient Right).
+    spacing : mm per rib level, measured from the labelled thoracic vertebrae.
+    number  : nearest already-numbered rib on that side, + round((z_ref - z)/spacing),
+              clamped to 1..12. If a side has no numbered rib yet, fall back to the
+              nearest vertebra level. Returns {comp:(side, number)} for the leftovers.
+    """
+    leftover = [c for c in kept_labels if c not in assignments]
+    vlabs = [int(v) for v in np.unique(vert_data) if v > 0]
+    if not leftover or not vlabs:
+        return {}
+    lr_axis, right_sign = _lr_world_axis(affine)
+    rib_c = _world_centroids(labeled_ribs > 0, labeled_ribs, kept_labels, affine)
+    vert_c = _world_centroids(vert_data > 0, vert_data, vlabs, affine)
+    spine_x = float(np.mean([np.ravel(vert_c[v])[lr_axis] for v in vlabs]))
+    zs = sorted((float(np.ravel(vert_c[v])[2]), int(v)) for v in vlabs)
+    spacing = (abs((zs[-1][0] - zs[0][0]) / (zs[-1][1] - zs[0][1]))
+               if len(zs) >= 2 and zs[-1][1] != zs[0][1] else 20.0)
+    if spacing <= 1e-3:
+        spacing = 20.0
+
+    def _side(c):
+        return "right" if (float(np.ravel(rib_c[c])[lr_axis]) - spine_x) * right_sign > 0 else "left"
+
+    out: Dict[int, Tuple[str, int]] = {}
+    for side in ("left", "right"):
+        refs = [(float(np.ravel(rib_c[c])[2]), n)
+                for c, (s, n) in assignments.items() if s == side]
+        for c in (x for x in leftover if _side(x) == side):
+            z = float(np.ravel(rib_c[c])[2])
+            if refs:
+                zr, nr = min(refs, key=lambda r: abs(r[0] - z))
+                n = nr + int(round((zr - z) / spacing))      # cranial (higher z) -> lower number
+            else:
+                n = min(vlabs, key=lambda v: abs(float(np.ravel(vert_c[v])[2]) - z))
+            n = int(min(12, max(1, n)))
+            out[c] = (side, n)
+            log.info("Extrapolate: Component %d -> %s Rib %d (count from anchored ribs)",
+                     c, side.capitalize(), n)
+    return out
+
+
 # ===========================================================================
 # Step E — Output Generation
 # ===========================================================================

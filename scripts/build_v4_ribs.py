@@ -34,7 +34,6 @@ from typing import Dict
 
 import numpy as np
 import nibabel as nib
-from scipy import ndimage
 
 _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
@@ -172,55 +171,61 @@ def _rib_connection_qc(union_vox, labeled, kept, assigns, sizes, v4) -> dict:
     }
 
 
-# Triage thresholds for rib components the overlap vote missed (tunable).
-MIN_RIB_VOX = 300          # smaller -> a fragment / speckle, not a whole rib
-GAP_REVIEW_MAX_MM = 25.0   # gap-to-nearest-vertebra beyond this -> partial-FOV / too far
-MOLLER_MISS_FRAC = 0.20    # Möller covers < this fraction of the component -> "Möller missed it"
+# Tunable: below this a component is a speckle, not worth flagging for a number check.
+MIN_RIB_VOX = 300
 
 
-def _classify_leftover(labeled, sizes, leftover, anchors, vert_labels, affine, moller):
-    """Split rib components the overlap vote left UNASSIGNED into the user's two cases:
-
-      * partial-FOV fragment / too-far blob  -> DROP (nothing to do): tiny, OR its gap
-        to the nearest vertebra exceeds GAP_REVIEW_MAX_MM, OR it sits outside the
-        labelled cranio-caudal span (no vertebra to inherit a number from).
-      * whole rib with a SMALL gap to the spine -> number it by the nearest vertebra
-        (so the cage is full); and if Möller ALSO missed it (TS-only), add it to the
-        REVIEW worklist for manual student correction.
-
-    The gap is a true surface distance: a cropped EDT from the vertebra mask, in mm.
-    Returns (fb_assignments, review_ribs, n_fragment).
-    """
-    if not leftover or not vert_labels:
-        return {}, [], 0
-    fb = RR.assign_unassigned_by_nearest(labeled, leftover, anchors, vert_labels, affine)
-    spacing = np.sqrt((affine[:3, :3] ** 2).sum(0))
-    mask_any = anchors > 0
-    for c in leftover:
-        mask_any |= labeled == c
-    sl = ndimage.find_objects(mask_any.astype(np.int8))[0]
-    sl = tuple(slice(max(0, s.start - 2), s.stop + 2) for s in sl)
-    edt = ndimage.distance_transform_edt(anchors[sl] == 0, sampling=spacing)   # mm to nearest vertebra
-    lab_crop, moller_crop = labeled[sl], moller[sl]
-
-    review, n_fragment = [], 0
-    for c in leftover:
-        m = lab_crop == c
-        if not m.any():
+def _ts_component_numbers(labeled, kept, lab):
+    """Dominant TS rib (side, number) per union component, read from the TS numbering
+    already in v3 (ids 34-57) — or None if the component has no TS rib voxel (a
+    Möller-only piece). TS numbers ribs consecutively but counts from the top of the
+    FOV, so its per-rib numbers are right RELATIVE to each other; only the global offset
+    is wrong (corrected in _ts_offset_assign)."""
+    lo, hi = LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 12       # 34..57
+    out = {}
+    for c in kept:
+        vals = lab[labeled == c]
+        vals = vals[(vals >= lo) & (vals <= hi)]
+        if vals.size == 0:
+            out[c] = None
             continue
-        size = int(sizes[c])
-        gap = float(edt[m].min())
-        mfrac = float((moller_crop & m).sum()) / max(size, 1)
-        if c not in fb or size < MIN_RIB_VOX or gap > GAP_REVIEW_MAX_MM:
-            n_fragment += 1
-            fb.pop(c, None)                                  # not a numbered rib either
+        u, cnt = np.unique(vals, return_counts=True)
+        dom = int(u[cnt.argmax()])
+        out[c] = (("left", dom - LS.RIB_LEFT_OFFSET) if dom <= LS.RIB_LEFT_OFFSET + 12
+                  else ("right", dom - LS.RIB_RIGHT_OFFSET))
+    return out
+
+
+def _ts_offset_assign(labeled, kept, lab, assigns):
+    """Reuse TS's own consecutive rib numbering (v3 34-57) for every component that has
+    it, correcting ONLY TS's FOV offset using the anchored ribs — so TS fragments keep
+    their (now-correct) number instead of being thrown away. Per side, offset =
+    mode(true - TS) over anchored components that also carry a TS number; apply it to
+    every other TS-having component. Returns ({comp:(side,number)}, offset_per_side)."""
+    tsmap = _ts_component_numbers(labeled, kept, lab)
+    votes = {"left": [], "right": []}
+    for c, (side, truen) in assigns.items():
+        ts = tsmap.get(c)
+        if ts and ts[0] == side:
+            votes[side].append(truen - ts[1])
+    offset = {s: Counter(v).most_common(1)[0][0] for s, v in votes.items() if v}
+    out = {}
+    for c in kept:
+        if c in assigns:
             continue
-        if mfrac < MOLLER_MISS_FRAC:                         # whole rib, small gap, Möller MISSED it
-            side, num = fb[c]
-            review.append({"rib_id": RR.rib_label_id(side, num), "side": side,
-                           "number": int(num), "gap_mm": round(gap, 1),
-                           "size_vox": size, "moller_frac": round(mfrac, 3)})
-    return fb, review, n_fragment
+        ts = tsmap.get(c)
+        if ts and ts[0] in offset:
+            out[c] = (ts[0], int(min(12, max(1, ts[1] + offset[ts[0]]))))
+    return out, offset
+
+
+def _review_flags(sizes, extra):
+    """Advisory (drops NOTHING): the EXTRAPOLATED ribs — components with no TS number
+    AND no vertebra of their own, numbered purely by counting from the anchored ribs.
+    Those are the only best-guess numbers, so flag the sizable ones for a quick check."""
+    return [{"rib_id": RR.rib_label_id(side, num), "side": side, "number": int(num),
+             "size_vox": int(sizes[c])}
+            for c, (side, num) in extra.items() if int(sizes[c]) >= MIN_RIB_VOX]
 
 
 def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path) -> dict:
@@ -254,20 +259,22 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path)
     sizes = np.bincount(labeled.ravel()) if kept else np.zeros(1, dtype=np.int64)
     rib_vol = np.zeros_like(lab)
     assigns: Dict[int, tuple] = {}
-    n_overlap = n_fallback = n_fragment = 0
+    n_overlap = n_tsoff = n_extrap = 0
     review_ribs: list = []
     if kept and anchors.any():
         dil = RR.dilate_vertebrae_local(anchors, dilation_radius=4, pad=10)
-        assigns = RR.assign_ribs(labeled, kept, anchors, dil, affine)        # precise overlap vote
+        assigns = RR.assign_ribs(labeled, kept, anchors, dil, affine)         # confident overlap vote
         n_overlap = len(assigns)
-        # Triage what the overlap vote missed: drop partial-FOV fragments, number
-        # whole-rib-small-gap by nearest vertebra, flag the Möller-missing ones for
-        # manual correction (see _classify_leftover).
-        leftover = [c for c in kept if c not in assigns]
-        fb, review_ribs, n_fragment = _classify_leftover(
-            labeled, sizes, leftover, anchors, list(dil.keys()), affine, moller)
-        assigns.update(fb)
-        n_fallback = len(fb)
+        # Keep ALL rib bone (drop NOTHING) for the DRR/XR mask. (1) Reuse TS's own
+        # consecutive numbering for TS-having components, correcting only its FOV offset
+        # via the anchored ribs (so TS fragments keep their now-correct number); (2) for
+        # Möller-only pieces with no TS number, count cranio-caudally from the anchored
+        # ribs. Extrapolated (pure-guess) ribs get an advisory review flag.
+        tsoff, _offset = _ts_offset_assign(labeled, kept, lab, assigns)
+        assigns.update(tsoff); n_tsoff = len(tsoff)
+        extra = RR.extrapolate_ribs_by_count(labeled, kept, assigns, anchors, affine)
+        assigns.update(extra); n_extrap = len(extra)
+        review_ribs = _review_flags(sizes, extra)
         rib_vol = RR.build_output_volume(labeled, assigns).astype(np.int16)   # values in 34..57
 
     v4 = lab.copy()
@@ -280,8 +287,8 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path)
 
     qc = _rib_connection_qc(union_vox, labeled, kept, assigns, sizes, v4)
     qc["rib_vox"] = int(place.sum())
-    qc["n_overlap"], qc["n_fallback"], qc["n_fragment"] = n_overlap, n_fallback, n_fragment
-    qc["review_ribs"] = review_ribs        # Möller-missing small-gap ribs -> student worklist
+    qc["n_overlap"], qc["n_tsoff"], qc["n_extrap"] = n_overlap, n_tsoff, n_extrap
+    qc["review_ribs"] = review_ribs        # pure-guess extrapolated ribs -> optional check
     return qc
 
 
@@ -339,9 +346,9 @@ def main() -> int:
         qc["ct"] = cid
         (done_dir / f"{cid}.json").write_text(json.dumps(qc))
         n_ok += 1
-        log.info("%s: %d rib vox -> v4 | overlap=%d fallback=%d frag=%d drop=%.2f "
+        log.info("%s: %d rib vox -> v4 | overlap=%d ts_offset=%d extrap=%d drop=%.2f "
                  "gaps L%s R%s dup=%s review=%d", cid, qc["rib_vox"], qc["n_overlap"],
-                 qc["n_fallback"], qc["n_fragment"], qc["drop_frac"], qc["left_gaps"],
+                 qc["n_tsoff"], qc["n_extrap"], qc["drop_frac"], qc["left_gaps"],
                  qc["right_gaps"], qc["duplicate_rib_ids"], len(qc["review_ribs"]))
     log.info("shard %d/%d done: %d cases", a.shard_id, a.n_shards, n_ok)
     return 0
