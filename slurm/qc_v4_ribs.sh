@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=ctspinopelvic1k_qc_v4_ribs
+#SBATCH -q primary
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
