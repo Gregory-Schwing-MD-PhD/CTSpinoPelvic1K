@@ -439,6 +439,47 @@ def _watch_itksnap(itksnap, ct, seg, labels, *, qc_ct, before, live_qc=False) ->
     return proc.returncode if proc.returncode is not None else 0
 
 
+def _watch_anatomy(itksnap, ct, seg, labels, *, check="spine") -> int:
+    """Open ITK-SNAP non-blocking; on every Save run the VerSe-native anatomy QC
+    (scripts/review_anatomy_qc.py) and print PASS / exactly what to fix. Used by
+    `review-cases` so students get an immediate, guiding gate on each save. Returns
+    ITK-SNAP's exit code. Degrades to a plain note if scipy/nibabel aren't present
+    (never blocks the edit)."""
+    print(f"\nOpening ITK-SNAP ({itksnap}) — edit, then **Save Segmentation (Ctrl-S)** to run\n"
+          f"  the {check} check(s). Fix anything it flags and Save again; quit to submit.\n")
+    proc = _launch_itksnap_bg(itksnap, ct, seg, labels)
+    if proc is None:
+        print(f"'{itksnap}' not found — install ITK-SNAP, add it to PATH, set "
+              f"REVIEWTOOL_ITKSNAP, or pass --itksnap /path/to/itksnap")
+        return -1
+    try:
+        last = Path(seg).stat().st_mtime if Path(seg).exists() else 0.0
+    except OSError:
+        last = 0.0
+
+    def _qc():
+        try:
+            import numpy as np
+            import nibabel as nib
+            import review_anatomy_qc as RA              # scripts/ already on sys.path
+            img = nib.load(str(seg))
+            RA.report(check, np.asanyarray(img.dataobj), img.affine)
+        except Exception as exc:                        # noqa: BLE001
+            print(f"  (anatomy QC unavailable: {str(exc)[:120]})")
+
+    while proc.poll() is None:
+        time.sleep(1.5)
+        try:
+            m = Path(seg).stat().st_mtime if Path(seg).exists() else last
+        except OSError:
+            continue
+        if m > last + 1e-6:                             # a Save happened
+            last = m
+            print("  [saved] running anatomy QC ...")
+            _qc()
+    return proc.returncode if proc.returncode is not None else 0
+
+
 def _qc_startup(ct_path, draft_path) -> None:
     """Print the DRAFT's current QC so the reviewer knows what to focus on — this
     is the 'WHY FLAGGED' for the live flow (the Space doesn't carry the reason).
@@ -1365,7 +1406,10 @@ def cmd_review_cases(a):
         _shutil.copy2(lbl, str(dst))                   # editable copy — SAVE here in ITK-SNAP
         print(f"[{i}/{len(sel)}] token={rec.get('token')}  {rec.get('config')}  "
               f"(LSTV={rec.get('lstv_label', '?')})")
-        rc = _launch_itksnap(itksnap, Path(ct), dst, labels_txt)
+        if a.check == "none":
+            rc = _launch_itksnap(itksnap, Path(ct), dst, labels_txt)
+        else:
+            rc = _watch_anatomy(itksnap, Path(ct), dst, labels_txt, check=a.check)
         if rc != 0:
             print("    ITK-SNAP failed — rerun to redo this case."); _itksnap_failure_hint(rc); continue
         n += 1
@@ -1483,6 +1527,11 @@ def main(argv=None) -> int:
     p.add_argument("--token", default=None, help="HF token (or HF_TOKEN env)")
     p.add_argument("--itksnap", default=None,
                    help="ITK-SNAP executable (auto-detected if omitted)")
+    p.add_argument("--check", choices=("spine", "ribs", "both", "none"), default="spine",
+                   help="anatomy QC to run on each Save: 'spine' (pelvic-native pseudo-spine: "
+                        "no class mixing, ascending+contiguous vertebrae), 'ribs' (every rib "
+                        "contacts its vertebra; every thoracic level has L+R ribs), 'both', or "
+                        "'none'. Default spine.")
     p.add_argument("--redo", action="store_true",
                    help="re-open cases already saved in --out")
     p.add_argument("--limit", type=int, default=0)

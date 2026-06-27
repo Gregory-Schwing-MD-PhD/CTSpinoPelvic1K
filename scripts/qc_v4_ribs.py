@@ -115,7 +115,7 @@ def main() -> int:
         print("\n  ship as its OWN review cohort (separate from pelvic_native):")
         if toks:
             print(f"    python -m reviewtool review-cases --repo {a.repo} --revision {a.revision} \\")
-            print(f"        --tokens {','.join(toks)} --out ./rib_review")
+            print(f"        --tokens {','.join(toks)} --check ribs --out ./rib_review")
         else:
             print("    (no manifest.json token map in --v4_dir — copy manifest into the tree to "
                   "emit --tokens, or review by case id)")
