@@ -1535,7 +1535,14 @@ def push_to_hub(
     target = f"{repo_id}@{revision or 'main'}"
     marker = out_dir / ".cache" / ".hf_push_target"
     prev = marker.read_text().strip() if marker.exists() else None
-    if prev and prev != target:
+    if wipe_remote:
+        # The remote was just CLEARED, so the cache's "already uploaded" is invalid for
+        # every UNCHANGED file (manifest, ct, dataset_labels, splits): they'd be skipped
+        # and left missing on the wiped remote (only changed files re-upload). Clear the
+        # cache so the WHOLE tree re-hashes and re-uploads.
+        shutil.rmtree(out_dir / ".cache", ignore_errors=True)
+        log.info("WIPE_REMOTE: cleared local upload cache -> full re-upload of the tree.")
+    elif prev and prev != target:
         shutil.rmtree(out_dir / ".cache", ignore_errors=True)
         log.info("Upload cache was for %s; cleared it for new target %s",
                  prev, target)
