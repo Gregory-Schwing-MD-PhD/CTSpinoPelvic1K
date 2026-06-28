@@ -32,8 +32,6 @@ SIF="${NNUNET_SIF:-${PROJECT_ROOT}/containers/ctspinopelvic1k-ts.sif}"
 CSV="${CSV:-${PROJECT_ROOT}/rib_review.csv}"
 REPO="${HF_REPO_ID:-anonymous-mlhc/CTSpinoPelvic1K}"
 REV="${HF_REVISION:-v4}"
-GATE="${GATE:-}"                 # set e.g. GATE=0.02 to fail (exit 1) if quarantine > 2%
-GARG=""; [[ -n "${GATE}" ]] && GARG="--gate ${GATE}"
 mkdir -p "${LOGS_DIR}"
 
 [[ -d "${V4_DIR}/_v4ribs_done" ]] || { echo "ERROR: no ${V4_DIR}/_v4ribs_done — run build_v4_ribs (ship_v4) first"; exit 1; }
@@ -46,5 +44,5 @@ echo "[qc_v4_ribs] V4_DIR=${V4_DIR}  repo=${REPO}@${REV}  csv=${CSV}  $(date)"
 stdbuf -oL -eL singularity exec --env "${CENV}" --bind "${BINDS}" --pwd /workspace \
   "${SIF}" python3 -u /workspace/scripts/qc_v4_ribs.py \
     --v4_dir "/data/${REL}" --repo "${REPO}" --revision "${REV}" \
-    --csv "/workspace/$(basename "${CSV}")" ${GARG}
+    --csv "/workspace/$(basename "${CSV}")"
 echo "[qc_v4_ribs] done  $(date)"

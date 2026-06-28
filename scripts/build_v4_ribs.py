@@ -28,7 +28,9 @@ import logging
 import os
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
+from typing import Dict
 
 import numpy as np
 import nibabel as nib
@@ -37,8 +39,7 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 import label_scheme as LS          # canonical VerSe-native ids
-import rib_instancer as INST       # correct-by-construction rib numbering
-import rib_invariants as INV       # the anatomical contract + verdict
+import relabel_ribs as RR          # costovertebral rib numbering
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s  %(levelname)-8s  %(message)s", datefmt="%H:%M:%S")
@@ -130,55 +131,165 @@ def recarve_s1_symmetric(lab: np.ndarray, affine) -> int:
     return int(promote.shape[0])
 
 
+def _rib_connection_qc(union_vox, labeled, kept, assigns, sizes, v4) -> dict:
+    """Per-case rib↔vertebra connection QC, computed at union time (the only point
+    where the dropped/orphaned rib bone is still observable). Reports how much of
+    the union rib bone got numbered vs dropped, plus numbering GAPS (a missing
+    number between present ones — the adjacent-rib bridging bug) and DUPLICATE ids
+    (two components voting to one number — a merge). All cheap integer bookkeeping."""
+    assigned_comps = list(assigns)
+    unassigned_comps = [c for c in kept if c not in assigns]
+    assigned_vox = int(sum(int(sizes[c]) for c in assigned_comps))
+    unassigned_vox = int(sum(int(sizes[c]) for c in unassigned_comps))
+    kept_vox = int(sum(int(sizes[c]) for c in kept))
+    dup_ids = sorted(i for i, c in Counter(
+        RR.rib_label_id(s, n) for (s, n) in assigns.values()).items() if c > 1)
+
+    present = {int(x) for x in np.unique(v4)}
+    thor = sorted(7 + n for n in range(1, 13) if (7 + n) in present)        # T1..T12 = 8..19
+    left = sorted(i - LS.RIB_LEFT_OFFSET for i in range(LS.RIB_LEFT_OFFSET + 1,
+                  LS.RIB_LEFT_OFFSET + 13) if i in present)
+    right = sorted(i - LS.RIB_RIGHT_OFFSET for i in range(LS.RIB_RIGHT_OFFSET + 1,
+                   LS.RIB_RIGHT_OFFSET + 13) if i in present)
+
+    def _gaps(nums):
+        return [n for n in range(min(nums), max(nums) + 1) if n not in nums] if nums else []
+
+    return {
+        "union_vox": int(union_vox), "kept_vox": kept_vox,
+        "assigned_vox": assigned_vox, "unassigned_vox": unassigned_vox,
+        "noise_vox": int(union_vox) - kept_vox,
+        # fraction of union rib bone that did NOT become a numbered rib (didn't connect)
+        "drop_frac": round((int(union_vox) - assigned_vox) / int(union_vox), 4) if union_vox else 0.0,
+        "n_comp_kept": len(kept), "n_assigned": len(assigned_comps),
+        "n_unassigned": len(unassigned_comps),
+        "unassigned_sizes": sorted((int(sizes[c]) for c in unassigned_comps), reverse=True)[:10],
+        "thoracic_levels": thor,
+        "left_rib_nums": left, "right_rib_nums": right,
+        "left_gaps": _gaps(left), "right_gaps": _gaps(right),   # missing number between present ones
+        "duplicate_rib_ids": dup_ids,                          # two components -> one number (merge)
+    }
+
+
+# Tunable: below this a component is a speckle, not worth flagging for a number check.
+MIN_RIB_VOX = 300
+
+
+def _ts_component_numbers(labeled, kept, lab):
+    """Dominant TS rib (side, number) per union component, read from the TS numbering
+    already in v3 (ids 34-57) — or None if the component has no TS rib voxel (a
+    Möller-only piece). TS numbers ribs consecutively but counts from the top of the
+    FOV, so its per-rib numbers are right RELATIVE to each other; only the global offset
+    is wrong (corrected in _ts_offset_assign)."""
+    lo, hi = LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 12       # 34..57
+    out = {}
+    for c in kept:
+        vals = lab[labeled == c]
+        vals = vals[(vals >= lo) & (vals <= hi)]
+        if vals.size == 0:
+            out[c] = None
+            continue
+        u, cnt = np.unique(vals, return_counts=True)
+        dom = int(u[cnt.argmax()])
+        out[c] = (("left", dom - LS.RIB_LEFT_OFFSET) if dom <= LS.RIB_LEFT_OFFSET + 12
+                  else ("right", dom - LS.RIB_RIGHT_OFFSET))
+    return out
+
+
+def _ts_offset_assign(labeled, kept, lab, assigns):
+    """Reuse TS's own consecutive rib numbering (v3 34-57) for every component that has
+    it, correcting ONLY TS's FOV offset using the anchored ribs — so TS fragments keep
+    their (now-correct) number instead of being thrown away. Per side, offset =
+    mode(true - TS) over anchored components that also carry a TS number; apply it to
+    every other TS-having component. Returns ({comp:(side,number)}, offset_per_side)."""
+    tsmap = _ts_component_numbers(labeled, kept, lab)
+    votes = {"left": [], "right": []}
+    for c, (side, truen) in assigns.items():
+        ts = tsmap.get(c)
+        if ts and ts[0] == side:
+            votes[side].append(truen - ts[1])
+    offset = {s: Counter(v).most_common(1)[0][0] for s, v in votes.items() if v}
+    out = {}
+    for c in kept:
+        if c in assigns:
+            continue
+        ts = tsmap.get(c)
+        if ts and ts[0] in offset:
+            out[c] = (ts[0], int(min(12, max(1, ts[1] + offset[ts[0]]))))
+    return out, offset
+
+
+def _review_flags(sizes, extra):
+    """Advisory (drops NOTHING): the EXTRAPOLATED ribs — components with no TS number
+    AND no vertebra of their own, numbered purely by counting from the anchored ribs.
+    Those are the only best-guess numbers, so flag the sizable ones for a quick check."""
+    return [{"rib_id": RR.rib_label_id(side, num), "side": side, "number": int(num),
+             "size_vox": int(sizes[c])}
+            for c, (side, num) in extra.items() if int(sizes[c]) >= MIN_RIB_VOX]
+
+
 def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path) -> dict:
-    """v4 = v3 with the ribs replaced by the INSTANCED union (Möller ∪ TS) rib cage,
-    numbered correct-by-construction (rib_instancer) and verified against the anatomical
-    contract (rib_invariants). Keeps ALL rib bone (for the DRR/XR mask). Returns a
-    per-case QC dict incl. the invariant verdict + a quarantine flag."""
+    """relabel_ribs the binary rib mask onto v3 thoracic, overlay onto v3 -> v4 label.
+    Returns a per-case rib-connection QC dict (see _rib_connection_qc)."""
     v3 = nib.load(str(v3_label_path))
     lab = np.asanyarray(v3.dataobj).astype(np.int16)
     affine = v3.affine
 
-    # rib-number anchors from v3 thoracic (vertebra LABEL = rib number): VerSe 8-19 -> 1-12.
+    # rib-number anchors from v3 thoracic (relabel_ribs reads the vertebra label as the
+    # rib number, so remap VerSe 8-19 -> 1-12).
     anchors = np.zeros_like(lab)
     for verse_id, ribnum in THORACIC_TO_RIBNUM.items():
         anchors[lab == verse_id] = ribnum
     if not anchors.any():
         log.warning("%s: no thoracic anchors (8-19) — ribs cannot be numbered", out_path.name)
 
-    # UNION of both rib segmentations (keep ALL rib bone): Möller's binary (clean, reaches
-    # the costovertebral joint) ∪ the v3 TS ribs already in `lab` (catches ribs Möller missed).
+    # UNION of the two rib segmentations: Möller's binary (clean, reaches the
+    # costovertebral joint) ∪ the v3 TS ribs already in `lab` (catches ribs Möller
+    # missed). The anchor below only keeps components overlapping a GT thoracic
+    # vertebra, so this adds completeness while still dropping unanchored ribs AND
+    # TS's off-spine false positives (scapula/sternum never overlap a vertebra).
     moller = np.asanyarray(nib.load(str(rib_pred_path)).dataobj) > 0
     ts_ribs = np.isin(lab, list(RIB_IDS))                    # v3 TS rib voxels (34-57)
-    binary = moller | ts_ribs
+    binary = (moller | ts_ribs).astype(np.uint8)
     union_vox = int(binary.sum())
 
-    # correct-by-construction numbering (one ordered assignment per side; no dup/mis-order)
-    numbered, report = INST.instance_ribs(binary, anchors, affine, min_voxels=150)
+    # canonical rib ids via relabel_ribs offsets (rib_left_N -> 33+N, rib_right_N -> 45+N)
+    RR.LEFT_OFFSET, RR.RIGHT_OFFSET = LS.RIB_LEFT_OFFSET, LS.RIB_RIGHT_OFFSET
+    labeled, kept = RR.label_and_filter_components(binary, min_voxels=150)
+    sizes = np.bincount(labeled.ravel()) if kept else np.zeros(1, dtype=np.int64)
+    rib_vol = np.zeros_like(lab)
+    assigns: Dict[int, tuple] = {}
+    n_overlap = n_tsoff = n_extrap = 0
+    review_ribs: list = []
+    if kept and anchors.any():
+        dil = RR.dilate_vertebrae_local(anchors, dilation_radius=4, pad=10)
+        assigns = RR.assign_ribs(labeled, kept, anchors, dil, affine)         # confident overlap vote
+        n_overlap = len(assigns)
+        # Keep ALL rib bone (drop NOTHING) for the DRR/XR mask. (1) Reuse TS's own
+        # consecutive numbering for TS-having components, correcting only its FOV offset
+        # via the anchored ribs (so TS fragments keep their now-correct number); (2) for
+        # Möller-only pieces with no TS number, count cranio-caudally from the anchored
+        # ribs. Extrapolated (pure-guess) ribs get an advisory review flag.
+        tsoff, _offset = _ts_offset_assign(labeled, kept, lab, assigns)
+        assigns.update(tsoff); n_tsoff = len(tsoff)
+        extra = RR.extrapolate_ribs_by_count(labeled, kept, assigns, anchors, affine)
+        assigns.update(extra); n_extrap = len(extra)
+        review_ribs = _review_flags(sizes, extra)
+        rib_vol = RR.build_output_volume(labeled, assigns).astype(np.int16)   # values in 34..57
 
     v4 = lab.copy()
     v4[np.isin(v4, list(RIB_IDS))] = 0                        # drop any prior (TS) ribs
-    place = (numbered > 0) & (v4 == 0)                        # ribs only on background
-    v4[place] = numbered[place]
+    place = (rib_vol > 0) & (v4 == 0)                         # ribs only on background
+    v4[place] = rib_vol[place]
     recarve_s1_symmetric(v4, affine)                         # fix the asymmetric v3 S1 carve
     out_path.parent.mkdir(parents=True, exist_ok=True)
     nib.save(nib.Nifti1Image(v4, affine, v3.header), str(out_path))
 
-    # verify against the contract; quarantine on any HARD violation / conflict / overflow
-    hard_ok, viol = INV.check_rib_invariants(v4, affine)
-    st = INV.rib_stats(v4, affine)
-    quarantine = (not hard_ok) or bool(report.get("conflicts")) or bool(report.get("out_of_range"))
-    return {
-        "rib_vox": int(place.sum()), "union_vox": union_vox,
-        "n_groups_left": report["sides"].get("left", {}).get("n_groups", 0),
-        "n_groups_right": report["sides"].get("right", {}).get("n_groups", 0),
-        "n_anchored": sum(s.get("n_anchored", 0) for s in report.get("sides", {}).values()),
-        "conflicts": report.get("conflicts", []),
-        "out_of_range": report.get("out_of_range", []),
-        "left_ribs": sorted(st["left"]), "right_ribs": sorted(st["right"]),
-        "hard_ok": bool(hard_ok), "quarantine": bool(quarantine),
-        "violations": viol, "viol_summary": INV.summarize(viol),
-    }
+    qc = _rib_connection_qc(union_vox, labeled, kept, assigns, sizes, v4)
+    qc["rib_vox"] = int(place.sum())
+    qc["n_overlap"], qc["n_tsoff"], qc["n_extrap"] = n_overlap, n_tsoff, n_extrap
+    qc["review_ribs"] = review_ribs        # pure-guess extrapolated ribs -> optional check
+    return qc
 
 
 def main() -> int:
@@ -235,10 +346,10 @@ def main() -> int:
         qc["ct"] = cid
         (done_dir / f"{cid}.json").write_text(json.dumps(qc))
         n_ok += 1
-        log.info("%s: %d rib vox -> v4 | groups L%d/R%d anchored=%d | %s (%s)",
-                 cid, qc["rib_vox"], qc["n_groups_left"], qc["n_groups_right"],
-                 qc["n_anchored"], "QUARANTINE" if qc["quarantine"] else "OK",
-                 qc["viol_summary"])
+        log.info("%s: %d rib vox -> v4 | overlap=%d ts_offset=%d extrap=%d drop=%.2f "
+                 "gaps L%s R%s dup=%s review=%d", cid, qc["rib_vox"], qc["n_overlap"],
+                 qc["n_tsoff"], qc["n_extrap"], qc["drop_frac"], qc["left_gaps"],
+                 qc["right_gaps"], qc["duplicate_rib_ids"], len(qc["review_ribs"]))
     log.info("shard %d/%d done: %d cases", a.shard_id, a.n_shards, n_ok)
     return 0
 
