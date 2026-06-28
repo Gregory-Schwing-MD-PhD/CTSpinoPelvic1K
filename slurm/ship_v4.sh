@@ -44,8 +44,14 @@ JR=$(sbatch --parsable ${SB} ${RIB_DEP} \
   --export=ALL,NNUNET_SIF=${NNUNET_SIF},V4_DIR=${V4_DIR},MOLLER_MODEL=${MOLLER_MODEL},MOLLER_FOLDS=${MOLLER_FOLDS:-0},MOLLER_CHECKPOINT=${MOLLER_CHECKPOINT:-checkpoint_final.pth},RESUME=${RESUME:-1},N_SHARDS_OVERRIDE=${V4_SHARDS} \
   slurm/v4_ribs.sh)
 
-echo "[ship_v4] (2) push ${V4_DIR} -> ${HF_REPO_ID}@v4 [CPU]  after all ${V4_SHARDS} shards of ${JR}"
-JP=$(sbatch --parsable ${SB} --dependency=afterok:${JR} \
+echo "[ship_v4] (2) rib contract GATE [CPU]  after all ${V4_SHARDS} shards of ${JR}  (RIB_GATE=${RIB_GATE:-0.05})"
+JG=$(sbatch --parsable ${SB} --dependency=afterok:${JR} \
+  --export=ALL,V4_DIR=${V4_DIR},NNUNET_SIF=${NNUNET_SIF},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v4,GATE=${RIB_GATE:-0.05},CSV=${PROJECT_ROOT}/rib_review.csv \
+  slurm/qc_v4_ribs.sh)
+echo "V4_GATE_JOB=${JG}  (push is gated on this passing; set RIB_GATE=1 to disable the gate)"
+
+echo "[ship_v4] (3) push ${V4_DIR} -> ${HF_REPO_ID}@v4 [CPU]  after the gate ${JG}"
+JP=$(sbatch --parsable ${SB} --dependency=afterok:${JG} \
   --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=1,WIPE_REMOTE=${WIPE},HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v4,HF_EXPORT_DIR=${V4_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
   slurm/export_dataset.sh)
 echo "V4_PUSH_JOB=${JP}"
@@ -57,5 +63,5 @@ if [[ "${SYNC_MAIN}" == "1" ]]; then
     slurm/export_dataset.sh)
   echo "MAIN_PROMOTE_JOB=${JM}"
 fi
-echo "[ship_v4] submitted:  ribs=${JR}  push=${JP}${JM:+  main=${JM}}"
-echo "[ship_v4]   monitor:  tail -f logs/*${JR}* logs/*${JP}*"
+echo "[ship_v4] submitted:  ribs=${JR}  gate=${JG}  push=${JP}${JM:+  main=${JM}}"
+echo "[ship_v4]   monitor:  tail -f logs/*${JR}* logs/*${JG}* logs/*${JP}*"
