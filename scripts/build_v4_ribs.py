@@ -173,6 +173,12 @@ def _rib_connection_qc(union_vox, labeled, kept, assigns, sizes, v4) -> dict:
 
 # Tunable: below this a component is a speckle, not worth flagging for a number check.
 MIN_RIB_VOX = 300
+# auto-drop a same-id "duplicate" piece when it's a small fraction of the main rib: such a
+# spur/stray (or a small hyperplastic-TP nub) is not a real second rib. Larger second pieces
+# (a true fragment, or a substantial TP / mis-numbered neighbour) are KEPT and flagged for
+# manual review. Calibrated on sampled flags: real strays were <2% of the main rib; genuine
+# second ribs / substantial TPs were >15%.
+STRAY_ABS_VOX, STRAY_FRAC = 500, 0.10
 
 
 def _ts_component_numbers(labeled, kept, lab):
@@ -263,6 +269,7 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path,
     assigns: Dict[int, tuple] = {}
     n_overlap = n_tsoff = n_extrap = 0
     n_dropped_fp = 0; dropped_fp_vox = 0
+    n_stray_dropped = 0; stray_dropped_vox = 0
     review_ribs: list = []
     if kept and anchors.any():
         dil = RR.dilate_vertebrae_local(anchors, dilation_radius=4, pad=10)
@@ -306,6 +313,22 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path,
         extra = RR.extrapolate_ribs_by_count(labeled, kept, assigns, anchors, affine)
         assigns.update(extra); n_extrap = len(extra)
         review_ribs = _review_flags(sizes, extra)
+        # keep-largest-per-id: a rib number with >1 component where the extra piece is a small
+        # fraction of the main rib is a spur/stray (or small TP nub) -> drop it (no review).
+        # Substantial second components (real fragment / big TP / mis-numbered neighbour) are
+        # kept and still surface as a dup for manual review.
+        by_id: Dict[tuple, list] = {}
+        for c, sn in assigns.items():
+            by_id.setdefault(sn, []).append(c)
+        for sn, comps in by_id.items():
+            if len(comps) < 2:
+                continue
+            comps.sort(key=lambda c: int(sizes[c]), reverse=True)
+            thresh = max(STRAY_ABS_VOX, STRAY_FRAC * int(sizes[comps[0]]))
+            for c in comps[1:]:
+                if int(sizes[c]) < thresh:
+                    del assigns[c]
+                    n_stray_dropped += 1; stray_dropped_vox += int(sizes[c])
         rib_vol = RR.build_output_volume(labeled, assigns).astype(np.int16)   # values in 34..57
 
     v4 = lab.copy()
@@ -320,6 +343,7 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path,
     qc["rib_vox"] = int(place.sum())
     qc["n_overlap"], qc["n_tsoff"], qc["n_extrap"] = n_overlap, n_tsoff, n_extrap
     qc["n_dropped_fp"], qc["dropped_fp_vox"] = n_dropped_fp, dropped_fp_vox  # Möller off-anatomy blobs removed
+    qc["n_stray_dropped"], qc["stray_dropped_vox"] = n_stray_dropped, stray_dropped_vox  # tiny same-id spurs auto-dropped
     qc["review_ribs"] = review_ribs        # pure-guess extrapolated ribs -> optional check
     return qc
 
@@ -382,9 +406,10 @@ def main() -> int:
         (done_dir / f"{cid}.json").write_text(json.dumps(qc))
         n_ok += 1
         log.info("%s: %d rib vox -> v4 | overlap=%d ts_offset=%d extrap=%d fp_drop=%d(%dvox) "
-                 "gaps L%s R%s dup=%s review=%d", cid, qc["rib_vox"], qc["n_overlap"],
+                 "stray_drop=%d gaps L%s R%s dup=%s review=%d", cid, qc["rib_vox"], qc["n_overlap"],
                  qc["n_tsoff"], qc["n_extrap"], qc["n_dropped_fp"], qc["dropped_fp_vox"],
-                 qc["left_gaps"], qc["right_gaps"], qc["duplicate_rib_ids"], len(qc["review_ribs"]))
+                 qc["n_stray_dropped"], qc["left_gaps"], qc["right_gaps"], qc["duplicate_rib_ids"],
+                 len(qc["review_ribs"]))
     log.info("shard %d/%d done: %d cases", a.shard_id, a.n_shards, n_ok)
     return 0
 
