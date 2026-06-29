@@ -439,12 +439,15 @@ def _watch_itksnap(itksnap, ct, seg, labels, *, qc_ct, before, live_qc=False) ->
     return proc.returncode if proc.returncode is not None else 0
 
 
-def _watch_anatomy(itksnap, ct, seg, labels, *, check="spine") -> int:
+def _watch_anatomy(itksnap, ct, seg, labels, *, check="spine"):
     """Open ITK-SNAP non-blocking; on every Save run the VerSe-native anatomy QC
     (scripts/review_anatomy_qc.py) and print PASS / exactly what to fix. Used by
-    `review-cases` so students get an immediate, guiding gate on each save. Returns
-    ITK-SNAP's exit code. Degrades to a plain note if scipy/nibabel aren't present
-    (never blocks the edit)."""
+    `review-cases` so students get an immediate, guiding gate on each save.
+
+    Returns ``(itksnap_rc, passed)`` where ``passed`` is True / False / None
+    (None = the QC could not run, e.g. scipy/nibabel missing). The caller GATES
+    a case as 'resolved' (saved + uploaded) on ``passed is True`` — a still-failing
+    or un-checkable edit is never accepted."""
     print(f"\nOpening ITK-SNAP ({itksnap}) — edit, then **Save Segmentation (Ctrl-S)** to run\n"
           f"  the {check} check(s). Fix anything it flags and Save again; quit to submit.\n")
     proc = _launch_itksnap_bg(itksnap, ct, seg, labels)
@@ -457,15 +460,18 @@ def _watch_anatomy(itksnap, ct, seg, labels, *, check="spine") -> int:
     except OSError:
         last = 0.0
 
+    state = {"passed": None}                            # last QC verdict: True/False/None
+
     def _qc():
         try:
             import numpy as np
             import nibabel as nib
             import review_anatomy_qc as RA              # scripts/ already on sys.path
             img = nib.load(str(seg))
-            RA.report(check, np.asanyarray(img.dataobj), img.affine)
+            state["passed"] = bool(RA.report(check, np.asanyarray(img.dataobj), img.affine))
         except Exception as exc:                        # noqa: BLE001
-            print(f"  (anatomy QC unavailable: {str(exc)[:120]})")
+            print(f"  (anatomy QC could not run: {str(exc)[:120]})")
+            state["passed"] = None                      # cannot verify -> caller fails closed
 
     while proc.poll() is None:
         time.sleep(1.5)
@@ -477,7 +483,9 @@ def _watch_anatomy(itksnap, ct, seg, labels, *, check="spine") -> int:
             last = m
             print("  [saved] running anatomy QC ...")
             _qc()
-    return proc.returncode if proc.returncode is not None else 0
+    _qc()                                               # authoritative final check on the saved file
+    rc = proc.returncode if proc.returncode is not None else 0
+    return rc, state["passed"]
 
 
 def _qc_startup(ct_path, draft_path) -> None:
@@ -1406,12 +1414,39 @@ def cmd_review_cases(a):
         _shutil.copy2(lbl, str(dst))                   # editable copy — SAVE here in ITK-SNAP
         print(f"[{i}/{len(sel)}] token={rec.get('token')}  {rec.get('config')}  "
               f"(LSTV={rec.get('lstv_label', '?')})")
-        if a.check == "none":
+        if a.check == "none":                              # no QC gate requested
             rc = _launch_itksnap(itksnap, Path(ct), dst, labels_txt)
-        else:
-            rc = _watch_anatomy(itksnap, Path(ct), dst, labels_txt, check=a.check)
-        if rc != 0:
-            print("    ITK-SNAP failed — rerun to redo this case."); _itksnap_failure_hint(rc); continue
+            if rc != 0:
+                print("    ITK-SNAP failed — rerun to redo this case."); _itksnap_failure_hint(rc); continue
+            n += 1
+            continue
+        # QC-GATED: a case is kept as resolved (and later uploaded) ONLY if it PASSES.
+        passed = None
+        while True:
+            rc, passed = _watch_anatomy(itksnap, Path(ct), dst, labels_txt, check=a.check)
+            if rc != 0:
+                print("    ITK-SNAP failed — rerun to redo this case."); _itksnap_failure_hint(rc)
+                passed = False
+                break
+            if passed:
+                break
+            why = ("still FAILS the rib QC" if passed is False
+                   else "could not be QC-checked (install scipy + nibabel)")
+            print(f"    [LOCKED] token {rec.get('token')} {why} -> NOT saved as resolved, "
+                  f"NOT uploaded.")
+            try:
+                ans = input("    reopen in ITK-SNAP to keep fixing? [Y/n] ").strip().lower()
+            except EOFError:
+                ans = "n"
+            if ans == "n":
+                break
+        if not passed:                                     # unresolved: drop the local copy so it
+            try:                                           # is neither pushed nor counted, and
+                dst.unlink()                               # re-downloads/re-opens on the next run
+            except OSError:
+                pass
+            print(f"    token {rec.get('token')}: left UNRESOLVED (re-run to finish).")
+            continue
         n += 1
     print(f"\ndone: {n} reviewed. Corrected labels in {work}/labels/ (same paths as the dataset).")
     if a.push:                                          # push whatever is in --out (this run or prior)

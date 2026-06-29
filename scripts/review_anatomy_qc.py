@@ -158,13 +158,44 @@ def rib_contact(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     return ok, msgs
 
 
+def rib_numbering(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
+    """Rib NUMBERING is clean (the v4 rib-correction task): per side the rib numbers form a
+    consecutive run (no GAP) and each number is a single piece (no DUPLICATE -- e.g. a
+    hyperplastic transverse process or stray sharing rib 12). Mirrors qc_v4_ribs' dup/gap
+    flags, and -- unlike rib_contact -- does NOT require the thoracic vertebrae to be labelled
+    (they usually aren't in a lumbosacral FOV, so contact can't be the gate here)."""
+    st = ndimage.generate_binary_structure(3, 3)
+    ok, msgs, any_rib = True, [], False
+    for side in ("left", "right"):
+        present = [n for n in range(1, 13) if (lab == _rib_id(side, n)).any()]
+        if not present:
+            continue
+        any_rib = True
+        for n in present:                                   # DUPLICATE: each number = one piece
+            cc, k = ndimage.label(lab == _rib_id(side, n), structure=st)
+            if k > 1 and int((np.bincount(cc.ravel())[1:] >= MIX_MIN_VOX).sum()) > 1:
+                ok = False
+                msgs.append(f"X {side} rib {n} is in 2+ separate pieces -> drop the stray / "
+                            f"hyperplastic TP (keep the true rib) so it is one piece")
+        gaps = [n for n in range(min(present), max(present) + 1) if n not in present]
+        if gaps:                                            # GAP: numbers not consecutive
+            ok = False
+            msgs.append(f"X {side} rib numbers have a gap at {gaps} -> renumber so the present "
+                        f"ribs are consecutive")
+    if not any_rib:
+        return True, ["(no ribs in view)"]
+    if ok:
+        msgs.append("OK ribs: numbers consecutive per side, one piece each")
+    return ok, msgs
+
+
 def report(check: str, lab: np.ndarray, affine) -> bool:
     """Run the requested check(s) and print a PASS/FAIL block. Returns overall ok."""
     blocks = []
     if check in ("spine", "both"):
         blocks.append(("SPINE", *spine_sanity(lab, affine)))
     if check in ("ribs", "both"):
-        blocks.append(("RIBS", *rib_contact(lab, affine)))
+        blocks.append(("RIBS", *rib_numbering(lab, affine)))   # v4 task: dup/gap, not contact
     allok = all(ok for _, ok, _ in blocks)
     for name, ok, msgs in blocks:
         print(f"  [{name}] {'PASS' if ok else 'FAIL'}")

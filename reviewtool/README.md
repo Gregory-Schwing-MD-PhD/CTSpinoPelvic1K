@@ -13,8 +13,10 @@ username via `whoami`. (A legacy `--key` is still accepted if configured.)
 
 ## Install
 ```bash
-pip install requests huggingface_hub numpy nibabel    # + ITK-SNAP on PATH
+pip install requests huggingface_hub numpy nibabel scipy   # + ITK-SNAP on PATH
 ```
+(`scipy` is required: `review-cases` **gates** acceptance on the anatomy QC, and a case that
+cannot be QC-checked is treated as failing — it will not be saved as resolved or uploaded.)
 
 ## Use
 ```bash
