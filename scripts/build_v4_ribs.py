@@ -215,7 +215,9 @@ def _ts_offset_assign(labeled, kept, lab, assigns):
             continue
         ts = tsmap.get(c)
         if ts and ts[0] in offset:
-            out[c] = (ts[0], int(min(12, max(1, ts[1] + offset[ts[0]]))))
+            n = ts[1] + offset[ts[0]]
+            if 1 <= n <= 12:                  # DROP out-of-range instead of clamping: a stray
+                out[c] = (ts[0], int(n))      # fragment below rib 12 used to clamp onto 12 -> dup
     return out, offset
 
 
