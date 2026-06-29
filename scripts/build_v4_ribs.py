@@ -264,15 +264,19 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path,
     review_ribs: list = []
     if kept and anchors.any():
         dil = RR.dilate_vertebrae_local(anchors, dilation_radius=4, pad=10)
-        # ---- false-positive filter: keep a component only if incident on BOTH a TS rib
-        #      AND the spine ------------------------------------------------------------
+        # ---- false-positive filter: keep a component if TS-corroborated OR spine-anchored
+        # --------------------------------------------------------------------------------
         # Möller's binary rib net hallucinates "rib" on dense abdominal structures (bowel,
-        # vascular calcification, contrast); those blobs are Möller-only (no TS) and float
-        # anterior to the spine. A real rib is corroborated by TS AND articulates a thoracic
-        # vertebra. So keep a union COMPONENT only if it overlaps a TS rib AND reaches the
-        # (generously) dilated thoracic spine. Failing either -> dropped BEFORE numbering,
-        # so bowel can't be extrapolated/clamped onto rib 12, and off-spine TS junk
-        # (scapula/sternum) is removed too. NOTE: dilate_vertebrae_local returns
+        # vascular calcification, contrast); those blobs are Möller-only (no TS) AND float
+        # anterior, off the spine. So keep a union COMPONENT if it EITHER overlaps a TS rib
+        # (TS corroborates it is rib bone -- this keeps the upper ribs whose vertebra is
+        # above the labelled FOV and therefore have no anchor to reach) OR reaches the
+        # (generously) dilated thoracic spine (a real rib that TS happened to miss). Bowel
+        # satisfies NEITHER -> dropped before numbering, so it can't be extrapolated/clamped
+        # onto rib 12. We do NOT require BOTH: that would drop the FOV-edge upper TS ribs,
+        # which are real but un-anchored. Equivalently, the gate only ever filters
+        # Möller-only components (where the blobs live) -- any component containing a TS rib
+        # voxel is always kept. NOTE: dilate_vertebrae_local returns
         # {label:(slices, submask)} -- OR the submasks into a full-volume mask (a bare
         # `dil > 0` is a dict>int TypeError).
         if rib_filter:
@@ -282,7 +286,7 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path,
                 spine_dil[slc] |= submask
             touch_ts = set(int(c) for c in np.unique(labeled[ts_ribs])) - {0}
             touch_sp = set(int(c) for c in np.unique(labeled[spine_dil])) - {0}
-            keepset = touch_ts & touch_sp        # incident on BOTH a TS rib and the spine
+            keepset = (touch_ts | touch_sp)      # TS-corroborated OR spine-anchored
             dropped = [c for c in kept if c not in keepset]
             n_dropped_fp = len(dropped)
             dropped_fp_vox = int(sum(int(sizes[c]) for c in dropped))
