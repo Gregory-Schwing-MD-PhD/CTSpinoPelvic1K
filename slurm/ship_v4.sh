@@ -44,7 +44,17 @@ JR=$(sbatch --parsable ${SB} ${RIB_DEP} \
   --export=ALL,NNUNET_SIF=${NNUNET_SIF},V4_DIR=${V4_DIR},MOLLER_MODEL=${MOLLER_MODEL},MOLLER_FOLDS=${MOLLER_FOLDS:-0},MOLLER_CHECKPOINT=${MOLLER_CHECKPOINT:-checkpoint_final.pth},RESUME=${RESUME:-1},N_SHARDS_OVERRIDE=${V4_SHARDS} \
   slurm/v4_ribs.sh)
 
-echo "[ship_v4] (2) push ${V4_DIR} -> ${HF_REPO_ID}@v4 [CPU]  after all ${V4_SHARDS} shards of ${JR}"
+# (2) rib-connection QC + correction worklist — cooked in so it runs automatically after
+# every build (no manual rerun). Reads <V4_DIR>/_v4ribs_done/*.json (local, no GPU/network),
+# now including the false-positive-filter stats (fp_drop). qc_v4_ribs.sh self-selects -q
+# primary (CPU), so don't pass ${SB} here. Informational — does NOT gate the push.
+echo "[ship_v4] (2) rib-connection QC + worklist [CPU]  after all ${V4_SHARDS} shards of ${JR}"
+JQ=$(sbatch --parsable --dependency=afterok:${JR} \
+  --export=ALL,NNUNET_SIF=${NNUNET_SIF},V4_DIR=${V4_DIR},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v4 \
+  slurm/qc_v4_ribs.sh)
+echo "V4_QC_JOB=${JQ}"
+
+echo "[ship_v4] (3) push ${V4_DIR} -> ${HF_REPO_ID}@v4 [CPU]  after all ${V4_SHARDS} shards of ${JR}"
 JP=$(sbatch --parsable ${SB} --dependency=afterok:${JR} \
   --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=1,WIPE_REMOTE=${WIPE},HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v4,HF_EXPORT_DIR=${V4_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
   slurm/export_dataset.sh)
@@ -57,5 +67,5 @@ if [[ "${SYNC_MAIN}" == "1" ]]; then
     slurm/export_dataset.sh)
   echo "MAIN_PROMOTE_JOB=${JM}"
 fi
-echo "[ship_v4] submitted:  ribs=${JR}  push=${JP}${JM:+  main=${JM}}"
-echo "[ship_v4]   monitor:  tail -f logs/*${JR}* logs/*${JP}*"
+echo "[ship_v4] submitted:  ribs=${JR}  qc=${JQ}  push=${JP}${JM:+  main=${JM}}"
+echo "[ship_v4]   monitor:  tail -f logs/*${JR}* logs/qc_v4_ribs_${JQ}* logs/*${JP}*"

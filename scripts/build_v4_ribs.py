@@ -228,7 +228,8 @@ def _review_flags(sizes, extra):
             for c, (side, num) in extra.items() if int(sizes[c]) >= MIN_RIB_VOX]
 
 
-def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path) -> dict:
+def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path,
+                       rib_filter: bool = True) -> dict:
     """relabel_ribs the binary rib mask onto v3 thoracic, overlay onto v3 -> v4 label.
     Returns a per-case rib-connection QC dict (see _rib_connection_qc)."""
     v3 = nib.load(str(v3_label_path))
@@ -245,9 +246,8 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path)
 
     # UNION of the two rib segmentations: Möller's binary (clean, reaches the
     # costovertebral joint) ∪ the v3 TS ribs already in `lab` (catches ribs Möller
-    # missed). The anchor below only keeps components overlapping a GT thoracic
-    # vertebra, so this adds completeness while still dropping unanchored ribs AND
-    # TS's off-spine false positives (scapula/sternum never overlap a vertebra).
+    # missed). Completeness comes from the union; the false-positive filter below
+    # (windowed by connectivity to the spine) removes Möller's off-anatomy blobs.
     moller = np.asanyarray(nib.load(str(rib_pred_path)).dataobj) > 0
     ts_ribs = np.isin(lab, list(RIB_IDS))                    # v3 TS rib voxels (34-57)
     binary = (moller | ts_ribs).astype(np.uint8)
@@ -260,9 +260,28 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path)
     rib_vol = np.zeros_like(lab)
     assigns: Dict[int, tuple] = {}
     n_overlap = n_tsoff = n_extrap = 0
+    n_dropped_fp = 0; dropped_fp_vox = 0
     review_ribs: list = []
     if kept and anchors.any():
         dil = RR.dilate_vertebrae_local(anchors, dilation_radius=4, pad=10)
+        # ---- false-positive filter (windowed union via connectivity) --------------
+        # Möller's binary rib net hallucinates "rib" on dense abdominal structures
+        # (bowel, aortic/vascular calcification, oral/IV contrast). Real ribs articulate
+        # the spine, so keep a union COMPONENT only if it (a) overlaps a TS rib
+        # (corroborated bone in a rib location) or (b) reaches the dilated thoracic spine
+        # (a costovertebral attachment). Disconnected anterior islands fail both and are
+        # dropped BEFORE numbering, so they can't be extrapolated/clamped onto rib 12.
+        # Connectivity (whole component), NOT a fixed-distance window, so a Möller-only
+        # rib stays intact from its head out to its lateral tip.
+        if rib_filter:
+            spine_dil = dil > 0
+            keepset = ((set(int(c) for c in np.unique(labeled[ts_ribs])) |
+                        set(int(c) for c in np.unique(labeled[spine_dil]))) - {0})
+            dropped = [c for c in kept if c not in keepset]
+            n_dropped_fp = len(dropped)
+            dropped_fp_vox = int(sum(int(sizes[c]) for c in dropped))
+            kept = [c for c in kept if c in keepset]
+        # ---------------------------------------------------------------------------
         assigns = RR.assign_ribs(labeled, kept, anchors, dil, affine)         # confident overlap vote
         n_overlap = len(assigns)
         # Keep ALL rib bone (drop NOTHING) for the DRR/XR mask. (1) Reuse TS's own
@@ -288,6 +307,7 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path)
     qc = _rib_connection_qc(union_vox, labeled, kept, assigns, sizes, v4)
     qc["rib_vox"] = int(place.sum())
     qc["n_overlap"], qc["n_tsoff"], qc["n_extrap"] = n_overlap, n_tsoff, n_extrap
+    qc["n_dropped_fp"], qc["dropped_fp_vox"] = n_dropped_fp, dropped_fp_vox  # Möller off-anatomy blobs removed
     qc["review_ribs"] = review_ribs        # pure-guess extrapolated ribs -> optional check
     return qc
 
@@ -305,6 +325,8 @@ def main() -> int:
     ap.add_argument("--n_shards", type=int, default=1)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--no_resume", action="store_true")
+    ap.add_argument("--no_rib_filter", action="store_true",
+                    help="keep Möller off-anatomy blobs (disable the spine-attachment false-positive filter)")
     a = ap.parse_args()
 
     cts = sorted((a.v3_dir / "ct").glob("*.nii.gz"))
@@ -340,16 +362,17 @@ def main() -> int:
             log.warning("%s: no rib prediction — skip", cid); continue
         try:
             qc = number_and_overlay(a.v3_dir / "labels" / f"{cid}_label.nii.gz", rib_pred,
-                                    a.out_dir / "labels" / f"{cid}_label.nii.gz")
+                                    a.out_dir / "labels" / f"{cid}_label.nii.gz",
+                                    rib_filter=not a.no_rib_filter)
         except Exception as exc:                              # one odd case must not kill the shard
             log.warning("%s: rib overlay failed (%s) — skip", cid, str(exc)[:140]); continue
         qc["ct"] = cid
         (done_dir / f"{cid}.json").write_text(json.dumps(qc))
         n_ok += 1
-        log.info("%s: %d rib vox -> v4 | overlap=%d ts_offset=%d extrap=%d drop=%.2f "
+        log.info("%s: %d rib vox -> v4 | overlap=%d ts_offset=%d extrap=%d fp_drop=%d(%dvox) "
                  "gaps L%s R%s dup=%s review=%d", cid, qc["rib_vox"], qc["n_overlap"],
-                 qc["n_tsoff"], qc["n_extrap"], qc["drop_frac"], qc["left_gaps"],
-                 qc["right_gaps"], qc["duplicate_rib_ids"], len(qc["review_ribs"]))
+                 qc["n_tsoff"], qc["n_extrap"], qc["n_dropped_fp"], qc["dropped_fp_vox"],
+                 qc["left_gaps"], qc["right_gaps"], qc["duplicate_rib_ids"], len(qc["review_ribs"]))
     log.info("shard %d/%d done: %d cases", a.shard_id, a.n_shards, n_ok)
     return 0
 

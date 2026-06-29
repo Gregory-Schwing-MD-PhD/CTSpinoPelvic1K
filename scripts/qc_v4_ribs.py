@@ -73,6 +73,10 @@ def main() -> int:
     tot_overlap = sum(int(r.get("n_overlap", 0)) for r in recs)
     tot_tsoff = sum(int(r.get("n_tsoff", 0)) for r in recs)
     tot_extrap = sum(int(r.get("n_extrap", 0)) for r in recs)
+    tot_fp = sum(int(r.get("n_dropped_fp", 0)) for r in recs)
+    tot_fp_vox = sum(int(r.get("dropped_fp_vox", 0)) for r in recs)
+    fpdrop = sorted((r for r in recs if int(r.get("n_dropped_fp", 0)) > 0),
+                    key=lambda r: -int(r.get("dropped_fp_vox", 0)))
     gappy = [r for r in recs if r.get("left_gaps") or r.get("right_gaps")]
     dupy = [r for r in recs if r.get("duplicate_rib_ids")]
     review = [r for r in recs if r.get("review_ribs")]
@@ -81,6 +85,8 @@ def main() -> int:
     print(f"  ribs numbered by overlap vote (anchored)  : {tot_overlap}")
     print(f"  ribs from TS numbering (offset-corrected) : {tot_tsoff}")
     print(f"  ribs numbered by counting (Möller-only)   : {tot_extrap}")
+    print(f"  Möller off-anatomy blobs filtered out (FP): {tot_fp} comps / {tot_fp_vox} vox "
+          f"in {len(fpdrop)} cases")
     print(f"  drop_frac (union bone unnumbered = noise) : median {pct(0.5):.3f}  "
           f"p90 {pct(0.9):.3f}  max {drops[-1] if drops else 0:.3f}")
     print(f"  numbering-gap cases (bridge suspects)     : {len(gappy)}")
@@ -94,6 +100,14 @@ def main() -> int:
                   f"  dup {r.get('duplicate_rib_ids')}")
         if len(gappy) > a.show:
             print(f"    ... and {len(gappy) - a.show} more")
+
+    if fpdrop:
+        print("\n  -- false-positive filter: most rib bone removed (Möller bowel/calcification; "
+              "glance to confirm it was NOT a real rib) --")
+        for r in fpdrop[: a.show]:
+            print(f"    {r.get('ct')}: {r.get('n_dropped_fp')} comp  {r.get('dropped_fp_vox')} vox")
+        if len(fpdrop) > a.show:
+            print(f"    ... and {len(fpdrop) - a.show} more")
 
     # ---- extrapolated-rib verify worklist (advisory; nothing was dropped) ----
     work = [(r.get("ct"), cid2tok.get(r.get("ct")), r["review_ribs"]) for r in review]
