@@ -264,19 +264,25 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path,
     review_ribs: list = []
     if kept and anchors.any():
         dil = RR.dilate_vertebrae_local(anchors, dilation_radius=4, pad=10)
-        # ---- false-positive filter (windowed union via connectivity) --------------
-        # Möller's binary rib net hallucinates "rib" on dense abdominal structures
-        # (bowel, aortic/vascular calcification, oral/IV contrast). Real ribs articulate
-        # the spine, so keep a union COMPONENT only if it (a) overlaps a TS rib
-        # (corroborated bone in a rib location) or (b) reaches the dilated thoracic spine
-        # (a costovertebral attachment). Disconnected anterior islands fail both and are
-        # dropped BEFORE numbering, so they can't be extrapolated/clamped onto rib 12.
-        # Connectivity (whole component), NOT a fixed-distance window, so a Möller-only
-        # rib stays intact from its head out to its lateral tip.
+        # ---- false-positive filter: keep a component only if incident on BOTH a TS rib
+        #      AND the spine ------------------------------------------------------------
+        # Möller's binary rib net hallucinates "rib" on dense abdominal structures (bowel,
+        # vascular calcification, contrast); those blobs are Möller-only (no TS) and float
+        # anterior to the spine. A real rib is corroborated by TS AND articulates a thoracic
+        # vertebra. So keep a union COMPONENT only if it overlaps a TS rib AND reaches the
+        # (generously) dilated thoracic spine. Failing either -> dropped BEFORE numbering,
+        # so bowel can't be extrapolated/clamped onto rib 12, and off-spine TS junk
+        # (scapula/sternum) is removed too. NOTE: dilate_vertebrae_local returns
+        # {label:(slices, submask)} -- OR the submasks into a full-volume mask (a bare
+        # `dil > 0` is a dict>int TypeError).
         if rib_filter:
-            spine_dil = dil > 0
-            keepset = ((set(int(c) for c in np.unique(labeled[ts_ribs])) |
-                        set(int(c) for c in np.unique(labeled[spine_dil]))) - {0})
+            dil_reach = RR.dilate_vertebrae_local(anchors, dilation_radius=8, pad=14)
+            spine_dil = np.zeros(lab.shape, dtype=bool)
+            for slc, submask in dil_reach.values():
+                spine_dil[slc] |= submask
+            touch_ts = set(int(c) for c in np.unique(labeled[ts_ribs])) - {0}
+            touch_sp = set(int(c) for c in np.unique(labeled[spine_dil])) - {0}
+            keepset = touch_ts & touch_sp        # incident on BOTH a TS rib and the spine
             dropped = [c for c in kept if c not in keepset]
             n_dropped_fp = len(dropped)
             dropped_fp_vox = int(sum(int(sizes[c]) for c in dropped))
@@ -284,11 +290,11 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path,
         # ---------------------------------------------------------------------------
         assigns = RR.assign_ribs(labeled, kept, anchors, dil, affine)         # confident overlap vote
         n_overlap = len(assigns)
-        # Keep ALL rib bone (drop NOTHING) for the DRR/XR mask. (1) Reuse TS's own
-        # consecutive numbering for TS-having components, correcting only its FOV offset
-        # via the anchored ribs (so TS fragments keep their now-correct number); (2) for
-        # Möller-only pieces with no TS number, count cranio-caudally from the anchored
-        # ribs. Extrapolated (pure-guess) ribs get an advisory review flag.
+        # Number the FILTERED components (bowel / off-spine junk already dropped above).
+        # (1) Reuse TS's own consecutive numbering for TS-having components, correcting only
+        # its FOV offset via the anchored ribs (so TS fragments keep their now-correct
+        # number); (2) any Möller-only piece that survived is counted cranio-caudally from
+        # the anchored ribs (rare now that Möller-only components are dropped by the filter).
         tsoff, _offset = _ts_offset_assign(labeled, kept, lab, assigns)
         assigns.update(tsoff); n_tsoff = len(tsoff)
         extra = RR.extrapolate_ribs_by_count(labeled, kept, assigns, anchors, affine)
