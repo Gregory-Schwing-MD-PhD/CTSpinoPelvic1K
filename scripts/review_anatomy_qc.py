@@ -36,6 +36,8 @@ import label_scheme as LS          # canonical VerSe-native ids
 CONTACT_MM = 3.0       # a rib within this distance of its vertebra counts as "touching"
 MIX_FRAC = 0.15        # a 2nd connected piece >= this fraction of a class = class mixing
 MIX_MIN_VOX = 50       # ...and at least this many voxels (ignore tiny spurs)
+GAP_MM_MISLABEL = 25.0  # rib in 2 pieces >= this far apart = two structures share a number
+                        # (mislabel -> must fix); a smaller gap is one broken rib (advisory)
 
 
 def _id2name() -> dict:
@@ -165,27 +167,43 @@ def rib_numbering(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     flags, and -- unlike rib_contact -- does NOT require the thoracic vertebrae to be labelled
     (they usually aren't in a lumbosacral FOV, so contact can't be the gate here)."""
     st = ndimage.generate_binary_structure(3, 3)
+    spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
     ok, msgs, any_rib = True, [], False
     for side in ("left", "right"):
         present = [n for n in range(1, 13) if (lab == _rib_id(side, n)).any()]
         if not present:
             continue
         any_rib = True
-        for n in present:                                   # DUPLICATE: each number = one piece
-            cc, k = ndimage.label(lab == _rib_id(side, n), structure=st)
-            if k > 1 and int((np.bincount(cc.ravel())[1:] >= MIX_MIN_VOX).sum()) > 1:
+        for n in present:                                   # one number split into pieces?
+            rid = _rib_id(side, n)
+            idx = np.argwhere(lab == rid)
+            lo = idx.min(0); hi = idx.max(0) + 1
+            cc, k = ndimage.label(lab[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]] == rid, structure=st)
+            sizes = np.bincount(cc.ravel())[1:]
+            big = [j for j in range(len(sizes)) if sizes[j] >= MIX_MIN_VOX]
+            if len(big) < 2:
+                continue
+            order = sorted(big, key=lambda j: sizes[j], reverse=True)
+            a = cc == order[0] + 1
+            b = cc == order[1] + 1
+            gap = float(ndimage.distance_transform_edt(~a, sampling=spacing)[b].min())
+            if gap >= GAP_MM_MISLABEL:                      # two structures share a number -> fix
                 ok = False
-                msgs.append(f"X {side} rib {n} is in 2+ separate pieces -> drop the stray / "
-                            f"hyperplastic TP (keep the true rib) so it is one piece")
+                msgs.append(f"X {side} rib {n}: two pieces {gap:.0f} mm apart -> two structures "
+                            f"share rib {n}; one is mislabelled. Relabel the wrong piece to its "
+                            f"correct number (or delete it).")
+            else:                                           # one rib broken nearby -> advisory
+                msgs.append(f"i {side} rib {n}: broken into 2 nearby pieces ({gap:.0f} mm) -> "
+                            f"minor; weld them if quick, otherwise OK to leave.")
         gaps = [n for n in range(min(present), max(present) + 1) if n not in present]
-        if gaps:                                            # GAP: numbers not consecutive
+        if gaps:                                            # GAP: a rib NUMBER is missing
             ok = False
-            msgs.append(f"X {side} rib numbers have a gap at {gaps} -> renumber so the present "
-                        f"ribs are consecutive")
+            msgs.append(f"X {side} rib numbers have a gap at {gaps} -> a rib level is missing; "
+                        f"label it, or renumber so the present ribs are consecutive")
     if not any_rib:
         return True, ["(no ribs in view)"]
     if ok:
-        msgs.append("OK ribs: numbers consecutive per side, one piece each")
+        msgs.append("OK ribs: numbers consecutive per side; any splits are minor (advisory)")
     return ok, msgs
 
 

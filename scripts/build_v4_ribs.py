@@ -135,6 +135,10 @@ MIN_RIB_VOX = 300
 # manual review. Calibrated on sampled flags: real strays were <2% of the main rib; genuine
 # second ribs / substantial TPs were >15%.
 STRAY_ABS_VOX, STRAY_FRAC = 500, 0.10
+# a same-id "dup" whose two pieces are >= this far apart is almost certainly two DIFFERENT
+# structures sharing one number (a TS mislabel) -> mandatory review; a smaller gap is one rib
+# broken into nearby pieces (a benign interrupted rib, often CT-bridgeable) -> advisory only.
+GAP_MM_MISLABEL = 25.0
 
 
 def _drop_same_id_strays(out: np.ndarray):
@@ -203,7 +207,7 @@ def _trust_ts_graft_moller(lab: np.ndarray, ts_mask: np.ndarray, moller: np.ndar
                  "n_ts_ribs": int(len({int(v) for v in np.unique(out) if v}))}
 
 
-def _rib_qc_from_v4(v4: np.ndarray, union_vox: int, stats: dict) -> dict:
+def _rib_qc_from_v4(v4: np.ndarray, affine, union_vox: int, stats: dict) -> dict:
     """Rib QC from the FINAL v4 label: per side the rib numbers present, GAPS (a missing number
     between present ones) and DUPLICATE ids (a number in 2+ pieces >= 50 vox, after the stray
     drop), plus graft / dropped-Möller bookkeeping. Keeps the keys qc_v4_ribs.py reads."""
@@ -216,8 +220,10 @@ def _rib_qc_from_v4(v4: np.ndarray, union_vox: int, stats: dict) -> dict:
     def _gaps(ns):
         return [n for n in range(min(ns), max(ns) + 1) if n not in ns] if ns else []
 
+    sp = np.sqrt((np.asarray(affine)[:3, :3] ** 2).sum(0))     # voxel spacing (mm)
     left = _nums(LS.RIB_LEFT_OFFSET); right = _nums(LS.RIB_RIGHT_OFFSET)
-    dups = []
+    dup_break = []          # one rib in 2 NEARBY pieces -> advisory (often CT-bridgeable)
+    dup_mislabel = []       # 2 pieces FAR apart         -> mandatory review (TS mislabel)
     for off in (LS.RIB_LEFT_OFFSET, LS.RIB_RIGHT_OFFSET):
         for n in range(1, 13):
             rid = off + n
@@ -226,15 +232,26 @@ def _rib_qc_from_v4(v4: np.ndarray, union_vox: int, stats: dict) -> dict:
                 continue
             lo = idx.min(0); hi = idx.max(0) + 1
             cc, k = ndimage.label(v4[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]] == rid, structure=st)
-            if k > 1 and int((np.bincount(cc.ravel())[1:] >= 50).sum()) > 1:
-                dups.append(rid)
+            sizes = np.bincount(cc.ravel())[1:]
+            big = [j for j in range(len(sizes)) if sizes[j] >= 50]
+            if len(big) < 2:
+                continue
+            order = sorted(big, key=lambda j: sizes[j], reverse=True)
+            a = cc == order[0] + 1
+            b = cc == order[1] + 1
+            gap = float(ndimage.distance_transform_edt(~a, sampling=sp)[b].min())
+            (dup_mislabel if gap >= GAP_MM_MISLABEL else dup_break).append(rid)
+    dups = sorted(dup_break + dup_mislabel)
     thor = sorted(7 + n for n in range(1, 13) if (7 + n) in present)
     mo = stats["moller_only_vox"]
     return {
         "union_vox": int(union_vox), "graft_vox": stats["graft_vox"], "moller_only_vox": mo,
         "n_stray_dropped": stats["n_stray_dropped"], "stray_dropped_vox": stats["stray_dropped_vox"],
         "thoracic_levels": thor, "left_rib_nums": left, "right_rib_nums": right,
-        "left_gaps": _gaps(left), "right_gaps": _gaps(right), "duplicate_rib_ids": sorted(dups),
+        "left_gaps": _gaps(left), "right_gaps": _gaps(right),
+        "duplicate_rib_ids": dups,                 # all dups (back-compat)
+        "dup_mislabel": sorted(dup_mislabel),      # pieces far apart -> mandatory review
+        "dup_break": sorted(dup_break),            # nearby pieces -> advisory / CT-bridgeable
         # back-compat keys for qc_v4_ribs.py / the per-case log line:
         "n_overlap": stats["n_ts_ribs"], "n_tsoff": 0, "n_extrap": 0,
         "n_dropped_fp": 0, "dropped_fp_vox": mo,
@@ -268,7 +285,7 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path,
     out_path.parent.mkdir(parents=True, exist_ok=True)
     nib.save(nib.Nifti1Image(v4, affine, v3.header), str(out_path))
 
-    qc = _rib_qc_from_v4(v4, union_vox, stats)
+    qc = _rib_qc_from_v4(v4, affine, union_vox, stats)
     qc["rib_vox"] = int(place.sum())
     return qc
 
