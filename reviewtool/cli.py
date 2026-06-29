@@ -1564,9 +1564,10 @@ def main(argv=None) -> int:
                    help="ITK-SNAP executable (auto-detected if omitted)")
     p.add_argument("--check", choices=("spine", "ribs", "both", "none"), default="spine",
                    help="anatomy QC to run on each Save: 'spine' (pelvic-native pseudo-spine: "
-                        "no class mixing, ascending+contiguous vertebrae), 'ribs' (every rib "
-                        "contacts its vertebra; every thoracic level has L+R ribs), 'both', or "
-                        "'none'. Default spine.")
+                        "no class mixing, ascending+contiguous vertebrae), 'ribs' (rib numbering: "
+                        "consecutive numbers per side and each number a single connected piece -- "
+                        "flags any duplicate/split rib), 'both', or 'none'. Default spine; use "
+                        "'ribs' for the v4 rib-correction task.")
     p.add_argument("--redo", action="store_true",
                    help="re-open cases already saved in --out")
     p.add_argument("--limit", type=int, default=0)
