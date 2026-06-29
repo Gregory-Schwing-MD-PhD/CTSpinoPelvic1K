@@ -93,14 +93,6 @@ def main() -> int:
     print(f"  duplicate-id cases  (merge suspects)      : {len(dupy)}")
     print(f"  cases with extrapolated ribs to verify    : {len(review)}")
 
-    if gappy:
-        print("\n  -- numbering-gap / merge suspects (a rib may be bridged into its neighbour) --")
-        for r in gappy[: a.show]:
-            print(f"    {r.get('ct')}: L gaps {r.get('left_gaps')}  R gaps {r.get('right_gaps')}"
-                  f"  dup {r.get('duplicate_rib_ids')}")
-        if len(gappy) > a.show:
-            print(f"    ... and {len(gappy) - a.show} more")
-
     if fpdrop:
         print("\n  -- false-positive filter: most rib bone removed (Möller bowel/calcification; "
               "glance to confirm it was NOT a real rib) --")
@@ -109,37 +101,48 @@ def main() -> int:
         if len(fpdrop) > a.show:
             print(f"    ... and {len(fpdrop) - a.show} more")
 
-    # ---- extrapolated-rib verify worklist (advisory; nothing was dropped) ----
-    work = [(r.get("ct"), cid2tok.get(r.get("ct")), r["review_ribs"]) for r in review]
-    if work:
-        print(f"\n=== EXTRAPOLATED-RIB VERIFY WORKLIST  ({len(work)} cases) ===")
-        print("  (ribs numbered purely by counting — no TS number, no vertebra anchor; "
-              "all kept + masked, just confirm the number)")
-        for cid, tok, ribs in work[: a.show]:
-            desc = ", ".join(f"{rr['side']} rib {rr['number']}" for rr in ribs)
-            print(f"    {cid}  token={tok}: {desc}")
-        if len(work) > a.show:
-            print(f"    ... and {len(work) - a.show} more")
-        toks = sorted({t for _, t, _ in work if t})
-        print("\n  spot-check as its OWN cohort (separate from pelvic_native):")
+    # ---- consolidated REVIEW WORKLIST: the few cases that need a manual rib check ----
+    # The strict filter already auto-dropped bowel/strays (no review). Only genuinely
+    # ambiguous cases are flagged: a numbering GAP (possible miscount), a DUPLICATE id (a
+    # rib split in two, or a near-spine stray sharing a number), or a pure-guess
+    # EXTRAPOLATED rib. Students review ONLY these.
+    flagged = []
+    for r in recs:
+        ct = r.get("ct")
+        why = []
+        if r.get("left_gaps") or r.get("right_gaps"):
+            why.append(f"gap L{r.get('left_gaps')} R{r.get('right_gaps')}")
+        if r.get("duplicate_rib_ids"):
+            why.append(f"dup {r['duplicate_rib_ids']}")
+        if r.get("review_ribs"):
+            why.append(f"extrapolated x{len(r['review_ribs'])}")
+        if why:
+            flagged.append((ct, cid2tok.get(ct), "; ".join(why)))
+
+    print(f"\n=== RIB REVIEW WORKLIST  ({len(flagged)}/{n} cases need a manual check) ===")
+    if flagged:
+        for ct, tok, why in flagged[: a.show]:
+            print(f"    {ct}  token={tok}: {why}")
+        if len(flagged) > a.show:
+            print(f"    ... and {len(flagged) - a.show} more")
+        toks = sorted({t for _, t, _ in flagged if t})
         if toks:
+            print("\n  ship exactly these for review (its own cohort, separate from pelvic_native):")
             print(f"    python -m reviewtool review-cases --repo {a.repo} --revision {a.revision} \\")
             print(f"        --tokens {','.join(toks)} --check ribs --out ./rib_review")
         else:
-            print("    (no manifest.json token map in --v4_dir — copy manifest into the tree to "
-                  "emit --tokens, or review by case id)")
+            print("    (no manifest.json token map in --v4_dir — copy manifest in to emit --tokens)")
     else:
-        print("\nNo extrapolated ribs to verify — every rib was anchored or TS-numbered.")
+        print("  none — every case is clean (no gaps, dups, or extrapolated ribs).")
 
     if a.csv:
         import csv
         with open(a.csv, "w", newline="") as fh:
             w = csv.writer(fh)
-            w.writerow(["ct", "token", "side", "number", "rib_id", "size_vox"])
-            for cid, tok, ribs in work:
-                for rr in ribs:
-                    w.writerow([cid, tok, rr["side"], rr["number"], rr["rib_id"], rr.get("size_vox", "")])
-        print(f"\nwrote verify-worklist CSV -> {a.csv}")
+            w.writerow(["ct", "token", "reason"])
+            for ct, tok, why in flagged:
+                w.writerow([ct, tok, why])
+        print(f"\nwrote review worklist CSV ({len(flagged)} cases) -> {a.csv}")
     return 0
 
 
