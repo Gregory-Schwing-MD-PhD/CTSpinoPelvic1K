@@ -187,14 +187,15 @@ def rib_numbering(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
             a = cc == order[0] + 1
             b = cc == order[1] + 1
             gap = float(ndimage.distance_transform_edt(~a, sampling=spacing)[b].min())
-            if gap >= GAP_MM_MISLABEL:                      # two structures share a number -> fix
-                ok = False
+            ok = False                                      # any split rib needs a human decision
+            if gap >= GAP_MM_MISLABEL:                      # far apart -> almost certainly 2 ribs
                 msgs.append(f"X {side} rib {n}: two pieces {gap:.0f} mm apart -> two structures "
-                            f"share rib {n}; one is mislabelled. Relabel the wrong piece to its "
-                            f"correct number (or delete it).")
-            else:                                           # one rib broken nearby -> advisory
-                msgs.append(f"i {side} rib {n}: broken into 2 nearby pieces ({gap:.0f} mm) -> "
-                            f"minor; weld them if quick, otherwise OK to leave.")
+                            f"share rib {n}; relabel the wrong piece to its correct number "
+                            f"(or delete it).")
+            else:                                           # close -> could be a break OR 2 ribs
+                msgs.append(f"X {side} rib {n}: two pieces {gap:.0f} mm apart -> if ONE broken "
+                            f"rib, weld the pieces; if TWO different ribs, relabel the wrong one "
+                            f"(a small gap can still be a mislabel near the spine).")
         gaps = [n for n in range(min(present), max(present) + 1) if n not in present]
         if gaps:                                            # GAP: a rib NUMBER is missing
             ok = False
@@ -203,7 +204,7 @@ def rib_numbering(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     if not any_rib:
         return True, ["(no ribs in view)"]
     if ok:
-        msgs.append("OK ribs: numbers consecutive per side; any splits are minor (advisory)")
+        msgs.append("OK ribs: numbers consecutive per side, one piece each")
     return ok, msgs
 
 
