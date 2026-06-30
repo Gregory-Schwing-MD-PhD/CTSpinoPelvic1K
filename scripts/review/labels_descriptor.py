@@ -97,23 +97,19 @@ def descriptor_text(task: str | None = None) -> str:
 
 
 def _verse_rgb(idx: int) -> Tuple[int, int, int]:
-    """Colour for a VerSe-native id: spine 1-28 blue→red ramp, S1/hips/femurs
-    distinct, ribs 34-57 magenta(L)/cyan(R) ramps, soft-tissue grey-ish."""
+    """A DISTINCT, high-contrast colour per id so ADJACENT vertebrae and ADJACENT ribs are
+    obviously different at a glance. Earlier per-side ramps varied one channel slightly, so
+    neighbours looked identical. Use a golden-angle hue rotation (consecutive ids land ~222°
+    apart on the colour wheel) plus alternating value/saturation, so no two neighbours match.
+    Identity still comes from the label name under the cursor — this is purely separation."""
     import colorsys
-    if 1 <= idx <= 28:                              # vertebrae + sacrum/coccyx/T13
-        t = (idx - 1) / 27.0
-        r, g, b = colorsys.hsv_to_rgb((1 - t) * 0.66, 0.9, 1.0)   # blue→red by level
-        return (int(r * 255), int(g * 255), int(b * 255))
-    if idx == 29:  return (255, 255, 0)            # S1
-    if idx == 30:  return (0, 220, 220)            # hip L
-    if idx == 31:  return (0, 160, 210)            # hip R
-    if idx == 32:  return (70, 70, 255)            # femur L
-    if idx == 33:  return (140, 90, 255)           # femur R
-    if 34 <= idx <= 45:                            # rib_left magenta ramp
-        return (255, int(40 + 160 * (idx - 34) / 11), 255)
-    if 46 <= idx <= 57:                            # rib_right cyan ramp
-        return (int(40 + 160 * (idx - 46) / 11), 255, 255)
-    return (180, 180, 180)                         # soft-tissue / other
+    if idx <= 0:
+        return (0, 0, 0)
+    hue = (idx * 0.6180339887498949) % 1.0         # golden-angle: big jump between adjacent ids
+    sat = 1.0 if (idx % 3) else 0.72               # 3-cycle saturation -> extra neighbour contrast
+    val = 1.0 if (idx % 2 == 0) else 0.74          # alternate brightness on consecutive ids
+    r, g, b = colorsys.hsv_to_rgb(hue, sat, val)
+    return (int(r * 255), int(g * 255), int(b * 255))
 
 
 def verse_native_descriptor_text() -> str:
