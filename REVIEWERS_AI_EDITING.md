@@ -95,18 +95,21 @@ nnInteractive turns into a 3D segmentation.
   `model_info`): the pinned `itksnap-dls` requests the model under the **bare id `nnInteractive`**,
   which Hugging Face no longer serves (namespace-less model ids were removed) → 404, which the
   server's HTTP client surfaces as the empty-body JSONDecodeError. **Fix:** point it at the
-  **namespaced** id and run the server **in-process** so the patch applies (it can't through
-  `!python -m itksnap_dls`):
+  **namespaced** id, but run the server as a **subprocess** via a tiny wrapper — running it
+  in-process breaks ngrok on Colab (`'_asyncio.Task' object has no attribute 'url'`, because Colab
+  already has a running event loop). Write `run_dls.py`:
   ```python
-  import os, sys, runpy
-  os.environ["NGROK_AUTHTOKEN"] = "yourNgrokToken"
+  %%writefile run_dls.py
+  import sys, runpy
   import itksnap_dls.segment as seg
   seg.nnInteractiveWrapper.ID = "nnInteractive/nnInteractive"   # was bare "nnInteractive" (404)
   sys.argv = ["itksnap_dls", "--ngrok"]
   runpy.run_module("itksnap_dls", run_name="__main__")
   ```
-  This is **not** a wifi/ngrok/token problem — the model is public; connecting fine but failing on
-  *use* is exactly this stale-repo-id bug.
+  then run it: `!NGROK_AUTHTOKEN="yourToken" python run_dls.py`. The subprocess has no pre-existing
+  loop (ngrok works) and applies the id patch before the server starts. This is **not** a
+  wifi/ngrok/token problem — the model is public; connecting fine but failing on *use* is the
+  stale-repo-id bug.
 - **You don't actually need the AI to connect two rib pieces:** set the rib's label active, pick
   the brush, and paint one stroke across the gap to join them. That's the fix — start now even if
   the AI server is being sorted out.
