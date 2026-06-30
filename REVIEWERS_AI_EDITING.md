@@ -19,10 +19,10 @@ has one and point ITK-SNAP at it. Three ways, easiest first.
    <https://dashboard.ngrok.com/signup>, open **Your Authtoken**, copy it, and paste it into the
    cell that says `NGROK_AUTHTOKEN="..."`. Everyone needs their **own** token — a shared/blank one
    fails.
-4. **Paste your Hugging Face read token** into the `HF_TOKEN="..."` cell (use the same `hf_…` read
-   token you made for reviewing). **This is required** — without it the model download hits Hugging
-   Face's anonymous rate limit on Colab's shared IPs and the session dies with *"Error creating
-   session on DLS server: Internal Server Error."*
+4. **(Optional) Hugging Face token.** The model (`MIC-DKFZ/nnInteractive`) is **public**, so a
+   token is **not required** — leave the `HF_TOKEN` cell blank, or paste your **own** read token
+   only as rate-limit insurance. Don't bake one shared token into the notebook. *(The real cause of
+   "Internal Server Error" was a stale model id, fixed by the in-process server cell — see Troubleshooting.)*
 5. **Install — the restart dance, do it exactly:**
    1. **Runtime → Run all.**
    2. While the install cells run, Colab pops up **"Restart session"** — click **Cancel** each time
@@ -90,15 +90,23 @@ nnInteractive turns into a 3D segmentation.
 
 ## Troubleshooting
 
-- **"Error creating session on DLS server: Internal Server Error"** — and the Colab log shows a
-  `json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)` coming from
-  `itksnap_dls/segment.py … hf.snapshot_download → repo_info → model_info → r.json()`:
-  the model download was **unauthenticated**, so Hugging Face returned an empty body (anonymous
-  rate-limit on Colab's shared IP). **Fix:** set your HF read token before the server cell —
-  `import os; os.environ["HF_TOKEN"]=os.environ["HUGGING_FACE_HUB_TOKEN"]="hf_…"` (Option A step 4) —
-  then re-run the server cell. If it persists, the nnInteractive model repo is **gated**: open its
-  HF page with that account and click **Agree**. This is **not** a wifi/ngrok problem — connecting
-  fine but failing on *use* is exactly this.
+- **"Error creating session on DLS server: Internal Server Error"** (Colab log shows a 404 /
+  `RepositoryNotFoundError` for `…/api/models/nnInteractive`, or a `JSONDecodeError` from
+  `model_info`): the pinned `itksnap-dls` requests the model under the **bare id `nnInteractive`**,
+  which Hugging Face no longer serves (namespace-less model ids were removed) → 404, which the
+  server's HTTP client surfaces as the empty-body JSONDecodeError. **Fix:** point it at the
+  **namespaced** id and run the server **in-process** so the patch applies (it can't through
+  `!python -m itksnap_dls`):
+  ```python
+  import os, sys, runpy
+  os.environ["NGROK_AUTHTOKEN"] = "yourNgrokToken"
+  import itksnap_dls.segment as seg
+  seg.nnInteractiveWrapper.ID = "nnInteractive/nnInteractive"   # was bare "nnInteractive" (404)
+  sys.argv = ["itksnap_dls", "--ngrok"]
+  runpy.run_module("itksnap_dls", run_name="__main__")
+  ```
+  This is **not** a wifi/ngrok/token problem — the model is public; connecting fine but failing on
+  *use* is exactly this stale-repo-id bug.
 - **You don't actually need the AI to connect two rib pieces:** set the rib's label active, pick
   the brush, and paint one stroke across the gap to join them. That's the fix — start now even if
   the AI server is being sorted out.
