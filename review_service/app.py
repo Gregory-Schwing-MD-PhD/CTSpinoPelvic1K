@@ -72,6 +72,7 @@ def _build_service() -> svc.ReviewService:
         tau=float(os.environ.get("TAU", svc.diff.DEFAULT_TAU)),
         irr_mode=os.environ.get("IRR_MODE", svc.diff.DEFAULT_MODE),
         claim_ttl_seconds=int(os.environ.get("CLAIM_TTL_SECONDS", "7200")),
+        check=os.environ.get("CHECK", "none"),     # server-side QC gate (ribs -> reject dups)
     )
 
 
@@ -118,7 +119,27 @@ def _startup():
         data = json.loads(Path(mp).read_text())
         recs = data if isinstance(data, list) else data.get("records", [])
 
-        if TASK in schema.OVERLAY_TASKS:
+        if TASK == "rib_fix":
+            # v4 RIB-CORRECTION: seed ONLY the QC-flagged duplicate worklist
+            # (rib_worklist.json on the source revision), serving the v4 label for
+            # in-place rib correction. Point SOURCE_REVISION at v4. The server-side
+            # CHECK=ribs gate rejects any submit that still has a duplicate/split rib.
+            tokens = set()
+            try:
+                wp = hf_hub_download(repo_id=SERVICE.v2_repo, repo_type="dataset",
+                                     filename="rib_worklist.json",
+                                     revision=SERVICE.source_revision)
+                wl = json.loads(Path(wp).read_text())
+                raw = wl.get("tokens") if isinstance(wl, dict) else wl
+                tokens = {str(t) for t in (raw or [])}
+                print(f"[startup] rib_fix worklist: {len(tokens)} flagged case(s)")
+            except Exception as e:                       # refuse to seed all 802
+                print(f"[startup] rib_fix: no rib_worklist.json ({e}); seeding NOTHING")
+            n = store_mod.init_rib_fix_cases(
+                SERVICE.store, recs, worklist_tokens=tokens,
+                source_revision=SERVICE.source_revision)
+            tag = f"rib_fix case(s) from {SERVICE.v2_repo}@{SERVICE.source_revision}"
+        elif TASK in schema.OVERLAY_TASKS:
             # v4 overlay pass (rib_anchor | ribs | ls_nerve | iliolumbar): serve
             # the v3 label as the editable base; the student ADDS this task's
             # overlay onto it. Point SOURCE_REVISION at v3 (one Space per task).

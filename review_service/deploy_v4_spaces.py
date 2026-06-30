@@ -23,8 +23,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# task -> repo-name slug. The TASK env value the Space uses is the dict key.
-TASKS = {"ribs": "ribs", "ls_nerve": "nerve", "iliolumbar": "ili"}
+# name -> per-Space deploy config. The rib Space is the v4 in-place CORRECTION of the
+# QC-flagged duplicate ribs (TASK=rib_fix reads @v4 + seeds rib_worklist.json; the
+# server-side CHECK=ribs gate rejects any submit that still has a duplicate/split rib).
+# The other two are the v3 additive overlays (no server gate).
+TASKS = {
+    "ribs":       {"slug": "ribs",  "task": "rib_fix",    "revision": "v4", "check": "ribs"},
+    "ls_nerve":   {"slug": "nerve", "task": "ls_nerve",   "revision": "v3", "check": "none"},
+    "iliolumbar": {"slug": "ili",   "task": "iliolumbar", "revision": "v3", "check": "none"},
+}
 
 SPACE_README = """---
 title: CTSpinoPelvic1K review ({task})
@@ -53,14 +60,19 @@ def main() -> int:
     revision = os.environ.get("SOURCE_REVISION", "v3")
     adjudicators = os.environ.get("ADJUDICATORS", "")
     private_space = os.environ.get("PRIVATE_SPACE", "0") == "1"
+    only = {t.strip() for t in os.environ.get("ONLY", "").replace(",", " ").split() if t.strip()}
 
     from huggingface_hub import HfApi
     api = HfApi(token=token)
 
-    for task, slug in TASKS.items():
+    for name, cfg in TASKS.items():
+        if only and name not in only:                # ONLY=ribs -> deploy just that Space
+            continue
+        slug, task = cfg["slug"], cfg["task"]
         space_id = f"{org}/CTSpinoPelvic1K-review-{slug}"
         review_repo = f"{org}/CTSpinoPelvic1K-reviews-{slug}"
-        print(f"\n=== {task} -> Space {space_id} | ledger {review_repo} ===")
+        print(f"\n=== {name} (TASK={task}@{cfg['revision']} check={cfg['check']}) "
+              f"-> Space {space_id} | ledger {review_repo} ===")
 
         # 1) private review ledger (auto-created on first write too; make it now)
         api.create_repo(repo_id=review_repo, repo_type="dataset",
@@ -75,7 +87,8 @@ def main() -> int:
         variables = {
             "TASK": task,
             "V2_REPO": dataset,
-            "SOURCE_REVISION": revision,
+            "SOURCE_REVISION": cfg["revision"],
+            "CHECK": cfg["check"],                  # server-side QC gate on submit
             "REVIEW_REPO": review_repo,
             "TAU": os.environ.get("TAU", "0.9"),
             "IRR_MODE": os.environ.get("IRR_MODE", "per_class_min"),
@@ -89,11 +102,11 @@ def main() -> int:
         print("  secret: HF_TOKEN set (value not logged)")
 
         # 4) upload the service code in the layout the Dockerfile expects:
-        #    /Dockerfile + /review_service/* + /scripts/review/*
+        #    /Dockerfile + /review_service/* + /scripts/review/* + /scripts/<qc modules>
         api.upload_file(path_or_fileobj=str(ROOT / "review_service" / "Dockerfile"),
                         path_in_repo="Dockerfile", repo_id=space_id,
                         repo_type="space")
-        api.upload_file(path_or_fileobj=SPACE_README.format(task=task).encode(),
+        api.upload_file(path_or_fileobj=SPACE_README.format(task=name).encode(),
                         path_in_repo="README.md", repo_id=space_id,
                         repo_type="space")
         api.upload_folder(folder_path=str(ROOT / "review_service"),
@@ -104,12 +117,17 @@ def main() -> int:
                           path_in_repo="scripts/review", repo_id=space_id,
                           repo_type="space",
                           ignore_patterns=["__pycache__/*", "*.pyc"])
+        # server-side QC gate deps: the CHECK=ribs gate imports these from scripts/
+        for fn in ("review_anatomy_qc.py", "label_scheme.py"):
+            api.upload_file(path_or_fileobj=str(ROOT / "scripts" / fn),
+                            path_in_repo=f"scripts/{fn}", repo_id=space_id,
+                            repo_type="space")
         print(f"  uploaded code -> https://huggingface.co/spaces/{space_id}")
 
-    print("\nAll three Spaces created/updated. They build, then seed from "
-          f"{dataset}@{revision} on boot. URLs:")
-    for slug in TASKS.values():
-        print(f"  https://{org.lower()}-ctspinopelvic1k-review-{slug}.hf.space")
+    print(f"\nAll {len(TASKS)} Spaces created/updated. They build, then seed on boot "
+          f"(ribs from {dataset}@v4 via rib_worklist.json; overlays from @v3). URLs:")
+    for cfg in TASKS.values():
+        print(f"  https://{org.lower()}-ctspinopelvic1k-review-{cfg['slug']}.hf.space")
     if not adjudicators:
         print("\nNote: ADJUDICATORS empty — set faculty HF usernames later via each "
               "Space's Variables, or re-run with ADJUDICATORS=\"user1,user2\".")

@@ -359,3 +359,49 @@ def init_rib_anchor_cases(store: ReviewStore, records: List[dict],
     return init_overlay_cases(store, records, task="rib_anchor",
                               source_revision=source_revision,
                               include_configs=include_configs)
+
+
+def init_rib_fix_cases(store: ReviewStore, records: List[dict],
+                       worklist_tokens, source_revision: str = "v4") -> int:
+    """Seed the v4 RIB-CORRECTION task: ONLY the QC-flagged duplicate cases (those whose
+    manifest token is in `worklist_tokens`), serving the EXISTING v4 label as the editable
+    base — the student corrects the rib in place (weld / relabel / delete). region_to_review
+    is 'ribs' so IRR + the server-side QC gate run over the rib numbering. Unlike the overlay
+    seeder this is NOT limited to spine-GT configs (ribs exist on every config). Idempotent;
+    all new cases land in a SINGLE commit. Seeds nothing if `worklist_tokens` is empty (so a
+    missing worklist can never accidentally enqueue all 802)."""
+    want = {str(t) for t in (worklist_tokens or set())}
+    if not want:
+        return 0
+    existing = {p[len("cases/"):-len(".json")]
+                for p in store.b.list("cases/")
+                if p.startswith("cases/") and p.endswith(".json")}
+    new_cases = []
+    for rec in records:
+        if str(rec.get("token")) not in want:
+            continue
+        if not rec.get("ct_file") or not rec.get("label_file"):
+            continue                             # need both to serve + edit
+        cfg = rec.get("config")
+        cid = schema.case_id(rec.get("token"), cfg)
+        if cid in existing:                      # don't overwrite live state
+            continue
+        new_cases.append({
+            "case_id": cid,
+            "token": str(rec.get("token")),
+            "config": cfg,
+            "task": "ribs",
+            "stratum": rec.get("lstv_label") or "normal",
+            "priority": 0,
+            "source_revision": source_revision,
+            "ct_file": rec.get("ct_file"),
+            # the v4 label IS the base the student corrects in place
+            "pseudo_label_file": rec.get("label_file"),
+            "region_to_review": "ribs",
+            "prov_before": {"spine": rec.get("prov_spine"),
+                            "pelvis": rec.get("prov_pelvis")},
+            "slots": {},
+            "final": None,
+        })
+    store.put_cases(new_cases)                   # single commit (no-op if empty)
+    return len(new_cases)

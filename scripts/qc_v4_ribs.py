@@ -143,6 +143,17 @@ def main() -> int:
             for ct, tok, why in flagged:
                 w.writerow([ct, tok, why])
         print(f"\nwrote review worklist CSV ({len(flagged)} cases) -> {a.csv}")
+
+    # Also emit the worklist as JSON INTO the v4 tree so it rides the dataset push to HF;
+    # the rib_fix review Space reads rib_worklist.json on boot and seeds EXACTLY these tokens.
+    wl_tokens = sorted({t for _, t, _ in flagged if t})
+    wl_path = a.v4_dir / "rib_worklist.json"
+    wl_path.write_text(json.dumps(
+        {"tokens": wl_tokens,
+         "cases": [{"ct": ct, "token": tok, "reason": why} for ct, tok, why in flagged]},
+        indent=2))
+    print(f"wrote rib worklist JSON ({len(wl_tokens)} tokens) -> {wl_path}  "
+          f"(push v4 so the rib_fix Space can seed it)")
     return 0
 
 

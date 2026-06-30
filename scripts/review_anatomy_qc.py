@@ -208,6 +208,19 @@ def rib_numbering(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     return ok, msgs
 
 
+def check_label(check: str, lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
+    """Run the requested check(s) and return (ok, messages) WITHOUT printing.
+    The server-side review gate uses this; the CLI uses report() (which prints)."""
+    blocks = []
+    if check in ("spine", "both"):
+        blocks.append(spine_sanity(lab, affine))
+    if check in ("ribs", "both"):
+        blocks.append(rib_numbering(lab, affine))
+    ok = all(o for o, _ in blocks)
+    msgs = [m for _, ms in blocks for m in ms]
+    return ok, msgs
+
+
 def report(check: str, lab: np.ndarray, affine) -> bool:
     """Run the requested check(s) and print a PASS/FAIL block. Returns overall ok."""
     blocks = []

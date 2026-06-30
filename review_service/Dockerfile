@@ -9,6 +9,9 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # The service code + the Phase-1 review package it depends on.
 COPY review_service/ /app/review_service/
 COPY scripts/review/ /app/scripts/review/
+# anatomy QC imported by the server-side submit gate (CHECK=ribs)
+COPY scripts/review_anatomy_qc.py /app/scripts/review_anatomy_qc.py
+COPY scripts/label_scheme.py /app/scripts/label_scheme.py
 
 ENV PYTHONUNBUFFERED=1
 # HF Spaces route to port 7860.

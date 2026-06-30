@@ -69,13 +69,17 @@ def _load_label_array(data: bytes, name: str):
 class ReviewService:
     def __init__(self, store: ReviewStore, *, v2_repo: str,
                  source_revision: str = "v2", tau: float = diff.DEFAULT_TAU,
-                 irr_mode: str = diff.DEFAULT_MODE, claim_ttl_seconds: int = 7200):
+                 irr_mode: str = diff.DEFAULT_MODE, claim_ttl_seconds: int = 7200,
+                 check: str = "none"):
         self.store = store
         self.v2_repo = v2_repo
         self.source_revision = source_revision
         self.tau = tau
         self.irr_mode = irr_mode
         self.ttl = claim_ttl_seconds
+        # server-side anatomy QC gate run on every submitted label (none|spine|ribs|both).
+        # "ribs" rejects any submission whose ribs still have a duplicate/split number.
+        self.check = (check or "none").strip().lower()
 
     # ── helpers ─────────────────────────────────────────────────────────────
     def _blob_url(self, rel: str) -> str:
@@ -121,6 +125,42 @@ class ReviewService:
         case["irr"] = {k: r[k] for k in ("metric", "min_class_dice",
                                          "mode", "tau", "agree")}
         return bool(r["agree"])
+
+    def _qc_gate(self, label_bytes: Optional[bytes], label_name: str) -> None:
+        """Server-side anatomy QC: REJECT a submission whose label fails self.check
+        (e.g. 'ribs' -> no duplicate/split rib number). Fails CLOSED — if the QC
+        cannot run, the submission is rejected, so nothing un-verified is committed."""
+        if self.check in (None, "", "none") or label_bytes is None:
+            return
+        import os as _os
+        import sys as _sys
+        import tempfile
+        for _p in ("scripts",                                  # Space layout: /scripts/*
+                   _os.path.join(_os.path.dirname(__file__), "..", "scripts")):
+            if _os.path.isdir(_p) and _p not in _sys.path:
+                _sys.path.insert(0, _p)
+        try:
+            import numpy as np
+            import nibabel as nib
+            import review_anatomy_qc as RA
+        except Exception as exc:                               # cannot verify -> fail closed
+            raise ReviewError(f"server QC unavailable ({exc}); submission rejected")
+        suffix = ".nii.gz" if label_name.endswith(".gz") else ".nii"
+        tf = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+        try:
+            tf.write(label_bytes); tf.close()
+            img = nib.load(tf.name)
+            ok, msgs = RA.check_label(self.check, np.asanyarray(img.dataobj), img.affine)
+        except Exception as exc:
+            raise ReviewError(f"server QC failed to run ({exc}); submission rejected")
+        finally:
+            try:
+                _os.unlink(tf.name)
+            except OSError:
+                pass
+        if not ok:
+            bad = "; ".join(m for m in msgs if m.startswith("X")) or "; ".join(msgs)
+            raise ReviewError(f"label fails {self.check} QC: {bad}")
 
     # ── claim ───────────────────────────────────────────────────────────────
     def claim(self, reviewer_id: str) -> Optional[dict]:
@@ -218,6 +258,7 @@ class ReviewService:
         if decision in ("accept", "corrected"):
             if label_bytes is None:
                 raise ReviewError(f"{decision} requires a label upload")
+            self._qc_gate(label_bytes, label_name)       # reject if it fails QC (fails closed)
             label_path = f"reviews/{case_id}/{slot}_label{_ext(label_name)}"
             files[label_path] = label_bytes
             record["artifact"] = label_path
