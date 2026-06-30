@@ -200,14 +200,11 @@ def rib_numbering(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
             dd = (ca[:, None, :] - cb[None, :, :]) * spacing
             gap = float(np.sqrt((dd ** 2).sum(-1)).min())
             ok = False                                      # any split rib needs a human decision
-            if gap >= GAP_MM_MISLABEL:                      # far apart -> almost certainly 2 ribs
-                msgs.append(f"X {side} rib {n}: two pieces {gap:.0f} mm apart -> two structures "
-                            f"share rib {n}; relabel the wrong piece to its correct number "
-                            f"(or delete it).")
-            else:                                           # close -> could be a break OR 2 ribs
-                msgs.append(f"X {side} rib {n}: two pieces {gap:.0f} mm apart -> if ONE broken "
-                            f"rib, weld the pieces; if TWO different ribs, relabel the wrong one "
-                            f"(a small gap can still be a mislabel near the spine).")
+            # Usually one rib the algorithm split (even far apart -> a rib is a long arc), so the
+            # default fix is to CONNECT the pieces; relabel/delete are the exceptions.
+            msgs.append(f"X {side} rib {n}: in 2 pieces ({gap:.0f} mm apart) -> usually ONE rib "
+                        f"split: CONNECT the pieces. Only relabel a piece that is a DIFFERENT "
+                        f"rib, or delete a piece that is not a rib.")
         gaps = [n for n in range(min(present), max(present) + 1) if n not in present]
         if gaps:                                            # GAP: a rib NUMBER is missing
             ok = False

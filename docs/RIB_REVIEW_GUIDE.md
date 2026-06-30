@@ -42,36 +42,39 @@ ringed). Every one of these projects to a labelled rib on the synthetic radiogra
 
 ## 1. What you are fixing (30 seconds)
 
-The build trusts TotalSegmentator's rib numbering (which is reliable level-to-level)
-and only repairs it. The one residual error is a **DUPLICATE**: a single rib
-number (e.g. "left rib 8") appears as **two disconnected pieces**. There are two
-flavors, told apart by how far apart the pieces are:
+The build trusts TotalSegmentator's rib numbering (reliable level-to-level) and only repairs
+it. The one residual error is a **DUPLICATE**: a single rib number (e.g. "right rib 9") appears
+as **two (or more) disconnected pieces**.
 
-| flavor | how it looks | what it really is | your fix |
-|---|---|---|---|
-| **Mislabel** (pieces **far** apart, ≥ ~25 mm) | two separate rib arcs, often one out near the lung | **two different ribs** wrongly sharing one number | **relabel** the wrong piece to its correct number (or **delete** it if it isn't a rib) |
-| **Split** (pieces **close**, < ~25 mm) | two chunks near the spine | **either** one rib broken in two **or** two adjacent ribs sharing a number | **look at the CT and decide:** one rib → **weld**; two ribs → **relabel** |
+**Almost always, both pieces ARE that rib** — the algorithm just split one rib into chunks. A
+rib is a long curved arc, so the two pieces can even be **far apart** (e.g. a back chunk and a
+front chunk with lung in between) and still be the same single rib. **Your default fix is to
+CONNECT the pieces into one rib.**
 
-There are **no gaps** to fix (no missing numbers) — only duplicates. The QC
-message in the terminal tells you the side, the rib number, the gap in mm, and
-the likely fix.
+Only two exceptions:
+- a piece is genuinely a **different rib** that got the wrong number → **relabel** that piece;
+- a piece **isn't a rib at all** (a transverse process, bowel, vascular calcification) →
+  **delete** it.
+
+When in doubt, the pieces are usually **one rib → connect**. There are **no missing numbers** to
+add — only these duplicates. The terminal names the side, the rib number, and how far apart the
+pieces are (distance is just a hint — far-apart pieces are still often one rib, as in 0007 below).
 
 ---
 
 ## 2. Examples
 
-**Mislabel — far apart (case 0007, "right rib 9", ~92 mm).**
-The two pieces are ~9 cm apart with **lung between them** — they are clearly two
-different structures. One is the real rib 9; the other is a neighbour mislabelled
-9. → **Relabel the wrong piece** to its correct number (or delete it).
-![mislabel](rib_review_example_0007_mislabel.png)
+**CONNECT — the common case (0007, "right rib 9", pieces ~9 cm apart).**
+Both pieces are **rib 9**: the algorithm split one long rib, and the straight-line gap happens
+to cross the lung — but it is still a **single rib**. → **Connect the two pieces** into one rib
+(do NOT relabel). Far apart ≠ a different rib.
+![connect](rib_review_example_0007_mislabel.png)
 
-**Split / ambiguous — close (case 0231, "left rib 8", ~13 mm).**
-Zoomed on the gap (CT bone window; the two pieces are red and blue). A small gap
-does **not** guarantee one broken rib — here the red and blue are actually **two
-different rib arcs** near the spine, so this is a **relabel**, not a weld. If
-instead the two pieces were the **same arc, end-to-end**, you would **weld** them.
-![split](rib_review_example_0231_split.png)
+**RELABEL — the exception (0231, "left rib 8").**
+Here the two pieces are actually **two different rib arcs** that both got numbered 8. → **Relabel**
+the wrong piece to its correct number (count from its neighbours). If you can't tell whether two
+pieces are one rib or two, treat them as **one → connect**.
+![relabel](rib_review_example_0231_split.png)
 
 ---
 
@@ -95,6 +98,10 @@ python -m reviewtool login \
 Run everything as `python -m reviewtool …` from inside the `CTSpinoPelvic1K` folder.
 You sign in with your **own** HuggingFace login — there is no separate reviewer key.
 
+**Set up AI-assisted segmentation — you'll use it to make every fix (don't hand-trace).** It's
+ITK-SNAP's nnInteractive / Deep-Learning-Service backend; one-time setup (free Colab-GPU option)
+is in **[REVIEWERS_AI_EDITING.md](../REVIEWERS_AI_EDITING.md)**.
+
 ---
 
 ## 4. Do a case, step by step
@@ -107,19 +114,17 @@ You sign in with your **own** HuggingFace login — there is no separate reviewe
 2. It downloads the case and **opens ITK-SNAP** with the CT + the v4 label (locked
    palette). The terminal names the case and that you're reviewing the **ribs**.
 
-3. **Find the rib that's in two pieces** and look at both on the CT (scroll coronal
-   and sagittal). Ask: *one rib in two pieces, or two different ribs?*
-   - Same arc, end-to-end, just interrupted → **one rib**.
-   - Two parallel arcs / one piece at a different level → **two ribs**.
-   - A piece that isn't a rib at all (transverse process, bowel, calcification) →
-     **not a rib**.
+3. **Find the rib that's in two pieces** (the terminal names it) and look at both on the CT.
+   Ask: *are both pieces the same rib?* — **usually yes** (one rib the algorithm split, even if
+   the pieces are far apart) → connect. Relabel only if a piece is clearly a **different** rib;
+   delete only if a piece **isn't a rib** (transverse process, bowel, calcification).
 
-4. **Fix it with the AI-assisted (nnInteractive) tool — do not hand-trace:**
-   - **Weld** (one broken rib): scribble across the gap with **that rib's label**
-     so the two pieces become one connected piece.
-   - **Relabel** (two different ribs): paint the wrong piece with its **correct
-     rib number** (count from the neighbours).
-   - **Delete** (not a rib): set the stray piece to background (0).
+4. **Fix it with AI-assisted segmentation (nnInteractive) — don't hand-trace** (setup:
+   [REVIEWERS_AI_EDITING.md](../REVIEWERS_AI_EDITING.md)):
+   - **CONNECT (the usual fix):** with that rib's label active, scribble across the gap so the
+     two pieces become **one** connected rib.
+   - **RELABEL (a different rib):** paint the wrong piece with its correct rib number.
+   - **DELETE (not a rib):** set the stray piece to background (0).
 
 5. **Save** (Ctrl-S, over the `seg.nii.gz` it opened). The rib QC re-runs and prints
    **exactly what's still wrong** (or `OK ribs`). Keep fixing and saving until it's clean.
@@ -153,8 +158,9 @@ Just make each rib **one clean piece per number** and quit when it prints `OK ri
 ## 6. One-paragraph summary
 
 `python -m reviewtool login --service https://anonymous-mlhc-ctspinopelvic1k-review-ribs.hf.space`,
-then `python -m reviewtool next`. Each case has one rib number in two pieces — look at the
-CT: one broken rib → **weld** with nnInteractive; two different ribs → **relabel** (or
-delete a non-rib). Save, quit, and your edit is submitted; the server accepts it only once
+then `python -m reviewtool next`. Each case has one rib number in two pieces — **usually one rib
+the algorithm split, so CONNECT the pieces** with AI-assisted segmentation (nnInteractive,
+[REVIEWERS_AI_EDITING.md](../REVIEWERS_AI_EDITING.md)); only relabel a piece that's a different
+rib, or delete a piece that isn't a rib. Save, quit, and your edit is submitted; the server accepts it only once
 the ribs are clean (a remaining duplicate is rejected and the case returns). Two reviewers
 see each case; disagreements are adjudicated.
