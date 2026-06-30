@@ -448,30 +448,43 @@ def _watch_anatomy(itksnap, ct, seg, labels, *, check="spine"):
     (None = the QC could not run, e.g. scipy/nibabel missing). The caller GATES
     a case as 'resolved' (saved + uploaded) on ``passed is True`` — a still-failing
     or un-checkable edit is never accepted."""
-    print(f"\nOpening ITK-SNAP ({itksnap}) — edit, then **Save Segmentation (Ctrl-S)** to run\n"
-          f"  the {check} check(s). Fix anything it flags and Save again; quit to submit.\n")
-    proc = _launch_itksnap_bg(itksnap, ct, seg, labels)
-    if proc is None:
-        print(f"'{itksnap}' not found — install ITK-SNAP, add it to PATH, set "
-              f"REVIEWTOOL_ITKSNAP, or pass --itksnap /path/to/itksnap")
-        return -1
-    try:
-        last = Path(seg).stat().st_mtime if Path(seg).exists() else 0.0
-    except OSError:
-        last = 0.0
-
     state = {"passed": None}                            # last QC verdict: True/False/None
 
-    def _qc():
+    def _qc(header=None):
         try:
             import numpy as np
             import nibabel as nib
             import review_anatomy_qc as RA              # scripts/ already on sys.path
             img = nib.load(str(seg))
+            if header:
+                print(header)
             state["passed"] = bool(RA.report(check, np.asanyarray(img.dataobj), img.affine))
         except Exception as exc:                        # noqa: BLE001
             print(f"  (anatomy QC could not run: {str(exc)[:120]})")
             state["passed"] = None                      # cannot verify -> caller fails closed
+
+    # Tell the student up front EXACTLY what is wrong with this case and what to do —
+    # not only after their first Save.
+    _qc(header="\n--- current QC for this case (fix the 'X' items, then Save) ---")
+    if check in ("ribs", "both"):
+        print("  How to fix a flagged rib (a number that is in two pieces): in ITK-SNAP go to\n"
+              "  that rib number, look at both pieces on the CT, then —\n"
+              "    * ONE broken rib      -> WELD: paint across the gap with that rib's label\n"
+              "    * TWO different ribs  -> RELABEL the wrong piece to its correct number\n"
+              "    * a piece that is NOT a rib (TP / bowel) -> DELETE it (set to 0)\n"
+              "  Use nnInteractive, don't hand-trace. Full guide: docs/RIB_REVIEW_GUIDE.md\n")
+
+    print(f"Opening ITK-SNAP ({itksnap}) — edit, then **Save Segmentation (Ctrl-S)** to re-run the\n"
+          f"  {check} check(s). Fix what it flags and Save again; quit once it PASSES to submit.\n")
+    proc = _launch_itksnap_bg(itksnap, ct, seg, labels)
+    if proc is None:
+        print(f"'{itksnap}' not found — install ITK-SNAP, add it to PATH, set "
+              f"REVIEWTOOL_ITKSNAP, or pass --itksnap /path/to/itksnap")
+        return -1, None
+    try:
+        last = Path(seg).stat().st_mtime if Path(seg).exists() else 0.0
+    except OSError:
+        last = 0.0
 
     while proc.poll() is None:
         time.sleep(1.5)
@@ -481,8 +494,7 @@ def _watch_anatomy(itksnap, ct, seg, labels, *, check="spine"):
             continue
         if m > last + 1e-6:                             # a Save happened
             last = m
-            print("  [saved] running anatomy QC ...")
-            _qc()
+            _qc(header="  [saved] re-running anatomy QC ...")
     _qc()                                               # authoritative final check on the saved file
     rc = proc.returncode if proc.returncode is not None else 0
     return rc, state["passed"]

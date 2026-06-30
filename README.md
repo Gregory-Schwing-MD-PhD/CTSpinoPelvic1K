@@ -33,6 +33,12 @@ spine and pelvic labels target different prone/supine acquisitions
 (**separate** cases, exported as two records per patient — one
 `spine_only`, one `pelvic_native`).
 
+> **Reviewing ribs (med students):** the v4 rib-correction task — getting set up,
+> running a review batch, and what to look for — is in
+> **[docs/RIB_REVIEW_GUIDE.md](docs/RIB_REVIEW_GUIDE.md)**. Edits **cannot be
+> uploaded unless they pass the automatic rib QC** (the tool prints exactly what
+> to fix on every Save).
+
 ## Design principles (the decisions that make it LSTV-aware)
 
 1. **Vertebrae are radiologist ground truth, full stop** — we never ship a
