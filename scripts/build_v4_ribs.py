@@ -212,7 +212,12 @@ def _rib_qc_from_v4(v4: np.ndarray, affine, union_vox: int, stats: dict) -> dict
     between present ones) and DUPLICATE ids (a number in 2+ pieces >= 50 vox, after the stray
     drop), plus graft / dropped-Möller bookkeeping. Keeps the keys qc_v4_ribs.py reads."""
     st = ndimage.generate_binary_structure(3, 3)
-    present = {int(x) for x in np.unique(v4)}
+    sp = np.sqrt((np.asarray(affine)[:3, :3] ** 2).sum(0))     # voxel spacing (mm)
+    # ONE find_objects pass: bbox per label value. Presence + per-rib crops both derive from it
+    # (no separate np.unique pass, no ~24 full-volume argwhere scans); a subsampled min-distance
+    # replaces a full EDT for the dup gap.
+    objs = ndimage.find_objects(v4)
+    present = {i + 1 for i, sl in enumerate(objs) if sl is not None}
 
     def _nums(off):
         return sorted(i - off for i in range(off + 1, off + 13) if i in present)
@@ -220,26 +225,27 @@ def _rib_qc_from_v4(v4: np.ndarray, affine, union_vox: int, stats: dict) -> dict
     def _gaps(ns):
         return [n for n in range(min(ns), max(ns) + 1) if n not in ns] if ns else []
 
-    sp = np.sqrt((np.asarray(affine)[:3, :3] ** 2).sum(0))     # voxel spacing (mm)
     left = _nums(LS.RIB_LEFT_OFFSET); right = _nums(LS.RIB_RIGHT_OFFSET)
     dup_break = []          # one rib in 2 NEARBY pieces -> advisory (often CT-bridgeable)
     dup_mislabel = []       # 2 pieces FAR apart         -> mandatory review (TS mislabel)
     for off in (LS.RIB_LEFT_OFFSET, LS.RIB_RIGHT_OFFSET):
         for n in range(1, 13):
             rid = off + n
-            idx = np.argwhere(v4 == rid)
-            if idx.size == 0:
+            sl = objs[rid - 1] if 0 <= rid - 1 < len(objs) else None
+            if sl is None:
                 continue
-            lo = idx.min(0); hi = idx.max(0) + 1
-            cc, k = ndimage.label(v4[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]] == rid, structure=st)
+            cc, k = ndimage.label(v4[sl] == rid, structure=st)
             sizes = np.bincount(cc.ravel())[1:]
             big = [j for j in range(len(sizes)) if sizes[j] >= 50]
             if len(big) < 2:
                 continue
             order = sorted(big, key=lambda j: sizes[j], reverse=True)
-            a = cc == order[0] + 1
-            b = cc == order[1] + 1
-            gap = float(ndimage.distance_transform_edt(~a, sampling=sp)[b].min())
+            ca = np.argwhere(cc == order[0] + 1)
+            cb = np.argwhere(cc == order[1] + 1)
+            ca = ca[:: max(1, len(ca) // 300)]
+            cb = cb[:: max(1, len(cb) // 300)]
+            dd = (ca[:, None, :] - cb[None, :, :]) * sp
+            gap = float(np.sqrt((dd ** 2).sum(-1)).min())
             (dup_mislabel if gap >= GAP_MM_MISLABEL else dup_break).append(rid)
     dups = sorted(dup_break + dup_mislabel)
     thor = sorted(7 + n for n in range(1, 13) if (7 + n) in present)
