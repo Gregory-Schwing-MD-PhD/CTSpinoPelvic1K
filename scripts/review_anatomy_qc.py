@@ -168,25 +168,37 @@ def rib_numbering(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     (they usually aren't in a lumbosacral FOV, so contact can't be the gate here)."""
     st = ndimage.generate_binary_structure(3, 3)
     spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
+    # ONE pass over the volume for every label's bounding box, then work on tiny per-rib crops.
+    # (The old per-id `lab == rid` / `argwhere` scanned the full 512^3 ~24x -> seconds/minutes;
+    # find_objects is a single scan -> ~10-50x faster, and the per-rib crops are negligible.)
+    objs = ndimage.find_objects(lab if lab.dtype.kind in "iu" else lab.astype(np.int32))
+
+    def _bbox(rid):
+        return objs[rid - 1] if 0 <= rid - 1 < len(objs) else None
+
     ok, msgs, any_rib = True, [], False
     for side in ("left", "right"):
-        present = [n for n in range(1, 13) if (lab == _rib_id(side, n)).any()]
+        present = [n for n in range(1, 13) if _bbox(_rib_id(side, n)) is not None]
         if not present:
             continue
         any_rib = True
         for n in present:                                   # one number split into pieces?
             rid = _rib_id(side, n)
-            idx = np.argwhere(lab == rid)
-            lo = idx.min(0); hi = idx.max(0) + 1
-            cc, k = ndimage.label(lab[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]] == rid, structure=st)
+            cc, k = ndimage.label(lab[_bbox(rid)] == rid, structure=st)
             sizes = np.bincount(cc.ravel())[1:]
             big = [j for j in range(len(sizes)) if sizes[j] >= MIX_MIN_VOX]
             if len(big) < 2:
                 continue
             order = sorted(big, key=lambda j: sizes[j], reverse=True)
-            a = cc == order[0] + 1
-            b = cc == order[1] + 1
-            gap = float(ndimage.distance_transform_edt(~a, sampling=spacing)[b].min())
+            # cheap min-distance (mm) between the two largest pieces: subsample each to <=300
+            # voxels and take the min pairwise gap. Avoids a full EDT on far-apart dup crops
+            # (which dominated the runtime); we only need it for the mislabel-vs-break hint.
+            ca = np.argwhere(cc == order[0] + 1)
+            cb = np.argwhere(cc == order[1] + 1)
+            ca = ca[:: max(1, len(ca) // 300)]
+            cb = cb[:: max(1, len(cb) // 300)]
+            dd = (ca[:, None, :] - cb[None, :, :]) * spacing
+            gap = float(np.sqrt((dd ** 2).sum(-1)).min())
             ok = False                                      # any split rib needs a human decision
             if gap >= GAP_MM_MISLABEL:                      # far apart -> almost certainly 2 ribs
                 msgs.append(f"X {side} rib {n}: two pieces {gap:.0f} mm apart -> two structures "
