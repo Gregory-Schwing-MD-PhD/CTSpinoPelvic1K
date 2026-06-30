@@ -93,23 +93,22 @@ nnInteractive turns into a 3D segmentation.
 - **"Error creating session on DLS server: Internal Server Error"** (Colab log shows a 404 /
   `RepositoryNotFoundError` for `…/api/models/nnInteractive`, or a `JSONDecodeError` from
   `model_info`): the pinned `itksnap-dls` requests the model under the **bare id `nnInteractive`**,
-  which Hugging Face no longer serves (namespace-less model ids were removed) → 404, which the
-  server's HTTP client surfaces as the empty-body JSONDecodeError. **Fix:** point it at the
-  **namespaced** id, but run the server as a **subprocess** via a tiny wrapper — running it
-  in-process breaks ngrok on Colab (`'_asyncio.Task' object has no attribute 'url'`, because Colab
-  already has a running event loop). Write `run_dls.py`:
+  which Hugging Face no longer serves (namespace-less model ids were removed) → 404, surfaced by
+  the server's HTTP client as the empty-body JSONDecodeError. **Fix — patch the installed package
+  file, then run the normal server line** (don't use `runpy` in a cell — in-process breaks ngrok on
+  Colab with `'_asyncio.Task' object has no attribute 'url'`). After the install + restart, run:
   ```python
-  %%writefile run_dls.py
-  import sys, runpy
-  import itksnap_dls.segment as seg
-  seg.nnInteractiveWrapper.ID = "nnInteractive/nnInteractive"   # was bare "nnInteractive" (404)
-  sys.argv = ["itksnap_dls", "--ngrok"]
-  runpy.run_module("itksnap_dls", run_name="__main__")
+  import itksnap_dls, pathlib                       # patch the bad model id on disk (run once)
+  p = pathlib.Path(itksnap_dls.__file__).parent / "segment.py"
+  s = p.read_text(); p.write_text(s.replace('"nnInteractive"', '"nnInteractive/nnInteractive"'))
+  print("patched:", '"nnInteractive/nnInteractive"' in p.read_text())   # must be True
   ```
-  then run it: `!NGROK_AUTHTOKEN="yourToken" python run_dls.py`. The subprocess has no pre-existing
-  loop (ngrok works) and applies the id patch before the server starts. This is **not** a
-  wifi/ngrok/token problem — the model is public; connecting fine but failing on *use* is the
-  stale-repo-id bug.
+  then the ordinary server cell: `!NGROK_AUTHTOKEN="yourToken" python -m itksnap_dls --ngrok`.
+  The model is **public** — no HF token needed; this is the stale-repo-id bug, not wifi/ngrok/auth.
+- **`ERR_NGROK_334` / "endpoint … is already online"**: a *previous* server still holds the tunnel
+  (free ngrok = one endpoint per token, on a static domain). It's your own stale process, not
+  someone else. **Runtime → Disconnect and delete runtime** (and close other Colab tabs of this
+  notebook), reconnect, and re-run — or kill it: `!pkill -9 -f itksnap_dls; pkill -9 -f ngrok`.
 - **You don't actually need the AI to connect two rib pieces:** set the rib's label active, pick
   the brush, and paint one stroke across the gap to join them. That's the fix — start now even if
   the AI server is being sorted out.
