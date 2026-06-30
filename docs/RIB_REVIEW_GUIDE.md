@@ -100,7 +100,9 @@ You sign in with your **own** HuggingFace login — there is no separate reviewe
 
 **Set up AI-assisted segmentation — you'll use it to make every fix (don't hand-trace).** It's
 ITK-SNAP's nnInteractive / Deep-Learning-Service backend; one-time setup (free Colab-GPU option)
-is in **[REVIEWERS_AI_EDITING.md](../REVIEWERS_AI_EDITING.md)**.
+is in **[REVIEWERS_AI_EDITING.md](../REVIEWERS_AI_EDITING.md)**. The GPU server runs from this
+Colab notebook (open it, follow REVIEWERS_AI_EDITING.md):
+**<https://colab.research.google.com/drive/14IHpQJtIxjnK2qdUcyxPmZjUXdH9F55n?usp=sharing>**
 
 ---
 
