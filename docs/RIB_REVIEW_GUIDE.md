@@ -50,14 +50,23 @@ Whole-cage view of the same case (the flagged rib ringed) for context:
 
 ---
 
-## 3. Setup (once)
+## 3. Setup
+
+**Get — or UPDATE — the code first. Do `git pull` every session: an old copy will
+have the wrong QC and your work may not gate correctly.**
 
 ```bash
+# first time only:
+git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git
+cd CTSpinoPelvic1K
+# EVERY session (you may have old code):
+git pull
 pip install requests huggingface_hub numpy nibabel scipy   # scipy is REQUIRED
 hf auth login                                              # your own HF login
-# ITK-SNAP on PATH, with the AI-assisted (nnInteractive / DLS) backend configured
+# ITK-SNAP installed, with the AI-assisted (nnInteractive / DLS) backend configured
 ```
 
+Run the tool as `python -m reviewtool …` from inside the `CTSpinoPelvic1K` folder.
 `scipy` is mandatory: the rib QC needs it, and a case that **can't** be QC-checked
 is treated as failing (**fails closed**) — it will not upload.
 

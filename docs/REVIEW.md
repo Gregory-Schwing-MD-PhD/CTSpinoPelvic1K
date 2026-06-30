@@ -44,12 +44,14 @@ token — uploads of your corrections go through the project's server.
   (install the desktop app for your OS).
 - **reviewtool** — open a terminal and run:
   ```bash
-  git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git
+  git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git   # first time
   cd CTSpinoPelvic1K
-  pip install requests huggingface_hub numpy nibabel
+  git pull                          # if you already cloned it: UPDATE to the latest code first
+  pip install requests huggingface_hub numpy nibabel scipy
   ```
   You'll run the tool as `python -m reviewtool …` from inside that
-  `CTSpinoPelvic1K` folder.
+  `CTSpinoPelvic1K` folder. **Run `git pull` at the start of every session** —
+  an out-of-date copy can have the wrong QC and your edits may not gate correctly.
 
 > **ITK-SNAP path:** `reviewtool` auto-detects ITK-SNAP in the standard
 > location — `/Applications/ITK-SNAP.app/Contents/bin/itksnap` on macOS,
