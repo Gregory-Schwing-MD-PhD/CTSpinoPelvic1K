@@ -85,7 +85,7 @@ point the tool at the rib review service:
 git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git
 cd CTSpinoPelvic1K
 git pull                                       # EVERY session — never run stale code
-pip install requests huggingface_hub numpy nibabel
+pip install requests huggingface_hub numpy nibabel scipy   # scipy: the live rib QC
 hf auth login                                  # your own free HuggingFace login
 python -m reviewtool login \
   --service https://anonymous-mlhc-ctspinopelvic1k-review-ribs.hf.space
@@ -121,12 +121,13 @@ You sign in with your **own** HuggingFace login — there is no separate reviewe
      rib number** (count from the neighbours).
    - **Delete** (not a rib): set the stray piece to background (0).
 
-5. **Save** (Ctrl-S, over the `seg.nii.gz` it opened), then **quit** ITK-SNAP — your
-   edit is submitted automatically.
+5. **Save** (Ctrl-S, over the `seg.nii.gz` it opened). The rib QC re-runs and prints
+   **exactly what's still wrong** (or `OK ribs`). Keep fixing and saving until it's clean.
 
-6. **The server checks your edit** (see §5). If a rib still has a duplicate, the
-   submit is **rejected** and the case comes back — re-open it with
-   `python -m reviewtool next` (or `python -m reviewtool edit <case_id>`) and finish.
+6. **Quit** ITK-SNAP. If the ribs **PASS**, your edit is submitted. If a rib still
+   fails, the tool **holds** the case (does not submit) and tells you to re-open and
+   finish: `python -m reviewtool edit <case_id>`. (The server re-checks on submit as a
+   backstop — see §5.)
 
 Repeat `python -m reviewtool next` for as many as you like. Each case is shown to
 **two** reviewers independently; disagreements go to a senior adjudicator. Check your
@@ -136,16 +137,16 @@ progress any time with `python -m reviewtool status`.
 
 ## 5. The QC gate — a bad rib can't be committed
 
-Enforced on the **server**, not by trust:
+Checked in **two places**, so nothing un-QC'd is ever committed:
 
-- When you submit, the service runs the rib QC on your label and **accepts it only if
-  it PASSES** — no rib number left in two pieces. A submit that still has a
-  duplicate/split rib is **REJECTED**, and the case is re-served so you can finish.
-- It **fails closed**: if the QC can't run for any reason, the submit is rejected.
-- So nothing that fails QC can ever land in the dataset — independent of your client.
+- **In the tool (live):** every Save re-runs the rib QC and prints what's still wrong; if you
+  quit while a rib still has a duplicate, the tool **holds** the case and does **not** submit it.
+- **On the server (backstop):** the service re-runs the rib QC on submit and **rejects** any
+  case that still has a duplicate/split rib. It **fails closed** — if the QC can't run, the
+  submit is rejected.
 
-To avoid a wasted round-trip, make each rib **one clean piece per number before you
-quit** (weld or relabel as in §4).
+So a bad rib can't be submitted from the tool, and even if it were, the server would refuse it.
+Just make each rib **one clean piece per number** and quit when it prints `OK ribs`.
 
 ---
 

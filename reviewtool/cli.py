@@ -440,47 +440,61 @@ def _watch_itksnap(itksnap, ct, seg, labels, *, qc_ct, before, live_qc=False) ->
 
 
 def _watch_anatomy(itksnap, ct, seg, labels, *, check="spine"):
-    """Open ITK-SNAP non-blocking; on every Save run the VerSe-native anatomy QC
-    (scripts/review_anatomy_qc.py) and print PASS / exactly what to fix. Used by
-    `review-cases` so students get an immediate, guiding gate on each save.
+    """Open ITK-SNAP non-blocking; run the anatomy QC in a BACKGROUND thread on each Save
+    (the editor never waits on it) and print PASS / exactly what to fix when it finishes.
+    Used by `review-cases` and `next` so students get a guiding, non-blocking gate.
 
     Returns ``(itksnap_rc, passed)`` where ``passed`` is True / False / None
     (None = the QC could not run, e.g. scipy/nibabel missing). The caller GATES
     a case as 'resolved' (saved + uploaded) on ``passed is True`` — a still-failing
     or un-checkable edit is never accepted."""
-    state = {"passed": None}                            # last QC verdict: True/False/None
+    import os as _os
+    import sys as _sys
+    import threading
+    for _p in (_os.path.join(_os.path.dirname(__file__), "..", "scripts"), "scripts"):
+        if _os.path.isdir(_p) and _p not in _sys.path:
+            _sys.path.insert(0, _p)
+    state = {"passed": None, "running": False}          # verdict + a single-flight guard
+    lock = threading.Lock()
 
     def _qc(header=None):
         try:
             import numpy as np
             import nibabel as nib
-            import review_anatomy_qc as RA              # scripts/ already on sys.path
+            import review_anatomy_qc as RA
             img = nib.load(str(seg))
             if header:
-                print(header)
+                print(header, flush=True)
             state["passed"] = bool(RA.report(check, np.asanyarray(img.dataobj), img.affine))
         except Exception as exc:                        # noqa: BLE001
             print(f"  (anatomy QC could not run: {str(exc)[:120]})")
             state["passed"] = None                      # cannot verify -> caller fails closed
+        finally:
+            with lock:
+                state["running"] = False
 
-    # Tell the student up front EXACTLY what is wrong with this case and what to do —
-    # not only after their first Save.
-    _qc(header="\n--- current QC for this case (fix the 'X' items, then Save) ---")
+    def _qc_bg(header=None):
+        with lock:                                      # one QC at a time; the poll re-triggers
+            if state["running"]:
+                return False
+            state["running"] = True
+        threading.Thread(target=_qc, args=(header,), daemon=True).start()
+        return True
+
     if check in ("ribs", "both"):
-        print("  How to fix a flagged rib (a number that is in two pieces): in ITK-SNAP go to\n"
-              "  that rib number, look at both pieces on the CT, then —\n"
+        print("  How to fix a flagged rib (a number in two pieces): go to that rib number,\n"
               "    * ONE broken rib      -> WELD: paint across the gap with that rib's label\n"
               "    * TWO different ribs  -> RELABEL the wrong piece to its correct number\n"
-              "    * a piece that is NOT a rib (TP / bowel) -> DELETE it (set to 0)\n"
-              "  Use nnInteractive, don't hand-trace. Full guide: docs/RIB_REVIEW_GUIDE.md\n")
-
-    print(f"Opening ITK-SNAP ({itksnap}) — edit, then **Save Segmentation (Ctrl-S)** to re-run the\n"
-          f"  {check} check(s). Fix what it flags and Save again; quit once it PASSES to submit.\n")
+              "    * NOT a rib (TP / bowel) -> DELETE it (set to 0)\n"
+              "  Use nnInteractive, don't hand-trace. Full guide: docs/RIB_REVIEW_GUIDE.md")
+    print(f"Opening ITK-SNAP ({itksnap}) — edit, **Save (Ctrl-S)** to re-check (runs in the\n"
+          f"  background — keep working), quit once it prints OK.\n")
     proc = _launch_itksnap_bg(itksnap, ct, seg, labels)
     if proc is None:
         print(f"'{itksnap}' not found — install ITK-SNAP, add it to PATH, set "
               f"REVIEWTOOL_ITKSNAP, or pass --itksnap /path/to/itksnap")
         return -1, None
+    _qc_bg(header="\n--- current QC for this case (running in the background) ---")  # don't delay launch
     try:
         last = Path(seg).stat().st_mtime if Path(seg).exists() else 0.0
     except OSError:
@@ -493,9 +507,17 @@ def _watch_anatomy(itksnap, ct, seg, labels, *, check="spine"):
         except OSError:
             continue
         if m > last + 1e-6:                             # a Save happened
-            last = m
-            _qc(header="  [saved] re-running anatomy QC ...")
-    _qc()                                               # authoritative final check on the saved file
+            # kick the QC in the background; if one is still running, leave `last` so the next
+            # poll re-checks this Save once it frees up (no missed feedback, no blocking).
+            if _qc_bg(header="  [saved] re-running QC in the background ..."):
+                last = m
+    # ITK-SNAP quit: let any in-flight QC finish (~10s cap), then a final authoritative check.
+    for _ in range(40):
+        with lock:
+            if not state["running"]:
+                break
+        time.sleep(0.25)
+    _qc()                                               # authoritative final verdict on the saved file
     rc = proc.returncode if proc.returncode is not None else 0
     return rc, state["passed"]
 
@@ -814,7 +836,13 @@ def cmd_next(a):
     # detached/closed before the reviewer saved (the macOS bin/ wrapper bug) and
     # we must NOT submit a phantom voxels_changed=0 'accept'.
     pre_mtime = snap_seg.stat().st_mtime if snap_seg.exists() else 0.0
-    if getattr(a, "no_watch", False):                   # watch is the default
+    rib_passed = None
+    if region == "ribs" and not getattr(a, "no_watch", False):
+        # Live rib QC on every Save (same engine as review-cases): show exactly what's still
+        # wrong + how to fix it, and gate the submit client-side so students don't quit into a
+        # server rejection. The server CHECK=ribs gate is still the hard backstop on /submit.
+        rc, rib_passed = _watch_anatomy(snap, snap_ct, snap_seg, labels, check="ribs")
+    elif getattr(a, "no_watch", False):                 # watch is the default
         rc = _launch_itksnap(snap, snap_ct, snap_seg, labels)
     else:
         rc = _watch_itksnap(snap, snap_ct, snap_seg, labels,
@@ -851,6 +879,12 @@ def cmd_next(a):
     if getattr(a, "live_qc", False) and getattr(a, "no_watch", False):
         _qc_feedback(snap_ct, before_qc, snap_seg)
 
+    if region == "ribs" and rib_passed is not True:
+        print("\n[HELD] the ribs still fail QC (a rib number is in two pieces) — NOT "
+              "submitting (the server would reject it too).\n"
+              "  Re-open and finish the fix, then quit once it PASSES:\n"
+              f"      python -m reviewtool edit {job['case_id']}")
+        return
     decision, record = build_submission(
         _load(pseudo), _load(seg), job["region_to_review"], _sha256(pseudo))
     print(f"decision={decision}  voxels_changed={record['diff']['n_voxels_changed']}")
@@ -1130,9 +1164,14 @@ def cmd_edit(a):
     ref_proc = (_open_space_reference(job, snap, work)
                 if getattr(a, "reference", False) else None)
     pre_mtime = snap_seg.stat().st_mtime if snap_seg.exists() else 0.0
-    rc = _watch_itksnap(snap, snap_ct, snap_seg, labels,
-                        qc_ct=snap_ct, before=before_qc,
-                        live_qc=getattr(a, "live_qc", False))
+    region = job.get("region_to_review")
+    rib_passed = None
+    if region == "ribs":                          # live rib QC + client gate (same as `next`)
+        rc, rib_passed = _watch_anatomy(snap, snap_ct, snap_seg, labels, check="ribs")
+    else:
+        rc = _watch_itksnap(snap, snap_ct, snap_seg, labels,
+                            qc_ct=snap_ct, before=before_qc,
+                            live_qc=getattr(a, "live_qc", False))
     if ref_proc is not None:
         ref_proc.terminate()
     if rc != 0:
@@ -1156,6 +1195,11 @@ def cmd_edit(a):
     if kind == "adjudicate":
         _submit_adjudication(s, base, job, work, seg, st.get("notes", ""))
     else:
+        if region == "ribs" and rib_passed is not True:
+            print("\n[HELD] the ribs still fail QC (a rib number is in two pieces) — NOT "
+                  "submitting (the server would reject it). Re-open and finish:\n"
+                  f"      python -m reviewtool edit {work.name}")
+            return
         _, record = build_submission(
             _load(pseudo), _load(seg), job["region_to_review"], _sha256(pseudo))
         print(f"decision={record['decision']}  "
