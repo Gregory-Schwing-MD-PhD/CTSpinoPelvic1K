@@ -66,6 +66,13 @@ class LocalBackend:
             else:
                 self.write_bytes(path, data)
 
+    def delete_many(self, paths, commit_message: str = "") -> None:
+        for path in paths:
+            try:
+                self._p(path).unlink()
+            except OSError:
+                pass
+
     def list(self, prefix: str) -> List[str]:
         base = self._p(prefix)
         if not base.exists():
@@ -146,6 +153,16 @@ class HFBackend:
             repo_id=self.repo_id, repo_type=self.repo_type, token=self.token,
             operations=ops, commit_message=commit_message)
 
+    def delete_many(self, paths, commit_message: str = "review: batch delete") -> None:
+        """Delete many files in ONE commit (paths must exist; callers pass existing case files)."""
+        from huggingface_hub import CommitOperationDelete
+        ops = [CommitOperationDelete(path_in_repo=p) for p in paths]
+        if not ops:
+            return
+        self.api.create_commit(
+            repo_id=self.repo_id, repo_type=self.repo_type, token=self.token,
+            operations=ops, commit_message=commit_message)
+
     def list(self, prefix: str) -> List[str]:
         try:
             return sorted(
@@ -193,6 +210,26 @@ class ReviewStore:
                 if t:
                     out.append(json.loads(t))
         return out
+
+    def prune_unassigned_not_in(self, keep_tokens, keep_region=None) -> int:
+        """Self-heal: delete UNASSIGNED cases that are not current — token not in `keep_tokens`,
+        or (if `keep_region` given) a different region_to_review. NEVER touches a case with a
+        claim/review (status != 'unassigned'), so in-progress / finished work is preserved.
+        Lets a stale ledger fix itself on boot instead of needing a manual wipe."""
+        keep = {str(t) for t in (keep_tokens or set())}
+        stale = []
+        for c in self.list_cases():
+            current = str(c.get("token")) in keep
+            if keep_region is not None:
+                current = current and c.get("region_to_review") == keep_region
+            if current:
+                continue
+            if schema.derive_status(c) != "unassigned":
+                continue                       # in-progress / done -> keep, never destroy work
+            stale.append(self.case_path(c["case_id"]))
+        if stale:
+            self.b.delete_many(stale, commit_message=f"self-heal: prune {len(stale)} stale case(s)")
+        return len(stale)
 
     # reviews + labels -------------------------------------------------------
     def put_review(self, record: dict) -> str:

@@ -138,6 +138,12 @@ def _startup():
             n = store_mod.init_rib_fix_cases(
                 SERVICE.store, recs, worklist_tokens=tokens,
                 source_revision=SERVICE.source_revision)
+            # self-heal: drop any UNASSIGNED case left over from a prior task/seed (e.g. an old
+            # full-manifest seed) that isn't a current rib worklist case — never touches claimed
+            # or reviewed cases. A stale ledger now fixes itself on boot (no manual wipe).
+            pruned = SERVICE.store.prune_unassigned_not_in(tokens, keep_region="ribs")
+            if pruned:
+                print(f"[startup] rib_fix: pruned {pruned} stale unassigned case(s) not in the worklist")
             tag = f"rib_fix case(s) from {SERVICE.v2_repo}@{SERVICE.source_revision}"
         elif TASK in schema.OVERLAY_TASKS:
             # v4 overlay pass (rib_anchor | ribs | ls_nerve | iliolumbar): serve
