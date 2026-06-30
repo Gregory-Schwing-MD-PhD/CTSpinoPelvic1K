@@ -78,12 +78,13 @@ This will:
 2. **Open ITK-SNAP** with the scan and the draft, using a fixed colour
    palette.
 3. Wait while you work. **In ITK-SNAP:**
-   - The terminal tells you **which region to review** — `spine` (labels
-     L1–L6) **or** `pelvis` (sacrum + both hips). **Only edit that region.**
-     The other region is an expert manual annotation — **do not touch it.**
-   - Use the brush/polygon tools to fix the draft. **Do not renumber or
-     recolour labels** (the palette is locked: L1–L6 = 1–6, sacrum = 7,
-     left hip = 8, right hip = 9).
+   - The terminal tells you **which region to review** — e.g. `ribs`, `spine`,
+     or `pelvis`. **Edit only that region**; everything else is out of scope for
+     your task. (For the rib task: fix the ribs only and **ignore any spine /
+     vertebra problems** — those are a separate review.)
+   - Use the brush/polygon tools (or nnInteractive) to fix the draft. **Do not
+     renumber or recolour labels** — the palette is locked, and each label's name
+     shows in the Active-label list and under your cursor (e.g. `rib_left_8`, `L3`).
    - **Segmentation → Save Segmentation Image**, saving over the file it
      opened (`seg.nii.gz`), then **quit ITK-SNAP**.
 4. On quit, the tool measures your edits and **uploads** the result. If you
