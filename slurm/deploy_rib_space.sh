@@ -19,7 +19,11 @@
 #   # optional: ORG=anonymous-mlhc ADJUDICATORS=gregoryschwingmdphd V4_DIR=/path SIF_PATH=/path.sif
 # =============================================================================
 set -euo pipefail
-PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "${PROJECT_ROOT}"
+# sbatch copies the script to a spool dir, so $0 is NOT the repo — use SLURM_SUBMIT_DIR (the dir
+# you ran sbatch from). Run this from the repo root: cd ~/CTSpinoPelvic1K && sbatch slurm/...
+PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"; cd "${PROJECT_ROOT}"
+[[ -f configs/default.env ]] || { echo "ERROR: configs/default.env not found in ${PROJECT_ROOT} — "\
+  "run from the repo root: cd ~/CTSpinoPelvic1K && sbatch slurm/deploy_rib_space.sh"; exit 1; }
 source configs/default.env
 
 : "${HF_TOKEN:?HF_TOKEN=hf_xxx sbatch slurm/deploy_rib_space.sh}"
