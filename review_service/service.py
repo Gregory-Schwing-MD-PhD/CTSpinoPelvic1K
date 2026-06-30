@@ -41,6 +41,15 @@ class ReviewError(Exception):
     pass
 
 
+def _descriptor_for_case(case) -> str:
+    """ITK-SNAP palette matching the served labels: VerSe-native for v3/v4 (spine 1-28, ribs
+    34-57) vs the v2 LSTV scheme (1-9). Keeps label names correct in the editor."""
+    rev = str((case or {}).get("source_revision", "v2")).lstrip("vV")
+    if (rev.isdigit() and int(rev) >= 3) or (case or {}).get("region_to_review") == "ribs":
+        return labels_descriptor.verse_native_descriptor_text()
+    return labels_descriptor.descriptor_text()
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -204,7 +213,7 @@ class ReviewService:
             "pseudo_label_url": self._blob_url(case["pseudo_label_file"]),
             "source_label_sha256": case.get("source_label_sha256", ""),
             "prov_before": case["prov_before"],
-            "labels_descriptor": labels_descriptor.descriptor_text(),
+            "labels_descriptor": _descriptor_for_case(case),
             # Triage-crop review: small ct/seg crop + voxel origin so the client
             # downloads a few MB and pastes its edit back into the full label.
             "crop": case.get("crop"),
@@ -354,7 +363,7 @@ class ReviewService:
                 "pseudo_label_url": self._blob_url(case["pseudo_label_file"]),
                 "irr": case.get("irr"),
                 "reviews": reviews,
-                "labels_descriptor": labels_descriptor.descriptor_text(),
+                "labels_descriptor": _descriptor_for_case(case),
             }
         return None
 

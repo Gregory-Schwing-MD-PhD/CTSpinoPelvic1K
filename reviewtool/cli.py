@@ -761,6 +761,17 @@ def _show_startup(job: dict, crop: dict, work, qc_ct, before, run_qc: bool):
     print("  (edit, Save (Ctrl-S), and watch these clear to OK above.)")
 
 
+def _descriptor_for_job(job) -> str:
+    """ITK-SNAP palette that MATCHES the served labels so names show correctly: VerSe-native
+    for v3/v4 (spine 1-28, S1 29, hips/femurs 30-33, ribs 34-57) vs the v2 LSTV scheme (1-9).
+    Without this a v4 label shows e.g. value 22 as 'Label 22' with no name."""
+    j = job or {}
+    rev = str(j.get("source_revision", "v2")).lstrip("vV")
+    verse = (rev.isdigit() and int(rev) >= 3) or j.get("region_to_review") == "ribs"
+    return (labels_descriptor.verse_native_descriptor_text() if verse
+            else labels_descriptor.descriptor_text())
+
+
 def cmd_next(a):
     s, base = _api()
     job = _claim(s, base)
@@ -776,9 +787,9 @@ def cmd_next(a):
     pseudo = _fetch(job, job["label_file"], work / "pseudo.nii.gz")
     seg = work / "seg.nii.gz"
     labels = work / "labels.txt"
-    # always the LOCAL canonical palette (jet) — same idx↔structure as the
-    # server, so this just guarantees the current colours without a Space redeploy.
-    labels.write_text(labels_descriptor.descriptor_text())
+    # palette must MATCH the served labels (VerSe-native for v3/v4, v2 LSTV otherwise),
+    # else ITK-SNAP shows e.g. value 22 as "Label 22" with no name.
+    labels.write_text(_descriptor_for_job(job))
     snap = a.itksnap or _default_itksnap()
     ctx_proc = None
     if crop:
@@ -1133,8 +1144,8 @@ def cmd_edit(a):
     job, work = st["job"], Path(st["workdir"])
     kind = st.get("kind", "review")
     labels = work / "labels.txt"
-    # rewrite every launch so palette updates (jet) take effect on resume too
-    labels.write_text(labels_descriptor.descriptor_text())
+    # rewrite every launch so the palette matches the served labels (VerSe-native for v3/v4)
+    labels.write_text(_descriptor_for_job(job))
     pseudo = work / "pseudo.nii.gz"
     seg = work / "seg.nii.gz"                     # full-res output (built on save)
     crop = job.get("crop")
