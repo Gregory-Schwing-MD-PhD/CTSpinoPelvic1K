@@ -90,21 +90,29 @@ nnInteractive turns into a 3D segmentation.
 
 ## Troubleshooting
 
-- **"Error creating session on DLS server: Internal Server Error"** (Colab log shows a 404 /
-  `RepositoryNotFoundError` for `…/api/models/nnInteractive`, or a `JSONDecodeError` from
-  `model_info`): the pinned `itksnap-dls` requests the model under the **bare id `nnInteractive`**,
-  which Hugging Face no longer serves (namespace-less model ids were removed) → 404, surfaced by
-  the server's HTTP client as the empty-body JSONDecodeError. **Fix — patch the installed package
-  file, then run the normal server line** (don't use `runpy` in a cell — in-process breaks ngrok on
-  Colab with `'_asyncio.Task' object has no attribute 'url'`). After the install + restart, run:
+- **"Error creating session on DLS server: Internal Server Error"** (Colab log shows a
+  `JSONDecodeError: Expecting value: line 1 column 1 (char 0)` from `huggingface_hub` / `httpx`,
+  often after `Configuring Huggingface HTTP client`): itksnap-dls registers **its own httpx client**
+  as huggingface_hub's backend, but builds it **without `follow_redirects`**. HF's `/api/models/...`
+  endpoint replies with a redirect; httpx (unlike `requests`) does **not** follow redirects by
+  default, so the body comes back empty → `r.json()` crashes. (A secondary issue: older builds also
+  request the model under the **bare id `nnInteractive`**, which HF now redirects/404s.) **Fix —
+  patch the installed `segment.py` on disk for BOTH, then run the normal server line** (don't use
+  `runpy` in a cell — in-process breaks ngrok on Colab with `'_asyncio.Task' object has no
+  attribute 'url'`). After the install + restart, run:
   ```python
-  import itksnap_dls, pathlib                       # patch the bad model id on disk (run once)
+  import itksnap_dls, pathlib, re
   p = pathlib.Path(itksnap_dls.__file__).parent / "segment.py"
-  s = p.read_text(); p.write_text(s.replace('"nnInteractive"', '"nnInteractive/nnInteractive"'))
-  print("patched:", '"nnInteractive/nnInteractive"' in p.read_text())   # must be True
+  s = p.read_text()
+  s = re.sub(r"httpx\.Client\((?!follow_redirects)", "httpx.Client(follow_redirects=True, ", s)  # the real fix
+  s = re.sub(r"(['\"])nnInteractive\1", r"\1nnInteractive/nnInteractive\1", s)                    # namespaced id
+  p.write_text(s)
+  print("ok:", "follow_redirects=True" in p.read_text() and "nnInteractive/nnInteractive" in p.read_text())
   ```
   then the ordinary server cell: `!NGROK_AUTHTOKEN="yourToken" python -m itksnap_dls --ngrok`.
-  The model is **public** — no HF token needed; this is the stale-repo-id bug, not wifi/ngrok/auth.
+  The model is **public** — no HF token needed; this is the httpx-redirect bug, not wifi/ngrok/auth.
+  (`ok:` must print `True`. A fresh runtime re-installs the package un-patched, so re-run this cell
+  after every new runtime, *before* the server cell.)
 - **`ERR_NGROK_334` / "endpoint … is already online"**: a *previous* server still holds the tunnel
   (free ngrok = one endpoint per token, on a static domain). It's your own stale process, not
   someone else. **Runtime → Disconnect and delete runtime** (and close other Colab tabs of this
