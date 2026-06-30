@@ -6,9 +6,9 @@ automatic pipeline left a rib **number split across two pieces**. The rib
 are only resolving **duplicates**: one rib number that shows up as two separate
 blobs. Most cases take under a minute with nnInteractive.
 
-> **The QC lock:** you **cannot** finish or upload a case until its ribs pass QC.
-> Every time you Save, the tool re-checks the ribs; if any rib number is still in
-> two pieces the case is **LOCKED** — not saved as resolved, not uploaded. See §5.
+> **The QC gate:** your edit is accepted only if its ribs pass QC. When you submit, the
+> service checks the ribs **server-side** and **rejects** any case that still has a rib
+> number in two pieces — so nothing un-QC'd can land in the dataset. See §5.
 
 ---
 
@@ -75,46 +75,42 @@ instead the two pieces were the **same arc, end-to-end**, you would **weld** the
 
 ---
 
-## 3. Setup
+## 3. Setup (once — then `git pull` each session)
 
-**Get — or UPDATE — the code first. Do `git pull` every session: an old copy will
-have the wrong QC and your work may not gate correctly.**
+Get the code, install the client, sign in with your own free HuggingFace account, and
+point the tool at the rib review service:
 
 ```bash
 # first time only:
 git clone https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K.git
 cd CTSpinoPelvic1K
-# EVERY session (you may have old code):
-git pull
-pip install requests huggingface_hub numpy nibabel scipy   # scipy is REQUIRED
-hf auth login                                              # your own HF login
+git pull                                       # EVERY session — never run stale code
+pip install requests huggingface_hub numpy nibabel
+hf auth login                                  # your own free HuggingFace login
+python -m reviewtool login \
+  --service https://anonymous-mlhc-ctspinopelvic1k-review-ribs.hf.space
 # ITK-SNAP installed, with the AI-assisted (nnInteractive / DLS) backend configured
 ```
 
-Run the tool as `python -m reviewtool …` from inside the `CTSpinoPelvic1K` folder.
-`scipy` is mandatory: the rib QC needs it, and a case that **can't** be QC-checked
-is treated as failing (**fails closed**) — it will not upload.
+Run everything as `python -m reviewtool …` from inside the `CTSpinoPelvic1K` folder.
+You sign in with your **own** HuggingFace login — there is no separate reviewer key.
 
 ---
 
 ## 4. Do a case, step by step
 
-1. **Launch the gated review** (the `--check ribs` flag is required — the default
-   is `spine`):
+1. **Claim the next case** — no batches, no tokens; the server hands you one:
    ```bash
-   reviewtool review-cases --check ribs --tokens <ids>        # add --push to upload as you go
+   python -m reviewtool next
    ```
-   (Tokens to review come from the rib worklist; `--push` needs write access.)
 
-2. The case opens in **ITK-SNAP** with the locked palette. **Read the QC line in
-   the terminal** — it names the rib, the gap, and the suggested fix, e.g.
-   `X left rib 8: two pieces 13 mm apart -> if ONE broken rib, weld the pieces; if
-   TWO different ribs, relabel the wrong one`.
+2. It downloads the case and **opens ITK-SNAP** with the CT + the v4 label (locked
+   palette). The terminal names the case and that you're reviewing the **ribs**.
 
-3. **Find the flagged rib** and look at **both** of its pieces on the CT (scroll
-   coronal and sagittal). Ask: *is this one rib in two pieces, or two ribs?*
+3. **Find the rib that's in two pieces** and look at both on the CT (scroll coronal
+   and sagittal). Ask: *one rib in two pieces, or two different ribs?*
    - Same arc, end-to-end, just interrupted → **one rib**.
-   - Two parallel arcs / one piece sitting at a different level → **two ribs**.
+   - Two parallel arcs / one piece at a different level → **two ribs**.
    - A piece that isn't a rib at all (transverse process, bowel, calcification) →
      **not a rib**.
 
@@ -125,40 +121,39 @@ is treated as failing (**fails closed**) — it will not upload.
      rib number** (count from the neighbours).
    - **Delete** (not a rib): set the stray piece to background (0).
 
-5. **Save** (Ctrl-S, over the `seg.nii.gz` it opened). The QC re-runs automatically.
+5. **Save** (Ctrl-S, over the `seg.nii.gz` it opened), then **quit** ITK-SNAP — your
+   edit is submitted automatically.
 
-6. **Result:**
-   - **PASS** → quit ITK-SNAP → the case is **resolved** (and **uploaded** if you
-     ran with `--push`).
-   - **FAIL** → it stays **LOCKED**; you'll be prompted to reopen and keep fixing.
+6. **The server checks your edit** (see §5). If a rib still has a duplicate, the
+   submit is **rejected** and the case comes back — re-open it with
+   `python -m reviewtool next` (or `python -m reviewtool edit <case_id>`) and finish.
+
+Repeat `python -m reviewtool next` for as many as you like. Each case is shown to
+**two** reviewers independently; disagreements go to a senior adjudicator. Check your
+progress any time with `python -m reviewtool status`.
 
 ---
 
-## 5. The lock — you cannot upload a bad scan
+## 5. The QC gate — a bad rib can't be committed
 
-This is enforced in code, not by trust:
+Enforced on the **server**, not by trust:
 
-- On every Save the rib QC runs on the **saved file**. A case is kept as
-  **resolved** (and eligible for upload) **only if it PASSES** — no duplicate rib
-  numbers remain.
-- If it still fails, the tool prints `[LOCKED] … NOT saved as resolved, NOT
-  uploaded` and offers to reopen. If you decline, the local corrected copy is
-  **deleted**, so the case is **neither uploaded nor counted** and simply
-  **re-opens on the next run**.
-- `--push` only uploads labels that **passed** (the failed ones no longer exist
-  locally).
-- If the QC can't run at all (e.g. `scipy` missing), the case is treated as
-  **failing** (fails closed) and locked.
+- When you submit, the service runs the rib QC on your label and **accepts it only if
+  it PASSES** — no rib number left in two pieces. A submit that still has a
+  duplicate/split rib is **REJECTED**, and the case is re-served so you can finish.
+- It **fails closed**: if the QC can't run for any reason, the submit is rejected.
+- So nothing that fails QC can ever land in the dataset — independent of your client.
 
-So a case that doesn't pass QC **physically cannot** be marked done or pushed. If
-you can't resolve one, just quit at the lock prompt — it returns next time.
+To avoid a wasted round-trip, make each rib **one clean piece per number before you
+quit** (weld or relabel as in §4).
 
 ---
 
 ## 6. One-paragraph summary
 
-Run `reviewtool review-cases --check ribs`. Each flagged case has one rib number
-in two pieces. Read the QC hint, look at the CT: if it's **one broken rib**, weld
-the pieces with nnInteractive; if it's **two different ribs**, relabel (or delete)
-the wrong piece. Save — the QC re-checks and only lets you finish/upload once the
-ribs are clean. You can't upload a failing case.
+`python -m reviewtool login --service https://anonymous-mlhc-ctspinopelvic1k-review-ribs.hf.space`,
+then `python -m reviewtool next`. Each case has one rib number in two pieces — look at the
+CT: one broken rib → **weld** with nnInteractive; two different ribs → **relabel** (or
+delete a non-rib). Save, quit, and your edit is submitted; the server accepts it only once
+the ribs are clean (a remaining duplicate is rejected and the case returns). Two reviewers
+see each case; disagreements are adjudicated.

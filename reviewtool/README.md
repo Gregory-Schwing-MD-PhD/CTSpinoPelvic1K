@@ -5,10 +5,10 @@
 > **[docs/REVIEW.md](../docs/REVIEW.md)**. This file is the terse reference.
 >
 > **v4 rib-correction task (med students):** see
-> **[docs/RIB_REVIEW_GUIDE.md](../docs/RIB_REVIEW_GUIDE.md)** — run
-> `reviewtool review-cases --check ribs`; on every Save the rib QC prints what to
-> fix, and a case **cannot be saved-as-resolved or uploaded until it passes**
-> (the gate fails closed if QC can't run).
+> **[docs/RIB_REVIEW_GUIDE.md](../docs/RIB_REVIEW_GUIDE.md)** — dual-review flow:
+> `reviewtool login --service <rib space url>` then `reviewtool next`. The Space gates
+> submissions **server-side** (`CHECK=ribs`): a submit that still has a duplicate/split
+> rib is rejected (fails closed), so nothing un-QC'd is committed.
 
 Local CLI an annotator runs to review v2 pseudo labels in ITK-SNAP. All HF
 download/upload is hidden — CT + pseudo come from the v2 repo (via

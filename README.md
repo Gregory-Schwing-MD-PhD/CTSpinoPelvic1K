@@ -34,10 +34,10 @@ spine and pelvic labels target different prone/supine acquisitions
 `spine_only`, one `pelvic_native`).
 
 > **Reviewing ribs (med students):** the v4 rib-correction task — getting set up,
-> running a review batch, and what to look for — is in
-> **[docs/RIB_REVIEW_GUIDE.md](docs/RIB_REVIEW_GUIDE.md)**. Edits **cannot be
-> uploaded unless they pass the automatic rib QC** (the tool prints exactly what
-> to fix on every Save).
+> claiming cases (`reviewtool next`), and what to look for — is in
+> **[docs/RIB_REVIEW_GUIDE.md](docs/RIB_REVIEW_GUIDE.md)**. It's a dual-review flow;
+> submissions are gated **server-side**, so an edit that still has a duplicate rib is
+> rejected and can't land in the dataset.
 
 ## Design principles (the decisions that make it LSTV-aware)
 
