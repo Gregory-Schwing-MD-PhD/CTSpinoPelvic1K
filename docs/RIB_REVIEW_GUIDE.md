@@ -12,6 +12,34 @@ blobs. Most cases take under a minute with nnInteractive.
 
 ---
 
+## Why this matters — your fix becomes the X-ray dataset
+
+These CT rib masks are not the end product. We project each segmented CT into a
+**synthetic radiograph (a DRR)** and carry the 3-D masks down with it to build
+**XRSpinoPelvic1K** — the first **densely-segmented spinal-radiograph dataset**,
+in which *every* structure (vertebrae, sacrum, pelvis, femurs, **and ribs**) is
+labelled on a plain-film-style image.
+
+For those radiographs to be **fully and correctly masked, every rib in the CT must
+be complete and correctly numbered.** A rib left in two pieces, or two ribs sharing
+one number, projects into a **wrong or broken rib outline** on the synthetic X-ray
+— a defect in the very labels the dataset exists to provide. **Your correction in
+the CT is what makes the corresponding radiograph mask correct.**
+
+Why a *radiograph* dataset at all: plain films are the modality used **in the
+operating room**. A densely-segmented radiograph set lets us train **automatic
+vertebral level-counting on X-ray, even in a limited field of view** — aimed
+squarely at **preventing wrong-site surgery**. The ribs are part of the anatomy
+that makes that counting reliable, so clean rib labels are essential, not cosmetic.
+
+![rib cage](rib_review_example_0231_cage.png)
+
+*A rib cage in the dataset, each rib coloured by its number (the flagged rib is
+ringed). Every one of these projects to a labelled rib on the synthetic radiograph
+— which is why getting the count and the pieces right matters.*
+
+---
+
 ## 1. What you are fixing (30 seconds)
 
 The build trusts TotalSegmentator's rib numbering (which is reliable level-to-level)
@@ -44,9 +72,6 @@ does **not** guarantee one broken rib — here the red and blue are actually **t
 different rib arcs** near the spine, so this is a **relabel**, not a weld. If
 instead the two pieces were the **same arc, end-to-end**, you would **weld** them.
 ![split](rib_review_example_0231_split.png)
-
-Whole-cage view of the same case (the flagged rib ringed) for context:
-![cage](rib_review_example_0231_cage.png)
 
 ---
 
