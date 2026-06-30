@@ -54,8 +54,10 @@ JQ=$(sbatch --parsable --dependency=afterok:${JR} \
   slurm/qc_v4_ribs.sh)
 echo "V4_QC_JOB=${JQ}"
 
-echo "[ship_v4] (3) push ${V4_DIR} -> ${HF_REPO_ID}@v4 [CPU]  after all ${V4_SHARDS} shards of ${JR}"
-JP=$(sbatch --parsable ${SB} --dependency=afterok:${JR} \
+# Push AFTER the QC job (not just the rib array) so qc_v4_ribs writes rib_worklist.json into
+# V4_DIR first -> it rides this push to @v4, and the rib_fix review Space seeds the 165 from it.
+echo "[ship_v4] (3) push ${V4_DIR} -> ${HF_REPO_ID}@v4 [CPU]  after QC ${JQ}"
+JP=$(sbatch --parsable ${SB} --dependency=afterok:${JQ} \
   --export=ALL,SIF_PATH=${SIF_PATH},PUSH=1,SKIP_EXPORT=1,WIPE_REMOTE=${WIPE},HF_TOKEN=${HF_TOKEN},HF_REPO_ID=${HF_REPO_ID},HF_REVISION=v4,HF_EXPORT_DIR=${V4_DIR},HF_WORKERS=${HF_WORKERS},HF_PRIVATE=${HF_PRIVATE},MANIFEST_FILE=${MANIFEST_FILE} \
   slurm/export_dataset.sh)
 echo "V4_PUSH_JOB=${JP}"
