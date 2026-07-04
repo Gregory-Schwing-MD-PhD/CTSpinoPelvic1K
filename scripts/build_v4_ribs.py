@@ -135,15 +135,24 @@ MIN_RIB_VOX = 300
 # manual review. Calibrated on sampled flags: real strays were <2% of the main rib; genuine
 # second ribs / substantial TPs were >15%.
 STRAY_ABS_VOX, STRAY_FRAC = 500, 0.10
+# A same-id secondary piece that is FAR from the main rib body AND ISOLATED (touches no other
+# bone) is a mislabelled floating blob -- e.g. a bowel / vascular calcification tagged as a rib --
+# NOT a disconnected part of the rib (a rib is a continuous arc, and a real broken piece sits
+# along it, near other bone). Auto-drop such a piece up to a size cap; anything larger still goes
+# to human review. Confirmed on case 0150/104 (an 832-vox bowel calcification 113 mm off rib 12).
+FAR_STRAY_MM, FAR_STRAY_MAX_VOX = 45.0, 5000
 # a same-id "dup" whose two pieces are >= this far apart is almost certainly two DIFFERENT
 # structures sharing one number (a TS mislabel) -> mandatory review; a smaller gap is one rib
 # broken into nearby pieces (a benign interrupted rib, often CT-bridgeable) -> advisory only.
 GAP_MM_MISLABEL = 25.0
 
 
-def _drop_same_id_strays(out: np.ndarray):
-    """keep-largest-per-id: drop a same-id component when it is a small fraction of the main
-    rib (a spur / small TP nub). Substantial second pieces are kept (they surface as a dup)."""
+def _drop_same_id_strays(out: np.ndarray, spacing=None):
+    """keep-largest-per-id: drop a same-id component when it is either (a) a small fraction of the
+    main rib (a spur / small TP nub), OR (b) FAR from the main rib body AND ISOLATED (touches no
+    other bone) up to a size cap -- a floating mislabelled blob such as a bowel/vascular
+    calcification. Substantial, nearby, or bone-adjacent second pieces are kept (they surface as a
+    dup for human review). `spacing` (mm/voxel) enables rule (b); without it only (a) runs."""
     st = ndimage.generate_binary_structure(3, 3)
     n = 0; vox = 0
     for rid in range(LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 13):       # 34..57
@@ -158,14 +167,31 @@ def _drop_same_id_strays(out: np.ndarray):
         sizes = np.bincount(cc.ravel())[1:]
         order = np.argsort(sizes)[::-1]
         thresh = max(STRAY_ABS_VOX, STRAY_FRAC * int(sizes[order[0]]))
+        main_pts = None
         for j in order[1:]:
-            if int(sizes[j]) < thresh:
+            size = int(sizes[j])
+            drop = size < thresh                                             # (a) tiny spur/nub
+            if not drop and spacing is not None and size < FAR_STRAY_MAX_VOX:
+                # (b) far from the main rib body AND isolated -> floating blob (e.g. calcification)
+                if main_pts is None:
+                    main_pts = np.argwhere(cc == order[0] + 1)
+                pj = np.argwhere(cc == j + 1)
+                aa = main_pts[:: max(1, len(main_pts) // 300)]
+                bb = pj[:: max(1, len(pj) // 300)]
+                dmin = float(np.sqrt((((aa[:, None, :] - bb[None, :, :]) * spacing) ** 2)
+                                     .sum(-1)).min())
+                if dmin > FAR_STRAY_MM:
+                    dil = ndimage.binary_dilation(cc == j + 1, iterations=2)
+                    touches = {int(v) for v in np.unique(sub[dil & (sub > 0) & (sub != rid)])}
+                    if not touches:                                          # isolated -> stray
+                        drop = True
+            if drop:
                 sub[cc == (j + 1)] = 0
-                n += 1; vox += int(sizes[j])
+                n += 1; vox += size
     return n, vox
 
 
-def _trust_ts_graft_moller(lab: np.ndarray, ts_mask: np.ndarray, moller: np.ndarray):
+def _trust_ts_graft_moller(lab: np.ndarray, ts_mask: np.ndarray, moller: np.ndarray, spacing=None):
     """Trust TS's rib numbering; graft on the Möller voxels that connect to a TS rib.
 
     TS already numbers ribs per level (v3 ids 34-57) and its numbering is reliable, so we keep
@@ -201,7 +227,7 @@ def _trust_ts_graft_moller(lab: np.ndarray, ts_mask: np.ndarray, moller: np.ndar
             sub[gsub] = nearest[gsub]
             out[sl] = sub
             graft_vox = int(gsub.sum())
-    n_stray, stray_vox = _drop_same_id_strays(out)
+    n_stray, stray_vox = _drop_same_id_strays(out, spacing)
     return out, {"graft_vox": graft_vox, "moller_only_vox": moller_only_vox,
                  "n_stray_dropped": n_stray, "stray_dropped_vox": stray_vox,
                  "n_ts_ribs": int(len({int(v) for v in np.unique(out) if v}))}
@@ -281,7 +307,8 @@ def number_and_overlay(v3_label_path: Path, rib_pred_path: Path, out_path: Path,
     ts_mask = np.isin(lab, list(RIB_IDS))                    # v3 TS ribs (34-57); numbering trusted
     union_vox = int((ts_mask | moller).sum())
 
-    out_rib, stats = _trust_ts_graft_moller(lab, ts_mask, moller)
+    spacing = np.sqrt((np.asarray(affine)[:3, :3] ** 2).sum(0))     # mm/voxel for far-stray drop
+    out_rib, stats = _trust_ts_graft_moller(lab, ts_mask, moller, spacing=spacing)
 
     v4 = lab.copy()
     v4[np.isin(v4, list(RIB_IDS))] = 0                        # drop the prior TS ribs
