@@ -241,6 +241,21 @@ def rib_anchor(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     thoracic = [n for n in range(1, 13) if (lab == 7 + n).any()]     # T-N present (id 7+N)
     if not thoracic:
         return True, ["(no thoracic vertebrae labelled -> rib anchor skipped)"]
+
+    # Cheap min surface distance via subsampled point clouds (a full EDT per rib-vertebra pair
+    # blows up when a mislabelled rib is far from the vertebra -> a volume-spanning crop). We
+    # only need the distance for the anchor decision, so subsample each mask to <=250 voxels.
+    def _pts(mask, cap=250):
+        p = np.argwhere(mask)
+        return p[:: max(1, len(p) // cap)] if len(p) else p
+
+    def _d(a, b):
+        if len(a) == 0 or len(b) == 0:
+            return float("inf")
+        dd = (a[:, None, :] - b[None, :, :]) * spacing
+        return float(np.sqrt((dd ** 2).sum(-1)).min())
+
+    vpts = {t: _pts(lab == (7 + t)) for t in thoracic}   # vertebra points once, reused per rib
     ok, msgs, checked = True, [], 0
     for side in ("left", "right"):
         for n in range(1, 13):
@@ -248,11 +263,12 @@ def rib_anchor(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
             if not rm.any() or n not in thoracic:       # rib absent, or its T-N out of view
                 continue
             checked += 1
-            gap_self = _gap_mm(rm, lab == (7 + n), spacing)
+            rp = _pts(rm)
+            gap_self = _d(rp, vpts[n])
             if gap_self <= ANCHOR_MM:
                 continue                                 # sits on its own vertebra -> good
             ok = False
-            m, gm = min(((t, _gap_mm(rm, lab == (7 + t), spacing)) for t in thoracic),
+            m, gm = min(((t, _d(rp, vpts[t])) for t in thoracic),
                         key=lambda x: x[1])              # nearest labelled thoracic vertebra
             if gm <= ANCHOR_MM and m != n:
                 msgs.append(f"X {side} rib {n} sits on T{m} (gap {gm:.0f} mm), not T{n} "
