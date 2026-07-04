@@ -48,12 +48,12 @@ ANCHOR_MM = 10.0        # rib N is "incident on" T-N if within this of the verte
                         # Loose on purpose: thoracic bodies are ~20 mm apart, so 10 mm cleanly
                         # separates the right vertebra (touching, ~0-5 mm) from an off-by-one
                         # neighbour (~15-25 mm), without false-flagging a small seg gap.
-MIN_VERT_VOX = 1000     # a thoracic vertebra must have >= this many voxels to count as
-                        # "in the FOV" for the anchor test. Many lower ribs enter the scan only
-                        # antero-laterally and their vertebra is out of view; a stray speckle of
-                        # that vertebra's id (seen as few as ~14 voxels) must NOT anchor the rib,
-                        # or a correct rib gets falsely flagged "not incident". A real vertebra
-                        # body is tens of thousands of voxels, so this cleanly excludes specks.
+MIN_VERT_VOX = 6000     # a thoracic vertebra must have >= this many voxels to anchor a rib.
+                        # Not just specks: a vertebra only PARTIALLY in the FOV (a ~1-2k-voxel
+                        # sliver at the top of the scan) also must not anchor a full rib, or the
+                        # rib gets falsely flagged "not incident on T-N" (the rib is far from the
+                        # sliver). A real, mostly-in-view vertebra body is tens of thousands of
+                        # voxels, so 6000 keeps those while dropping edge slivers and specks.
 
 
 def _id2name() -> dict:
