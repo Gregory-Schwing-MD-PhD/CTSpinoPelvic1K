@@ -212,16 +212,16 @@ def _qc_hold_alert(case: str, seg, check: str = "ribs") -> None:
     bar = "!" * 74
     seg = str(seg)
     print(f"\n{bar}")
-    print(f"  ⛔ NOT UPLOADED — this label still FAILS the quick QC (the X items above).")
-    print(f"     Your claim is KEPT; your saved edit is at:\n       {seg}")
+    print(f"  NOT UPLOADED - this label still FAILS the quick QC (the X items above).")
+    print(f"  Your claim is KEPT; your saved edit is at:\n    {seg}")
     print(f"{bar}")
     print(f"  Before it can be submitted:")
-    print(f"    • REOPEN and finish (a clean File → Quit re-checks and submits ONLY if it PASSES):")
+    print(f"    - REOPEN and finish (a clean File > Quit re-checks and submits ONLY if it PASSES):")
     print(f"        python -m reviewtool edit {case}")
-    print(f"    • RE-RUN the quick QC on the saved edit (no ITK-SNAP):")
+    print(f"    - RE-RUN the quick QC on the saved edit (no ITK-SNAP):")
     print(f'        python scripts/review_anatomy_qc.py "{seg}" --check {check}')
-    print(f"    • OVERRIDE and submit anyway (adjudicator only — e.g. a flag the QC can't know,")
-    print(f"      like an FOV-truncated rib): add  --force  to the command.")
+    print(f"    - OVERRIDE and submit anyway (adjudicator only - e.g. an FOV-truncated rib the")
+    print(f"      QC can't know about): add  --force  to the command.")
 
 
 def _reopen_held_if_any(a, kinds=None) -> bool:
@@ -260,19 +260,18 @@ def _abnormal_close_alert(rc: int, case: str, seg, check: str = "ribs") -> None:
     bar = "!" * 74
     seg = str(seg)
     print(f"\n{bar}")
-    print(f"  ⚠  ITK-SNAP CLOSED ABNORMALLY (exit {rc}) — the last case did NOT go through.")
-    print(f"     Nothing was submitted; your claim is KEPT. Your last SAVED edit is safe at:")
-    print(f"       {seg}")
+    print(f"  ITK-SNAP CLOSED ABNORMALLY (exit {rc}) - the last case did NOT go through.")
+    print(f"  Nothing was submitted; your claim is KEPT. Your last SAVED edit is safe at:")
+    print(f"    {seg}")
     print(f"{bar}")
     print(f"  Do ONE of these:")
-    print(f"    • REOPEN to keep editing (a CLEAN File → Quit then submits it):")
+    print(f"    - REOPEN to keep editing (a CLEAN File > Quit then submits it):")
     print(f"        python -m reviewtool edit {case}")
-    print(f"    • RE-SUBMIT as-is: run the reopen above and immediately File → Quit"
-          f" (no further edits needed).")
-    print(f"    • RE-RUN the cheap QC on the saved edit WITHOUT opening ITK-SNAP:")
+    print(f"    - RE-SUBMIT as-is: run the reopen above and immediately File > Quit.")
+    print(f"    - RE-RUN the cheap QC on the saved edit WITHOUT opening ITK-SNAP:")
     print(f'        python scripts/review_anatomy_qc.py "{seg}" --check {check}')
-    print(f"  TIP: quit ITK-SNAP via the File → Quit menu, not the window ✕ / task-kill —"
-          f" a forced close is what returns a crash code and blocks the submit.")
+    print(f"  TIP: quit ITK-SNAP via File > Quit, not the window X / task-kill - a forced")
+    print(f"       close returns a crash code and blocks the submit.")
     _itksnap_failure_hint(rc)
 
 
@@ -1787,6 +1786,11 @@ def _open_disagreement_ref(job, ct, work, a):
 
 
 def main(argv=None) -> int:
+    for _s in (sys.stdout, sys.stderr):                  # never crash on a non-cp1252 char
+        try:
+            _s.reconfigure(errors="replace")
+        except Exception:                                # noqa: BLE001 — older streams
+            pass
     ap = argparse.ArgumentParser(prog="reviewtool", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
