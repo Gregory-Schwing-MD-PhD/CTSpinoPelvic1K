@@ -1752,10 +1752,10 @@ def cmd_disagreement(a):
 
 
 def _open_disagreement_ref(job, ct, work, a):
-    """Best-effort: open READ-ONLY AGREE + DISAGREE reference windows (v4 palette, colored ribs)
-    beside the adjudication editor. Downloads the two reviewer labels from the ledger (needs
-    read access; skips with a note if unavailable). Never writes to the ledger. Returns a list
-    of Popen handles."""
+    """Best-effort: open ONE read-only DISAGREE window (v4 palette, colored ribs) beside the
+    editor — just the places the two reviewers differ, so you know where to focus. Downloads
+    the two reviewer labels from the ledger (needs read access; skips with a note). Never writes
+    to the ledger. Returns a list with the one Popen handle (or [])."""
     from huggingface_hub import hf_hub_download
     import numpy as np
     import nibabel as nib
@@ -1769,24 +1769,20 @@ def _open_disagreement_ref(job, ct, work, a):
         i1 = nib.load(l1)
         A, B = np.asanyarray(i1.dataobj), np.asanyarray(nib.load(l2).dataobj)
         if A.shape != B.shape:
-            print("  (agree/disagree: reviewer label shapes differ — skipping reference windows)")
+            print("  (disagree: reviewer label shapes differ — skipping the reference window)")
             return []
-        agree = np.where(A == B, A, 0).astype(A.dtype)          # both same rib -> keep the id
         dis = A.copy(); dis[A == B] = 0                          # reviewer-1's label where they differ
         m = (A != B) & (A == 0); dis[m] = B[m]                   # ...fill reviewer-2 where r1 is bg
-        ag, ds = Path(work) / "agree.nii.gz", Path(work) / "disagree.nii.gz"
-        nib.save(nib.Nifti1Image(agree, i1.affine, i1.header), str(ag))
+        ds = Path(work) / "disagree.nii.gz"
         nib.save(nib.Nifti1Image(dis.astype(A.dtype), i1.affine, i1.header), str(ds))
         desc = Path(work) / "verse_labels.txt"
         desc.write_text(labels_descriptor.verse_native_descriptor_text())
-        print(f"\n  READ-ONLY reference windows: AGREE + DISAGREE (they differ in "
-              f"{int((A != B).sum())} voxels). Alt-Tab between them and the editor.")
-        snap = a.itksnap or _default_itksnap()
-        return [_launch_itksnap_bg(snap, Path(ct), ag, desc),
-                _launch_itksnap_bg(snap, Path(ct), ds, desc)]
+        print(f"\n  READ-ONLY DISAGREE window opened ({int((A != B).sum())} voxels differ). "
+              f"Click 'Update' in its 3D pane to see the spots to focus on in 3D.")
+        return [_launch_itksnap_bg(a.itksnap or _default_itksnap(), Path(ct), ds, desc)]
     except Exception as exc:                             # noqa: BLE001
-        print(f"  (agree/disagree windows unavailable: {str(exc)[:90]} — need ledger read "
-              f"access or pass --no_disagreement; the editor still opens.)")
+        print(f"  (disagree window unavailable: {str(exc)[:90]} — need ledger read access "
+              f"or pass --no_disagreement; the editor still opens.)")
         return []
 
 
