@@ -1604,6 +1604,139 @@ def cmd_review_cases(a):
         print("Not pushed. When satisfied, re-run with --push (or fold into your tree + re-export).")
 
 
+def _disagreement_descriptor() -> str:
+    """ITK-SNAP palette for the 4-class reviewer-disagreement map."""
+    return (
+        "################################################\n"
+        "# ITK-SNAP disagreement map (READ-ONLY view)\n"
+        "# 1 agree  2 reviewer-1 only  3 reviewer-2 only  4 conflict\n"
+        "################################################\n"
+        '    0     0    0    0        0  0  0    "Clear Label"\n'
+        '    1   130  130  130        1  1  1    "1 agree (both)"\n'
+        '    2   240   40   40        1  1  1    "2 reviewer-1 only"\n'
+        '    3    40  110  240        1  1  1    "3 reviewer-2 only"\n'
+        '    4   255  215    0        1  1  1    "4 conflict (differ)"\n'
+    )
+
+
+def _build_disagreement_map(a_arr, b_arr, region: str):
+    """4-class map over the region's id range: 1 agree, 2 reviewer-1 only, 3 reviewer-2 only,
+    4 both-labelled-but-different. Returns (uint8 map, lo, hi)."""
+    import numpy as np
+    lo, hi = {"ribs": (34, 57), "spine": (1, 29)}.get(region, (1, 57))
+    ina = (a_arr >= lo) & (a_arr <= hi)
+    inb = (b_arr >= lo) & (b_arr <= hi)
+    out = np.zeros(a_arr.shape, dtype=np.uint8)
+    out[ina & inb & (a_arr == b_arr)] = 1
+    out[ina & ~inb] = 2
+    out[inb & ~ina] = 3
+    out[ina & inb & (a_arr != b_arr)] = 4
+    return out, lo, hi
+
+
+def _print_disagreement_summary(a_arr, b_arr, lo: int, hi: int) -> None:
+    """Per-structure contested list (worst overlap-Dice first) so you know WHICH ribs differ."""
+    import os as _os
+    import sys as _sys
+    for _p in (_os.path.join(_os.path.dirname(__file__), "..", "scripts"), "scripts"):
+        if _os.path.isdir(_p) and _p not in _sys.path:
+            _sys.path.insert(0, _p)
+    try:
+        import label_scheme as LS
+        names = {v: k for k, v in LS.label_dict().items()}
+    except Exception:                                    # noqa: BLE001
+        names = {}
+    import numpy as np
+    # counts per id in 3 whole-volume passes (bincount), not 24 masked .sum() passes
+    ina = (a_arr >= lo) & (a_arr <= hi)
+    inb = (b_arr >= lo) & (b_arr <= hi)
+    ca = np.bincount(a_arr[ina].astype(np.int64).ravel(), minlength=hi + 1)
+    cb = np.bincount(b_arr[inb].astype(np.int64).ravel(), minlength=hi + 1)
+    same = ina & (a_arr == b_arr)
+    ci = np.bincount(a_arr[same].astype(np.int64).ravel(), minlength=hi + 1)
+    rows = []
+    for i in range(lo, hi + 1):
+        na, nb, inter = int(ca[i]), int(cb[i]), int(ci[i])
+        if na == 0 and nb == 0:
+            continue
+        dice = (2 * inter / (na + nb)) if (na + nb) else 1.0
+        if dice >= 0.999:
+            continue
+        rows.append((dice, names.get(i, f"id {i}"), na, nb))
+    if not rows:
+        print("  reviewers AGREE on every structure in range — nothing contested.")
+        return
+    rows.sort()
+    print("  contested structures (reviewer-1 vs reviewer-2), worst overlap first:")
+    for dice, nm, na, nb in rows:
+        tag = "MISSING in one" if (na == 0 or nb == 0) else "differ"
+        print(f"    {nm:<16} R1={na:>7}  R2={nb:>7}  overlap-Dice={dice:.2f}  ({tag})")
+
+
+def cmd_disagreement(a):
+    """READ-ONLY: show WHERE the two reviewers disagree for an adjudication case in ITK-SNAP.
+
+    Downloads only — the two reviewers' stored labels + the case CT are FETCHED, never
+    modified, and NOTHING is written to the review repo. Student segmentations are untouched.
+    Toggle the label visibility in ITK-SNAP to isolate conflicts (hide '1 agree')."""
+    from huggingface_hub import hf_hub_download
+    import numpy as np
+    import nibabel as nib
+    work = Path(a.workdir).expanduser() / f"{a.case}__disagree"
+    work.mkdir(parents=True, exist_ok=True)
+    rr, rrev = a.review_repo, a.review_revision
+
+    def _dl(repo, rev, fn):
+        return hf_hub_download(repo_id=repo, repo_type="dataset", revision=rev,
+                               filename=fn, local_dir=str(work))
+
+    try:
+        casef = _dl(rr, rrev, f"cases/{a.case}.json")
+    except Exception as exc:                             # noqa: BLE001
+        print(f"could not read case {a.case} from {rr}@{rrev}: {str(exc)[:120]}\n"
+              f"  check the case id, and that `hf auth login` has READ access to the private "
+              f"review repo.")
+        return
+    case = json.loads(Path(casef).read_text())
+    region = case.get("region_to_review", "ribs")
+    ctrev = a.ct_revision or case.get("source_revision", "v4")
+
+    labs = {}
+    for slot in ("1", "2"):
+        sl = (case.get("slots", {}) or {}).get(slot) or {}
+        lp = sl.get("label_path") or f"reviews/{a.case}/{slot}_label.nii.gz"
+        try:
+            labs[slot] = _dl(rr, rrev, lp)
+        except Exception as exc:                         # noqa: BLE001
+            print(f"  reviewer {slot}: label not found ({lp}): {str(exc)[:80]}")
+    if len(labs) < 2:
+        print(f"need BOTH reviewers' labels to show a disagreement — only {len(labs)} present "
+              f"(has the 2nd review been submitted for {a.case}?).")
+        return
+
+    ct = _dl(a.ct_repo, ctrev, case["ct_file"])
+    A, B = nib.load(labs["1"]), nib.load(labs["2"])
+    a_arr, b_arr = np.asanyarray(A.dataobj), np.asanyarray(B.dataobj)
+    if a_arr.shape != b_arr.shape:
+        print(f"reviewer label shapes differ {a_arr.shape} vs {b_arr.shape} — cannot diff.")
+        return
+    dmap, lo, hi = _build_disagreement_map(a_arr, b_arr, region)
+    out = work / "disagreement.nii.gz"
+    nib.save(nib.Nifti1Image(dmap, A.affine, A.header), str(out))
+    desc = work / "disagreement_labels.txt"
+    desc.write_text(_disagreement_descriptor())
+
+    print(f"\nDISAGREEMENT for {a.case}  (region: {region}, reviewer-1 vs reviewer-2)")
+    _print_disagreement_summary(a_arr, b_arr, lo, hi)
+    print("\n  Opening ITK-SNAP (READ-ONLY view — nothing is written back). Colours:")
+    print("    1 agree (grey)   2 reviewer-1 only (red)   3 reviewer-2 only (blue)   "
+          "4 conflict (yellow)")
+    print("  Toggle a label's eye in the Segmentation Labels panel to isolate it — hide")
+    print("  '1 agree' to see ONLY where they differ. This is just a viewer; make the actual")
+    print("  decision in your adjudicate/edit window.")
+    _launch_itksnap(a.itksnap or _default_itksnap(), Path(ct), out, desc)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="reviewtool", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1659,6 +1792,22 @@ def main(argv=None) -> int:
     p.add_argument("--force", action="store_true",
                    help="submit even if the quick QC fails (adjudicator override)")
     p.set_defaults(fn=cmd_edit)
+
+    p = sub.add_parser("disagreement",
+                       help="READ-ONLY: view where the two reviewers disagree for an "
+                            "adjudication case in ITK-SNAP (nothing is written back)")
+    p.add_argument("case", help="case id, e.g. 104__spine_only")
+    p.add_argument("--review_repo", default="anonymous-mlhc/CTSpinoPelvic1K-reviews-ribs",
+                   help="private review ledger repo (default: the rib review repo)")
+    p.add_argument("--review_revision", default="main")
+    p.add_argument("--ct_repo", default="anonymous-mlhc/CTSpinoPelvic1K",
+                   help="dataset repo holding the CT")
+    p.add_argument("--ct_revision", default=None,
+                   help="default: the case's own source_revision (v4)")
+    p.add_argument("--workdir", default=str(Path.home() / ".reviewtool" / "work"))
+    p.add_argument("--itksnap", default=None,
+                   help="ITK-SNAP executable (auto-detected if omitted)")
+    p.set_defaults(fn=cmd_disagreement)
 
     p = sub.add_parser("fix-list",
                        help="review QC-flagged cases from a merged-QC CSV in "
