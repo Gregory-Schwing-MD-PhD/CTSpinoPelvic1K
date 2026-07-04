@@ -206,6 +206,29 @@ def _default_itksnap() -> str:
     return "itksnap"
 
 
+def _abnormal_close_alert(rc: int, case: str, seg, check: str = "ribs") -> None:
+    """LOUD, actionable alert when ITK-SNAP closed abnormally (non-zero exit) so the case
+    was NOT submitted. Makes clear the last edit didn't land and how to recover: reopen,
+    re-submit (a clean quit submits the saved edit), or just re-run the cheap QC."""
+    bar = "!" * 74
+    seg = str(seg)
+    print(f"\n{bar}")
+    print(f"  ⚠  ITK-SNAP CLOSED ABNORMALLY (exit {rc}) — the last case did NOT go through.")
+    print(f"     Nothing was submitted; your claim is KEPT. Your last SAVED edit is safe at:")
+    print(f"       {seg}")
+    print(f"{bar}")
+    print(f"  Do ONE of these:")
+    print(f"    • REOPEN to keep editing (a CLEAN File → Quit then submits it):")
+    print(f"        python -m reviewtool edit {case}")
+    print(f"    • RE-SUBMIT as-is: run the reopen above and immediately File → Quit"
+          f" (no further edits needed).")
+    print(f"    • RE-RUN the cheap QC on the saved edit WITHOUT opening ITK-SNAP:")
+    print(f'        python scripts/review_anatomy_qc.py "{seg}" --check {check}')
+    print(f"  TIP: quit ITK-SNAP via the File → Quit menu, not the window ✕ / task-kill —"
+          f" a forced close is what returns a crash code and blocks the submit.")
+    _itksnap_failure_hint(rc)
+
+
 def _itksnap_failure_hint(rc: int) -> None:
     """Platform-specific troubleshooting when ITK-SNAP won't start."""
     if sys.platform.startswith("linux"):
@@ -863,12 +886,8 @@ def cmd_next(a):
         if p is not None:
             p.terminate()
     if rc != 0:
-        print(f"\nITK-SNAP exited with code {rc} — it failed to start or "
-              f"crashed, so NO edit was captured. Not submitting.\n"
-              f"Your claim is saved (nothing sent to the server). Fix ITK-SNAP, "
-              f"then re-open this case with:\n"
-              f"  python -m reviewtool edit {job['case_id']}")
-        _itksnap_failure_hint(rc)
+        _abnormal_close_alert(rc, job["case_id"], snap_seg,
+                              check="ribs" if region == "ribs" else "both")
         return
     saved = snap_seg.exists() and snap_seg.stat().st_mtime > pre_mtime + 1e-6
     if not saved:
@@ -933,10 +952,8 @@ def cmd_adjudicate(a):
     else:
         rc = _launch_itksnap(snap, ct, seg, labels)
     if rc != 0:
-        print(f"\nITK-SNAP exited with code {rc} — no deciding label captured. "
-              f"Not submitting. Your claim is saved; fix ITK-SNAP and re-open "
-              f"with:\n  python -m reviewtool edit {job['case_id']}__adj")
-        _itksnap_failure_hint(rc)
+        _abnormal_close_alert(rc, f"{job['case_id']}__adj", seg,
+                              check="ribs" if region == "ribs" else "both")
         return
     _submit_adjudication(s, base, job, work, seg, a.notes)
 
@@ -1190,9 +1207,8 @@ def cmd_edit(a):
     if ref_proc is not None:
         ref_proc.terminate()
     if rc != 0:
-        print(f"ITK-SNAP exited with code {rc} — no edit captured. "
-              "Not submitting; your claim is kept.")
-        _itksnap_failure_hint(rc)
+        _abnormal_close_alert(rc, work.name, snap_seg,
+                              check="ribs" if region == "ribs" else "both")
         return
     if not (snap_seg.exists() and snap_seg.stat().st_mtime > pre_mtime + 1e-6):
         print("ITK-SNAP closed but you never SAVED — no edit captured, nothing "

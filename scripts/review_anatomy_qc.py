@@ -48,6 +48,12 @@ ANCHOR_MM = 10.0        # rib N is "incident on" T-N if within this of the verte
                         # Loose on purpose: thoracic bodies are ~20 mm apart, so 10 mm cleanly
                         # separates the right vertebra (touching, ~0-5 mm) from an off-by-one
                         # neighbour (~15-25 mm), without false-flagging a small seg gap.
+MIN_VERT_VOX = 1000     # a thoracic vertebra must have >= this many voxels to count as
+                        # "in the FOV" for the anchor test. Many lower ribs enter the scan only
+                        # antero-laterally and their vertebra is out of view; a stray speckle of
+                        # that vertebra's id (seen as few as ~14 voxels) must NOT anchor the rib,
+                        # or a correct rib gets falsely flagged "not incident". A real vertebra
+                        # body is tens of thousands of voxels, so this cleanly excludes specks.
 
 
 def _id2name() -> dict:
@@ -133,7 +139,8 @@ def spine_sanity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
 def rib_contact(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     """Every rib touches its vertebra; every thoracic vertebra has L+R ribs."""
     spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
-    thoracic = [n for n in range(1, 13) if (lab == 7 + n).any()]      # T-N present (8..19)
+    thoracic = [n for n in range(1, 13)
+                if (lab == 7 + n).sum() >= MIN_VERT_VOX]              # T-N really in FOV (8..19)
     ribs_present = [(s, n) for s in ("left", "right") for n in range(1, 13)
                     if (lab == _rib_id(s, n)).any()]
     if not thoracic and not ribs_present:
@@ -238,9 +245,11 @@ def rib_anchor(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     never failed. A rib that is >ANCHOR_MM from its own T-N but touches a different labelled
     vertebra T-M gets a concrete 'renumber to M' hint."""
     spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
-    thoracic = [n for n in range(1, 13) if (lab == 7 + n).any()]     # T-N present (id 7+N)
+    # T-N counts as "in the FOV" only if it's a real vertebra, not a stray speckle of its id
+    # (a lower rib often enters the scan antero-laterally with its vertebra out of view).
+    thoracic = [n for n in range(1, 13) if (lab == 7 + n).sum() >= MIN_VERT_VOX]
     if not thoracic:
-        return True, ["(no thoracic vertebrae labelled -> rib anchor skipped)"]
+        return True, ["(no thoracic vertebra in the FOV -> rib anchor skipped)"]
 
     # Cheap min surface distance via subsampled point clouds (a full EDT per rib-vertebra pair
     # blows up when a mislabelled rib is far from the vertebra -> a volume-spanning crop). We
