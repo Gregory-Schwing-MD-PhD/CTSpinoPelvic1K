@@ -997,6 +997,7 @@ def cmd_adjudicate(a):
     print(f"ADJUDICATE {job['case_id']}  IRR={job.get('irr')}\n"
           f"two reviewers disagreed on the {region} region; produce the deciding label.")
     snap = a.itksnap or _default_itksnap()
+    pre_mtime = seg.stat().st_mtime if seg.exists() else 0.0
     # auto-open read-only AGREE + DISAGREE reference windows beside the editor (best-effort)
     dis_procs = ([] if getattr(a, "no_disagreement", False)
                  else _open_disagreement_ref(job, ct, work, a))
@@ -1007,13 +1008,18 @@ def cmd_adjudicate(a):
     for _p in dis_procs:
         if _p is not None:
             _p.terminate()
-    if rc != 0:
-        _abnormal_close_alert(rc, f"{job['case_id']}__adj", seg,
-                              check=region if region in ("ribs", "spine", "both") else "ribs")
+    chk = region if region in ("ribs", "spine", "both") else "ribs"
+    saved = seg.exists() and seg.stat().st_mtime > pre_mtime + 1e-6
+    if not saved:                            # only NOW does the exit code matter (nothing saved)
+        if rc != 0:
+            _abnormal_close_alert(rc, f"{job['case_id']}__adj", seg, check=chk)
+        else:
+            print(f"\nITK-SNAP closed but you never SAVED - nothing submitted; your claim is "
+                  f"kept.\n  Re-open: python -m reviewtool edit {job['case_id']}__adj")
         return
-    if passed is not True and not getattr(a, "force", False):       # QC GATE — don't upload junk
-        _qc_hold_alert(f"{job['case_id']}__adj", seg,
-                       check=region if region in ("ribs", "spine", "both") else "ribs")
+    # You SAVED -> the submit is decided by QC, not by ITK-SNAP's (Windows-flaky) exit code.
+    if passed is not True and not getattr(a, "force", False):       # QC GATE - don't upload junk
+        _qc_hold_alert(f"{job['case_id']}__adj", seg, check=chk)
         return
     _submit_adjudication(s, base, job, work, seg, a.notes)
 
@@ -1266,19 +1272,21 @@ def cmd_edit(a):
                             live_qc=getattr(a, "live_qc", False))
     if ref_proc is not None:
         ref_proc.terminate()
-    if rc != 0:
-        _abnormal_close_alert(rc, work.name, snap_seg,
-                              check="ribs" if region == "ribs" else "both")
+    saved = snap_seg.exists() and snap_seg.stat().st_mtime > pre_mtime + 1e-6
+    if not saved:                            # only NOW does the exit code matter (nothing saved)
+        if rc != 0:
+            _abnormal_close_alert(rc, work.name, snap_seg,
+                                  check="ribs" if region == "ribs" else "both")
+        else:
+            print("ITK-SNAP closed but you never SAVED - no edit captured, nothing "
+                  "submitted; your claim is kept.\n"
+                  "  Edit, then Save Segmentation (Ctrl-S / Cmd-S) before quitting "
+                  "(one save also 'accepts' a correct draft)."
+                  + (" If it auto-closed, relaunch with --itksnap "
+                     "/Applications/ITK-SNAP.app/Contents/MacOS/ITK-SNAP"
+                     if sys.platform == "darwin" else ""))
         return
-    if not (snap_seg.exists() and snap_seg.stat().st_mtime > pre_mtime + 1e-6):
-        print("ITK-SNAP closed but you never SAVED — no edit captured, nothing "
-              "submitted; your claim is kept.\n"
-              "  Edit, then Save Segmentation (Ctrl-S / Cmd-S) before quitting "
-              "(one save also 'accepts' a correct draft)."
-              + (" If it auto-closed, relaunch with --itksnap "
-                 "/Applications/ITK-SNAP.app/Contents/MacOS/ITK-SNAP"
-                 if sys.platform == "darwin" else ""))
-        return
+    # You SAVED -> proceed on QC, not on ITK-SNAP's (Windows-flaky) exit code.
 
     if crop:                                      # fold the crop edit into full-res
         _paste_edit_to_full(snap_seg, crop["origin"], pseudo, seg)
