@@ -206,6 +206,45 @@ def _default_itksnap() -> str:
     return "itksnap"
 
 
+def _qc_hold_alert(case: str, seg, check: str = "ribs") -> None:
+    """LOUD alert when ITK-SNAP closed cleanly but the label still FAILS the quick QC, so we
+    refuse to upload it. Says what to do: reopen & finish, re-run the QC, or --force override."""
+    bar = "!" * 74
+    seg = str(seg)
+    print(f"\n{bar}")
+    print(f"  ⛔ NOT UPLOADED — this label still FAILS the quick QC (the X items above).")
+    print(f"     Your claim is KEPT; your saved edit is at:\n       {seg}")
+    print(f"{bar}")
+    print(f"  Before it can be submitted:")
+    print(f"    • REOPEN and finish (a clean File → Quit re-checks and submits ONLY if it PASSES):")
+    print(f"        python -m reviewtool edit {case}")
+    print(f"    • RE-RUN the quick QC on the saved edit (no ITK-SNAP):")
+    print(f'        python scripts/review_anatomy_qc.py "{seg}" --check {check}')
+    print(f"    • OVERRIDE and submit anyway (adjudicator only — e.g. a flag the QC can't know,")
+    print(f"      like an FOV-truncated rib): add  --force  to the command.")
+
+
+def _reopen_held_if_any(a) -> bool:
+    """A case that's already CLAIMED but NOT yet submitted blocks handing out a new one:
+    reopen it instead (with instructions). Returns True if it took over (caller should stop).
+    This is why `next`/`adjudicate` won't grab a new case while one is still in your court."""
+    pend = sorted(ACTIVE_DIR.glob("*.json")) if ACTIVE_DIR.exists() else []
+    if not pend:
+        return False
+    names = [Path(json.loads(f.read_text())["workdir"]).name for f in pend]
+    bar = "=" * 74
+    print(f"\n{bar}")
+    print(f"  You have {len(names)} claimed case(s) NOT yet submitted — REOPENING instead of")
+    print(f"  claiming a new one (finish/submit the current one first):")
+    for n in names:
+        print(f"    - {n}")
+    print(f"  (submit it, or drop it, before a new case is handed out.)")
+    print(bar)
+    a.case = names[0] if len(names) == 1 else None       # cmd_edit reopens it (lists if >1)
+    cmd_edit(a)
+    return True
+
+
 def _abnormal_close_alert(rc: int, case: str, seg, check: str = "ribs") -> None:
     """LOUD, actionable alert when ITK-SNAP closed abnormally (non-zero exit) so the case
     was NOT submitted. Makes clear the last edit didn't land and how to recover: reopen,
@@ -797,6 +836,8 @@ def _descriptor_for_job(job) -> str:
 
 def cmd_next(a):
     s, base = _api()
+    if _reopen_held_if_any(a):                           # finish a held case before a new one
+        return
     job = _claim(s, base)
     if job is None:
         print("nothing to claim — all cases assigned/done.")
@@ -928,6 +969,8 @@ def cmd_next(a):
 
 def cmd_adjudicate(a):
     s, base = _api()
+    if _reopen_held_if_any(a):                           # finish a held case before a new one
+        return
     job = _claim(s, base, "/adjudication/next", method="get")
     if job is None:
         print("nothing to adjudicate.")
@@ -947,13 +990,17 @@ def cmd_adjudicate(a):
     print(f"ADJUDICATE {job['case_id']}  IRR={job.get('irr')}\n"
           f"two reviewers disagreed on the {region} region; produce the deciding label.")
     snap = a.itksnap or _default_itksnap()
-    if region == "ribs":            # live rib QC (one-piece / contiguous / anchor) as you decide
-        rc, _ = _watch_anatomy(snap, ct, seg, labels, check="ribs")
+    if region in ("ribs", "spine", "both"):   # live QC as you decide; gate the submit on it
+        rc, passed = _watch_anatomy(snap, ct, seg, labels, check=region)
     else:
-        rc = _launch_itksnap(snap, ct, seg, labels)
+        rc, passed = _launch_itksnap(snap, ct, seg, labels), True   # no QC for this region
     if rc != 0:
         _abnormal_close_alert(rc, f"{job['case_id']}__adj", seg,
-                              check="ribs" if region == "ribs" else "both")
+                              check=region if region in ("ribs", "spine", "both") else "ribs")
+        return
+    if passed is not True and not getattr(a, "force", False):       # QC GATE — don't upload junk
+        _qc_hold_alert(f"{job['case_id']}__adj", seg,
+                       check=region if region in ("ribs", "spine", "both") else "ribs")
         return
     _submit_adjudication(s, base, job, work, seg, a.notes)
 
@@ -1224,6 +1271,9 @@ def cmd_edit(a):
         _paste_edit_to_full(snap_seg, crop["origin"], pseudo, seg)
 
     if kind == "adjudicate":
+        if region == "ribs" and rib_passed is not True and not getattr(a, "force", False):
+            _qc_hold_alert(work.name, snap_seg, check="ribs")   # gate the adjudicator too
+            return
         _submit_adjudication(s, base, job, work, seg, st.get("notes", ""))
     else:
         if region == "ribs" and rib_passed is not True:
@@ -1590,6 +1640,9 @@ def main(argv=None) -> int:
                                 "rarely need re-verification.")
         if name == "adjudicate":
             p.add_argument("--notes", default="")
+            p.add_argument("--force", action="store_true",
+                           help="submit even if the quick QC fails (adjudicator override, "
+                                "e.g. an FOV-truncated rib the QC can't know about)")
         p.set_defaults(fn=fn)
 
     p = sub.add_parser("edit",
@@ -1603,6 +1656,8 @@ def main(argv=None) -> int:
                    help="also open the gold reference example in a 2nd window")
     p.add_argument("--live_qc", action="store_true",
                    help="re-run QC on every Save (default off — faster)")
+    p.add_argument("--force", action="store_true",
+                   help="submit even if the quick QC fails (adjudicator override)")
     p.set_defaults(fn=cmd_edit)
 
     p = sub.add_parser("fix-list",
