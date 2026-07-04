@@ -998,15 +998,16 @@ def cmd_adjudicate(a):
     print(f"ADJUDICATE {job['case_id']}  IRR={job.get('irr')}\n"
           f"two reviewers disagreed on the {region} region; produce the deciding label.")
     snap = a.itksnap or _default_itksnap()
-    # auto-open the reviewer-disagreement map in a read-only 2nd window (best-effort)
-    dis_proc = (None if getattr(a, "no_disagreement", False)
-                else _open_disagreement_ref(job, ct, work, a))
+    # auto-open read-only AGREE + DISAGREE reference windows beside the editor (best-effort)
+    dis_procs = ([] if getattr(a, "no_disagreement", False)
+                 else _open_disagreement_ref(job, ct, work, a))
     if region in ("ribs", "spine", "both"):   # live QC as you decide; gate the submit on it
         rc, passed = _watch_anatomy(snap, ct, seg, labels, check=region)
     else:
         rc, passed = _launch_itksnap(snap, ct, seg, labels), True   # no QC for this region
-    if dis_proc is not None:
-        dis_proc.terminate()
+    for _p in dis_procs:
+        if _p is not None:
+            _p.terminate()
     if rc != 0:
         _abnormal_close_alert(rc, f"{job['case_id']}__adj", seg,
                               check=region if region in ("ribs", "spine", "both") else "ribs")
@@ -1751,41 +1752,42 @@ def cmd_disagreement(a):
 
 
 def _open_disagreement_ref(job, ct, work, a):
-    """Best-effort: open a READ-ONLY 2nd ITK-SNAP window with the reviewer-disagreement map
+    """Best-effort: open READ-ONLY AGREE + DISAGREE reference windows (v4 palette, colored ribs)
     beside the adjudication editor. Downloads the two reviewer labels from the ledger (needs
-    read access; skips with a note if unavailable). Never writes to the ledger. Returns a
-    Popen handle (or None)."""
+    read access; skips with a note if unavailable). Never writes to the ledger. Returns a list
+    of Popen handles."""
     from huggingface_hub import hf_hub_download
     import numpy as np
     import nibabel as nib
     rr = getattr(a, "review_repo", None) or "anonymous-mlhc/CTSpinoPelvic1K-reviews-ribs"
     cid = job["case_id"]
-    region = job.get("region_to_review", "ribs")
     try:
-        labs = {}
-        for slot in ("1", "2"):
-            labs[slot] = hf_hub_download(
-                repo_id=rr, repo_type="dataset", revision="main",
-                filename=f"reviews/{cid}/{slot}_label.nii.gz", local_dir=str(work))
-        A, B = nib.load(labs["1"]), nib.load(labs["2"])
-        a_arr, b_arr = np.asanyarray(A.dataobj), np.asanyarray(B.dataobj)
-        if a_arr.shape != b_arr.shape:
-            print("  (disagreement: reviewer label shapes differ — skipping the 2nd window)")
-            return None
-        dmap, lo, hi = _build_disagreement_map(a_arr, b_arr, region)
-        out = Path(work) / "disagreement.nii.gz"
-        nib.save(nib.Nifti1Image(dmap, A.affine, A.header), str(out))
-        desc = Path(work) / "disagreement_labels.txt"
-        desc.write_text(_disagreement_descriptor())
-        print("\n  DISAGREEMENT (reviewer-1 vs reviewer-2) — opening a READ-ONLY 2nd window:")
-        _print_disagreement_summary(a_arr, b_arr, lo, hi)
-        print("    colours: 1 agree(grey) 2 r1-only(red) 3 r2-only(blue) 4 conflict(yellow) — "
-              "hide '1 agree' to isolate the conflicts.")
-        return _launch_itksnap_bg(a.itksnap or _default_itksnap(), Path(ct), out, desc)
+        l1 = hf_hub_download(repo_id=rr, repo_type="dataset", revision="main",
+                             filename=f"reviews/{cid}/1_label.nii.gz", local_dir=str(work))
+        l2 = hf_hub_download(repo_id=rr, repo_type="dataset", revision="main",
+                             filename=f"reviews/{cid}/2_label.nii.gz", local_dir=str(work))
+        i1 = nib.load(l1)
+        A, B = np.asanyarray(i1.dataobj), np.asanyarray(nib.load(l2).dataobj)
+        if A.shape != B.shape:
+            print("  (agree/disagree: reviewer label shapes differ — skipping reference windows)")
+            return []
+        agree = np.where(A == B, A, 0).astype(A.dtype)          # both same rib -> keep the id
+        dis = A.copy(); dis[A == B] = 0                          # reviewer-1's label where they differ
+        m = (A != B) & (A == 0); dis[m] = B[m]                   # ...fill reviewer-2 where r1 is bg
+        ag, ds = Path(work) / "agree.nii.gz", Path(work) / "disagree.nii.gz"
+        nib.save(nib.Nifti1Image(agree, i1.affine, i1.header), str(ag))
+        nib.save(nib.Nifti1Image(dis.astype(A.dtype), i1.affine, i1.header), str(ds))
+        desc = Path(work) / "verse_labels.txt"
+        desc.write_text(labels_descriptor.verse_native_descriptor_text())
+        print(f"\n  READ-ONLY reference windows: AGREE + DISAGREE (they differ in "
+              f"{int((A != B).sum())} voxels). Alt-Tab between them and the editor.")
+        snap = a.itksnap or _default_itksnap()
+        return [_launch_itksnap_bg(snap, Path(ct), ag, desc),
+                _launch_itksnap_bg(snap, Path(ct), ds, desc)]
     except Exception as exc:                             # noqa: BLE001
-        print(f"  (disagreement view unavailable: {str(exc)[:90]} — need ledger read access "
-              f"or pass --no_disagreement; the editor still opens.)")
-        return None
+        print(f"  (agree/disagree windows unavailable: {str(exc)[:90]} — need ledger read "
+              f"access or pass --no_disagreement; the editor still opens.)")
+        return []
 
 
 def main(argv=None) -> int:
