@@ -224,23 +224,31 @@ def _qc_hold_alert(case: str, seg, check: str = "ribs") -> None:
     print(f"      like an FOV-truncated rib): add  --force  to the command.")
 
 
-def _reopen_held_if_any(a) -> bool:
-    """A case that's already CLAIMED but NOT yet submitted blocks handing out a new one:
-    reopen it instead (with instructions). Returns True if it took over (caller should stop).
-    This is why `next`/`adjudicate` won't grab a new case while one is still in your court."""
-    pend = sorted(ACTIVE_DIR.glob("*.json")) if ACTIVE_DIR.exists() else []
-    if not pend:
+def _reopen_held_if_any(a, kinds=None) -> bool:
+    """A case of the SAME kind that's already CLAIMED but NOT yet submitted blocks handing out
+    a new one: reopen it instead (with instructions). Returns True if it took over (caller
+    should stop). `kinds` filters by claim kind ({'adjudicate'} for adjudicate, {'review'} for
+    next) so a stale review claim never blocks adjudication and vice-versa."""
+    held = []
+    for f in sorted(ACTIVE_DIR.glob("*.json")) if ACTIVE_DIR.exists() else []:
+        try:
+            d = json.loads(f.read_text())
+        except Exception:                                # noqa: BLE001 — skip a corrupt marker
+            continue
+        if kinds and d.get("kind") not in kinds:
+            continue
+        held.append(Path(d["workdir"]).name)
+    if not held:
         return False
-    names = [Path(json.loads(f.read_text())["workdir"]).name for f in pend]
     bar = "=" * 74
     print(f"\n{bar}")
-    print(f"  You have {len(names)} claimed case(s) NOT yet submitted — REOPENING instead of")
+    print(f"  You have {len(held)} claimed case(s) NOT yet submitted — REOPENING instead of")
     print(f"  claiming a new one (finish/submit the current one first):")
-    for n in names:
+    for n in held:
         print(f"    - {n}")
     print(f"  (submit it, or drop it, before a new case is handed out.)")
     print(bar)
-    a.case = names[0] if len(names) == 1 else None       # cmd_edit reopens it (lists if >1)
+    a.case = held[0] if len(held) == 1 else None         # cmd_edit reopens it (lists if >1)
     cmd_edit(a)
     return True
 
@@ -836,7 +844,7 @@ def _descriptor_for_job(job) -> str:
 
 def cmd_next(a):
     s, base = _api()
-    if _reopen_held_if_any(a):                           # finish a held case before a new one
+    if _reopen_held_if_any(a, kinds={"review"}):         # finish a held review before a new one
         return
     job = _claim(s, base)
     if job is None:
@@ -969,7 +977,7 @@ def cmd_next(a):
 
 def cmd_adjudicate(a):
     s, base = _api()
-    if _reopen_held_if_any(a):                           # finish a held case before a new one
+    if _reopen_held_if_any(a, kinds={"adjudicate"}):     # finish a held adjudication first
         return
     job = _claim(s, base, "/adjudication/next", method="get")
     if job is None:
@@ -990,10 +998,15 @@ def cmd_adjudicate(a):
     print(f"ADJUDICATE {job['case_id']}  IRR={job.get('irr')}\n"
           f"two reviewers disagreed on the {region} region; produce the deciding label.")
     snap = a.itksnap or _default_itksnap()
+    # auto-open the reviewer-disagreement map in a read-only 2nd window (best-effort)
+    dis_proc = (None if getattr(a, "no_disagreement", False)
+                else _open_disagreement_ref(job, ct, work, a))
     if region in ("ribs", "spine", "both"):   # live QC as you decide; gate the submit on it
         rc, passed = _watch_anatomy(snap, ct, seg, labels, check=region)
     else:
         rc, passed = _launch_itksnap(snap, ct, seg, labels), True   # no QC for this region
+    if dis_proc is not None:
+        dis_proc.terminate()
     if rc != 0:
         _abnormal_close_alert(rc, f"{job['case_id']}__adj", seg,
                               check=region if region in ("ribs", "spine", "both") else "ribs")
@@ -1737,6 +1750,44 @@ def cmd_disagreement(a):
     _launch_itksnap(a.itksnap or _default_itksnap(), Path(ct), out, desc)
 
 
+def _open_disagreement_ref(job, ct, work, a):
+    """Best-effort: open a READ-ONLY 2nd ITK-SNAP window with the reviewer-disagreement map
+    beside the adjudication editor. Downloads the two reviewer labels from the ledger (needs
+    read access; skips with a note if unavailable). Never writes to the ledger. Returns a
+    Popen handle (or None)."""
+    from huggingface_hub import hf_hub_download
+    import numpy as np
+    import nibabel as nib
+    rr = getattr(a, "review_repo", None) or "anonymous-mlhc/CTSpinoPelvic1K-reviews-ribs"
+    cid = job["case_id"]
+    region = job.get("region_to_review", "ribs")
+    try:
+        labs = {}
+        for slot in ("1", "2"):
+            labs[slot] = hf_hub_download(
+                repo_id=rr, repo_type="dataset", revision="main",
+                filename=f"reviews/{cid}/{slot}_label.nii.gz", local_dir=str(work))
+        A, B = nib.load(labs["1"]), nib.load(labs["2"])
+        a_arr, b_arr = np.asanyarray(A.dataobj), np.asanyarray(B.dataobj)
+        if a_arr.shape != b_arr.shape:
+            print("  (disagreement: reviewer label shapes differ — skipping the 2nd window)")
+            return None
+        dmap, lo, hi = _build_disagreement_map(a_arr, b_arr, region)
+        out = Path(work) / "disagreement.nii.gz"
+        nib.save(nib.Nifti1Image(dmap, A.affine, A.header), str(out))
+        desc = Path(work) / "disagreement_labels.txt"
+        desc.write_text(_disagreement_descriptor())
+        print("\n  DISAGREEMENT (reviewer-1 vs reviewer-2) — opening a READ-ONLY 2nd window:")
+        _print_disagreement_summary(a_arr, b_arr, lo, hi)
+        print("    colours: 1 agree(grey) 2 r1-only(red) 3 r2-only(blue) 4 conflict(yellow) — "
+              "hide '1 agree' to isolate the conflicts.")
+        return _launch_itksnap_bg(a.itksnap or _default_itksnap(), Path(ct), out, desc)
+    except Exception as exc:                             # noqa: BLE001
+        print(f"  (disagreement view unavailable: {str(exc)[:90]} — need ledger read access "
+              f"or pass --no_disagreement; the editor still opens.)")
+        return None
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="reviewtool", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1776,6 +1827,11 @@ def main(argv=None) -> int:
             p.add_argument("--force", action="store_true",
                            help="submit even if the quick QC fails (adjudicator override, "
                                 "e.g. an FOV-truncated rib the QC can't know about)")
+            p.add_argument("--review_repo",
+                           default="anonymous-mlhc/CTSpinoPelvic1K-reviews-ribs",
+                           help="private ledger for the disagreement 2nd window")
+            p.add_argument("--no_disagreement", action="store_true",
+                           help="don't auto-open the reviewer-disagreement reference window")
         p.set_defaults(fn=fn)
 
     p = sub.add_parser("edit",
