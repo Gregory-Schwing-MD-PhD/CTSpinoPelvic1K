@@ -9,9 +9,15 @@ Two checks (pick per cohort):
            * vertebrae ASCENDING  (id up => more caudal => lower in the volume)
            * vertebrae CONTIGUOUS (no missing level inside the labelled run)
 
-  ribs   -> rib-correction review:
-           * every numbered rib CONTACTS its thoracic vertebra (rib N touches T-N)
-           * every thoracic vertebra has a LEFT and RIGHT rib
+  ribs   -> rib-correction review, three tests in priority order:
+           1. ONE PIECE   each rib number is a single connected component per side
+                          (no duplicate/split -- the primary v4 correction target)
+           2. CONTIGUOUS  the rib numbers per side form a consecutive run 12,11,10,...
+                          (no missing level inside the labelled range)
+           3. ANCHOR      each rib N is incident on its own thoracic vertebra T-N
+                          (the "12th rib sits on T12" landmark) -- only where T-N is
+                          labelled (thoracic GT is FOV-limited, so absent vertebrae are
+                          skipped, not failed); catches off-by-one numbering.
 
 Everything is integer/connected-component bookkeeping + one tiny cropped distance
 transform per rib, so it returns in well under a second on a full label volume.
@@ -38,6 +44,10 @@ MIX_FRAC = 0.15        # a 2nd connected piece >= this fraction of a class = cla
 MIX_MIN_VOX = 50       # ...and at least this many voxels (ignore tiny spurs)
 GAP_MM_MISLABEL = 25.0  # rib in 2 pieces >= this far apart = two structures share a number
                         # (mislabel -> must fix); a smaller gap is one broken rib (advisory)
+ANCHOR_MM = 10.0        # rib N is "incident on" T-N if within this of the vertebra body.
+                        # Loose on purpose: thoracic bodies are ~20 mm apart, so 10 mm cleanly
+                        # separates the right vertebra (touching, ~0-5 mm) from an off-by-one
+                        # neighbour (~15-25 mm), without false-flagging a small seg gap.
 
 
 def _id2name() -> dict:
@@ -217,6 +227,47 @@ def rib_numbering(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     return ok, msgs
 
 
+def rib_anchor(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
+    """ANATOMICAL ANCHOR: each rib N must be incident on its OWN thoracic vertebra T-N
+    (the classic 'the 12th rib sits on T12' landmark). Validates the numbering is anchored
+    to real anatomy, not just internally consecutive -- so it catches an off-by-one run
+    (e.g. a rib labelled 12 that actually sits on T11).
+
+    Only checked where T-N is labelled: thoracic GT is FOV-limited (a lumbosacral scan
+    usually has no thoracic vertebrae), so ribs whose vertebra is out of view are SKIPPED,
+    never failed. A rib that is >ANCHOR_MM from its own T-N but touches a different labelled
+    vertebra T-M gets a concrete 'renumber to M' hint."""
+    spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
+    thoracic = [n for n in range(1, 13) if (lab == 7 + n).any()]     # T-N present (id 7+N)
+    if not thoracic:
+        return True, ["(no thoracic vertebrae labelled -> rib anchor skipped)"]
+    ok, msgs, checked = True, [], 0
+    for side in ("left", "right"):
+        for n in range(1, 13):
+            rm = lab == _rib_id(side, n)
+            if not rm.any() or n not in thoracic:       # rib absent, or its T-N out of view
+                continue
+            checked += 1
+            gap_self = _gap_mm(rm, lab == (7 + n), spacing)
+            if gap_self <= ANCHOR_MM:
+                continue                                 # sits on its own vertebra -> good
+            ok = False
+            m, gm = min(((t, _gap_mm(rm, lab == (7 + t), spacing)) for t in thoracic),
+                        key=lambda x: x[1])              # nearest labelled thoracic vertebra
+            if gm <= ANCHOR_MM and m != n:
+                msgs.append(f"X {side} rib {n} sits on T{m} (gap {gm:.0f} mm), not T{n} "
+                            f"(gap {gap_self:.0f} mm) -> renumber this rib to {m}")
+            else:
+                msgs.append(f"X {side} rib {n} not incident on T{n} (gap {gap_self:.0f} mm) -> "
+                            f"check the rib number / extend the head to the vertebra")
+    if checked == 0:
+        return True, ["(no rib has its thoracic vertebra in view -> rib anchor skipped)"]
+    if ok:
+        msgs.append(f"OK rib anchor: each in-view rib sits on its own thoracic vertebra "
+                    f"({checked} checked)")
+    return ok, msgs
+
+
 def check_label(check: str, lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     """Run the requested check(s) and return (ok, messages) WITHOUT printing.
     The server-side review gate uses this; the CLI uses report() (which prints)."""
@@ -224,7 +275,8 @@ def check_label(check: str, lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     if check in ("spine", "both"):
         blocks.append(spine_sanity(lab, affine))
     if check in ("ribs", "both"):
-        blocks.append(rib_numbering(lab, affine))
+        blocks.append(rib_numbering(lab, affine))       # 1) one piece  2) contiguous
+        blocks.append(rib_anchor(lab, affine))          # 3) rib N incident on T-N
     ok = all(o for o, _ in blocks)
     msgs = [m for _, ms in blocks for m in ms]
     return ok, msgs
@@ -236,7 +288,8 @@ def report(check: str, lab: np.ndarray, affine) -> bool:
     if check in ("spine", "both"):
         blocks.append(("SPINE", *spine_sanity(lab, affine)))
     if check in ("ribs", "both"):
-        blocks.append(("RIBS", *rib_numbering(lab, affine)))   # v4 task: dup/gap, not contact
+        blocks.append(("RIBS", *rib_numbering(lab, affine)))         # 1) one piece 2) contiguous
+        blocks.append(("RIB ANCHOR", *rib_anchor(lab, affine)))      # 3) rib N incident on T-N
     allok = all(ok for _, ok, _ in blocks)
     for name, ok, msgs in blocks:
         print(f"  [{name}] {'PASS' if ok else 'FAIL'}")

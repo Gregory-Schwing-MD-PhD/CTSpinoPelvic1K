@@ -921,13 +921,17 @@ def cmd_adjudicate(a):
     seg = work / "seg.nii.gz"
     seg.write_bytes(pseudo.read_bytes())
     labels = work / "labels.txt"
-    # always the LOCAL canonical palette (jet) — same idx↔structure as the
-    # server, so this just guarantees the current colours without a Space redeploy.
-    labels.write_text(labels_descriptor.descriptor_text())
+    # region-correct palette (v4 VerSe-native for ribs, v2 jet otherwise) — same idx↔structure
+    # as the server, so this just guarantees the current colours without a Space redeploy.
+    labels.write_text(_descriptor_for_job(job))
+    region = job.get("region_to_review")
     print(f"ADJUDICATE {job['case_id']}  IRR={job.get('irr')}\n"
-          f"two reviewers disagreed on the {job['region_to_review']} region; "
-          f"produce the deciding label.")
-    rc = _launch_itksnap(a.itksnap or _default_itksnap(), ct, seg, labels)
+          f"two reviewers disagreed on the {region} region; produce the deciding label.")
+    snap = a.itksnap or _default_itksnap()
+    if region == "ribs":            # live rib QC (one-piece / contiguous / anchor) as you decide
+        rc, _ = _watch_anatomy(snap, ct, seg, labels, check="ribs")
+    else:
+        rc = _launch_itksnap(snap, ct, seg, labels)
     if rc != 0:
         print(f"\nITK-SNAP exited with code {rc} — no deciding label captured. "
               f"Not submitting. Your claim is saved; fix ITK-SNAP and re-open "
