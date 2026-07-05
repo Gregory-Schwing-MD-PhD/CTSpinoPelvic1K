@@ -48,6 +48,13 @@ ANCHOR_MM = 10.0        # rib N is "incident on" T-N if within this of the verte
                         # Loose on purpose: thoracic bodies are ~20 mm apart, so 10 mm cleanly
                         # separates the right vertebra (touching, ~0-5 mm) from an off-by-one
                         # neighbour (~15-25 mm), without false-flagging a small seg gap.
+MIX_LABEL_MIN_VOX = 250  # in the "one bone -> one label" check, a 2nd label on the same eroded
+                         # rib component counts as a real mix only above this (ignore sliver
+                         # boundary voxels between genuinely-adjacent ribs).
+GAP_SPINE_MM = 22.0      # a rib whose head is CONTACT_MM..this from the nearest vertebra has a
+                         # small unfilled gap -> connect it. Beyond this the head is likely out
+                         # of FOV / unsegmented, so it is NOT flagged (number-agnostic: this uses
+                         # distance to ANY vertebra, so it doesn't depend on rib/vertebra numbers).
 MIN_VERT_VOX = 6000     # a thoracic vertebra must have >= this many voxels to anchor a rib.
                         # Not just specks: a vertebra only PARTIALLY in the FOV (a ~1-2k-voxel
                         # sliver at the top of the scan) also must not anchor a full rib, or the
@@ -293,6 +300,81 @@ def rib_anchor(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     return ok, msgs
 
 
+def _subpts(mask, cap=300):
+    p = np.argwhere(mask)
+    return p[:: max(1, len(p) // cap)] if len(p) else p
+
+
+def _mindist(a, b, spacing):
+    if len(a) == 0 or len(b) == 0:
+        return float("inf")
+    dd = (a[:, None, :] - b[None, :, :]) * spacing
+    return float(np.sqrt((dd ** 2).sum(-1)).min())
+
+
+def rib_label_mixing(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
+    """ONE connected rib BONE must carry ONE rib number. Flags a single physical rib whose voxels
+    are split across 2+ labels (a common student mislabel). The rib mask is eroded by 1 first so
+    two genuinely-adjacent ribs that only touch at the spine SEPARATE and are not flagged; only a
+    bone that stays a single component after erosion yet holds 2+ substantial labels is a mix."""
+    lo_id, hi_id = LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 12
+    ribs = (lab >= lo_id) & (lab <= hi_id)
+    if not ribs.any():
+        return True, ["(no ribs in view)"]
+    idx = np.argwhere(ribs); lo = idx.min(0); hi = idx.max(0) + 1
+    sub = lab[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]]
+    st = ndimage.generate_binary_structure(3, 3)
+    er = ndimage.binary_erosion((sub >= lo_id) & (sub <= hi_id), structure=st, iterations=1)
+    cc, k = ndimage.label(er, structure=st)
+    names = _id2name(); ok = True; msgs = []
+    for c in range(1, k + 1):
+        cnt = np.bincount(sub[cc == c].ravel())
+        big = [i for i in range(lo_id, hi_id + 1) if i < len(cnt) and cnt[i] >= MIX_LABEL_MIN_VOX]
+        if len(big) >= 2:
+            ok = False
+            msgs.append("X one rib bone carries multiple labels: "
+                        + ", ".join(names.get(i, str(i)) for i in big)
+                        + " -> a single rib must be ONE number; relabel the whole bone to one")
+    if ok:
+        msgs.append("OK: each connected rib bone is a single label")
+    return ok, msgs
+
+
+def rib_spine_gap(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
+    """Each rib should CONNECT to the spine. Flags a rib whose head is a small gap
+    (CONTACT_MM..GAP_SPINE_MM) from the NEAREST vertebra -- a student left it not quite touching.
+    A larger distance means the head is out of FOV / unsegmented (can't tell) and is NOT flagged.
+    Number-agnostic: uses distance to ANY vertebra, so it doesn't depend on rib/vertebra numbers
+    being right (unlike the advisory anchor test)."""
+    spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
+    lo_id, hi_id = LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 12
+    spine = (lab >= 1) & (lab <= LS.S1_ID)
+    ribs = (lab >= lo_id) & (lab <= hi_id)
+    if not spine.any() or not ribs.any():
+        return True, ["(no spine/ribs in view -> rib-spine gap skipped)"]
+    # crop to the bbox of spine+ribs, downsample 2x, ONE distance transform (mm to nearest spine
+    # voxel), then ONE ndimage.minimum pass to get each rib's min distance (~2 mm precision, fine
+    # for a 3-22 mm band). No per-rib argwhere -> fast.
+    idx = np.argwhere(spine | ribs); lo = idx.min(0); hi = idx.max(0) + 1
+    sl = tuple(slice(int(lo[i]), int(hi[i])) for i in range(3))
+    f = 2
+    subd = lab[sl][::f, ::f, ::f]
+    edt = ndimage.distance_transform_edt(~((subd >= 1) & (subd <= LS.S1_ID)), sampling=spacing * f)
+    rib_ids = list(range(lo_id, hi_id + 1))
+    mins = ndimage.minimum(edt, labels=subd, index=rib_ids)     # min EDT within each rib label
+    names = _id2name(); ok, msgs = True, []
+    for rid, g in zip(rib_ids, mins):
+        if g is None or not np.isfinite(g):                      # rib absent (or too thin at 2x)
+            continue
+        if CONTACT_MM < g <= GAP_SPINE_MM:
+            ok = False
+            msgs.append(f"X {names.get(rid, rid)}: {g:.0f} mm gap to the spine -> connect the rib "
+                        f"head to its vertebra")
+    if ok:
+        msgs.append("OK: every rib connects to the spine (or its head is out of FOV)")
+    return ok, msgs
+
+
 def check_label(check: str, lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     """Run the requested check(s) and return (ok, messages) WITHOUT printing.
     The server-side review gate uses this; the CLI uses report() (which prints)."""
@@ -301,6 +383,8 @@ def check_label(check: str, lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
         gating.append(spine_sanity(lab, affine))
     if check in ("ribs", "both"):
         gating.append(rib_numbering(lab, affine))       # GATE: one piece + contiguous numbering
+        gating.append(rib_label_mixing(lab, affine))    # GATE: one connected rib bone -> one label
+        gating.append(rib_spine_gap(lab, affine))       # GATE: rib head connects to the spine
         advisory.append(rib_anchor(lab, affine))        # ADVISORY only: rib N incident on T-N is
         #   unreliable (rib heads often unsegmented; thoracic vertebra labels can be off), so it
         #   informs but never blocks the submit.
@@ -316,6 +400,8 @@ def report(check: str, lab: np.ndarray, affine) -> bool:
         blocks.append(("SPINE", *spine_sanity(lab, affine), True))
     if check in ("ribs", "both"):
         blocks.append(("RIBS", *rib_numbering(lab, affine), True))               # gates
+        blocks.append(("RIB LABEL MIXING", *rib_label_mixing(lab, affine), True))  # gates
+        blocks.append(("RIB-SPINE GAP", *rib_spine_gap(lab, affine), True))       # gates
         blocks.append(("RIB ANCHOR (advisory)", *rib_anchor(lab, affine), False))  # informs only
     allok = all(ok for _, ok, _, gate in blocks if gate)     # advisory anchor never blocks
     for name, ok, msgs, gate in blocks:
