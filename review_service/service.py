@@ -495,8 +495,13 @@ class ReviewService:
         for c in cases:
             for s in ("1", "2", schema.ADJ_SLOT):
                 sl = c.get("slots", {}).get(s)
-                if sl and sl.get("done"):
-                    by_reviewer[sl.get("reviewer")] += 1
+                if not sl or not sl.get("done"):
+                    continue
+                # public board shows only PASSED student submissions (+ adjudications);
+                # a re-opened / QC-failing slot is not counted until the student fixes it.
+                if s != schema.ADJ_SLOT and not sl.get("qc_pass"):
+                    continue
+                by_reviewer[sl.get("reviewer")] += 1
             if c.get("irr"):
                 irr_metrics.append(c["irr"].get("metric"))
         return {

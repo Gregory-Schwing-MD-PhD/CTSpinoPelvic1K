@@ -106,6 +106,42 @@ Colab notebook (open it, follow REVIEWERS_AI_EDITING.md):
 
 ---
 
+## 3b. Check your work & fix your flagged cases (AMEND)
+
+We've strengthened the automatic QC. **`git pull` first** (every session), then check how your
+submissions did — this is **private, only you see your own numbers**:
+
+```bash
+python -m reviewtool mystats
+```
+
+It prints your **submissions**, your **QC pass %**, how many are **still to fix**, and the fails by
+check. If you have cases to fix, **amend your own work** (you do NOT start over — it re-opens your
+own previous label):
+
+```bash
+python -m reviewtool next --amend
+```
+
+This hands you one of *your* flagged cases with **your own segmentation loaded**. Fix the flagged
+items (the terminal names them on each Save), **Save** over `seg.nii.gz`, and quit — it re-submits
+only once it passes QC. Repeat `python -m reviewtool next --amend` until `mystats` shows **0 to fix**.
+
+**What the QC now checks (fix these):**
+- **one rib bone = one number** — don't split a single rib across two labels.
+- **each rib connects to its vertebra** — no gap larger than ~5 mm between the rib head and the spine.
+- **each spine/pelvis bone is one clean piece** — e.g. don't leave half a hip labelled a different class.
+- rib numbers consecutive per side, one piece each (as before).
+
+### See problems in 3D
+The fastest way to spot these is ITK-SNAP's **3D view**. Watch this short tutorial on building a 3D
+render of your segmentation to catch splits, gaps, and mislabels at a glance:
+**[3D render in ITK-SNAP — tutorial](TUTORIAL_LINK)**
+> Tip: after any edit, click **Update** in the 3D pane to rebuild the mesh. If it stays blank, fully
+> quit and relaunch ITK-SNAP once — the 3D view needs a working OpenGL/GPU context.
+
+---
+
 ## 4. Do a case, step by step
 
 1. **Claim the next case** — no batches, no tokens; the server hands you one:
