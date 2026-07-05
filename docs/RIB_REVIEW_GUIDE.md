@@ -136,7 +136,7 @@ only once it passes QC. Repeat `python -m reviewtool next --amend` until `mystat
 ### See problems in 3D
 The fastest way to spot these is ITK-SNAP's **3D view**. Watch this short tutorial on building a 3D
 render of your segmentation to catch splits, gaps, and mislabels at a glance:
-**[3D render in ITK-SNAP — tutorial](TUTORIAL_LINK)**
+**[3D render in ITK-SNAP — tutorial](https://drive.google.com/file/d/1R_6FtSncJcwyPm4SoYnRynVQtHBmX7Yr/view?usp=sharing)**
 > Tip: after any edit, click **Update** in the 3D pane to rebuild the mesh. If it stays blank, fully
 > quit and relaunch ITK-SNAP once — the 3D view needs a working OpenGL/GPU context.
 
