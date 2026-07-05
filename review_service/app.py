@@ -256,6 +256,13 @@ def adjudication_next(who: dict = Depends(auth)):
     return out
 
 
+@app.get("/me/stats")
+def me_stats(who: dict = Depends(auth)):
+    # private self-service: a reviewer only ever sees their OWN numbers
+    with _LOCK:
+        return SERVICE.me_stats(who["id"])
+
+
 @app.get("/amend/next")
 def amend_next(who: dict = Depends(auth)):
     # any authenticated reviewer; the service serves only slots re-opened for THEM

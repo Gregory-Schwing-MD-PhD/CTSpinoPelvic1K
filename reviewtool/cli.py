@@ -1032,6 +1032,24 @@ def cmd_adjudicate(a):
     _submit_adjudication(s, base, job, work, seg, a.notes)
 
 
+def cmd_mystats(a):
+    """Private self-service scorecard: YOUR own submissions, pass-rate, and amend queue."""
+    s, base = _api()
+    r = s.get(base + "/me/stats", timeout=60)
+    r.raise_for_status()
+    d = r.json()
+    n, p, pct = d.get("submissions", 0), d.get("passed", 0), d.get("pass_pct")
+    print(f"\nYour review scorecard ({d.get('reviewer', 'you')}):")
+    print(f"  submissions checked : {n}")
+    print(f"  passing the QC      : {p}" + (f"   ({pct}%)" if pct is not None else ""))
+    print(f"  still to fix (amend): {d.get('amend_pending', 0)}")
+    fb = d.get("fail_by_check") or {}
+    if fb:
+        print("  fails by check      : " + ", ".join(f"{k}={v}" for k, v in fb.items()))
+    if d.get("amend_pending"):
+        print("\n  Fix your flagged cases:  python -m reviewtool next --amend")
+
+
 def cmd_status(a):
     s, base = _api()
     r = s.get(base + "/status", timeout=60)
@@ -1816,6 +1834,10 @@ def main(argv=None) -> int:
                    help="(optional) legacy reviewer key; omit to use your "
                         "HuggingFace login")
     p.set_defaults(fn=cmd_login)
+
+    p = sub.add_parser("mystats",
+                       help="your OWN private scorecard: submissions, QC pass-rate, amend queue")
+    p.set_defaults(fn=cmd_mystats)
 
     for name, fn in (("next", cmd_next), ("adjudicate", cmd_adjudicate)):
         p = sub.add_parser(name)

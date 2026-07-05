@@ -253,6 +253,28 @@ class ReviewService:
                 }
         return None
 
+    def me_stats(self, reviewer_id: str) -> dict:
+        """A reviewer's OWN progress (private, self-service): how many of their submissions passed
+        the strengthened QC, the pass %, and how many are re-opened for them to amend. Reads the
+        per-slot QC verdict stamped at seed/submit time -- no heavy recompute."""
+        import collections as _c
+        total = passed = amend_pending = 0
+        fails = _c.Counter()
+        for case in self.store.list_cases():
+            for slot in schema.PRIMARY_SLOTS:
+                sl = case.get("slots", {}).get(slot)
+                if not sl or sl.get("reviewer") != reviewer_id or "qc_pass" not in sl:
+                    continue
+                total += 1
+                passed += bool(sl.get("qc_pass"))
+                if sl.get("amend") and not sl.get("done"):
+                    amend_pending += 1
+                for c in (sl.get("qc_fail_checks") or []):
+                    fails[c] += 1
+        return {"reviewer": reviewer_id, "submissions": total, "passed": passed,
+                "pass_pct": (round(100 * passed / total) if total else None),
+                "amend_pending": amend_pending, "fail_by_check": dict(fails)}
+
     # ── submit ──────────────────────────────────────────────────────────────
     def submit(self, claim_token: str, record: dict,
                label_bytes: Optional[bytes] = None,
@@ -318,6 +340,10 @@ class ReviewService:
         sl.update(done=True, review_id=record["review_id"],
                   decision=decision, label_path=label_path,
                   label_sha256=new_sha, submitted_at=schema.utcnow())
+        # it passed the QC gate to get here -> mark clean and clear any amend re-open
+        sl["qc_pass"] = True
+        sl["qc_fail_checks"] = []
+        sl.pop("amend", None); sl.pop("amend_base", None); sl.pop("amend_reason", None)
 
         # evaluate once both primaries are in
         agree = None
