@@ -55,6 +55,10 @@ GAP_SPINE_MM = 22.0      # a rib whose head is CONTACT_MM..this from the nearest
                          # small unfilled gap -> connect it. Beyond this the head is likely out
                          # of FOV / unsegmented, so it is NOT flagged (number-agnostic: this uses
                          # distance to ANY vertebra, so it doesn't depend on rib/vertebra numbers).
+STRUCT_MIN_VOX = 3000        # ignore a barely-present (partial-FOV) bone in the integrity check
+STRUCT_DOMINANT_FRAC = 0.85  # a solid bone (vertebra/sacrum/hip/femur) must be >= this fraction
+                             # ONE connected piece; below it the label is split across the bone
+                             # (the classic "half the hip is a different class" student mislabel).
 MIN_VERT_VOX = 6000     # a thoracic vertebra must have >= this many voxels to anchor a rib.
                         # Not just specks: a vertebra only PARTIALLY in the FOV (a ~1-2k-voxel
                         # sliver at the top of the scan) also must not anchor a full rib, or the
@@ -375,6 +379,34 @@ def rib_spine_gap(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     return ok, msgs
 
 
+def structure_integrity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
+    """Each SOLID bone (vertebra / sacrum / S1 / hip / femur, ids 1..33) must be a single dominant
+    connected piece. Flags a bone whose label is split so the largest piece is < STRUCT_DOMINANT_
+    FRAC of it -- the classic 'half the hip is a different class' student mislabel (in the observed
+    case both hips were ~65/35 two-piece). Ribs (34-57) have their own one-piece check."""
+    st = ndimage.generate_binary_structure(3, 3)
+    objs = ndimage.find_objects(lab if lab.dtype.kind in "iu" else lab.astype(np.int32))
+    names = _id2name(); ok, msgs = True, []
+    for sid in range(1, 34):                            # 1..33 = vertebrae, sacrum, S1, hips, femurs
+        if sid - 1 >= len(objs) or objs[sid - 1] is None:
+            continue
+        m = lab[objs[sid - 1]] == sid
+        tot = int(m.sum())
+        if tot < STRUCT_MIN_VOX:
+            continue
+        cc, k = ndimage.label(m, structure=st)
+        if k < 2:
+            continue
+        mx = int(np.bincount(cc.ravel())[1:].max())
+        if mx < STRUCT_DOMINANT_FRAC * tot:
+            ok = False
+            msgs.append(f"X {names.get(sid, sid)} is split into pieces (largest {100 * mx // tot}% "
+                        f"of the bone) -> one bone must be ONE class; relabel the stray part")
+    if ok:
+        msgs.append("OK: each spine/pelvis bone is a single class")
+    return ok, msgs
+
+
 def check_label(check: str, lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     """Run the requested check(s) and return (ok, messages) WITHOUT printing.
     The server-side review gate uses this; the CLI uses report() (which prints)."""
@@ -388,6 +420,8 @@ def check_label(check: str, lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
         advisory.append(rib_anchor(lab, affine))        # ADVISORY only: rib N incident on T-N is
         #   unreliable (rib heads often unsegmented; thoracic vertebra labels can be off), so it
         #   informs but never blocks the submit.
+    if check in ("spine", "ribs", "both"):
+        gating.append(structure_integrity(lab, affine))  # GATE: each spine/pelvis bone one class
     ok = all(o for o, _ in gating)                      # anchor does NOT affect pass/fail
     msgs = [m for _, ms in gating for m in ms] + [m for _, ms in advisory for m in ms]
     return ok, msgs
@@ -403,6 +437,8 @@ def report(check: str, lab: np.ndarray, affine) -> bool:
         blocks.append(("RIB LABEL MIXING", *rib_label_mixing(lab, affine), True))  # gates
         blocks.append(("RIB-SPINE GAP", *rib_spine_gap(lab, affine), True))       # gates
         blocks.append(("RIB ANCHOR (advisory)", *rib_anchor(lab, affine), False))  # informs only
+    if check in ("spine", "ribs", "both"):
+        blocks.append(("STRUCTURE INTEGRITY", *structure_integrity(lab, affine), True))  # gates
     allok = all(ok for _, ok, _, gate in blocks if gate)     # advisory anchor never blocks
     for name, ok, msgs, gate in blocks:
         tag = "PASS" if ok else ("FAIL" if gate else "note")
