@@ -845,10 +845,18 @@ def cmd_next(a):
     s, base = _api()
     if _reopen_held_if_any(a, kinds={"review"}):         # finish a held review before a new one
         return
-    job = _claim(s, base)
-    if job is None:
-        print("nothing to claim — all cases assigned/done.")
-        return
+    if getattr(a, "amend", False):                       # fix YOUR re-opened (QC-failed) cases
+        job = _claim(s, base, "/amend/next", method="get")
+        if job is None:
+            print("nothing to amend — no cases re-opened for you (or you've fixed them all).")
+            return
+        print("AMEND: this is YOUR earlier submission, re-opened because it failed the "
+              "strengthened QC. Your own label is loaded — fix the flagged items and re-save.")
+    else:
+        job = _claim(s, base)
+        if job is None:
+            print("nothing to claim — all cases assigned/done.")
+            return
     work = Path(a.workdir) / job["case_id"]
     work.mkdir(parents=True, exist_ok=True)
     _save_active(job, work, kind="review")              # durable before any edit
@@ -1832,6 +1840,9 @@ def main(argv=None) -> int:
                            help="re-run the QC on every Save (live progress to OK). "
                                 "Off by default — faster, since AI-assisted fixes "
                                 "rarely need re-verification.")
+            p.add_argument("--amend", action="store_true",
+                           help="fix YOUR OWN cases re-opened because their earlier submission "
+                                "failed QC (loads your previous label to edit, not the pseudo)")
         if name == "adjudicate":
             p.add_argument("--notes", default="")
             p.add_argument("--force", action="store_true",

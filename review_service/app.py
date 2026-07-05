@@ -256,6 +256,16 @@ def adjudication_next(who: dict = Depends(auth)):
     return out
 
 
+@app.get("/amend/next")
+def amend_next(who: dict = Depends(auth)):
+    # any authenticated reviewer; the service serves only slots re-opened for THEM
+    with _LOCK:
+        out = SERVICE.amend_next(who["id"])
+    if out is None:
+        return JSONResponse({"detail": "nothing to amend"}, status_code=204)
+    return out
+
+
 @app.post("/adjudicate")
 async def adjudicate(claim_token: str = Form(...), decision: str = Form(...),
                      notes: str = Form(default=""),

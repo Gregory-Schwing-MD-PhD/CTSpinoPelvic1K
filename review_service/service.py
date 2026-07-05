@@ -219,6 +219,40 @@ class ReviewService:
             "crop": case.get("crop"),
         }
 
+    def amend_next(self, reviewer_id: str) -> Optional[dict]:
+        """Serve this reviewer their next slot that was RE-OPENED for amendment (its earlier
+        submission failed the strengthened QC). Bypasses the double-review distinctness guard
+        (they are fixing THEIR OWN slot) and hands back their own previous label as the editable
+        base, not the pseudo. Resubmit goes through the normal /submit QC gate (fails closed)."""
+        for case in self.store.list_cases():
+            for slot in schema.PRIMARY_SLOTS:
+                sl = case.get("slots", {}).get(slot)
+                if (not sl or sl.get("done") or not sl.get("amend")
+                        or sl.get("reviewer") != reviewer_id):
+                    continue
+                token = self._mint_token(case["case_id"], slot)
+                sl["claim_token"] = token
+                sl["claimed_at"] = schema.utcnow()
+                sl["expires_at"] = (_now() + timedelta(seconds=self.ttl)).isoformat()
+                self.store.put_case(case)
+                base = sl.get("amend_base") or case["pseudo_label_file"]
+                return {
+                    "case_id": case["case_id"], "token": case["token"],
+                    "config": case["config"], "slot": slot,
+                    "region_to_review": case["region_to_review"],
+                    "claim_token": token, "expires_at": sl["expires_at"],
+                    "v2_repo": self.v2_repo, "source_revision": self.source_revision,
+                    "ct_file": case["ct_file"], "label_file": base,
+                    "ct_url": self._blob_url(case["ct_file"]),
+                    "pseudo_label_url": self._blob_url(base),
+                    "source_label_sha256": case.get("source_label_sha256", ""),
+                    "prov_before": case["prov_before"],
+                    "labels_descriptor": _descriptor_for_case(case),
+                    "crop": case.get("crop"),
+                    "amend": True, "amend_reason": sl.get("amend_reason", ""),
+                }
+        return None
+
     # ── submit ──────────────────────────────────────────────────────────────
     def submit(self, claim_token: str, record: dict,
                label_bytes: Optional[bytes] = None,
