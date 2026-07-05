@@ -51,10 +51,13 @@ ANCHOR_MM = 10.0        # rib N is "incident on" T-N if within this of the verte
 MIX_LABEL_MIN_VOX = 250  # in the "one bone -> one label" check, a 2nd label on the same eroded
                          # rib component counts as a real mix only above this (ignore sliver
                          # boundary voxels between genuinely-adjacent ribs).
-GAP_SPINE_MM = 22.0      # a rib whose head is CONTACT_MM..this from the nearest vertebra has a
-                         # small unfilled gap -> connect it. Beyond this the head is likely out
-                         # of FOV / unsegmented, so it is NOT flagged (number-agnostic: this uses
-                         # distance to ANY vertebra, so it doesn't depend on rib/vertebra numbers).
+GAP_MIN_MM = 5.0         # within this a rib is CONNECTED to the spine (the costovertebral joint has
+                         # a few-mm cartilage space -> bone-to-bone is 0-4 mm). Measured on real
+                         # data: rib->spine distance is bimodal, 73% at 0-4 mm (connected) and 27%
+                         # at 20+ mm (head out of FOV), with <1% in between -> flag only a genuine
+                         # 5-20 mm gap (a disconnected-but-nearby head), never the joint space.
+GAP_SPINE_MM = 20.0      # beyond this the rib head is out of FOV / unsegmented -> NOT flagged.
+                         # (number-agnostic: distance to ANY vertebra, no dependence on numbering.)
 STRUCT_MIN_VOX = 3000        # ignore a barely-present (partial-FOV) bone in the integrity check
 STRUCT_DOMINANT_FRAC = 0.85  # a solid bone (vertebra/sacrum/hip/femur) must be >= this fraction
                              # ONE connected piece; below it the label is split across the bone
@@ -370,7 +373,7 @@ def rib_spine_gap(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     for rid, g in zip(rib_ids, mins):
         if g is None or not np.isfinite(g):                      # rib absent (or too thin at 2x)
             continue
-        if CONTACT_MM < g <= GAP_SPINE_MM:
+        if GAP_MIN_MM < g <= GAP_SPINE_MM:
             ok = False
             msgs.append(f"X {names.get(rid, rid)}: {g:.0f} mm gap to the spine -> connect the rib "
                         f"head to its vertebra")
