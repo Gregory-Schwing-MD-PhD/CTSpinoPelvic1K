@@ -296,28 +296,31 @@ def rib_anchor(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
 def check_label(check: str, lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     """Run the requested check(s) and return (ok, messages) WITHOUT printing.
     The server-side review gate uses this; the CLI uses report() (which prints)."""
-    blocks = []
+    gating, advisory = [], []
     if check in ("spine", "both"):
-        blocks.append(spine_sanity(lab, affine))
+        gating.append(spine_sanity(lab, affine))
     if check in ("ribs", "both"):
-        blocks.append(rib_numbering(lab, affine))       # 1) one piece  2) contiguous
-        blocks.append(rib_anchor(lab, affine))          # 3) rib N incident on T-N
-    ok = all(o for o, _ in blocks)
-    msgs = [m for _, ms in blocks for m in ms]
+        gating.append(rib_numbering(lab, affine))       # GATE: one piece + contiguous numbering
+        advisory.append(rib_anchor(lab, affine))        # ADVISORY only: rib N incident on T-N is
+        #   unreliable (rib heads often unsegmented; thoracic vertebra labels can be off), so it
+        #   informs but never blocks the submit.
+    ok = all(o for o, _ in gating)                      # anchor does NOT affect pass/fail
+    msgs = [m for _, ms in gating for m in ms] + [m for _, ms in advisory for m in ms]
     return ok, msgs
 
 
 def report(check: str, lab: np.ndarray, affine) -> bool:
     """Run the requested check(s) and print a PASS/FAIL block. Returns overall ok."""
-    blocks = []
+    blocks = []   # (name, ok, msgs, gating?)
     if check in ("spine", "both"):
-        blocks.append(("SPINE", *spine_sanity(lab, affine)))
+        blocks.append(("SPINE", *spine_sanity(lab, affine), True))
     if check in ("ribs", "both"):
-        blocks.append(("RIBS", *rib_numbering(lab, affine)))         # 1) one piece 2) contiguous
-        blocks.append(("RIB ANCHOR", *rib_anchor(lab, affine)))      # 3) rib N incident on T-N
-    allok = all(ok for _, ok, _ in blocks)
-    for name, ok, msgs in blocks:
-        print(f"  [{name}] {'PASS' if ok else 'FAIL'}")
+        blocks.append(("RIBS", *rib_numbering(lab, affine), True))               # gates
+        blocks.append(("RIB ANCHOR (advisory)", *rib_anchor(lab, affine), False))  # informs only
+    allok = all(ok for _, ok, _, gate in blocks if gate)     # advisory anchor never blocks
+    for name, ok, msgs, gate in blocks:
+        tag = "PASS" if ok else ("FAIL" if gate else "note")
+        print(f"  [{name}] {tag}")
         for line in msgs:
             print(f"    {line}")
     print("  ===> " + ("ALL CHECKS PASS -> Save once more if you edited, then quit to submit."
