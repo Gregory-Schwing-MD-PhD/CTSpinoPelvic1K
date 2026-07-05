@@ -1,0 +1,2 @@
+date_flagged,case_id,volume_id,token,config,source_lstv_label,discrepancy,flagged_by,status
+2026-07-04,121__spine_only,0172,121,spine_only,normal (lstv_class 0; readers agreed),"Adjudicator counts 5 anterior sacral foramina on the CT (=> 6-segment sacrum = sacralization) and the 12th rib sits on the vertebra labelled L1 (rib on a lumbar level). Both point to SACRALIZATION, contradicting the source 'normal' read. Needs radiologist re-read of LSTV/Castellvi.",gregoryschwingmdphd,pending_reread
