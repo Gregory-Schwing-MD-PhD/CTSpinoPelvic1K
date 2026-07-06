@@ -256,6 +256,15 @@ def adjudication_next(who: dict = Depends(auth)):
     return out
 
 
+@app.post("/defer")
+async def defer(claim_token: str = Form(...), who: dict = Depends(auth)):
+    try:
+        with _LOCK:
+            return SERVICE.defer(claim_token)
+    except svc.ReviewError as e:
+        raise HTTPException(400, str(e))
+
+
 @app.get("/me/stats")
 def me_stats(who: dict = Depends(auth)):
     # private self-service: a reviewer only ever sees their OWN numbers

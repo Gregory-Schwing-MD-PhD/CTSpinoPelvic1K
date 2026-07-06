@@ -253,6 +253,26 @@ class ReviewService:
                 }
         return None
 
+    def defer(self, claim_token: str) -> dict:
+        """A reviewer declines a scan: release their claim so the case returns to the queue for
+        SOMEONE ELSE. The reviewer is recorded in `deferred_by` so they are never re-served it."""
+        case_id, slot = self._parse_token(claim_token)
+        case = self.store.get_case(case_id)
+        if case is None:
+            raise ReviewError(f"unknown case {case_id}")
+        sl = case.get("slots", {}).get(slot)
+        if not sl or sl.get("claim_token") != claim_token:
+            raise ReviewError("claim token does not match an open claim")
+        if sl.get("done"):
+            raise ReviewError("slot already submitted; cannot defer")
+        reviewer = sl.get("reviewer")
+        dby = case.setdefault("deferred_by", [])
+        if reviewer and reviewer not in dby:
+            dby.append(reviewer)
+        case.get("slots", {}).pop(slot, None)          # release -> case re-enters the queue
+        self.store.put_case(case)
+        return {"case_id": case_id, "deferred": True, "status": schema.derive_status(case)}
+
     def me_stats(self, reviewer_id: str) -> dict:
         """A reviewer's OWN progress (private, self-service): how many of their submissions passed
         the strengthened QC, the pass %, and how many are re-opened for them to amend. Reads the

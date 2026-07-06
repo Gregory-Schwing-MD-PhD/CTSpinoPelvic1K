@@ -257,6 +257,9 @@ def claimable_primary_slot(case: dict, reviewer_id: str,
     # A reviewer already attached to this case (any slot) can't take another.
     if any(s.get("reviewer") == reviewer_id for s in slots.values()):
         return None
+    # A reviewer who DEFERRED this scan is never re-served it (it goes to someone else).
+    if reviewer_id in case.get("deferred_by", []):
+        return None
     for k in PRIMARY_SLOTS:
         s = slots.get(k)
         if s is None:
