@@ -127,11 +127,19 @@ This hands you one of *your* flagged cases with **your own segmentation loaded**
 items (the terminal names them on each Save), **Save** over `seg.nii.gz`, and quit — it re-submits
 only once it passes QC. Repeat `python -m reviewtool next --amend` until `mystats` shows **0 to fix**.
 
-**What the QC now checks (fix these):**
-- **one rib bone = one number** — don't split a single rib across two labels.
-- **each rib connects to its vertebra** — no gap larger than ~5 mm between the rib head and the spine.
-- **each spine/pelvis bone is one clean piece** — e.g. don't leave half a hip labelled a different class.
-- rib numbers consecutive per side, one piece each (as before).
+**What BLOCKS your submission (you must fix these):**
+- **one rib bone = one number** — a single connected rib bone must carry exactly ONE rib label
+  (don't split one rib across two numbers, and don't give two ribs the same number).
+- **each spine/pelvis bone is one clean class** — e.g. don't leave half a hip labelled a different
+  class (the bone must be one dominant connected piece).
+
+These are the only two hard blocks, and they're always fixable.
+
+**Advisory — the tool shows these but they do NOT block your upload:**
+- a rib in two pieces, a missing rib number, or a gap between a rib and its vertebra. These are
+  very often just the rib **exiting the field of view** (partially scanned), which is **not
+  fixable** — so they never block you. **But** if the rib is fully in view and genuinely broken,
+  please still connect it; if it's cut off by the edge of the scan, leave it.
 
 ### See problems in 3D
 The fastest way to spot these is ITK-SNAP's **3D view**. Watch this short tutorial on building a 3D
