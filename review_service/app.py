@@ -41,7 +41,7 @@ for p in (_HERE, _HERE.parent / "scripts"):
 
 from fastapi import (Depends, FastAPI, Form, Header, HTTPException,  # noqa: E402
                      UploadFile, File)
-from fastapi.responses import HTMLResponse, JSONResponse  # noqa: E402
+from fastapi.responses import HTMLResponse, JSONResponse, Response  # noqa: E402
 
 import store as store_mod      # noqa: E402
 import service as svc          # noqa: E402
@@ -270,6 +270,18 @@ def me_stats(who: dict = Depends(auth)):
     # private self-service: a reviewer only ever sees their OWN numbers
     with _LOCK:
         return SERVICE.me_stats(who["id"])
+
+
+@app.get("/amend/base")
+def amend_base(case: str, slot: str, who: dict = Depends(auth)):
+    # Stream the caller's OWN prior submission from the private review repo (they can't read it
+    # directly). Scoped to their slot in the service.
+    try:
+        with _LOCK:
+            data = SERVICE.amend_base_bytes(who["id"], case, slot)
+    except svc.ReviewError as e:
+        raise HTTPException(400, str(e))
+    return Response(content=data, media_type="application/octet-stream")
 
 
 @app.get("/amend/next")

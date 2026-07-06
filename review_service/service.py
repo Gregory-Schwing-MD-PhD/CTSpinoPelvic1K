@@ -225,6 +225,10 @@ class ReviewService:
         (they are fixing THEIR OWN slot) and hands back their own previous label as the editable
         base, not the pseudo. Resubmit goes through the normal /submit QC gate (fails closed)."""
         for case in self.store.list_cases():
+            # We are only running the RIB correction task now. Never re-serve a leftover
+            # spine/pelvis pseudolabel amend (its base label lives elsewhere and 404s the client).
+            if case.get("region_to_review") != "ribs":
+                continue
             for slot in schema.PRIMARY_SLOTS:
                 sl = case.get("slots", {}).get(slot)
                 if (not sl or sl.get("done") or not sl.get("amend")
@@ -250,8 +254,27 @@ class ReviewService:
                     "labels_descriptor": _descriptor_for_case(case),
                     "crop": case.get("crop"),
                     "amend": True, "amend_reason": sl.get("amend_reason", ""),
+                    # public-repo fallback if the private amend base can't be streamed
+                    "orig_pseudo_file": case["pseudo_label_file"],
                 }
         return None
+
+    def amend_base_bytes(self, reviewer_id: str, case_id: str, slot: str) -> bytes:
+        """Stream a reviewer their OWN earlier submission (the amend base) from the PRIVATE review
+        repo. Students sign in with their own HF login and CANNOT read that repo directly, so the
+        Space (which holds the write token) reads the label and hands it back. Scoped to the caller's
+        own slot only."""
+        case = self.store.get_case(case_id)
+        if case is None:
+            raise ReviewError(f"unknown case {case_id}")
+        sl = case.get("slots", {}).get(slot)
+        if not sl or sl.get("reviewer") != reviewer_id:
+            raise ReviewError("that slot is not yours to amend")
+        rel = sl.get("amend_base") or f"reviews/{case_id}/{slot}_label.nii.gz"
+        data = self.store.b.read_bytes(rel)
+        if data is None:
+            raise ReviewError(f"amend base not found in review repo: {rel}")
+        return data
 
     def defer(self, claim_token: str) -> dict:
         """A reviewer declines a scan: release their claim so the case returns to the queue for

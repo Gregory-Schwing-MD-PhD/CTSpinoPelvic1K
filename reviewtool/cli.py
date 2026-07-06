@@ -864,7 +864,23 @@ def cmd_next(a):
     crop = job.get("crop")
     # The full pseudo LABEL is small (~MB) and is what we submit; with a crop we
     # avoid the ~200 MB CT and only pull the few-MB crop CT + crop mask.
-    pseudo = _fetch(job, job["label_file"], work / "pseudo.nii.gz")
+    if getattr(a, "amend", False):
+        # The amend base is YOUR earlier submission — it lives in the PRIVATE review repo, which
+        # you can't read directly, so the Space streams it to you. Fall back to the public auto-
+        # label (re-do the fix from scratch) if your old submission can't be served.
+        pseudo = work / "pseudo.nii.gz"
+        try:
+            r = s.get(base + "/amend/base",
+                      params={"case": job["case_id"], "slot": job["slot"]}, timeout=120)
+            r.raise_for_status()
+            pseudo.write_bytes(r.content)
+        except Exception as exc:                          # noqa: BLE001
+            print(f"  (could not load your earlier label [{str(exc)[:80]}] — "
+                  "starting from the auto-label instead)")
+            pseudo = _fetch(job, job.get("orig_pseudo_file") or job["label_file"],
+                            work / "pseudo.nii.gz")
+    else:
+        pseudo = _fetch(job, job["label_file"], work / "pseudo.nii.gz")
     seg = work / "seg.nii.gz"
     labels = work / "labels.txt"
     # palette must MATCH the served labels (VerSe-native for v3/v4, v2 LSTV otherwise),
@@ -1034,8 +1050,10 @@ def cmd_adjudicate(a):
 
 
 def cmd_skip(a):
-    """Defer the scan you have claimed — release it back to the queue for someone else. Use it if
-    you don't want to annotate a particular case (bad scan, unsure, etc.). Your other work is safe."""
+    """Defer the scan(s) you have claimed — release back to the queue for someone else, and clear
+    the local claim. Use it for a scan you don't want (bad scan, unsure) or to clear STALE local
+    claims that error with "claim token does not match an open claim" (the server already moved on).
+    `--all` clears every held claim at once. Your submitted/passed work is never touched."""
     s, base = _api()
     claims = []
     for f in (sorted(ACTIVE_DIR.glob("*.json")) if ACTIVE_DIR.exists() else []):
@@ -1050,21 +1068,23 @@ def cmd_skip(a):
     if not claims:
         print("no claimed scan to defer — you're not holding one. `reviewtool next` to claim.")
         return
-    if len(claims) > 1 and not a.case:
-        print("you're holding more than one — pass which to skip: `reviewtool skip <case>`:")
+    if len(claims) > 1 and not a.case and not getattr(a, "all", False):
+        print("you're holding more than one — pass which to skip (`reviewtool skip <case>`), "
+              "or clear them all with `reviewtool skip --all`:")
         for d in claims:
             print("   ", Path(d["workdir"]).name)
         return
-    d = claims[0]; job = d["job"]
-    try:
-        r = s.post(base + "/defer", data={"claim_token": job.get("claim_token")}, timeout=60)
-        r.raise_for_status()
-    except Exception as exc:                             # noqa: BLE001
-        print(f"could not defer (maybe already submitted/expired): {str(exc)[:120]}\n"
-              "  your claim is cleared locally either way; run `reviewtool next` for another.")
-    _clear_active(Path(d["workdir"]))
-    print(f"deferred {job['case_id']} — released back to the queue for another reviewer.\n"
-          f"  Get a different scan with:  python -m reviewtool next")
+    for d in claims:
+        job = d["job"]; cid = job.get("case_id", Path(d["workdir"]).name)
+        try:
+            r = s.post(base + "/defer", data={"claim_token": job.get("claim_token")}, timeout=60)
+            r.raise_for_status()
+            print(f"deferred {cid} — released back to the queue for another reviewer.")
+        except Exception as exc:                         # noqa: BLE001
+            # stale/expired/already-reassigned: nothing to release server-side; just drop it locally
+            print(f"cleared stale local claim {cid} (server had already moved on).")
+        _clear_active(Path(d["workdir"]))
+    print("Done. Get your next case with:  python -m reviewtool next --amend   (or  next)")
 
 
 def cmd_mystats(a):
@@ -1875,8 +1895,9 @@ def main(argv=None) -> int:
     p.set_defaults(fn=cmd_mystats)
 
     p = sub.add_parser("skip",
-                       help="defer the scan you claimed — put it back in the queue for someone else")
+                       help="defer a scan you claimed / clear stale local claims (put back in queue)")
     p.add_argument("case", nargs="?", default=None, help="case id (omit if you hold only one)")
+    p.add_argument("--all", action="store_true", help="clear ALL your held/stale local claims")
     p.set_defaults(fn=cmd_skip)
 
     for name, fn in (("next", cmd_next), ("adjudicate", cmd_adjudicate)):
