@@ -843,8 +843,9 @@ def _descriptor_for_job(job) -> str:
 
 def cmd_next(a):
     s, base = _api()
-    if _reopen_held_if_any(a, kinds={"review"}):         # finish a held review before a new one
-        return
+    # NOTE: no reopen-held gate here -- a stale local claim (e.g. an old spine-pseudolabel task in
+    # the same Space) must NEVER block a student from claiming a new rib case. Use `resume`/`edit`
+    # to finish an unsubmitted case; it does not stop `next`.
     if getattr(a, "amend", False):                       # fix YOUR re-opened (QC-failed) cases
         job = _claim(s, base, "/amend/next", method="get")
         if job is None:

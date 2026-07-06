@@ -417,9 +417,16 @@ def check_label(check: str, lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     if check in ("spine", "both"):
         gating.append(spine_sanity(lab, affine))
     if check in ("ribs", "both"):
-        gating.append(rib_numbering(lab, affine))       # GATE: one piece + contiguous numbering
+        # GATES are only the FOV-SAFE class-purity checks: a rib/bone truncated by the FOV can
+        # never trip these (truncation shrinks a bone or splits ONE rib number -> it can't make one
+        # bone carry TWO labels), so they never create an impossible block.
         gating.append(rib_label_mixing(lab, affine))    # GATE: one connected rib bone -> one label
-        gating.append(rib_spine_gap(lab, affine))       # GATE: rib head connects to the spine
+        # rib_numbering (split / missing number) is FOV-AMBIGUOUS: an FOV-clipped rib exits and
+        # re-enters the scan as 2 pieces, or is entirely out of view -> UNFIXABLE. Advisory only so
+        # it never blocks; still printed so a genuinely-fixable split gets connected.
+        advisory.append(rib_numbering(lab, affine))
+        advisory.append(rib_spine_gap(lab, affine))     # ADVISORY (FOV): rib->vertebra junction out
+        #   of the scan makes the gap unfixable -> never block; still printed.
         advisory.append(rib_anchor(lab, affine))        # ADVISORY only: rib N incident on T-N is
         #   unreliable (rib heads often unsegmented; thoracic vertebra labels can be off), so it
         #   informs but never blocks the submit.
@@ -436,9 +443,9 @@ def report(check: str, lab: np.ndarray, affine) -> bool:
     if check in ("spine", "both"):
         blocks.append(("SPINE", *spine_sanity(lab, affine), True))
     if check in ("ribs", "both"):
-        blocks.append(("RIBS", *rib_numbering(lab, affine), True))               # gates
-        blocks.append(("RIB LABEL MIXING", *rib_label_mixing(lab, affine), True))  # gates
-        blocks.append(("RIB-SPINE GAP", *rib_spine_gap(lab, affine), True))       # gates
+        blocks.append(("RIB LABEL MIXING", *rib_label_mixing(lab, affine), True))  # GATE (FOV-safe)
+        blocks.append(("RIB NUMBERING (advisory)", *rib_numbering(lab, affine), False))  # FOV-clip
+        blocks.append(("RIB-SPINE GAP (advisory)", *rib_spine_gap(lab, affine), False))  # FOV
         blocks.append(("RIB ANCHOR (advisory)", *rib_anchor(lab, affine), False))  # informs only
     if check in ("spine", "ribs", "both"):
         blocks.append(("STRUCTURE INTEGRITY", *structure_integrity(lab, affine), True))  # gates
