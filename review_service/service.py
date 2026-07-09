@@ -78,7 +78,7 @@ def _load_label_array(data: bytes, name: str):
 class ReviewService:
     def __init__(self, store: ReviewStore, *, v2_repo: str,
                  source_revision: str = "v2", tau: float = diff.DEFAULT_TAU,
-                 irr_mode: str = diff.DEFAULT_MODE, claim_ttl_seconds: int = 7200,
+                 irr_mode: str = diff.DEFAULT_MODE, claim_ttl_seconds: int = 30 * 24 * 3600,
                  check: str = "none"):
         self.store = store
         self.v2_repo = v2_repo

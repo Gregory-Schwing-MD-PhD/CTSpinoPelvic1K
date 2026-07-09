@@ -71,7 +71,9 @@ def _build_service() -> svc.ReviewService:
         source_revision=os.environ.get("SOURCE_REVISION", "v2"),
         tau=float(os.environ.get("TAU", svc.diff.DEFAULT_TAU)),
         irr_mode=os.environ.get("IRR_MODE", svc.diff.DEFAULT_MODE),
-        claim_ttl_seconds=int(os.environ.get("CLAIM_TTL_SECONDS", "7200")),
+        # 30 days: careful annotation takes hours-to-days; a 2h TTL was reclaiming in-progress work
+        # and reassigning it to other reviewers. A claim frees only when truly abandoned.
+        claim_ttl_seconds=int(os.environ.get("CLAIM_TTL_SECONDS", str(30 * 24 * 3600))),
         check=os.environ.get("CHECK", "none"),     # server-side QC gate (ribs -> reject dups)
     )
 

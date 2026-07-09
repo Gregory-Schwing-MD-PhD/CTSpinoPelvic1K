@@ -264,8 +264,11 @@ def claimable_primary_slot(case: dict, reviewer_id: str,
         s = slots.get(k)
         if s is None:
             return k
-        # reclaim an abandoned (expired + not submitted) claim
-        if not s.get("done") and s.get("expires_at") and s["expires_at"] < now:
+        # Reclaim a genuinely ABANDONED claim (expired + never submitted) so it doesn't sit forever.
+        # But NEVER reclaim a slot re-opened for a specific reviewer to AMEND their own work — that
+        # is theirs to fix, not free for the taking. With a long TTL this only frees truly dead claims.
+        if (not s.get("done") and not s.get("amend")
+                and s.get("expires_at") and s["expires_at"] < now):
             return k
     return None
 
