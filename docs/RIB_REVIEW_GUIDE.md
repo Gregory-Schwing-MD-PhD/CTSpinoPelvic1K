@@ -136,10 +136,34 @@ only once it passes QC. Repeat `python -m reviewtool next --amend` until `mystat
 These are the only two hard blocks, and they're always fixable.
 
 **Advisory — the tool shows these but they do NOT block your upload:**
-- a rib in two pieces, a missing rib number, or a gap between a rib and its vertebra. These are
-  very often just the rib **exiting the field of view** (partially scanned), which is **not
-  fixable** — so they never block you. **But** if the rib is fully in view and genuinely broken,
-  please still connect it; if it's cut off by the edge of the scan, leave it.
+- a rib in two pieces, a missing rib number, a gap between a rib and its vertebra, or
+  **"rib N not incident on T-N."** These are very often just the rib **exiting the field of view**
+  (partially scanned), which is **not fixable** — so they never block you, and you will **not** be
+  handed the same case again for them. **But** if the rib is fully in view and genuinely broken,
+  please still connect it; if it's cut off by the edge of the scan, **leave it and close — it will submit.**
+
+### Don't chase the "halo"
+When you re-segment a rib with nnInteractive, you'll often see tiny speckles of the **old** label
+still clinging to the rib's outer surface. **Do not spend time cleaning those up.** Post-processing
+automatically absorbs stray wrong-class specks along a corrected bone's border. Fix the actual
+structure (connect / relabel / delete the real piece) and move on — the surface flecks are handled
+for you.
+
+### Skip a scan you don't want
+Don't want a particular case (bad scan, unsure, or a rib simply cut off by the scan edge)? Release
+it back to the queue for someone else:
+
+```bash
+python -m reviewtool skip            # the scan you're holding
+python -m reviewtool skip --all      # clear any stuck/stale local claims at once
+```
+
+Your submitted work is never touched by `skip`.
+
+### Your claimed cases are protected
+A case you claim is held for **3 days**, and a case you're **amending can never be taken from you**
+— so careful, multi-session work won't be reassigned mid-flight. Just try to submit or amend within
+a few days of claiming; your progress and passed cases are safe.
 
 ### See problems in 3D
 The fastest way to spot these is ITK-SNAP's **3D view**. Watch this short tutorial on building a 3D
