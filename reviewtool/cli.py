@@ -126,6 +126,18 @@ def _fetch(job: dict, filename: str, dest: Path) -> Path:
     return dest
 
 
+def _fetch_adj_label(s, base, case_id: str, slot: str, dest: Path) -> Path:
+    """Download a reviewer's SUBMITTED label (slot '1'/'2') THROUGH the Space (adjudicator only).
+    The reviewer labels live in the PRIVATE review repo, which a personal HF login can't read
+    directly — the Space holds the token and streams them."""
+    r = s.get(base + "/adjudication/base",
+              params={"case": case_id, "slot": slot}, timeout=120)
+    r.raise_for_status()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(r.content)
+    return dest
+
+
 def _sha256(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -1011,9 +1023,17 @@ def cmd_adjudicate(a):
     work.mkdir(parents=True, exist_ok=True)
     _save_active(job, work, kind="adjudicate", notes=a.notes)
     ct = _fetch(job, job["ct_file"], work / "ct.nii.gz")
-    pseudo = _fetch(job, job["label_file"], work / "pseudo.nii.gz")
     seg = work / "seg.nii.gz"
-    seg.write_bytes(pseudo.read_bytes())
+    # Adjudicate FROM reviewer 1's CLEAN corrected label (streamed through the Space) — not the raw
+    # pseudo. Reviewer 2 is opened read-only beside it (below). Fall back to the pseudo only if the
+    # reviewer label can't be served.
+    try:
+        _fetch_adj_label(s, base, job["case_id"], "1", seg)
+        print("  base = reviewer 1's corrected label (reviewer 2 opens read-only for comparison).")
+    except Exception as exc:                              # noqa: BLE001
+        print(f"  (couldn't load reviewer 1's label [{str(exc)[:70]}] — starting from the auto-label)")
+        pseudo = _fetch(job, job["label_file"], work / "pseudo.nii.gz")
+        seg.write_bytes(pseudo.read_bytes())
     labels = work / "labels.txt"
     # region-correct palette (v4 VerSe-native for ribs, v2 jet otherwise) — same idx↔structure
     # as the server, so this just guarantees the current colours without a Space redeploy.
@@ -1025,7 +1045,7 @@ def cmd_adjudicate(a):
     pre_mtime = seg.stat().st_mtime if seg.exists() else 0.0
     # auto-open read-only AGREE + DISAGREE reference windows beside the editor (best-effort)
     dis_procs = ([] if getattr(a, "no_disagreement", False)
-                 else _open_disagreement_ref(job, ct, work, a))
+                 else _open_disagreement_ref(s, base, job, ct, work, a))
     if region in ("ribs", "spine", "both"):   # live QC as you decide; gate the submit on it
         rc, passed = _watch_anatomy(snap, ct, seg, labels, check=region)
     else:
@@ -1839,22 +1859,18 @@ def cmd_disagreement(a):
     _launch_itksnap(a.itksnap or _default_itksnap(), Path(ct), out, desc)
 
 
-def _open_disagreement_ref(job, ct, work, a):
+def _open_disagreement_ref(s, base, job, ct, work, a):
     """Best-effort: open ONE read-only DISAGREE window (v4 palette, colored ribs) beside the
-    editor — just the places the two reviewers differ, so you know where to focus. Downloads
-    the two reviewer labels from the ledger (needs read access; skips with a note). Never writes
-    to the ledger. Returns a list with the one Popen handle (or [])."""
-    from huggingface_hub import hf_hub_download
+    editor — just the places the two reviewers differ, so you know where to focus. Streams the two
+    reviewer labels THROUGH the Space (adjudicator only — a personal login can't read the private
+    review repo directly). Never writes to the ledger. Returns a list with the one Popen handle (or [])."""
     import numpy as np
     import nibabel as nib
-    rr = getattr(a, "review_repo", None) or "anonymous-mlhc/CTSpinoPelvic1K-reviews-ribs"
     cid = job["case_id"]
     try:
-        l1 = hf_hub_download(repo_id=rr, repo_type="dataset", revision="main",
-                             filename=f"reviews/{cid}/1_label.nii.gz", local_dir=str(work))
-        l2 = hf_hub_download(repo_id=rr, repo_type="dataset", revision="main",
-                             filename=f"reviews/{cid}/2_label.nii.gz", local_dir=str(work))
-        i1 = nib.load(l1)
+        l1 = _fetch_adj_label(s, base, cid, "1", Path(work) / "r1_label.nii.gz")
+        l2 = _fetch_adj_label(s, base, cid, "2", Path(work) / "r2_label.nii.gz")
+        i1 = nib.load(str(l1))
         A, B = np.asanyarray(i1.dataobj), np.asanyarray(nib.load(l2).dataobj)
         if A.shape != B.shape:
             print("  (disagree: reviewer label shapes differ — skipping the reference window)")
@@ -1869,8 +1885,8 @@ def _open_disagreement_ref(job, ct, work, a):
               f"Click 'Update' in its 3D pane to see the spots to focus on in 3D.")
         return [_launch_itksnap_bg(a.itksnap or _default_itksnap(), Path(ct), ds, desc)]
     except Exception as exc:                             # noqa: BLE001
-        print(f"  (disagree window unavailable: {str(exc)[:90]} — need ledger read access "
-              f"or pass --no_disagreement; the editor still opens.)")
+        print(f"  (disagree window unavailable: {str(exc)[:90]} — the editor still opens; "
+              f"pass --no_disagreement to skip it.)")
         return []
 
 

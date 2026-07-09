@@ -275,6 +275,19 @@ def me_stats(who: dict = Depends(auth)):
         return SERVICE.me_stats(who["id"])
 
 
+@app.get("/adjudication/base")
+def adjudication_base(case: str, slot: str, who: dict = Depends(auth)):
+    # Adjudicator streams a reviewer's clean submitted label through the Space (no direct private-repo
+    # access needed). Adjudicator role required.
+    _require("adjudicator", who)
+    try:
+        with _LOCK:
+            data = SERVICE.adjudication_base_bytes(case, slot)
+    except svc.ReviewError as e:
+        raise HTTPException(400, str(e))
+    return Response(content=data, media_type="application/octet-stream")
+
+
 @app.get("/amend/base")
 def amend_base(case: str, slot: str, who: dict = Depends(auth)):
     # Stream the caller's OWN prior submission from the private review repo (they can't read it

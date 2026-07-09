@@ -276,6 +276,24 @@ class ReviewService:
             raise ReviewError(f"amend base not found in review repo: {rel}")
         return data
 
+    def adjudication_base_bytes(self, case_id: str, slot: str) -> bytes:
+        """Stream a reviewer's SUBMITTED label (slot '1' or '2') to the adjudicator THROUGH the Space,
+        so they never need direct read access to the private review repo. Only slots with a submitted
+        label are served. (Endpoint enforces the adjudicator role.)"""
+        if slot not in ("1", "2"):
+            raise ReviewError("slot must be 1 or 2")
+        case = self.store.get_case(case_id)
+        if case is None:
+            raise ReviewError(f"unknown case {case_id}")
+        sl = case.get("slots", {}).get(slot)
+        if not sl or not sl.get("done"):
+            raise ReviewError(f"slot {slot} has no submitted label")
+        rel = sl.get("label_path") or f"reviews/{case_id}/{slot}_label.nii.gz"
+        data = self.store.b.read_bytes(rel)
+        if data is None:
+            raise ReviewError(f"label not found in review repo: {rel}")
+        return data
+
     def defer(self, claim_token: str) -> dict:
         """A reviewer declines a scan: release their claim so the case returns to the queue for
         SOMEONE ELSE. The reviewer is recorded in `deferred_by` so they are never re-served it."""
