@@ -389,11 +389,16 @@ def structure_integrity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     case both hips were ~65/35 two-piece). Ribs (34-57) have their own one-piece check."""
     st = ndimage.generate_binary_structure(3, 3)
     objs = ndimage.find_objects(lab if lab.dtype.kind in "iu" else lab.astype(np.int32))
+    # array axis most aligned with the superior-inferior (world Z) direction: a bone clipped by the
+    # TOP or BOTTOM of the scan along this axis is FOV-truncated and may fragment for real -> advisory.
+    R = np.asarray(affine)[:3, :3]
+    si_axis = int(np.argmax(np.abs(R[2, :])))
     names = _id2name(); ok, msgs = True, []
     for sid in range(1, 34):                            # 1..33 = vertebrae, sacrum, S1, hips, femurs
         if sid - 1 >= len(objs) or objs[sid - 1] is None:
             continue
-        m = lab[objs[sid - 1]] == sid
+        sl = objs[sid - 1]
+        m = lab[sl] == sid
         tot = int(m.sum())
         if tot < STRUCT_MIN_VOX:
             continue
@@ -402,6 +407,14 @@ def structure_integrity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
             continue
         mx = int(np.bincount(cc.ravel())[1:].max())
         if mx < STRUCT_DOMINANT_FRAC * tot:
+            # A bone clipped by the top/bottom slice of the scan (superior-inferior FOV edge) can be
+            # split by truncation and is UNFIXABLE -> advisory, never blocks. A fully-in-FOV bone that
+            # fragments is the real 'half the hip is a different class' mislabel -> hard block.
+            truncated = (sl[si_axis].start == 0) or (sl[si_axis].stop == lab.shape[si_axis])
+            if truncated:
+                msgs.append(f"note {names.get(sid, sid)} is split but clipped by the top/bottom of "
+                            f"the scan (FOV-truncated) -> advisory, not blocking")
+                continue
             ok = False
             msgs.append(f"X {names.get(sid, sid)} is split into pieces (largest {100 * mx // tot}% "
                         f"of the bone) -> one bone must be ONE class; relabel the stray part")
