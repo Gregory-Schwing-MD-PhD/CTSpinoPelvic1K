@@ -176,6 +176,22 @@ def _auto_merge_case(s, base, job, work, ct_path, seg_path):
         return None
 
 
+def _open_reviewer_window(s, base, job, ct, work, a, slot):
+    """Open ONE reviewer's FULL submitted label read-only beside the editor (v4 palette), so the
+    adjudicator can compare it against the base they're editing and pick the better one. Returns
+    [Popen] or []."""
+    try:
+        lp = _fetch_adj_label(s, base, job["case_id"], slot, Path(work) / f"r{slot}_full.nii.gz")
+        desc = Path(work) / "verse_labels.txt"
+        if not desc.exists():
+            desc.write_text(labels_descriptor.verse_native_descriptor_text())
+        print(f"  READ-ONLY reviewer {slot} window opened (their full label) to compare.")
+        return [_launch_itksnap_bg(a.itksnap or _default_itksnap(), Path(ct), lp, desc)]
+    except Exception as exc:                             # noqa: BLE001
+        print(f"  (reviewer {slot} compare window unavailable: {str(exc)[:70]})")
+        return []
+
+
 def _sha256(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -1067,36 +1083,45 @@ def cmd_adjudicate(a):
     # as the server, so this just guarantees the current colours without a Space redeploy.
     labels.write_text(_descriptor_for_job(job))
     region = job.get("region_to_review")
-    # AUTO-MERGE: 3-way merge the two reviewers vs the shared pseudo. Most disagreement is one
-    # reviewer editing where the other left the base — auto-resolved. Only irreconcilable voxels
-    # remain, and if there are none (and QC is clean) the case is AUTO-FINALIZED with no editing.
-    auto = None if getattr(a, "no_auto", False) else _auto_merge_case(s, base, job, work, ct, seg)
+    base_slot = str(getattr(a, "base", None) or "1")
+    other_slot = "2" if base_slot == "1" else "1"
+    auto = None
+    if getattr(a, "auto", False):
+        # OPT-IN: 3-way merge the two reviewers vs the shared pseudo. If nothing irreconcilable
+        # remains (and QC is clean) the case AUTO-FINALIZES with no editing; otherwise the conflicts
+        # are highlighted. Off by default — a merge can erode low-HU rib heads, so picking a human
+        # label is the trusted path.
+        auto = _auto_merge_case(s, base, job, work, ct, seg)
+        if auto is not None and auto["decision"] == "auto_finalize" \
+                and not getattr(a, "review_auto", False):
+            print(f"ADJUDICATE {job['case_id']}: AUTO-MERGED — no irreconcilable conflict, QC clean.\n"
+                  f"  {auto['summary']}. Auto-finalizing (pass --review_auto to eyeball it first).")
+            _submit_adjudication(s, base, job, work, seg, (a.notes or "").strip() + " [auto-merged]")
+            return
+        if auto is not None:
+            print(f"  auto-merge resolved {auto['resolved_pct']:.0f}% of the disagreement; "
+                  f"{auto['residual']} voxels remain as conflicts — highlighted for you to paint.")
     if auto is None:
-        # Fall back: adjudicate FROM reviewer 1's CLEAN corrected label (reviewer 2 read-only below),
-        # or the raw pseudo if even that can't be served.
+        # DEFAULT: adjudicate by SELECTION — load the chosen reviewer's label as the editable base;
+        # the OTHER reviewer opens read-only beside it, so you pick the better one and edit it in.
         try:
-            _fetch_adj_label(s, base, job["case_id"], "1", seg)
-            print("  base = reviewer 1's corrected label (reviewer 2 opens read-only for comparison).")
+            _fetch_adj_label(s, base, job["case_id"], base_slot, seg)
+            print(f"  base = reviewer {base_slot}'s label; reviewer {other_slot} opens read-only to "
+                  f"compare. If {other_slot} is the better base, re-run with  --base {other_slot}.")
         except Exception as exc:                          # noqa: BLE001
-            print(f"  (couldn't load reviewer 1's label [{str(exc)[:70]}] — from the auto-label)")
+            print(f"  (couldn't load reviewer {base_slot} [{str(exc)[:70]}] — from the auto-label)")
             pseudo = _fetch(job, job["label_file"], work / "pseudo.nii.gz")
             seg.write_bytes(pseudo.read_bytes())
-    elif auto["decision"] == "auto_finalize" and not getattr(a, "review_auto", False):
-        print(f"ADJUDICATE {job['case_id']}: AUTO-MERGED — no irreconcilable conflict, QC clean.\n"
-              f"  {auto['summary']}. Auto-finalizing (pass --review-auto to eyeball it first).")
-        _submit_adjudication(s, base, job, work, seg, (a.notes or "").strip() + " [auto-merged]")
-        return
-    else:
-        print(f"  auto-merge resolved {auto['resolved_pct']:.0f}% of the disagreement; "
-              f"{auto['residual']} voxels remain as conflicts — highlighted for you to paint.")
     print(f"ADJUDICATE {job['case_id']}  IRR={job.get('irr')}\n"
           f"two reviewers disagreed on the {region} region; produce the deciding label.")
     snap = a.itksnap or _default_itksnap()
     pre_mtime = seg.stat().st_mtime if seg.exists() else 0.0
-    # auto-open read-only AGREE + DISAGREE reference windows beside the editor (best-effort)
+    # read-only reference windows beside the editor (best-effort)
     dis_procs = ([] if getattr(a, "no_disagreement", False)
                  else _open_disagreement_ref(s, base, job, ct, work, a))
-    if auto and auto.get("conflict_path"):               # show the conflict blobs to paint
+    if auto is None:                                     # pick-better: show the OTHER reviewer's FULL label
+        dis_procs += _open_reviewer_window(s, base, job, ct, work, a, other_slot)
+    if auto and auto.get("conflict_path"):               # --auto: show the conflict blobs to paint
         dis_procs.append(_launch_itksnap_bg(snap, ct, auto["conflict_path"], labels))
     if region in ("ribs", "spine", "both"):   # live QC as you decide; gate the submit on it
         rc, passed = _watch_anatomy(snap, ct, seg, labels, check=region)
@@ -2004,10 +2029,14 @@ def main(argv=None) -> int:
                            help="private ledger for the disagreement 2nd window")
             p.add_argument("--no_disagreement", action="store_true",
                            help="don't auto-open the reviewer-disagreement reference window")
-            p.add_argument("--no_auto", action="store_true",
-                           help="disable the 3-way auto-merge; adjudicate manually from reviewer 1")
+            p.add_argument("--base", choices=["1", "2"], default="1",
+                           help="which reviewer's label to load as the editable base (default 1); "
+                                "the other opens read-only to compare")
+            p.add_argument("--auto", action="store_true",
+                           help="use the 3-way auto-merge instead of picking a reviewer (opt-in; a "
+                                "merge can erode low-HU rib heads, so it's off by default)")
             p.add_argument("--review_auto", action="store_true",
-                           help="open even auto-finalizable merges in ITK-SNAP to eyeball before submit")
+                           help="with --auto: open even auto-finalizable merges to eyeball before submit")
         p.set_defaults(fn=fn)
 
     p = sub.add_parser("edit",
