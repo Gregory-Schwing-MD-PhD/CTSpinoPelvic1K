@@ -51,12 +51,16 @@ ANCHOR_MM = 10.0        # rib N is "incident on" T-N if within this of the verte
 MIX_LABEL_MIN_VOX = 250  # in the "one bone -> one label" check, a 2nd label on the same eroded
                          # rib component counts as a real mix only above this (ignore sliver
                          # boundary voxels between genuinely-adjacent ribs).
-GAP_DETACH_MM = 15.0     # a rib FULLY IN VIEW (bbox touches no scan face) whose head is farther than
-                         # this from the nearest vertebra is DETACHED and fixable -> BLOCK. Calibrated
-                         # on real in-view ribs: gap-to-spine is sharply bimodal, ~85% at <=3 mm
-                         # (head touching, incl. the ~3-4 mm costovertebral joint space) and a tail at
-                         # >30 mm (detached), with a wide empty valley between -> 15 mm sits safely in
-                         # the valley, above normal joint space + minor head under-segmentation.
+GAP_DETACH_MM = 15.0     # a rib whose head is farther than this from its vertebra is DETACHED (the
+                         # in-view gap distribution is sharply bimodal: ~85% <=3 mm touching, tail
+                         # >30 mm detached, empty valley between -> 15 mm sits safely in the valley).
+HEAD_FOV_MARGIN_MM = 15.0  # if a rib's HEAD (superior extent) is within this of the top of the scan,
+                         # its costovertebral head exits the FOV -> unfixable -> advisory, never blocks.
+HEAD_BAND_MM = 20.0      # look for the rib's vertebra within +/- this of the rib head's level.
+SPINE_AT_LEVEL_MIN = 1000  # >= this many vertebra voxels at the head level = a vertebra IS segmented
+                         # there (a detached rib must be connected); fewer = the vertebra is MISSING
+                         # but in view -> it should be ADDED (numbered up from the bottom), NOT a rib
+                         # defect. Cleanly separates real cases (present ~50k-150k vs missing 0-2).
                          # (number-agnostic: distance to ANY vertebra, no dependence on numbering.)
 STRUCT_MIN_VOX = 3000        # ignore a barely-present (partial-FOV) bone in the integrity check
 STRUCT_DOMINANT_FRAC = 0.85  # a solid bone (vertebra/sacrum/hip/femur) must be >= this fraction
@@ -371,6 +375,12 @@ def rib_spine_gap(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     mins = ndimage.minimum(edt, labels=subd, index=rib_ids)     # min EDT within each rib label
     objs = ndimage.find_objects(lab if lab.dtype.kind in "iu" else lab.astype(np.int32))
     shape = lab.shape
+    # superior-inferior axis + which end is "up": a rib whose HEAD reaches the top-of-scan edge is
+    # entering from OUTSIDE the FOV, so its head + vertebra are truncated and it can't be connected.
+    si = int(np.argmax(np.abs(affine[:3, :3][2, :])))
+    sup_face = (shape[si] - 1) if affine[2, si] >= 0 else 0
+    margin = int(round(HEAD_FOV_MARGIN_MM / spacing[si]))
+    band = int(round(HEAD_BAND_MM / spacing[si]))
     names = _id2name(); ok, msgs = True, []
     for rid, g in zip(rib_ids, mins):
         if g is None or not np.isfinite(g):                      # rib absent (or too thin at 2x)
@@ -378,16 +388,35 @@ def rib_spine_gap(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
         if g <= GAP_DETACH_MM:                                   # head reaches the spine -> fine
             continue
         o = objs[rid - 1] if rid - 1 < len(objs) else None
-        exits_fov = o is not None and any(o[i].start == 0 or o[i].stop == shape[i] for i in range(3))
-        if exits_fov:
-            msgs.append(f"note {names.get(rid, rid)}: {g:.0f} mm from the spine but the rib is clipped "
-                        f"by the scan edge (exits FOV) -> advisory, not blocking")
+        if o is None:
+            continue
+        # 1. rib literally clipped by any scan face -> exits FOV
+        if any(o[i].start == 0 or o[i].stop == shape[i] for i in range(3)):
+            msgs.append(f"note {names.get(rid, rid)}: {g:.0f} mm but the rib is clipped by the scan "
+                        f"edge (exits FOV) -> advisory, not blocking")
+            continue
+        # 2. rib HEAD (superior extent) near the top of the scan -> it enters from outside the FOV,
+        #    so its costovertebral head + vertebra are truncated -> unfixable -> advisory.
+        rib_sup = (o[si].stop - 1) if affine[2, si] >= 0 else o[si].start
+        if abs(rib_sup - sup_face) <= margin:
+            msgs.append(f"note {names.get(rid, rid)}: {g:.0f} mm but its head enters from the top of "
+                        f"the scan (exits FOV) -> advisory, not blocking")
+            continue
+        # 3. rib head is DEEP in the FOV: is a vertebra segmented at its level?
+        b0 = max(0, rib_sup - band); b1 = min(shape[si], rib_sup + band + 1)
+        ss = [slice(None)] * 3; ss[si] = slice(b0, b1)
+        sp_at_level = int(spine[tuple(ss)].sum())
+        if sp_at_level >= SPINE_AT_LEVEL_MIN:
+            ok = False                                           # vertebra IS there -> connect it
+            msgs.append(f"X {names.get(rid, rid)}: DETACHED — {g:.0f} mm from its vertebra (which is "
+                        f"segmented at this level, in view) -> connect the rib head to it, or DELETE "
+                        f"the piece if it is not really a rib")
         else:
-            ok = False
-            msgs.append(f"X {names.get(rid, rid)}: DETACHED — {g:.0f} mm from the spine and fully in "
-                        f"view -> connect the rib head to its vertebra")
+            msgs.append(f"note {names.get(rid, rid)}: no vertebra segmented at this rib's level though "
+                        f"it is IN the FOV -> the VERTEBRA should be ADDED (number up from the bottom); "
+                        f"not a rib defect, not blocking")
     if ok:
-        msgs.append("OK: every in-view rib reaches its vertebra")
+        msgs.append("OK: every in-view rib reaches its (segmented) vertebra")
     return ok, msgs
 
 
