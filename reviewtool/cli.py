@@ -138,6 +138,44 @@ def _fetch_adj_label(s, base, case_id: str, slot: str, dest: Path) -> Path:
     return dest
 
 
+def _auto_merge_case(s, base, job, work, ct_path, seg_path):
+    """3-way auto-merge of the two reviewers' labels against the shared pseudo (see
+    scripts/auto_adjudicate.py). Writes the merged label into `seg_path` and, if any voxels are
+    irreconcilable, the conflict mask into work/conflict.nii.gz. Returns a summary dict, or None if
+    it couldn't run (caller then adjudicates manually from reviewer 1's label)."""
+    try:
+        import numpy as np
+        import nibabel as nib
+        import auto_adjudicate as AA
+        r1 = _fetch_adj_label(s, base, job["case_id"], "1", work / "r1_label.nii.gz")
+        r2 = _fetch_adj_label(s, base, job["case_id"], "2", work / "r2_label.nii.gz")
+        pseudo = _fetch(job, job["label_file"], work / "pseudo.nii.gz")
+        pimg = nib.load(str(pseudo)); P = np.asanyarray(pimg.dataobj); aff = pimg.affine
+        A = np.asanyarray(nib.load(str(r1)).dataobj)
+        B = np.asanyarray(nib.load(str(r2)).dataobj)
+        ct = np.asanyarray(nib.load(str(ct_path)).dataobj)
+        region = job.get("region_to_review") or "ribs"
+        chk = region if region in ("ribs", "spine", "both") else "ribs"
+        res = AA.auto_adjudicate(P, A, B, ct, aff, check=chk)
+        nib.save(nib.Nifti1Image(res["final"].astype(P.dtype), aff, pimg.header), str(seg_path))
+        conflict_path = None
+        if res["conflict_mask"].any():
+            conflict_path = work / "conflict.nii.gz"
+            nib.save(nib.Nifti1Image(res["conflict_mask"].astype(np.uint8), aff, pimg.header),
+                     str(conflict_path))
+        st = res["stats"]; raw = max(1, st["conflict_l0"])
+        return {"decision": res["decision"], "residual": st["residual_conflict"],
+                "resolved_pct": 100.0 * (1 - st["residual_conflict"] / raw),
+                "qc_ok": res["qc_ok"], "conflict_path": conflict_path,
+                "summary": (f"agree+one-sided auto; HU-resolved "
+                            f"{st['hu_kept_label'] + st['hu_to_background']} voxels; "
+                            f"{st['class_conflict']} class-conflicts; "
+                            f"{st['residual_conflict']} left for you")}
+    except Exception as exc:                             # noqa: BLE001
+        print(f"  (auto-merge unavailable [{str(exc)[:90]}] — adjudicating from reviewer 1's label)")
+        return None
+
+
 def _sha256(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -1024,21 +1062,33 @@ def cmd_adjudicate(a):
     _save_active(job, work, kind="adjudicate", notes=a.notes)
     ct = _fetch(job, job["ct_file"], work / "ct.nii.gz")
     seg = work / "seg.nii.gz"
-    # Adjudicate FROM reviewer 1's CLEAN corrected label (streamed through the Space) — not the raw
-    # pseudo. Reviewer 2 is opened read-only beside it (below). Fall back to the pseudo only if the
-    # reviewer label can't be served.
-    try:
-        _fetch_adj_label(s, base, job["case_id"], "1", seg)
-        print("  base = reviewer 1's corrected label (reviewer 2 opens read-only for comparison).")
-    except Exception as exc:                              # noqa: BLE001
-        print(f"  (couldn't load reviewer 1's label [{str(exc)[:70]}] — starting from the auto-label)")
-        pseudo = _fetch(job, job["label_file"], work / "pseudo.nii.gz")
-        seg.write_bytes(pseudo.read_bytes())
     labels = work / "labels.txt"
     # region-correct palette (v4 VerSe-native for ribs, v2 jet otherwise) — same idx↔structure
     # as the server, so this just guarantees the current colours without a Space redeploy.
     labels.write_text(_descriptor_for_job(job))
     region = job.get("region_to_review")
+    # AUTO-MERGE: 3-way merge the two reviewers vs the shared pseudo. Most disagreement is one
+    # reviewer editing where the other left the base — auto-resolved. Only irreconcilable voxels
+    # remain, and if there are none (and QC is clean) the case is AUTO-FINALIZED with no editing.
+    auto = None if getattr(a, "no_auto", False) else _auto_merge_case(s, base, job, work, ct, seg)
+    if auto is None:
+        # Fall back: adjudicate FROM reviewer 1's CLEAN corrected label (reviewer 2 read-only below),
+        # or the raw pseudo if even that can't be served.
+        try:
+            _fetch_adj_label(s, base, job["case_id"], "1", seg)
+            print("  base = reviewer 1's corrected label (reviewer 2 opens read-only for comparison).")
+        except Exception as exc:                          # noqa: BLE001
+            print(f"  (couldn't load reviewer 1's label [{str(exc)[:70]}] — from the auto-label)")
+            pseudo = _fetch(job, job["label_file"], work / "pseudo.nii.gz")
+            seg.write_bytes(pseudo.read_bytes())
+    elif auto["decision"] == "auto_finalize" and not getattr(a, "review_auto", False):
+        print(f"ADJUDICATE {job['case_id']}: AUTO-MERGED — no irreconcilable conflict, QC clean.\n"
+              f"  {auto['summary']}. Auto-finalizing (pass --review-auto to eyeball it first).")
+        _submit_adjudication(s, base, job, work, seg, (a.notes or "").strip() + " [auto-merged]")
+        return
+    else:
+        print(f"  auto-merge resolved {auto['resolved_pct']:.0f}% of the disagreement; "
+              f"{auto['residual']} voxels remain as conflicts — highlighted for you to paint.")
     print(f"ADJUDICATE {job['case_id']}  IRR={job.get('irr')}\n"
           f"two reviewers disagreed on the {region} region; produce the deciding label.")
     snap = a.itksnap or _default_itksnap()
@@ -1046,6 +1096,8 @@ def cmd_adjudicate(a):
     # auto-open read-only AGREE + DISAGREE reference windows beside the editor (best-effort)
     dis_procs = ([] if getattr(a, "no_disagreement", False)
                  else _open_disagreement_ref(s, base, job, ct, work, a))
+    if auto and auto.get("conflict_path"):               # show the conflict blobs to paint
+        dis_procs.append(_launch_itksnap_bg(snap, ct, auto["conflict_path"], labels))
     if region in ("ribs", "spine", "both"):   # live QC as you decide; gate the submit on it
         rc, passed = _watch_anatomy(snap, ct, seg, labels, check=region)
     else:
@@ -1952,6 +2004,10 @@ def main(argv=None) -> int:
                            help="private ledger for the disagreement 2nd window")
             p.add_argument("--no_disagreement", action="store_true",
                            help="don't auto-open the reviewer-disagreement reference window")
+            p.add_argument("--no_auto", action="store_true",
+                           help="disable the 3-way auto-merge; adjudicate manually from reviewer 1")
+            p.add_argument("--review_auto", action="store_true",
+                           help="open even auto-finalizable merges in ITK-SNAP to eyeball before submit")
         p.set_defaults(fn=fn)
 
     p = sub.add_parser("edit",

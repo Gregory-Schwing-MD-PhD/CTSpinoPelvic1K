@@ -171,7 +171,7 @@ def auto_adjudicate(P: np.ndarray, A: np.ndarray, B: np.ndarray, ct: np.ndarray,
     stats["speck_voxels_dropped"] = dropped
     stats["residual_conflict"] = int(conflict.sum())
 
-    qc_ok, qc_msgs = RA.check_label(check, merged, affine)
+    qc_ok, qc_msgs = RA.check_label(check, merged, affine, gating_only=True)
     irr = diff.irr(A, B)
     decision = "auto_finalize" if (conflict.sum() == 0 and qc_ok) else "needs_manual"
     return {"final": merged, "conflict_mask": conflict, "decision": decision,

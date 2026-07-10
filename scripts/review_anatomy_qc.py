@@ -423,9 +423,12 @@ def structure_integrity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     return ok, msgs
 
 
-def check_label(check: str, lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
+def check_label(check: str, lab: np.ndarray, affine,
+                gating_only: bool = False) -> Tuple[bool, List[str]]:
     """Run the requested check(s) and return (ok, messages) WITHOUT printing.
-    The server-side review gate uses this; the CLI uses report() (which prints)."""
+    The server-side review gate uses this; the CLI uses report() (which prints).
+    `gating_only=True` skips the advisory checks (incl. the slow rib->spine EDT) when only the
+    pass/fail verdict matters (e.g. auto-adjudication's auto-finalize decision)."""
     gating, advisory = [], []
     if check in ("spine", "both"):
         gating.append(spine_sanity(lab, affine))
@@ -434,15 +437,16 @@ def check_label(check: str, lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
         # never trip these (truncation shrinks a bone or splits ONE rib number -> it can't make one
         # bone carry TWO labels), so they never create an impossible block.
         gating.append(rib_label_mixing(lab, affine))    # GATE: one connected rib bone -> one label
-        # rib_numbering (split / missing number) is FOV-AMBIGUOUS: an FOV-clipped rib exits and
-        # re-enters the scan as 2 pieces, or is entirely out of view -> UNFIXABLE. Advisory only so
-        # it never blocks; still printed so a genuinely-fixable split gets connected.
-        advisory.append(rib_numbering(lab, affine))
-        advisory.append(rib_spine_gap(lab, affine))     # ADVISORY (FOV): rib->vertebra junction out
-        #   of the scan makes the gap unfixable -> never block; still printed.
-        advisory.append(rib_anchor(lab, affine))        # ADVISORY only: rib N incident on T-N is
-        #   unreliable (rib heads often unsegmented; thoracic vertebra labels can be off), so it
-        #   informs but never blocks the submit.
+        if not gating_only:
+            # rib_numbering (split / missing number) is FOV-AMBIGUOUS: an FOV-clipped rib exits and
+            # re-enters the scan as 2 pieces, or is entirely out of view -> UNFIXABLE. Advisory only
+            # so it never blocks; still printed so a genuinely-fixable split gets connected.
+            advisory.append(rib_numbering(lab, affine))
+            advisory.append(rib_spine_gap(lab, affine))  # ADVISORY (FOV): rib->vertebra junction out
+            #   of the scan makes the gap unfixable -> never block; still printed.
+            advisory.append(rib_anchor(lab, affine))     # ADVISORY only: rib N incident on T-N is
+            #   unreliable (rib heads often unsegmented; thoracic vertebra labels can be off), so it
+            #   informs but never blocks the submit.
     if check in ("spine", "ribs", "both"):
         gating.append(structure_integrity(lab, affine))  # GATE: each spine/pelvis bone one class
     ok = all(o for o, _ in gating)                      # anchor does NOT affect pass/fail
