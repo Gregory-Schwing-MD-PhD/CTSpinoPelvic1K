@@ -141,41 +141,70 @@ def cleanup_specks(merged: np.ndarray, min_vox: int = SPECK_MIN_VOX) -> Tuple[np
     return out, dropped
 
 
+def roi_bbox(P: np.ndarray, A: np.ndarray, B: np.ndarray, margin: int = 8):
+    """Bounding box (tuple of slices) covering every rib voxel and every reviewer edit, plus a
+    margin. All conflicts live here (a conflict needs BOTH reviewers to have changed the base), and
+    every rib is whole (so the rib QC is valid), so the merge can run on this crop instead of the
+    full ~170M-voxel volume. Returns None if there is nothing to merge."""
+    roi = (((P >= 34) & (P <= 57)) | ((A >= 34) & (A <= 57)) | ((B >= 34) & (B <= 57))
+           | (A != P) | (B != P))
+    if not roi.any():
+        return None
+    idx = np.argwhere(roi)
+    mn = np.maximum(idx.min(0) - margin, 0)
+    mx = np.minimum(idx.max(0) + 1 + margin, P.shape)
+    return tuple(slice(int(a), int(b)) for a, b in zip(mn, mx))
+
+
 def auto_adjudicate(P: np.ndarray, A: np.ndarray, B: np.ndarray, ct: np.ndarray,
                     affine: np.ndarray, *, w_a: float = 1.0, w_b: float = 1.0,
                     check: str = "ribs", resolve_class_by_weight: bool = False,
-                    min_vox: int = SPECK_MIN_VOX) -> dict:
+                    min_vox: int = SPECK_MIN_VOX, crop: bool = True,
+                    roi_margin: int = 8) -> dict:
     """Orchestrate the layered merge and decide auto-finalize vs. needs-manual.
 
+    For speed the merge runs on the rib-bearing crop (see roi_bbox) — ~5x smaller than the full CT —
+    then the result is pasted back to full resolution (outside the crop A==B==P, so `final` = P
+    there). The QC gate runs on the FULL pasted label so its FOV-boundary logic sees the true volume.
+
     Returns a dict with:
-      final          - the merged label (np.ndarray)
+      final          - the merged label (full-resolution np.ndarray)
       conflict_mask  - bool array of voxels left for MANUAL review (empty => nothing to do)
       decision       - "auto_finalize" | "needs_manual"
       qc_ok, qc_msgs - the anatomy QC gate result on `final`
-      irr            - inter-rater agreement (from diff.irr)
       stats          - per-layer voxel counts (how much each layer resolved)
     """
     import review_anatomy_qc as RA
-    from review import diff
 
-    merged, conflict, stats = three_way_merge(P, A, B)
-    conflict, s1 = resolve_present_absent(merged, conflict, A, B, ct)
+    P = np.asarray(P); A = np.asarray(A); B = np.asarray(B); ct = np.asarray(ct)
+    bbox = roi_bbox(P, A, B, roi_margin) if crop else None
+    Pc, Ac, Bc, ctc = ((P[bbox], A[bbox], B[bbox], ct[bbox]) if bbox is not None
+                       else (P, A, B, ct))
+
+    merged, conflict, stats = three_way_merge(Pc, Ac, Bc)
+    conflict, s1 = resolve_present_absent(merged, conflict, Ac, Bc, ctc)
     stats.update(s1)
     if resolve_class_by_weight:
-        conflict, s2 = resolve_class_conflicts(merged, conflict, A, B, w_a, w_b)
+        conflict, s2 = resolve_class_conflicts(merged, conflict, Ac, Bc, w_a, w_b)
     else:
-        both_fg = conflict & (np.asarray(A) != 0) & (np.asarray(B) != 0)
+        both_fg = conflict & (Ac != 0) & (Bc != 0)
         s2 = {"class_conflict": int(both_fg.sum()), "class_resolved_by_weight": 0}
     stats.update(s2)
     merged, dropped = cleanup_specks(merged, min_vox=min_vox)
     stats["speck_voxels_dropped"] = dropped
     stats["residual_conflict"] = int(conflict.sum())
 
-    qc_ok, qc_msgs = RA.check_label(check, merged, affine, gating_only=True)
-    irr = diff.irr(A, B)
-    decision = "auto_finalize" if (conflict.sum() == 0 and qc_ok) else "needs_manual"
-    return {"final": merged, "conflict_mask": conflict, "decision": decision,
-            "qc_ok": bool(qc_ok), "qc_msgs": qc_msgs, "irr": irr, "stats": stats}
+    # paste the merged crop back into a full-resolution label (P is the base everywhere else)
+    if bbox is not None:
+        final = np.array(P); final[bbox] = merged
+        cmask = np.zeros(P.shape, dtype=bool); cmask[bbox] = conflict
+    else:
+        final, cmask = merged, conflict
+
+    qc_ok, qc_msgs = RA.check_label(check, final, affine, gating_only=True)
+    decision = "auto_finalize" if (int(cmask.sum()) == 0 and qc_ok) else "needs_manual"
+    return {"final": final, "conflict_mask": cmask, "decision": decision,
+            "qc_ok": bool(qc_ok), "qc_msgs": qc_msgs, "stats": stats}
 
 
 def reviewer_weight(passed: int, total: int, prior: float = 1.0) -> float:
@@ -218,8 +247,7 @@ def main(argv=None) -> int:
                         resolve_class_by_weight=a.resolve_class_by_weight)
 
     nib.save(nib.Nifti1Image(r["final"].astype(P.dtype), aff, hdr), a.out)
-    print(f"DECISION: {r['decision'].upper()}   QC {'OK' if r['qc_ok'] else 'FAIL'}   "
-          f"IRR agree={r['irr'].get('agree')}")
+    print(f"DECISION: {r['decision'].upper()}   QC {'OK' if r['qc_ok'] else 'FAIL'}")
     s = r["stats"]
     print(f"  L0  agree={s['agree']}  onlyA={s['only_a']}  onlyB={s['only_b']}  "
           f"conflicts={s['conflict_l0']}")
