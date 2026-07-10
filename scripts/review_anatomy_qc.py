@@ -51,12 +51,12 @@ ANCHOR_MM = 10.0        # rib N is "incident on" T-N if within this of the verte
 MIX_LABEL_MIN_VOX = 250  # in the "one bone -> one label" check, a 2nd label on the same eroded
                          # rib component counts as a real mix only above this (ignore sliver
                          # boundary voxels between genuinely-adjacent ribs).
-GAP_MIN_MM = 5.0         # within this a rib is CONNECTED to the spine (the costovertebral joint has
-                         # a few-mm cartilage space -> bone-to-bone is 0-4 mm). Measured on real
-                         # data: rib->spine distance is bimodal, 73% at 0-4 mm (connected) and 27%
-                         # at 20+ mm (head out of FOV), with <1% in between -> flag only a genuine
-                         # 5-20 mm gap (a disconnected-but-nearby head), never the joint space.
-GAP_SPINE_MM = 20.0      # beyond this the rib head is out of FOV / unsegmented -> NOT flagged.
+GAP_DETACH_MM = 15.0     # a rib FULLY IN VIEW (bbox touches no scan face) whose head is farther than
+                         # this from the nearest vertebra is DETACHED and fixable -> BLOCK. Calibrated
+                         # on real in-view ribs: gap-to-spine is sharply bimodal, ~85% at <=3 mm
+                         # (head touching, incl. the ~3-4 mm costovertebral joint space) and a tail at
+                         # >30 mm (detached), with a wide empty valley between -> 15 mm sits safely in
+                         # the valley, above normal joint space + minor head under-segmentation.
                          # (number-agnostic: distance to ANY vertebra, no dependence on numbering.)
 STRUCT_MIN_VOX = 3000        # ignore a barely-present (partial-FOV) bone in the integrity check
 STRUCT_DOMINANT_FRAC = 0.85  # a solid bone (vertebra/sacrum/hip/femur) must be >= this fraction
@@ -348,11 +348,11 @@ def rib_label_mixing(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
 
 
 def rib_spine_gap(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
-    """Each rib should CONNECT to the spine. Flags a rib whose head is a small gap
-    (CONTACT_MM..GAP_SPINE_MM) from the NEAREST vertebra -- a student left it not quite touching.
-    A larger distance means the head is out of FOV / unsegmented (can't tell) and is NOT flagged.
-    Number-agnostic: uses distance to ANY vertebra, so it doesn't depend on rib/vertebra numbers
-    being right (unlike the advisory anchor test)."""
+    """Each rib should approximate its vertebra. A rib that sits FULLY INSIDE the scan (its bounding
+    box touches NO face of the volume) but whose head is > GAP_DETACH_MM from the nearest vertebra is
+    DETACHED and fixable -> BLOCK. A rib clipped by ANY scan face exits the FOV (its head may be
+    unsegmentable) -> advisory, never blocks. Number-agnostic: distance to ANY vertebra, so it does
+    not depend on rib/vertebra numbers being right (unlike the advisory anchor test)."""
     spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
     lo_id, hi_id = LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 12
     spine = (lab >= 1) & (lab <= LS.S1_ID)
@@ -361,7 +361,7 @@ def rib_spine_gap(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
         return True, ["(no spine/ribs in view -> rib-spine gap skipped)"]
     # crop to the bbox of spine+ribs, downsample 2x, ONE distance transform (mm to nearest spine
     # voxel), then ONE ndimage.minimum pass to get each rib's min distance (~2 mm precision, fine
-    # for a 3-22 mm band). No per-rib argwhere -> fast.
+    # for a 15 mm threshold). No per-rib argwhere -> fast.
     idx = np.argwhere(spine | ribs); lo = idx.min(0); hi = idx.max(0) + 1
     sl = tuple(slice(int(lo[i]), int(hi[i])) for i in range(3))
     f = 2
@@ -369,16 +369,25 @@ def rib_spine_gap(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     edt = ndimage.distance_transform_edt(~((subd >= 1) & (subd <= LS.S1_ID)), sampling=spacing * f)
     rib_ids = list(range(lo_id, hi_id + 1))
     mins = ndimage.minimum(edt, labels=subd, index=rib_ids)     # min EDT within each rib label
+    objs = ndimage.find_objects(lab if lab.dtype.kind in "iu" else lab.astype(np.int32))
+    shape = lab.shape
     names = _id2name(); ok, msgs = True, []
     for rid, g in zip(rib_ids, mins):
         if g is None or not np.isfinite(g):                      # rib absent (or too thin at 2x)
             continue
-        if GAP_MIN_MM < g <= GAP_SPINE_MM:
+        if g <= GAP_DETACH_MM:                                   # head reaches the spine -> fine
+            continue
+        o = objs[rid - 1] if rid - 1 < len(objs) else None
+        exits_fov = o is not None and any(o[i].start == 0 or o[i].stop == shape[i] for i in range(3))
+        if exits_fov:
+            msgs.append(f"note {names.get(rid, rid)}: {g:.0f} mm from the spine but the rib is clipped "
+                        f"by the scan edge (exits FOV) -> advisory, not blocking")
+        else:
             ok = False
-            msgs.append(f"X {names.get(rid, rid)}: {g:.0f} mm gap to the spine -> connect the rib "
-                        f"head to its vertebra")
+            msgs.append(f"X {names.get(rid, rid)}: DETACHED — {g:.0f} mm from the spine and fully in "
+                        f"view -> connect the rib head to its vertebra")
     if ok:
-        msgs.append("OK: every rib connects to the spine (or its head is out of FOV)")
+        msgs.append("OK: every in-view rib reaches its vertebra")
     return ok, msgs
 
 
@@ -437,13 +446,13 @@ def check_label(check: str, lab: np.ndarray, affine,
         # never trip these (truncation shrinks a bone or splits ONE rib number -> it can't make one
         # bone carry TWO labels), so they never create an impossible block.
         gating.append(rib_label_mixing(lab, affine))    # GATE: one connected rib bone -> one label
+        gating.append(rib_spine_gap(lab, affine))        # GATE: a FULLY-IN-VIEW rib detached from its
+        #   vertebra (>15 mm, fixable) blocks; a rib clipped by the FOV is exempted inside the check.
         if not gating_only:
             # rib_numbering (split / missing number) is FOV-AMBIGUOUS: an FOV-clipped rib exits and
             # re-enters the scan as 2 pieces, or is entirely out of view -> UNFIXABLE. Advisory only
             # so it never blocks; still printed so a genuinely-fixable split gets connected.
             advisory.append(rib_numbering(lab, affine))
-            advisory.append(rib_spine_gap(lab, affine))  # ADVISORY (FOV): rib->vertebra junction out
-            #   of the scan makes the gap unfixable -> never block; still printed.
             advisory.append(rib_anchor(lab, affine))     # ADVISORY only: rib N incident on T-N is
             #   unreliable (rib heads often unsegmented; thoracic vertebra labels can be off), so it
             #   informs but never blocks the submit.
@@ -462,7 +471,7 @@ def report(check: str, lab: np.ndarray, affine) -> bool:
     if check in ("ribs", "both"):
         blocks.append(("RIB LABEL MIXING", *rib_label_mixing(lab, affine), True))  # GATE (FOV-safe)
         blocks.append(("RIB NUMBERING (advisory)", *rib_numbering(lab, affine), False))  # FOV-clip
-        blocks.append(("RIB-SPINE GAP (advisory)", *rib_spine_gap(lab, affine), False))  # FOV
+        blocks.append(("RIB-SPINE GAP", *rib_spine_gap(lab, affine), True))  # GATE: in-view detached rib
         blocks.append(("RIB ANCHOR (advisory)", *rib_anchor(lab, affine), False))  # informs only
     if check in ("spine", "ribs", "both"):
         blocks.append(("STRUCTURE INTEGRITY", *structure_integrity(lab, affine), True))  # gates
