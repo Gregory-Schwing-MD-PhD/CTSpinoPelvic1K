@@ -57,6 +57,14 @@ GAP_DETACH_MM = 15.0     # a rib whose head is farther than this from its verteb
 HEAD_FOV_MARGIN_MM = 15.0  # if a rib's HEAD (superior extent) is within this of the top of the scan,
                          # its costovertebral head exits the FOV -> unfixable -> advisory, never blocks.
 HEAD_BAND_MM = 20.0      # look for the rib's vertebra within +/- this of the rib head's level.
+HALO_MAX_VOX = 2000      # A "rib" this small that is FUSED TO AN ADJACENT RIB NUMBER (N+-1) is not a
+                         # rib at all -- it is HALO: the residue of the OLD label clinging to the
+                         # surface of the rib the annotator renumbered. Measured on every such case:
+                         # 12/12 fragments under 2000 voxels touch rib N+-1 and sit >100 mm from the
+                         # spine, while every real detached rib is >=2000 voxels (clean gap: the halo
+                         # group tops out at 1538, the next real rib is 2008). Post-processing engulfs
+                         # these deterministically (scripts/postprocess_halo.py), so QC must NOT make a
+                         # student re-open a case to erase a 13-voxel dot.
 SPINE_AT_LEVEL_MIN = 1000  # >= this many vertebra voxels at the head level = a vertebra IS segmented
                          # there (a detached rib must be connected); fewer = the vertebra is MISSING
                          # but in view -> it should be ADDED (numbered up from the bottom), NOT a rib
@@ -351,6 +359,32 @@ def rib_label_mixing(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     return ok, msgs
 
 
+def _adjacent_rib_ids(rid: int) -> set:
+    """The rib numbers immediately above/below `rid` on the SAME side (N-1, N+1)."""
+    off = LS.RIB_LEFT_OFFSET if rid <= LS.RIB_LEFT_OFFSET + 12 else LS.RIB_RIGHT_OFFSET
+    n = rid - off
+    return {off + m for m in (n - 1, n + 1) if 1 <= m <= 12}
+
+
+def is_halo_speck(lab: np.ndarray, rid: int, bbox) -> bool:
+    """A HALO speck: a small rib-N fragment FUSED TO rib N+-1 -- i.e. the residue of the OLD label
+    left clinging to the surface of the rib the annotator renumbered. Two independent signals must
+    BOTH hold (size AND fused-to-an-adjacent-number), so a small-but-real rib is never exempted.
+    Post-processing engulfs these, so they must not block a student."""
+    pad = tuple(slice(max(0, bbox[i].start - 3), min(lab.shape[i], bbox[i].stop + 3))
+                for i in range(3))
+    sub = lab[pad]
+    m = (sub == rid)
+    if int(m.sum()) >= HALO_MAX_VOX:                     # big enough to be a real rib -> not halo
+        return False
+    dil = ndimage.binary_dilation(m, iterations=2)
+    touching = {int(v) for v in np.unique(sub[dil & (sub > 0) & (sub != rid)])}
+    # Fused to rib N+-1 AND that neighbour is itself a REAL rib. A halo clings to a real rib; two
+    # small fragments merely touching each other are NOT halo (and must never engulf each other).
+    return any(int((lab == nb).sum()) >= HALO_MAX_VOX
+               for nb in (touching & _adjacent_rib_ids(rid)))
+
+
 def rib_spine_gap(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     """Each rib should approximate its vertebra. A rib that sits FULLY INSIDE the scan (its bounding
     box touches NO face of the volume) but whose head is > GAP_DETACH_MM from the nearest vertebra is
@@ -407,6 +441,12 @@ def rib_spine_gap(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
         ss = [slice(None)] * 3; ss[si] = slice(b0, b1)
         sp_at_level = int(spine[tuple(ss)].sum())
         if sp_at_level >= SPINE_AT_LEVEL_MIN:
+            # 3a. HALO: a small fragment fused to rib N+-1 is the residue of the OLD label on the rib
+            #     the annotator renumbered -- post-processing engulfs it, so never block a student.
+            if is_halo_speck(lab, rid, o):
+                msgs.append(f"note {names.get(rid, rid)}: halo speck ({g:.0f} mm out) fused to the "
+                            f"neighbouring rib -> auto-removed in post-processing, not blocking")
+                continue
             ok = False                                           # vertebra IS there -> connect it
             msgs.append(f"X {names.get(rid, rid)}: DETACHED — {g:.0f} mm from its vertebra (which is "
                         f"segmented at this level, in view) -> connect the rib head to it, or DELETE "
