@@ -466,6 +466,12 @@ class ReviewService:
                 continue
             if schema.derive_status(case) != "needs_adjudication":
                 continue
+            # NEVER let someone adjudicate a case they themselves reviewed. That is
+            # self-adjudication: the annotator would arbitrate their own label against their
+            # partner's, rubber-stamping their own work and invalidating the agreement statistics.
+            if any((case.get("slots", {}).get(s) or {}).get("reviewer") == adjudicator_id
+                   for s in schema.PRIMARY_SLOTS):
+                continue
             adj = case["slots"].get(schema.ADJ_SLOT)
             if adj and adj.get("reviewer") != adjudicator_id \
                     and not _expired(adj):
