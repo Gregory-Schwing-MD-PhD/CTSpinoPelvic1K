@@ -111,6 +111,29 @@ def zero_overlap_classes(A: np.ndarray, B: np.ndarray, drop=()) -> list:
     return bad
 
 
+def conflict_kind(A: np.ndarray, B: np.ndarray, c: int) -> str:
+    """Why does rib class `c` have zero overlap?
+
+    MISSING  - one annotator segmented it and the other left BACKGROUND at those exact voxels.
+               That is not a disagreement about anatomy: one of them simply did less work. The more
+               complete annotation wins (both started from the SAME pseudolabel, so a structure that
+               is absent from one of them was DELETED -- a defect, not an opinion).
+    RENUMBER - both segmented the bone; they disagree on its NUMBER. Only a human can settle that,
+               and it is the only conflict that should ever cost an adjudication.
+    """
+    inA, inB = int((A == c).sum()), int((B == c).sum())
+    src, other = (A, B) if inA >= inB else (B, A)
+    vals = other[src == c]
+    if vals.size == 0:
+        return "MISSING"
+    return "MISSING" if float((vals == 0).mean()) >= 0.70 else "RENUMBER"
+
+
+def completeness(lab: np.ndarray):
+    """(distinct structures, foreground voxels) -- how much of the anatomy this annotator kept."""
+    return (len({int(v) for v in np.unique(lab) if v > 0}), int((lab > 0).sum()))
+
+
 def strip(lab: np.ndarray, ids) -> np.ndarray:
     if not ids:
         return lab
@@ -171,15 +194,24 @@ def main(argv=None) -> int:
         r1 = case["slots"]["1"].get("reviewer")
         r2 = case["slots"]["2"].get("reviewer")
 
-        if bad:                                          # SUBSTANTIVE -> a human must decide
+        kinds = [conflict_kind(A, B, c) for c in bad]
+        renum = [c for c, k in zip(bad, kinds) if k == "RENUMBER"]
+
+        if renum:                                        # a real NUMBERING dispute -> a human decides
             esc_rows.append({"case": cid, "reviewer_1": r1, "reviewer_2": r2,
-                             "conflicting_ribs": " ".join(names.get(c, str(c)) for c in bad),
-                             "n_conflicts": len(bad), "commit": commit})
-            print(f"  ADJUDICATE {cid}: {[names.get(c, c) for c in bad]}", flush=True)
+                             "conflicting_ribs": " ".join(names.get(c, str(c)) for c in renum),
+                             "n_conflicts": len(renum), "commit": commit})
+            print(f"  ADJUDICATE {cid}: RENUMBER {[names.get(c, c) for c in renum]}", flush=True)
             continue
 
-        # AUTO-FINALIZE: higher pass-rate annotator wins; final label is halo-cleaned
-        win = "1" if rates.get(r1, 0) >= rates.get(r2, 0) else "2"
+        if bad:
+            # every conflict is MISSING -> one annotator just left it as background. Not a judgment
+            # call: the MORE COMPLETE annotation wins (they both started from the same pseudolabel).
+            win = "1" if completeness(A) >= completeness(B) else "2"
+            print(f"  auto-finalize {cid}: {len(bad)} MISSING -> more complete = slot {win}", flush=True)
+        else:
+            # boundary jitter only; both passed QC -> higher pass-rate annotator wins
+            win = "1" if rates.get(r1, 0) >= rates.get(r2, 0) else "2"
         lab = strip(A, ha) if win == "1" else strip(B, hb)
         img = ia if win == "1" else ib
         winner = r1 if win == "1" else r2
