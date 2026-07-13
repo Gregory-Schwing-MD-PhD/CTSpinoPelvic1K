@@ -250,10 +250,10 @@ async def submit(claim_token: str = Form(...), record: str = Form(...),
 
 
 @app.get("/adjudication/next")
-def adjudication_next(who: dict = Depends(auth)):
+def adjudication_next(case: Optional[str] = None, who: dict = Depends(auth)):
     _require("adjudicator", who)
     with _LOCK:
-        out = SERVICE.adjudication_next(who["id"])
+        out = SERVICE.adjudication_next(who["id"], case_id=case)
     if out is None:
         return JSONResponse({"detail": "nothing to adjudicate"}, status_code=204)
     return out

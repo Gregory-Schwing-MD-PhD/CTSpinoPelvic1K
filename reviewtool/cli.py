@@ -411,9 +411,11 @@ def cmd_login(a):
               "run `hf auth login` before `reviewtool next`.")
 
 
-def _claim(s, base, path="/claim", method="post"):
+def _claim(s, base, path="/claim", method="post", params=None):
     # /claim is POST; /adjudication/next is GET — use the matching verb.
-    r = (s.get if method == "get" else s.post)(base + path, timeout=60)
+    # `params` lets the adjudicator pick a SPECIFIC case (work a ranked list, not ledger order).
+    r = ((s.get(base + path, params=params, timeout=60)) if method == "get"
+         else s.post(base + path, timeout=60))
     if r.status_code == 204:
         return None
     r.raise_for_status()
@@ -1069,9 +1071,11 @@ def cmd_adjudicate(a):
     s, base = _api()
     if _reopen_held_if_any(a, kinds={"adjudicate"}):     # finish a held adjudication first
         return
-    job = _claim(s, base, "/adjudication/next", method="get")
+    _adj_case = getattr(a, "case", None)
+    job = _claim(s, base, "/adjudication/next", method="get",
+                 params=({"case": _adj_case} if _adj_case else None))
     if job is None:
-        print("nothing to adjudicate.")
+        print(f"nothing to adjudicate{f' for {_adj_case}' if _adj_case else ''}.")
         return
     work = Path(a.workdir) / (job["case_id"] + "__adj")
     work.mkdir(parents=True, exist_ok=True)
@@ -2029,6 +2033,8 @@ def main(argv=None) -> int:
                            help="private ledger for the disagreement 2nd window")
             p.add_argument("--no_disagreement", action="store_true",
                            help="don't auto-open the reviewer-disagreement reference window")
+            p.add_argument("--case", default=None,
+                           help="adjudicate a SPECIFIC case (work a ranked list, e.g. worst-first)")
             p.add_argument("--base", choices=["1", "2"], default="1",
                            help="which reviewer's label to load as the editable base (default 1); "
                                 "the other opens read-only to compare")

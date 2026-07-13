@@ -457,8 +457,13 @@ class ReviewService:
         return json.loads(t) if t else {}
 
     # ── adjudication ─────────────────────────────────────────────────────────
-    def adjudication_next(self, adjudicator_id: str) -> Optional[dict]:
+    def adjudication_next(self, adjudicator_id: str,
+                          case_id: Optional[str] = None) -> Optional[dict]:
+        """Serve the next case needing adjudication. `case_id` picks a SPECIFIC case, so the
+        adjudicator can work a ranked list (e.g. worst-conflict-first) instead of ledger order."""
         for case in self.store.list_cases():
+            if case_id and case["case_id"] != case_id:
+                continue
             if schema.derive_status(case) != "needs_adjudication":
                 continue
             adj = case["slots"].get(schema.ADJ_SLOT)
