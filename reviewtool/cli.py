@@ -1069,7 +1069,8 @@ def cmd_next(a):
 
 def cmd_adjudicate(a):
     s, base = _api()
-    if _reopen_held_if_any(a, kinds={"adjudicate"}):     # finish a held adjudication first
+    # An explicit --case means "serve me THIS one" — a stale held claim must not hijack it.
+    if not getattr(a, "case", None) and _reopen_held_if_any(a, kinds={"adjudicate"}):
         return
     _adj_case = getattr(a, "case", None)
     job = _claim(s, base, "/adjudication/next", method="get",
@@ -1118,6 +1119,26 @@ def cmd_adjudicate(a):
             seg.write_bytes(pseudo.read_bytes())
     print(f"ADJUDICATE {job['case_id']}  IRR={job.get('irr')}\n"
           f"two reviewers disagreed on the {region} region; produce the deciding label.")
+    if getattr(a, "accept", False):
+        # The chosen annotator's label is right AS-IS -> finalize it WITHOUT opening ITK-SNAP.
+        # Still QC-gated, so an accept can never wave a bad label through.
+        import numpy as _np
+        import nibabel as _nib
+        import review_anatomy_qc as _RA
+        _img = _nib.load(str(seg))
+        _chk = region if region in ("ribs", "spine", "both") else "ribs"
+        _ok, _msgs = _RA.check_label(_chk, _np.asanyarray(_img.dataobj), _img.affine)
+        if not _ok and not getattr(a, "force", False):
+            print(f"  ACCEPT REFUSED — reviewer {base_slot}'s label FAILS QC:")
+            for _m in _msgs:
+                if _m.startswith("X"):
+                    print(f"     {_m}")
+            print("  edit it instead (drop --accept), or --force to override.")
+            return
+        print(f"  ACCEPT: reviewer {base_slot}'s label is correct as-is (QC OK) → finalizing.")
+        _submit_adjudication(s, base, job, work, seg,
+                             (a.notes or "").strip() + f" [accepted reviewer {base_slot} as-is]")
+        return
     snap = a.itksnap or _default_itksnap()
     pre_mtime = seg.stat().st_mtime if seg.exists() else 0.0
     # read-only reference windows beside the editor (best-effort)
@@ -2033,6 +2054,9 @@ def main(argv=None) -> int:
                            help="private ledger for the disagreement 2nd window")
             p.add_argument("--no_disagreement", action="store_true",
                            help="don't auto-open the reviewer-disagreement reference window")
+            p.add_argument("--accept", action="store_true",
+                           help="the --base annotator's label is right AS-IS: finalize it without "
+                                "opening ITK-SNAP (still QC-gated)")
             p.add_argument("--case", default=None,
                            help="adjudicate a SPECIFIC case (work a ranked list, e.g. worst-first)")
             p.add_argument("--base", choices=["1", "2"], default="1",
