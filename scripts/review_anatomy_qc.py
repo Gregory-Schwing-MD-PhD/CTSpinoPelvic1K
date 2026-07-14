@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 from nibabel.affines import apply_affine
@@ -57,6 +57,9 @@ GAP_DETACH_MM = 15.0     # a rib whose head is farther than this from its verteb
 HEAD_FOV_MARGIN_MM = 15.0  # if a rib's HEAD (superior extent) is within this of the top of the scan,
                          # its costovertebral head exits the FOV -> unfixable -> advisory, never blocks.
 HEAD_BAND_MM = 20.0      # look for the rib's vertebra within +/- this of the rib head's level.
+SPINE_EDIT_TOL_VOX = 5000   # a rib reviewer may not touch the spine/pelvis. Tolerance absorbs
+                            # trivial boundary noise from a re-save; a genuine renumbering shifts
+                            # ~1e6 voxels (measured: 1,281,398 on 742__fused), so this cannot mask one.
 HALO_MAX_VOX = 2000      # A "rib" this small that is FUSED TO AN ADJACENT RIB NUMBER (N+-1) is not a
                          # rib at all -- it is HALO: the residue of the OLD label clinging to the
                          # surface of the rib the annotator renumbered. Measured on every such case:
@@ -501,8 +504,56 @@ def structure_integrity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     return ok, msgs
 
 
+def spine_untouched(lab: np.ndarray, given: np.ndarray) -> Tuple[bool, List[str]]:
+    """A RIB reviewer must not alter the SPINE (or hips/femurs). The radiologist's vertebra labels
+    are the ground truth of this dataset -- a rib annotator who renumbers them (e.g. inserting an L6
+    and shifting every level) silently overwrites expert GT, and it cascades: shift the vertebrae and
+    the rib numbering shifts with them, manufacturing a pile of fake 'rib disagreements'.
+
+    `given` is the exact label the annotator was handed. Any non-rib voxel that differs is a REJECT.
+    Compares ids 1..33 (vertebrae, sacrum, S1, hips, femurs); ribs (34-57) are theirs to edit."""
+    if given is None or given.shape != lab.shape:
+        return True, ["(starting label unavailable -> spine-untouched check skipped)"]
+    names = _id2name()
+    nonrib_before = (given >= 1) & (given <= 33)
+    nonrib_after = (lab >= 1) & (lab <= 33)
+    before = {int(v) for v in np.unique(given[nonrib_before])}
+    after = {int(v) for v in np.unique(lab[nonrib_after])}
+
+    # 1. ENUMERATION is the radiologist's call and is never the annotator's to change. Adding an L6
+    #    or dropping a T12 RE-COUNTS the spine, overwrites expert GT, and cascades into the ribs
+    #    (shift the vertebrae and every rib number shifts with them). Always a reject.
+    add, rem = after - before, before - after
+    if add or rem:
+        msgs = ["X the SPINE was RE-NUMBERED — the vertebra levels are the radiologist's ground "
+                "truth and must not be changed"]
+        if add:
+            msgs.append(f"X   ADDED: {sorted(names.get(v, v) for v in add)}")
+        if rem:
+            msgs.append(f"X   DELETED: {sorted(names.get(v, v) for v in rem)}")
+        msgs.append("X   restore the levels exactly as given. If you believe the GT enumeration is "
+                    "wrong (e.g. a transitional level / L6), flag it for radiologist re-read — do "
+                    "not re-label it yourself.")
+        return False, msgs
+
+    # 2. Same levels, but voxels moved. Still a reject. What LOOKS like a defect in the GT (e.g. one
+    #    body split half-L3/half-L4) is usually the radiologist ENCODING AMBIGUITY at a transitional
+    #    level ON PURPOSE -- and transitional levels are the signal this dataset exists to capture.
+    #    A student "cleaning that up" destroys it. Trust the GT; flag doubts, don't relabel them.
+    n = int(((given != lab) & (nonrib_before | nonrib_after)).sum())
+    if n <= SPINE_EDIT_TOL_VOX:
+        return True, ["OK: the spine/pelvis labels are untouched"]
+    return False, [
+        f"X the SPINE/PELVIS was ALTERED ({n:,} voxels) — do not edit the radiologist's labels; "
+        f"edit ONLY the ribs (34-57)",
+        "X   if a vertebra looks wrong or ambiguous (e.g. a body labelled half-L3/half-L4), that is "
+        "usually DELIBERATE — the radiologist marking a transitional level. Leave it and flag it for "
+        "re-read; do not 'fix' it."]
+
+
 def check_label(check: str, lab: np.ndarray, affine,
-                gating_only: bool = False) -> Tuple[bool, List[str]]:
+                gating_only: bool = False,
+                given: Optional[np.ndarray] = None) -> Tuple[bool, List[str]]:
     """Run the requested check(s) and return (ok, messages) WITHOUT printing.
     The server-side review gate uses this; the CLI uses report() (which prints).
     `gating_only=True` skips the advisory checks (incl. the slow rib->spine EDT) when only the
@@ -527,6 +578,8 @@ def check_label(check: str, lab: np.ndarray, affine,
             #   informs but never blocks the submit.
     if check in ("spine", "ribs", "both"):
         gating.append(structure_integrity(lab, affine))  # GATE: each spine/pelvis bone one class
+    if check == "ribs" and given is not None:
+        gating.append(spine_untouched(lab, given))       # GATE: rib reviewers must not edit the spine
     ok = all(o for o, _ in gating)                      # anchor does NOT affect pass/fail
     msgs = [m for _, ms in gating for m in ms] + [m for _, ms in advisory for m in ms]
     return ok, msgs
