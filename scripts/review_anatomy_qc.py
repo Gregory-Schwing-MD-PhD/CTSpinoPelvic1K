@@ -504,6 +504,26 @@ def structure_integrity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     return ok, msgs
 
 
+def _vertebra_label_mixing(lab: np.ndarray) -> bool:
+    """Does ONE connected vertebral bone carry TWO vertebra labels? That is the radiologist marking
+    an AMBIGUOUS / transitional level on purpose -- a body deliberately split half-L3/half-L4 -- and
+    it is the one and only case where an annotator may resolve the numbering. (structure_integrity
+    cannot see this: each half is still a single connected piece of its own label.)"""
+    spine = (lab >= 1) & (lab <= LS.S1_ID)
+    if not spine.any():
+        return False
+    st = ndimage.generate_binary_structure(3, 3)
+    er = ndimage.binary_erosion(spine, iterations=1)      # erode so touching bodies separate
+    cc, k = ndimage.label(er, structure=st)
+    for i in range(1, k + 1):
+        vals = lab[cc == i]
+        big = [int(v) for v in np.unique(vals)
+               if v > 0 and int((vals == v).sum()) >= MIX_LABEL_MIN_VOX]
+        if len(big) >= 2:                                 # one bone, two levels -> ambiguous body
+            return True
+    return False
+
+
 def spine_untouched(lab: np.ndarray, given: np.ndarray) -> Tuple[bool, List[str]]:
     """A RIB reviewer must not alter the SPINE (or hips/femurs). The radiologist's vertebra labels
     are the ground truth of this dataset -- a rib annotator who renumbers them (e.g. inserting an L6
@@ -517,38 +537,32 @@ def spine_untouched(lab: np.ndarray, given: np.ndarray) -> Tuple[bool, List[str]
     names = _id2name()
     nonrib_before = (given >= 1) & (given <= 33)
     nonrib_after = (lab >= 1) & (lab <= 33)
-    before = {int(v) for v in np.unique(given[nonrib_before])}
-    after = {int(v) for v in np.unique(lab[nonrib_after])}
-
-    # 1. ENUMERATION is the radiologist's call and is never the annotator's to change. Adding an L6
-    #    or dropping a T12 RE-COUNTS the spine, overwrites expert GT, and cascades into the ribs
-    #    (shift the vertebrae and every rib number shifts with them). Always a reject.
-    add, rem = after - before, before - after
-    if add or rem:
-        msgs = ["X the SPINE was RE-NUMBERED — the vertebra levels are the radiologist's ground "
-                "truth and must not be changed"]
-        if add:
-            msgs.append(f"X   ADDED: {sorted(names.get(v, v) for v in add)}")
-        if rem:
-            msgs.append(f"X   DELETED: {sorted(names.get(v, v) for v in rem)}")
-        msgs.append("X   restore the levels exactly as given. If you believe the GT enumeration is "
-                    "wrong (e.g. a transitional level / L6), flag it for radiologist re-read — do "
-                    "not re-label it yourself.")
-        return False, msgs
-
-    # 2. Same levels, but voxels moved. Still a reject. What LOOKS like a defect in the GT (e.g. one
-    #    body split half-L3/half-L4) is usually the radiologist ENCODING AMBIGUITY at a transitional
-    #    level ON PURPOSE -- and transitional levels are the signal this dataset exists to capture.
-    #    A student "cleaning that up" destroys it. Trust the GT; flag doubts, don't relabel them.
     n = int(((given != lab) & (nonrib_before | nonrib_after)).sum())
     if n <= SPINE_EDIT_TOL_VOX:
         return True, ["OK: the spine/pelvis labels are untouched"]
-    return False, [
-        f"X the SPINE/PELVIS was ALTERED ({n:,} voxels) — do not edit the radiologist's labels; "
-        f"edit ONLY the ribs (34-57)",
-        "X   if a vertebra looks wrong or ambiguous (e.g. a body labelled half-L3/half-L4), that is "
-        "usually DELIBERATE — the radiologist marking a transitional level. Leave it and flag it for "
-        "re-read; do not 'fix' it."]
+
+    # A spine edit is permitted in EXACTLY ONE situation: the radiologist deliberately left a body
+    # split across two levels (half-L3/half-L4) to mark an ambiguous/transitional level. Resolving
+    # THAT is legitimate -- and it may legitimately change the level set too. Anything else is the
+    # annotator overwriting expert ground truth.
+    if _vertebra_label_mixing(given):
+        return True, [f"OK: spine edited ({n:,} voxels) — the GIVEN spine had one bone carrying TWO "
+                      f"vertebra labels (an ambiguous half-L3/half-L4 body); resolving that is the "
+                      f"one permitted spine edit"]
+
+    before = {int(v) for v in np.unique(given[nonrib_before])}
+    after = {int(v) for v in np.unique(lab[nonrib_after])}
+    add, rem = after - before, before - after
+    msgs = [f"X the SPINE was ALTERED ({n:,} voxels) but the spine you were GIVEN was unambiguous — "
+            f"the radiologist's vertebra labels are the ground truth; edit ONLY the ribs (34-57)"]
+    if add:
+        msgs.append(f"X   ADDED: {sorted(names.get(v, v) for v in add)}  -> you RE-NUMBERED the spine")
+    if rem:
+        msgs.append(f"X   DELETED: {sorted(names.get(v, v) for v in rem)}")
+    msgs.append("X   the only permitted spine edit is resolving a body the radiologist split across "
+                "TWO levels (half-L3/half-L4). If you think the enumeration is wrong (e.g. an L6 / "
+                "transitional level), flag it for re-read — do not relabel it yourself.")
+    return False, msgs
 
 
 def check_label(check: str, lab: np.ndarray, affine,
