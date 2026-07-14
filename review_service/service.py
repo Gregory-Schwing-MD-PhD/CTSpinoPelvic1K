@@ -135,7 +135,25 @@ class ReviewService:
                                          "mode", "tau", "agree")}
         return bool(r["agree"])
 
-    def _qc_gate(self, label_bytes: Optional[bytes], label_name: str) -> None:
+    def _given_label(self, case: Optional[dict]):
+        """The EXACT label the annotator was handed. The QC needs it to verify they did not alter the
+        spine: a rib reviewer who renumbers the radiologist's vertebrae overwrites expert ground
+        truth, and it cascades into the rib numbers. Without this the gate is blind to it."""
+        if not case:
+            return None
+        try:
+            from huggingface_hub import hf_hub_download
+            import numpy as np
+            import nibabel as nib
+            p = hf_hub_download(repo_id=self.v2_repo, repo_type="dataset",
+                                filename=case["pseudo_label_file"],
+                                revision=self.source_revision)
+            return np.asanyarray(nib.load(p).dataobj)
+        except Exception:                                      # can't fetch -> skip that one check
+            return None
+
+    def _qc_gate(self, label_bytes: Optional[bytes], label_name: str,
+                 case: Optional[dict] = None) -> None:
         """Server-side anatomy QC: REJECT a submission whose label fails self.check
         (e.g. 'ribs' -> no duplicate/split rib number). Fails CLOSED — if the QC
         cannot run, the submission is rejected, so nothing un-verified is committed."""
@@ -159,7 +177,8 @@ class ReviewService:
         try:
             tf.write(label_bytes); tf.close()
             img = nib.load(tf.name)
-            ok, msgs = RA.check_label(self.check, np.asanyarray(img.dataobj), img.affine)
+            ok, msgs = RA.check_label(self.check, np.asanyarray(img.dataobj), img.affine,
+                                      given=self._given_label(case))
         except Exception as exc:
             raise ReviewError(f"server QC failed to run ({exc}); submission rejected")
         finally:
@@ -384,7 +403,7 @@ class ReviewService:
         if decision in ("accept", "corrected"):
             if label_bytes is None:
                 raise ReviewError(f"{decision} requires a label upload")
-            self._qc_gate(label_bytes, label_name)       # reject if it fails QC (fails closed)
+            self._qc_gate(label_bytes, label_name, case)  # reject if it fails QC (fails closed)
             label_path = f"reviews/{case_id}/{slot}_label{_ext(label_name)}"
             files[label_path] = label_bytes
             record["artifact"] = label_path

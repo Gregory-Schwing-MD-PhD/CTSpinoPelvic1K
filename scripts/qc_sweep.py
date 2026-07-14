@@ -8,8 +8,10 @@ from huggingface_hub import hf_hub_download
 tok=os.environ["HF_TOKEN"]; REPO="anonymous-mlhc/CTSpinoPelvic1K-reviews-ribs"
 st = store_mod.ReviewStore(store_mod.HFBackend(repo_id=REPO, token=tok))
 
-def gate_fails(lab, aff):
+def gate_fails(lab, aff, given=None):
     fails=[]
+    if given is not None and not RA.spine_untouched(lab, given)[0]:
+        fails.append("spine_altered")
     if not RA.rib_label_mixing(lab,aff)[0]: fails.append("rib_label_mixing")
     if not RA.structure_integrity(lab,aff)[0]: fails.append("structure_integrity")
     if not RA.rib_spine_gap(lab,aff)[0]: fails.append("rib_spine_gap")
@@ -31,7 +33,14 @@ for ci,case in enumerate(cases):
             continue                         # never submitted -> skip
         try:
             img=nib.load(p); lab=np.asanyarray(img.dataobj); aff=img.affine
-            fails=gate_fails(lab,aff)
+            given=None
+            try:
+                from huggingface_hub import hf_hub_download as _dl
+                given=np.asanyarray(nib.load(_dl("anonymous-mlhc/CTSpinoPelvic1K",
+                        case["pseudo_label_file"], repo_type="dataset", token=tok,
+                        revision="v4")).dataobj)
+            except Exception: pass
+            fails=gate_fails(lab,aff,given)
         except Exception as e:
             print(f"  [qc err] {cid}/{slot}: {str(e)[:60]}", flush=True); continue
         passed = not fails
