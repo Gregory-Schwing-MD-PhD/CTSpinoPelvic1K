@@ -152,6 +152,62 @@ class ReviewService:
         except Exception:                                      # can't fetch -> skip that one check
             return None
 
+    def _normalize_spine(self, label_bytes: Optional[bytes], label_name: str,
+                         case: Optional[dict]) -> Optional[bytes]:
+        """FORCE the spine back to the reference label on every rib submission.
+
+        The spine is the RADIOLOGIST's ground truth and a rib reviewer must never alter it. We do not
+        validate this and reject -- we simply OVERWRITE it, so corrupting the spine is structurally
+        impossible rather than merely detected. The annotator keeps every rib voxel they drew; their
+        vertebra/pelvis edits are discarded before the label is ever stored:
+
+            out = reference        (radiologist spine + pelvis)
+            out[ribs] = 0          (drop the reference's auto-ribs)
+            out[student ribs] = .. (their ribs -- ONLY onto background, so a vertebra is never
+                                    overwritten)
+
+        If the reference spine itself is wrong (a pseudolabelled spine, a bad pelvis), the fix is made
+        ONCE at the source (the v4 label) and propagates to every submission normalized against it --
+        one source of truth, no exceptions list.
+
+        Fails OPEN (returns the label unchanged) only if the reference cannot be fetched; the QC gate
+        still runs either way.
+        """
+        if self.check != "ribs" or label_bytes is None or not case:
+            return label_bytes
+        try:
+            import numpy as np
+            import nibabel as nib
+            import label_scheme as LS
+            given = self._given_label(case)
+            if given is None:
+                return label_bytes
+            sub = _load_label_array(label_bytes, label_name)
+            if sub.shape != given.shape:
+                return label_bytes
+            lo, hi = LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 12
+            out = given.copy()
+            out[(out >= lo) & (out <= hi)] = 0                  # drop the reference auto-ribs
+            student = (sub >= lo) & (sub <= hi)
+            place = student & (out == 0)                        # never write over a vertebra/pelvis
+            out[place] = sub[place]
+            if np.array_equal(out, sub):
+                return label_bytes                              # already clean -> unchanged
+            # re-serialise with the submission's own affine/header
+            suffix = ".nii.gz" if label_name.endswith(".gz") else ".nii"
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+                tmp_in = f.name
+                f.write(label_bytes)
+            ref = nib.load(tmp_in)
+            with tempfile.TemporaryDirectory() as td:
+                p = Path(td) / ("l" + suffix)
+                nib.save(nib.Nifti1Image(out.astype(sub.dtype), ref.affine, ref.header), str(p))
+                data = p.read_bytes()
+            Path(tmp_in).unlink(missing_ok=True)
+            return data
+        except Exception:                                       # noqa: BLE001  (never block a submit)
+            return label_bytes
+
     def _qc_gate(self, label_bytes: Optional[bytes], label_name: str,
                  case: Optional[dict] = None) -> None:
         """Server-side anatomy QC: REJECT a submission whose label fails self.check
@@ -403,6 +459,9 @@ class ReviewService:
         if decision in ("accept", "corrected"):
             if label_bytes is None:
                 raise ReviewError(f"{decision} requires a label upload")
+            # FORCE the radiologist's spine back before anything is checked or stored: a rib
+            # reviewer cannot corrupt the spine because their vertebra edits never survive.
+            label_bytes = self._normalize_spine(label_bytes, label_name, case)
             self._qc_gate(label_bytes, label_name, case)  # reject if it fails QC (fails closed)
             label_path = f"reviews/{case_id}/{slot}_label{_ext(label_name)}"
             files[label_path] = label_bytes

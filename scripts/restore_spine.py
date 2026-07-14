@@ -111,11 +111,17 @@ def main(argv=None) -> int:
             given = np.asanyarray(gimg.dataobj)
         except Exception:                                # noqa: BLE001
             continue
-        for slot in ("1", "2"):
-            sl = case.get("slots", {}).get(slot)
-            if not sl:
-                continue
-            rel = f"reviews/{cid}/{slot}_label.nii.gz"
+        # The FINAL label matters most: it is the dataset's OUTPUT, and it is derived from a student
+        # submission -- so if the annotator whose label was chosen had tampered with the spine, that
+        # tampering is baked into the finalized case. Fix the finals as well as the submissions.
+        targets = [(s, f"reviews/{cid}/{s}_label.nii.gz") for s in ("1", "2")
+                   if case.get("slots", {}).get(s)]
+        fin_rel = (case.get("final") or {}).get("label_rel")
+        if fin_rel:
+            targets.append(("final", fin_rel))
+
+        for slot, rel in targets:
+            sl = case.get("slots", {}).get(slot) or {}
             try:
                 simg = nib.load(hf_hub_download(REPO, rel, repo_type="dataset", token=tok))
                 sub = np.asanyarray(simg.dataobj)
@@ -129,7 +135,7 @@ def main(argv=None) -> int:
                 continue                                  # spine untouched -> nothing to do
             out, st = restore(given, sub)
             n_fixed += 1
-            rev = sl.get("reviewer")
+            rev = sl.get("reviewer") or (case.get("final") or {}).get("chosen_reviewer") or "FINAL"
             rows.append({"case": cid, "slot": slot, "reviewer": rev,
                          "spine_voxels_restored": st["spine_voxels_restored"],
                          "rib_voxels_kept": st["rib_voxels_kept"],
@@ -138,7 +144,8 @@ def main(argv=None) -> int:
             print(f"  RESTORE {cid}/{slot} {rev}: spine {st['spine_voxels_restored']:,} vox "
                   f"restored, {st['rib_voxels_kept']:,} rib vox kept", flush=True)
             if a.apply:
-                files[f"reviews/{cid}/{slot}_label_raw.nii.gz"] = _to_bytes(sub, simg)  # archive
+                stem = rel[:-len(".nii.gz")]
+                files[f"{stem}_raw.nii.gz"] = _to_bytes(sub, simg)   # archive the original
                 files[rel] = _to_bytes(out, simg)                                        # normalised
                 if len(files) >= 12:
                     store.b.write_many(files, commit_message=f"restore radiologist spine ({commit})")

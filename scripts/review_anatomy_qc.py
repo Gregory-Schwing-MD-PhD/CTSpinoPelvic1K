@@ -659,7 +659,10 @@ def check_label(check: str, lab: np.ndarray, affine,
         #   only catches DISAGREEMENT; if BOTH annotators shift the numbering the same way they agree
         #   and the error sails through. This checks them against the ANATOMY, not each other.
     if check == "ribs" and given is not None:
-        gating.append(spine_untouched(lab, given))       # GATE: rib reviewers must not edit the spine
+        # The server now FORCE-RESTORES the spine on every submission (service._normalize_spine), so a
+        # spine edit can no longer reach the store. Kept as a safety net -- if it ever fires, the
+        # normalization did not run and something upstream is broken.
+        gating.append(spine_untouched(lab, given))
     ok = all(o for o, _ in gating)                      # anchor does NOT affect pass/fail
     msgs = [m for _, ms in gating for m in ms] + [m for _, ms in advisory for m in ms]
     return ok, msgs
