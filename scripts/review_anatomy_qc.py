@@ -362,6 +362,68 @@ def rib_label_mixing(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     return ok, msgs
 
 
+def rib_vertebra_match(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
+    """Rib N must articulate with vertebra T-N (T1..T12 = ids 8..19, so rib N <-> id 7+N).
+
+    WHY THIS EXISTS. Adjudication only catches DISAGREEMENT. If BOTH annotators shift the rib
+    numbering the same way, they agree with each other and the error sails through unadjudicated --
+    agreement is not correctness. This is the objective test that catches it, because once the
+    radiologist's spine is restored the rib's number is DETERMINED by the vertebra it touches; it
+    stops being an opinion.
+
+    Only ribs that actually REACH a vertebra are judged (gap <= GAP_DETACH_MM). A detached or
+    FOV-truncated rib has no articulation to read, so it is skipped rather than guessed at."""
+    spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
+    lo_id, hi_id = LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 12
+    thor = (lab >= 8) & (lab <= 19)                       # T1..T12 (the radiologist's levels)
+    ribs = (lab >= lo_id) & (lab <= hi_id)
+    if not thor.any() or not ribs.any():
+        return True, ["(no thoracic vertebrae or ribs in view -> rib<->vertebra match skipped)"]
+    idx = np.argwhere(thor | ribs); lo = idx.min(0); hi = idx.max(0) + 1
+    sl = tuple(slice(int(lo[i]), int(hi[i])) for i in range(3))
+    f = 2
+    sub = lab[sl][::f, ::f, ::f]
+    th = (sub >= 8) & (sub <= 19)
+    if not th.any():
+        return True, ["(no thoracic vertebrae in the crop -> skipped)"]
+    d, ind = ndimage.distance_transform_edt(~th, sampling=spacing * f, return_indices=True)
+    names = _id2name(); ok, msgs = True, []
+    for rid in range(lo_id, hi_id + 1):
+        m = (sub == rid)
+        if not m.any():
+            continue
+        dd = np.where(m, d, np.inf)
+        # the MEDIAL-MOST rib voxel (closest to the spine) = the head. Read the vertebra by NEAREST
+        # NEIGHBOUR from that point -- the rib does not have to be directly incident.
+        p = np.unravel_index(np.argmin(dd), dd.shape)
+        gap = float(dd[p])
+        if not np.isfinite(gap):
+            continue
+        v = int(sub[ind[0][p], ind[1][p], ind[2][p]])     # nearest vertebra to the rib head
+        if not (8 <= v <= 19):
+            continue
+        off = LS.RIB_LEFT_OFFSET if rid <= LS.RIB_LEFT_OFFSET + 12 else LS.RIB_RIGHT_OFFSET
+        n = rid - off
+        expect = v - 7                                    # vertebra T-N  ->  rib N
+        if n == expect:
+            continue
+        side = "left" if off == LS.RIB_LEFT_OFFSET else "right"
+        if gap <= GAP_DETACH_MM:
+            # the head REACHES its vertebra -> the articulation is unambiguous -> block
+            ok = False
+            msgs.append(f"X {names.get(rid, rid)} is MISNUMBERED: its head articulates with "
+                        f"{names.get(v, v)}, so it must be {side} rib {expect}, not {n}")
+        else:
+            # head is detached / FOV-truncated -> nearest-neighbour is the best read but less
+            # certain, so report it without blocking.
+            msgs.append(f"note {names.get(rid, rid)}: nearest vertebra to its head is "
+                        f"{names.get(v, v)} ({gap:.0f} mm away) -> likely should be {side} rib "
+                        f"{expect}, not {n}; head is detached/truncated so not blocking")
+    if ok:
+        msgs.append("OK: every rib that reaches the spine matches its vertebra (rib N on T-N)")
+    return ok, msgs
+
+
 def _adjacent_rib_ids(rid: int) -> set:
     """The rib numbers immediately above/below `rid` on the SAME side (N-1, N+1)."""
     off = LS.RIB_LEFT_OFFSET if rid <= LS.RIB_LEFT_OFFSET + 12 else LS.RIB_RIGHT_OFFSET
@@ -592,6 +654,10 @@ def check_label(check: str, lab: np.ndarray, affine,
             #   informs but never blocks the submit.
     if check in ("spine", "ribs", "both"):
         gating.append(structure_integrity(lab, affine))  # GATE: each spine/pelvis bone one class
+    if check == "ribs":
+        gating.append(rib_vertebra_match(lab, affine))   # GATE: rib N must sit on T-N. Adjudication
+        #   only catches DISAGREEMENT; if BOTH annotators shift the numbering the same way they agree
+        #   and the error sails through. This checks them against the ANATOMY, not each other.
     if check == "ribs" and given is not None:
         gating.append(spine_untouched(lab, given))       # GATE: rib reviewers must not edit the spine
     ok = all(o for o, _ in gating)                      # anchor does NOT affect pass/fail
