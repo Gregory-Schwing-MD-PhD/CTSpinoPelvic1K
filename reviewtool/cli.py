@@ -1070,7 +1070,10 @@ def cmd_next(a):
 def cmd_adjudicate(a):
     s, base = _api()
     # An explicit --case means "serve me THIS one" — a stale held claim must not hijack it.
-    if not getattr(a, "case", None) and _reopen_held_if_any(a, kinds={"adjudicate"}):
+    # An explicit --case OR --base means "serve me a fresh case (with this base)" -- a stale held
+    # local claim must not hijack it and silently reopen reviewer 1's copy, ignoring --base.
+    if (not getattr(a, "case", None) and getattr(a, "base", None) is None
+            and _reopen_held_if_any(a, kinds={"adjudicate"})):
         return
     _adj_case = getattr(a, "case", None)
     job = _claim(s, base, "/adjudication/next", method="get",
@@ -1220,6 +1223,8 @@ def cmd_mystats(a):
     print(f"  submissions checked : {n}")
     print(f"  passing the QC      : {p}" + (f"   ({pct}%)" if pct is not None else ""))
     print(f"  still to fix (amend): {d.get('amend_pending', 0)}")
+    if d.get("adjudications"):
+        print(f"  adjudications done  : {d['adjudications']}")
     fb = d.get("fail_by_check") or {}
     if fb:
         print("  fails by check      : " + ", ".join(f"{k}={v}" for k, v in fb.items()))
@@ -2059,7 +2064,7 @@ def main(argv=None) -> int:
                                 "opening ITK-SNAP (still QC-gated)")
             p.add_argument("--case", default=None,
                            help="adjudicate a SPECIFIC case (work a ranked list, e.g. worst-first)")
-            p.add_argument("--base", choices=["1", "2"], default="1",
+            p.add_argument("--base", choices=["1", "2"], default=None,
                            help="which reviewer's label to load as the editable base (default 1); "
                                 "the other opens read-only to compare")
             p.add_argument("--auto", action="store_true",

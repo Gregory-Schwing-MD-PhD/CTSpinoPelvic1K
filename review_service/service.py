@@ -394,7 +394,7 @@ class ReviewService:
         the strengthened QC, the pass %, and how many are re-opened for them to amend. Reads the
         per-slot QC verdict stamped at seed/submit time -- no heavy recompute."""
         import collections as _c
-        total = passed = amend_pending = 0
+        total = passed = amend_pending = adjudications = 0
         fails = _c.Counter()
         for case in self.store.list_cases():
             for slot in schema.PRIMARY_SLOTS:
@@ -407,9 +407,14 @@ class ReviewService:
                     amend_pending += 1
                 for c in (sl.get("qc_fail_checks") or []):
                     fails[c] += 1
+            # adjudications this reviewer completed (the ADJ slot -- previously invisible in mystats)
+            adj = case.get("slots", {}).get(schema.ADJ_SLOT)
+            if adj and adj.get("reviewer") == reviewer_id and adj.get("done"):
+                adjudications += 1
         return {"reviewer": reviewer_id, "submissions": total, "passed": passed,
                 "pass_pct": (round(100 * passed / total) if total else None),
-                "amend_pending": amend_pending, "fail_by_check": dict(fails)}
+                "amend_pending": amend_pending, "adjudications": adjudications,
+                "fail_by_check": dict(fails)}
 
     # ── submit ──────────────────────────────────────────────────────────────
     def submit(self, claim_token: str, record: dict,
