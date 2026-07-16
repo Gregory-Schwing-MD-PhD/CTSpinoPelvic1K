@@ -290,6 +290,19 @@ def _qc_hold_alert(case: str, seg, check: str = "ribs") -> None:
     print(f"      QC can't know about): add  --force  to the command.")
 
 
+def _held_adjudication_case():
+    """The case_id of an adjudication that's claimed but not yet submitted (or None). Used to reopen
+    it through the FULL adjudicate flow (both reviewer windows), not the single-window editor."""
+    for f in (sorted(ACTIVE_DIR.glob("*.json")) if ACTIVE_DIR.exists() else []):
+        try:
+            d = json.loads(f.read_text())
+        except Exception:                                # noqa: BLE001
+            continue
+        if d.get("kind") == "adjudicate":
+            return (d.get("job") or {}).get("case_id") or Path(d["workdir"]).name.replace("__adj", "")
+    return None
+
+
 def _reopen_held_if_any(a, kinds=None) -> bool:
     """A case of the SAME kind that's already CLAIMED but NOT yet submitted blocks handing out
     a new one: reopen it instead (with instructions). Returns True if it took over (caller
@@ -1070,11 +1083,16 @@ def cmd_next(a):
 def cmd_adjudicate(a):
     s, base = _api()
     # An explicit --case means "serve me THIS one" — a stale held claim must not hijack it.
-    # An explicit --case OR --base means "serve me a fresh case (with this base)" -- a stale held
-    # local claim must not hijack it and silently reopen reviewer 1's copy, ignoring --base.
-    if (not getattr(a, "case", None) and getattr(a, "base", None) is None
-            and _reopen_held_if_any(a, kinds={"adjudicate"})):
-        return
+    # If a case was claimed but not submitted, reopen THAT one -- but through the FULL adjudicate
+    # flow below (both reviewer windows + the disagreement overlay), NOT the single-window editor.
+    # A held claim used to reopen via cmd_edit, which showed only one label (often the raw pseudo)
+    # and none of the comparison windows. Setting a.case re-serves it properly. --case/--base win.
+    if not getattr(a, "case", None):
+        held = _held_adjudication_case()
+        if held:
+            print(f"\n  Reopening your in-progress case {held} with BOTH reviewers loaded "
+                  f"(or `python -m reviewtool skip` to drop it).")
+            a.case = held
     _adj_case = getattr(a, "case", None)
     job = _claim(s, base, "/adjudication/next", method="get",
                  params=({"case": _adj_case} if _adj_case else None))
@@ -1186,7 +1204,7 @@ def cmd_skip(a):
             d = json.loads(f.read_text())
         except Exception:                                # noqa: BLE001
             continue
-        if d.get("kind") == "review":
+        if d.get("kind") in ("review", "adjudicate"):    # drop a held review OR adjudication
             claims.append(d)
     if a.case:
         claims = [d for d in claims if Path(d["workdir"]).name == a.case]
