@@ -1,0 +1,76 @@
+case,slot,reviewer,kind,added_verts,added_vox,renumbered_vox
+103__fused,1,soochmia,L6/transitional,T12 L2 L4 L5 L6 sacrum,85126,648359
+103__fused,2,AnnikaT1,L6/transitional,T12 L1 L2 L3 L4 L5 L6,58551,455220
+103__fused,final,,L6/transitional,T12 L1 L2 L4 L5 L6,33704,448366
+295__pelvic_native,final,,L6/transitional,T7 T8 T9 T10 T11 T12 L3 L4 L5 L6,457159,411179
+295__pelvic_native,1,soochmia,L6/transitional,T7 T8 T9 T10 T11 T12 L3 L4 L5 L6,457159,411179
+46__pelvic_native,1,aschehr,L6/transitional,T11 T12 L1 L2 L3 L4 L5 L6,207074,739760
+46__pelvic_native,2,rchristian19,L6/transitional,T11 T12 L2 L3 L4 L5 L6,230253,732588
+590__spine_only,2,rchristian19,L6/transitional,T9 T10 T11 T12 L1 L2 L3 L4 L5 L6,28768,1436240
+597__spine_only,2,rchristian19,L6/transitional,T10 T11 T12 L1 L2 L3 L4 L5 L6,31309,1002878
+742__fused,1,aschehr,L6/transitional,T8 T9 T10 T11 T12 L1 L2 L3 L4 L5 L6,102935,1270887
+96__spine_only,1,aschehr,L6/transitional,T11 T12 L1 L2 L3 L4 L5 L6,22296,639565
+224__spine_only,2,soochmia,other,L1,11693,329
+316__fused,1,AnnikaT1,other,L1,5055,59
+40__fused,2,sathyagopal,other,L5,4037,156
+121__spine_only,1,AnnikaT1,renumber,L1,16883,1125
+276__pelvic_native,2,HassanSaad3,renumber,L1,85753,181828
+105__fused,final,,thoracic_fill,T7,10038,3563
+110__spine_only,1,aschehr,thoracic_fill,T8 T9 T10 T11 T12 L1 L2 L3 L4 L5,58497,902711
+110__spine_only,2,AnnikaT1,thoracic_fill,T8,7973,0
+129__fused,1,AnnikaT1,thoracic_fill,T9,6527,53
+144__fused,final,,thoracic_fill,T8,5089,1
+144__fused,2,soochmia,thoracic_fill,T8,5089,1
+144__fused,1,farismahjoub,thoracic_fill,T8,7322,0
+159__fused,final,,thoracic_fill,T10,17092,2802
+159__fused,1,farismahjoub,thoracic_fill,T10,15473,18668
+159__fused,2,soochmia,thoracic_fill,T10,17092,2802
+165__fused,1,farismahjoub,thoracic_fill,T12,6863,65
+169__pelvic_native,1,farismahjoub,thoracic_fill,T8 T9 T10 T11 T12,467713,45515
+179__spine_only,2,farismahjoub,thoracic_fill,T9,8352,339
+253__spine_only,1,farismahjoub,thoracic_fill,T10,22931,103229
+253__spine_only,2,soochmia,thoracic_fill,T10,21176,10068
+253__spine_only,final,,thoracic_fill,T10,21176,10068
+256__spine_only,1,farismahjoub,thoracic_fill,T7,4640,1364
+256__spine_only,final,,thoracic_fill,T7,12851,35413
+256__spine_only,2,soochmia,thoracic_fill,T7,12851,35413
+262__fused,1,farismahjoub,thoracic_fill,T8,7256,9
+262__fused,2,soochmia,thoracic_fill,C1 T8,7841,22
+267__spine_only,2,farismahjoub,thoracic_fill,T10,7064,92
+26__spine_only,2,farismahjoub,thoracic_fill,T8,5453,5
+276__pelvic_native,1,soochmia,thoracic_fill,T11 T12 L1 L2 L3,218313,180602
+286__spine_only,1,farismahjoub,thoracic_fill,T10,13969,229
+289__pelvic_native,1,farismahjoub,thoracic_fill,T9 T10 T11 T12,484643,1921
+295__pelvic_native,2,sathyagopal,thoracic_fill,T5 T6 T7 T8 T9 T10 T11 T12 L1 L2 L3,481988,333953
+296__fused,1,farismahjoub,thoracic_fill,T5,6530,140
+296__fused,2,soochmia,thoracic_fill,T5 T6,7647,864
+296__fused,final,,thoracic_fill,T5 T6,7647,864
+305__fused,1,farismahjoub,thoracic_fill,T9,18657,7293
+32__fused,1,farismahjoub,thoracic_fill,T10,13388,46
+344__spine_only,1,farismahjoub,thoracic_fill,T10,16941,2767
+344__spine_only,final,,thoracic_fill,T10,16941,2767
+359__fused,1,farismahjoub,thoracic_fill,T5,15690,0
+359__fused,2,sathyagopal,thoracic_fill,T7,5407,17
+369__spine_only,2,sathyagopal,thoracic_fill,T9,6912,419
+370__fused,1,AnnikaT1,thoracic_fill,T9,8509,12
+370__fused,final,,thoracic_fill,T9,8509,12
+457__spine_only,2,farismahjoub,thoracic_fill,T9,4239,59
+467__spine_only,2,AnnikaT1,thoracic_fill,T11,613,99
+467__spine_only,1,farismahjoub,thoracic_fill,T11,20621,1443
+467__spine_only,final,,thoracic_fill,T11,613,99
+478__fused,1,AnnikaT1,thoracic_fill,T8,6197,53
+537__spine_only,2,rchristian19,thoracic_fill,T9 T10 T11 T12 L1 L2 L3 L4 L5,31886,1075184
+547__spine_only,2,farismahjoub,thoracic_fill,T8,15579,651
+564__spine_only,2,rchristian19,thoracic_fill,T11 T12 L1 L2 L3 L4 L5,30364,484745
+601__spine_only,2,farismahjoub,thoracic_fill,T8,6510,179
+615__fused,2,farismahjoub,thoracic_fill,T1 T3 T12 L1 L2 L3 L4 L5,35472,984768
+618__pelvic_native,2,rchristian19,thoracic_fill,T10 T11 T12,283160,237
+636__spine_only,2,farismahjoub,thoracic_fill,T8,10316,3113
+63__fused,2,farismahjoub,thoracic_fill,T8,13580,323
+647__spine_only,2,farismahjoub,thoracic_fill,T7,14414,17
+670__spine_only,2,sathyagopal,thoracic_fill,T7 T10,4806,12
+670__spine_only,final,,thoracic_fill,T6 T7,3790,90
+670__spine_only,1,margretkhoushi,thoracic_fill,T6 T7,3790,90
+742__fused,2,danehubers,thoracic_fill,T7,7478,1541
+742__fused,final,,thoracic_fill,T7,7478,1541
+CTC-3105782108__spine_only,2,danehubers,thoracic_fill,T10,6280,960
