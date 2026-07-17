@@ -419,14 +419,23 @@ class ReviewService:
     # ── submit ──────────────────────────────────────────────────────────────
     def submit(self, claim_token: str, record: dict,
                label_bytes: Optional[bytes] = None,
-               label_name: str = "label.nii.gz") -> dict:
+               label_name: str = "label.nii.gz",
+               auth_reviewer: Optional[str] = None) -> dict:
         case_id, slot = self._parse_token(claim_token)
         case = self.store.get_case(case_id)
         if case is None:
             raise ReviewError(f"unknown case {case_id}")
         sl = case.get("slots", {}).get(slot)
-        if not sl or sl.get("claim_token") != claim_token:
+        if not sl:
             raise ReviewError("claim token does not match an open claim")
+        if sl.get("claim_token") != claim_token:
+            # The token drifted (re-minted by a later claim, a re-seed, etc.) but the work is real.
+            # Accept it if the AUTHENTICATED caller OWNS this slot and it isn't already submitted --
+            # identity, verified by the Space via whoami, is stronger proof of ownership than a token
+            # that server-side bookkeeping happened to rotate. Otherwise reject.
+            if not (auth_reviewer and sl.get("reviewer") == auth_reviewer and not sl.get("done")):
+                raise ReviewError("claim token does not match an open claim")
+            sl["claim_token"] = claim_token              # re-bind to the token the owner is holding
 
         new_sha = _sha256(label_bytes) if label_bytes is not None else None
         if sl.get("done"):

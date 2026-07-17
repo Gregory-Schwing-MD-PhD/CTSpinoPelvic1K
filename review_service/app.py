@@ -244,7 +244,8 @@ async def submit(claim_token: str = Form(...), record: str = Form(...),
     name = label.filename if label is not None else "label.nii.gz"
     try:
         with _LOCK:
-            return SERVICE.submit(claim_token, json.loads(record), data, name)
+            return SERVICE.submit(claim_token, json.loads(record), data, name,
+                                  auth_reviewer=who.get("id"))
     except svc.ReviewError as e:
         raise HTTPException(400, str(e))
 
