@@ -375,19 +375,24 @@ def rib_vertebra_match(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     FOV-truncated rib has no articulation to read, so it is skipped rather than guessed at."""
     spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
     lo_id, hi_id = LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 12
-    thor = (lab >= 8) & (lab <= 19)                       # T1..T12 (the radiologist's levels)
+    # Read the nearest vertebra including the LUMBAR levels (T1..L6 = 8..25). A rib whose head sits
+    # on a LUMBAR vertebra is the transitional / 13th-rib (LSTV) phenotype -- the dataset's target --
+    # so it must be RECOGNISED, not skipped; skipping it made the shift it causes read as an error.
+    vspan = (lab >= 8) & (lab <= 25)
     ribs = (lab >= lo_id) & (lab <= hi_id)
-    if not thor.any() or not ribs.any():
-        return True, ["(no thoracic vertebrae or ribs in view -> rib<->vertebra match skipped)"]
-    idx = np.argwhere(thor | ribs); lo = idx.min(0); hi = idx.max(0) + 1
+    if not vspan.any() or not ribs.any():
+        return True, ["(no thoracolumbar vertebrae or ribs in view -> rib<->vertebra match skipped)"]
+    idx = np.argwhere(vspan | ribs); lo = idx.min(0); hi = idx.max(0) + 1
     sl = tuple(slice(int(lo[i]), int(hi[i])) for i in range(3))
     f = 2
     sub = lab[sl][::f, ::f, ::f]
-    th = (sub >= 8) & (sub <= 19)
-    if not th.any():
-        return True, ["(no thoracic vertebrae in the crop -> skipped)"]
-    d, ind = ndimage.distance_transform_edt(~th, sampling=spacing * f, return_indices=True)
+    vv = (sub >= 8) & (sub <= 25)
+    if not vv.any():
+        return True, ["(no thoracolumbar vertebrae in the crop -> skipped)"]
+    d, ind = ndimage.distance_transform_edt(~vv, sampling=spacing * f, return_indices=True)
     names = _id2name(); ok, msgs = True, []
+    # nearest vertebra to each rib's medial-most (head) voxel
+    reads = {}
     for rid in range(lo_id, hi_id + 1):
         m = (sub == rid)
         if not m.any():
@@ -400,25 +405,38 @@ def rib_vertebra_match(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
         if not np.isfinite(gap):
             continue
         v = int(sub[ind[0][p], ind[1][p], ind[2][p]])     # nearest vertebra to the rib head
-        if not (8 <= v <= 19):
+        if 8 <= v <= 25:
+            reads[rid] = (v, gap)
+    for side, off in (("left", LS.RIB_LEFT_OFFSET), ("right", LS.RIB_RIGHT_OFFSET)):
+        side_reads = {rid: vg for rid, vg in reads.items() if off < rid <= off + 12}
+        # TRANSITIONAL: a rib on this side articulates with a LUMBAR vertebra (id >= 20). That is a
+        # lumbar rib -- the 13th-rib / LSTV phenotype this dataset exists to catalogue. The rib-N<->
+        # T-N mapping is then legitimately shifted (every thoracic rib reads one level 'low'), which
+        # is ANATOMY, not a mislabel. Keep the numbering, flag for LSTV re-read, never call it an error.
+        lumbar_ribs = [rid for rid, (v, g) in side_reads.items() if v >= 20 and g <= GAP_DETACH_MM]
+        if lumbar_ribs:
+            msgs.append(f"note {side}: {', '.join(str(names.get(r, r)) for r in sorted(lumbar_ribs))} "
+                        f"articulate(s) with a LUMBAR vertebra -> transitional (13th-rib / LSTV) "
+                        f"phenotype; rib numbering kept as-is, flag for LSTV re-read (not an error)")
             continue
-        off = LS.RIB_LEFT_OFFSET if rid <= LS.RIB_LEFT_OFFSET + 12 else LS.RIB_RIGHT_OFFSET
-        n = rid - off
-        expect = v - 7                                    # vertebra T-N  ->  rib N
-        if n == expect:
-            continue
-        side = "left" if off == LS.RIB_LEFT_OFFSET else "right"
-        if gap <= GAP_DETACH_MM:
-            # the head REACHES its vertebra -> the articulation is unambiguous -> block
-            ok = False
-            msgs.append(f"X {names.get(rid, rid)} is MISNUMBERED: its head articulates with "
-                        f"{names.get(v, v)}, so it must be {side} rib {expect}, not {n}")
-        else:
-            # head is detached / FOV-truncated -> nearest-neighbour is the best read but less
-            # certain, so report it without blocking.
-            msgs.append(f"note {names.get(rid, rid)}: nearest vertebra to its head is "
-                        f"{names.get(v, v)} ({gap:.0f} mm away) -> likely should be {side} rib "
-                        f"{expect}, not {n}; head is detached/truncated so not blocking")
+        for rid, (v, gap) in sorted(side_reads.items()):
+            if not (8 <= v <= 19):                        # only a thoracic articulation fixes T-N
+                continue
+            n = rid - off
+            expect = v - 7                                # vertebra T-N  ->  rib N
+            if n == expect:
+                continue
+            if gap <= GAP_DETACH_MM:
+                # head REACHES a thoracic vertebra and no transitional rib explains the shift
+                ok = False
+                msgs.append(f"X {names.get(rid, rid)} is MISNUMBERED: its head articulates with "
+                            f"{names.get(v, v)}, so it must be {side} rib {expect}, not {n}")
+            else:
+                # head is detached / FOV-truncated -> nearest-neighbour is the best read but less
+                # certain, so report it without blocking.
+                msgs.append(f"note {names.get(rid, rid)}: nearest vertebra to its head is "
+                            f"{names.get(v, v)} ({gap:.0f} mm away) -> likely should be {side} rib "
+                            f"{expect}, not {n}; head is detached/truncated so not blocking")
     if ok:
         msgs.append("OK: every rib that reaches the spine matches its vertebra (rib N on T-N)")
     return ok, msgs
@@ -662,10 +680,14 @@ def check_label(check: str, lab: np.ndarray, affine,
         # IMPOSSIBLE block. Advisory only -- record the v4 defect, never block the student's ribs.
         if not gating_only:
             advisory.append(structure_integrity(lab, affine))
-    if check == "ribs":
-        gating.append(rib_vertebra_match(lab, affine))   # GATE: rib N must sit on T-N. Adjudication
-        #   only catches DISAGREEMENT; if BOTH annotators shift the numbering the same way they agree
-        #   and the error sails through. This checks them against the ANATOMY, not each other.
+    if check == "ribs" and not gating_only:
+        # ADVISORY, not a gate: rib N<->T-N is DETERMINED by the vertebra only when the spine is
+        # NORMAL. Transitional anatomy -- a rib on L1 (13th-rib / LSTV), the dataset's TARGET
+        # phenotype -- legitimately shifts every rib one level, so gating here BLOCKS exactly the
+        # cases we exist to keep (and rib heads are often unsegmented, adding false shifts). It
+        # informs + flags LSTV; genuine 'both annotators shifted the same way' errors surface in
+        # adjudication and the stump-rib detector for manual read, not by blocking the student.
+        advisory.append(rib_vertebra_match(lab, affine))
     if check == "ribs" and given is not None:
         # The server now FORCE-RESTORES the spine on every submission (service._normalize_spine), so a
         # spine edit can no longer reach the store. Kept as a safety net -- if it ever fires, the
