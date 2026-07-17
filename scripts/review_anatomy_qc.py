@@ -652,8 +652,16 @@ def check_label(check: str, lab: np.ndarray, affine,
             advisory.append(rib_anchor(lab, affine))     # ADVISORY only: rib N incident on T-N is
             #   unreliable (rib heads often unsegmented; thoracic vertebra labels can be off), so it
             #   informs but never blocks the submit.
-    if check in ("spine", "ribs", "both"):
-        gating.append(structure_integrity(lab, affine))  # GATE: each spine/pelvis bone one class
+    if check in ("spine", "both"):
+        gating.append(structure_integrity(lab, affine))  # GATE: spine reviewer edits the spine
+    elif check == "ribs":
+        # structure_integrity inspects ONLY spine/pelvis bones (ids 1-33) -- and on a rib submission
+        # the server FORCE-RESTORES every one of them to v4 (service._normalize_spine). So it can only
+        # ever fire on a PRE-EXISTING v4 pseudo defect (a vertebra the pipeline split into pieces),
+        # which the rib annotator cannot fix and whose edit is wiped anyway. Gating on it is an
+        # IMPOSSIBLE block. Advisory only -- record the v4 defect, never block the student's ribs.
+        if not gating_only:
+            advisory.append(structure_integrity(lab, affine))
     if check == "ribs":
         gating.append(rib_vertebra_match(lab, affine))   # GATE: rib N must sit on T-N. Adjudication
         #   only catches DISAGREEMENT; if BOTH annotators shift the numbering the same way they agree
@@ -678,8 +686,12 @@ def report(check: str, lab: np.ndarray, affine) -> bool:
         blocks.append(("RIB NUMBERING (advisory)", *rib_numbering(lab, affine), False))  # FOV-clip
         blocks.append(("RIB-SPINE GAP", *rib_spine_gap(lab, affine), True))  # GATE: in-view detached rib
         blocks.append(("RIB ANCHOR (advisory)", *rib_anchor(lab, affine), False))  # informs only
-    if check in ("spine", "ribs", "both"):
+    if check in ("spine", "both"):
         blocks.append(("STRUCTURE INTEGRITY", *structure_integrity(lab, affine), True))  # gates
+    elif check == "ribs":
+        # advisory on rib reviews: the spine is force-restored to v4, so a split vertebra is a v4
+        # defect the annotator cannot fix -> never block them (matches the server gate).
+        blocks.append(("STRUCTURE INTEGRITY (advisory)", *structure_integrity(lab, affine), False))
     allok = all(ok for _, ok, _, gate in blocks if gate)     # advisory anchor never blocks
     for name, ok, msgs, gate in blocks:
         tag = "PASS" if ok else ("FAIL" if gate else "note")
