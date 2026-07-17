@@ -671,8 +671,15 @@ def check_label(check: str, lab: np.ndarray, affine,
         # spine edit can no longer reach the store. Kept as a safety net -- if it ever fires, the
         # normalization did not run and something upstream is broken.
         gating.append(spine_untouched(lab, given))
-    ok = all(o for o, _ in gating)                      # anchor does NOT affect pass/fail
-    msgs = [m for _, ms in gating for m in ms] + [m for _, ms in advisory for m in ms]
+    ok = all(o for o, _ in gating)                      # advisory checks NEVER affect pass/fail
+    # Advisory checks legitimately emit "X ..." lines (a split rib number that's usually an FOV clip;
+    # on a rib review, a split v4 vertebra the student can't fix). Those are NOT blockers, so downgrade
+    # their "X" to "note:" in the merged output -- the server reject reason (which keeps only lines
+    # starting with "X") then reports ONLY genuine gating failures, not advisory noise the student
+    # would chase in vain.
+    def _adv(m):
+        return ("note:" + m[1:]) if m.startswith("X") else m
+    msgs = [m for _, ms in gating for m in ms] + [_adv(m) for _, ms in advisory for m in ms]
     return ok, msgs
 
 
