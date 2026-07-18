@@ -37,20 +37,25 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 import label_scheme as LS            # noqa: E402
 import review_anatomy_qc as RA       # noqa: E402
-import lumbar_rib_reclass as LR      # noqa: E402  (rib-on-lumbar-vertebra detector)
 from huggingface_hub import hf_hub_download   # noqa: E402
 
 DS = os.environ.get("V2_REPO", "anonymous-mlhc/CTSpinoPelvic1K")
 VERT_LO, VERT_HI = 8, 25             # T1..L6 = the contiguous thoracolumbar run
+LUM_LO_ID, LUM_HI_ID = 20, 25        # L1..L6
 RIB_LO, RIB_HI = LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 12
 ABOVE_MARGIN_MM = 20.0               # a rib head must clear the top vertebra by this to count "above"
 
 
 def missing_vertebra(lab: np.ndarray, affine) -> tuple:
-    """(interior_gap_names, ribs_above_spine_names). See module docstring.
+    """(interior_gap_names, ribs_above_spine_names, lumbar_rib_names). See module docstring.
 
-    Fast path: ONE np.unique + ONE ndimage.find_objects (single volume passes), then per-rib work on
-    tiny bounding-box crops. The naive version's repeated full-volume (lab==id)/argwhere was ~48 s/case.
+    Fast + EDT-FREE: ONE np.unique + ONE ndimage.find_objects, then everything from bounding boxes.
+    Each rib is mapped to a vertebra by SUPERIOR-INFERIOR LEVEL (the rib and its vertebra sit at the
+    same axial height) rather than head-CONTACT -- which is both cheaper and MORE robust, because rib
+    heads are frequently unsegmented (contact-based detection undercounts lumbar ribs badly).
+      * gaps   = vertebra id missing between two labelled ones (bracketed -> definitely in FOV)
+      * above  = rib whose head level is superior to the topmost annotated vertebra (in-FOV, unlabelled)
+      * lumbar = rib whose head level falls on a LUMBAR vertebra (L1..L6) -> candidate own-class
     """
     names = RA._id2name()
     spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
@@ -60,40 +65,34 @@ def missing_vertebra(lab: np.ndarray, affine) -> tuple:
     if present:
         gaps = [names.get(v, v) for v in range(present[0], present[-1] + 1) if v not in ids]
 
-    above = []
+    above, lumbar = [], []
     rib_ids = sorted(v for v in ids if RIB_LO <= v <= RIB_HI)
     if present and rib_ids:
         objs = ndimage.find_objects(lab if lab.dtype.kind in "iu" else lab.astype(np.int32))  # ONE pass
         R = np.asarray(affine)[:3, :3]
         si = int(np.argmax(np.abs(R[2, :])))
         sup = R[2, si] >= 0
-        plane = [a for a in range(3) if a != si]
-        # vertebra superior extent + spine column centre, from the vertebra bounding boxes
-        edges, cxs, cys = [], [], []
-        for v in present:
-            sl = objs[v - 1]
-            if sl is None:
-                continue
-            edges.append(sl[si].stop if sup else sl[si].start)
-            cxs.append((sl[plane[0]].start + sl[plane[0]].stop) / 2)
-            cys.append((sl[plane[1]].start + sl[plane[1]].stop) / 2)
-        if edges:
-            vtop = max(edges) if sup else min(edges)
-            cx, cy = float(np.mean(cxs)), float(np.mean(cys))
+        vranges = [(v, objs[v - 1][si].start, objs[v - 1][si].stop)
+                   for v in present if objs[v - 1] is not None]
+        if vranges:
+            vtop = max(h for _, _, h in vranges) if sup else min(l for _, l, _ in vranges)
             margin = ABOVE_MARGIN_MM / spacing[si]
             for rid in rib_ids:
                 sl = objs[rid - 1]
                 if sl is None:
                     continue
-                r = np.argwhere(lab[sl] == rid)              # tiny crop only
-                r = r + np.array([sl[0].start, sl[1].start, sl[2].start])
-                dx = r[:, plane[0]] - cx; dy = r[:, plane[1]] - cy
-                head_si = r[np.argmin(dx * dx + dy * dy), si]  # rib head = medial-most voxel
-                is_above = (head_si > vtop + margin) if sup else (head_si < vtop - margin)
-                if is_above:
-                    off = LS.RIB_LEFT_OFFSET if rid <= LS.RIB_LEFT_OFFSET + 12 else LS.RIB_RIGHT_OFFSET
-                    above.append(f"{'L' if off == LS.RIB_LEFT_OFFSET else 'R'}{rid - off}")
-    return gaps, above
+                head_si = sl[si].stop - 1 if sup else sl[si].start    # head = superior end of the rib
+                off = LS.RIB_LEFT_OFFSET if rid <= LS.RIB_LEFT_OFFSET + 12 else LS.RIB_RIGHT_OFFSET
+                tag = f"{'L' if off == LS.RIB_LEFT_OFFSET else 'R'}{rid - off}"
+                if (head_si > vtop + margin) if sup else (head_si < vtop - margin):
+                    above.append(tag)
+                    continue                                         # above the spine -> not lumbar
+                inside = [v for v, lo, hi in vranges if lo <= head_si < hi]
+                v = inside[0] if inside else \
+                    min(vranges, key=lambda x: abs((x[1] + x[2]) // 2 - head_si))[0]
+                if LUM_LO_ID <= v <= LUM_HI_ID:
+                    lumbar.append(tag)
+    return gaps, above, lumbar
 
 
 def _work(args):
@@ -104,24 +103,25 @@ def _work(args):
         lab = np.asanyarray(img.dataobj); aff = img.affine
         ok, msgs = RA.check_label("ribs", lab, aff, gating_only=True)   # gates = mixing + spine_gap
         reasons = [m for m in msgs if m.startswith("X")]
-        gaps, above = missing_vertebra(lab, aff)
-        left, right, _ = LR.detect_lumbar_ribs(lab, aff)               # ribs on L1..L6 (own class?)
-        lum = [f"L{r-LS.RIB_LEFT_OFFSET}" for r in left] + \
-              [f"R{r-LS.RIB_RIGHT_OFFSET}" for r in right]
+        gaps, above, lum = missing_vertebra(lab, aff)                   # gaps + above + lumbar (1 pass)
         return (t, rev, ok, reasons, gaps, above, lum)
     except Exception:                                          # noqa: BLE001
         return None
 
 
 def main(argv=None) -> int:
-    # ThreadPool, not ProcessPool: this job is DOWNLOAD-bound (802 labels off HF), and the numpy/
-    # scipy work releases the GIL, so threads win -- and they avoid the Windows BrokenProcessPool
-    # that spawn+native-EDT workers hit here.
-    from concurrent.futures import ThreadPoolExecutor
+    # Executor choice depends on the bottleneck:
+    #  - ProcessPool (default): TRUE parallelism for the CPU-bound QC (find_objects/EDT hold or thrash
+    #    the GIL, so threads barely scale). Correct when labels are CACHED (offline) -> no network in
+    #    the workers, so no BrokenProcessPool from connection deaths.
+    #  - ThreadPool (--threads): use when labels must be DOWNLOADED (I/O-bound) and the Windows spawn
+    #    ProcessPool dies on network errors.
+    from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--limit", type=int, default=0)
-    ap.add_argument("--workers", type=int, default=14)
+    ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--threads", action="store_true", help="use threads (I/O-bound) not processes")
     a = ap.parse_args(argv)
     tok = os.environ["HF_TOKEN"]
 
@@ -139,7 +139,9 @@ def main(argv=None) -> int:
              for r in recs if (r.get("pseudo_label_file") or r.get("label_file"))]
     if a.limit:
         items = items[:: max(1, len(items) // a.limit)][:a.limit]
-    print(f"scanning {len(items)} v4 cases ({len(reviewed)} reviewed) [{a.workers} procs]\n", flush=True)
+    Executor = ThreadPoolExecutor if a.threads else ProcessPoolExecutor
+    print(f"scanning {len(items)} v4 cases ({len(reviewed)} reviewed) "
+          f"[{a.workers} {'threads' if a.threads else 'procs'}]\n", flush=True)
 
     rib_fail, vert_rows, lum_rows = [], [], []
     n = tot_unrev = 0
@@ -147,8 +149,8 @@ def main(argv=None) -> int:
     gap_cases = above_cases = 0
     lum_uni = lum_bilat = 0
     done = 0
-    with ThreadPoolExecutor(max_workers=a.workers) as ex:
-        for r in ex.map(_work, items):
+    with Executor(max_workers=a.workers) as ex:
+        for r in ex.map(_work, items, chunksize=1 if a.threads else 4):
             done += 1
             if done % 50 == 0:
                 print(f"  ...{done}/{len(items)}", flush=True)
