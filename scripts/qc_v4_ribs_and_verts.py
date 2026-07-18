@@ -94,7 +94,10 @@ def _work(args):
 
 
 def main(argv=None) -> int:
-    from concurrent.futures import ProcessPoolExecutor
+    # ThreadPool, not ProcessPool: this job is DOWNLOAD-bound (802 labels off HF), and the numpy/
+    # scipy work releases the GIL, so threads win -- and they avoid the Windows BrokenProcessPool
+    # that spawn+native-EDT workers hit here.
+    from concurrent.futures import ThreadPoolExecutor
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--limit", type=int, default=0)
@@ -123,8 +126,8 @@ def main(argv=None) -> int:
     rib_fail_rev = rib_fail_unrev = 0
     gap_cases = above_cases = 0
     done = 0
-    with ProcessPoolExecutor(max_workers=a.workers) as ex:
-        for r in ex.map(_work, items, chunksize=4):
+    with ThreadPoolExecutor(max_workers=a.workers) as ex:
+        for r in ex.map(_work, items):
             done += 1
             if done % 50 == 0:
                 print(f"  ...{done}/{len(items)}", flush=True)
