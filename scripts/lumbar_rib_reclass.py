@@ -39,7 +39,8 @@ DS = os.environ.get("V2_REPO", "anonymous-mlhc/CTSpinoPelvic1K")
 RIB_LO, RIB_HI = LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 12
 LUM_LO, LUM_HI = 20, 25              # L1..L6
 GAP_MM = 15.0                        # rib head must reach within this of the vertebra to count
-LUMBAR_L, LUMBAR_R = 58, 59         # proposed new class ids (appended -> existing ids unchanged)
+LUMBAR_L, LUMBAR_R = 74, 75         # proposed new class ids -- AFTER the soft-tissue block (58-73),
+                                    # so existing ids are unchanged (58/59 are iliolumbar, NOT free)
 SCRATCH = Path(os.environ.get("SCRATCH", "."))
 
 
