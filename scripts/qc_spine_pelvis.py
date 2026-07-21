@@ -22,6 +22,7 @@ import review_anatomy_qc as RA          # noqa: E402
 from huggingface_hub import hf_hub_download   # noqa: E402
 
 DS = os.environ.get("V2_REPO", "anonymous-mlhc/CTSpinoPelvic1K")
+REV = os.environ.get("V4_REV", "v4")
 PELVIS_WORDS = ("hip", "femur", "sacrum", "S1", "coccyx")
 
 
@@ -29,7 +30,7 @@ def _work(args):
     t, p, rev = args
     tok = os.environ["HF_TOKEN"]
     try:
-        img = nib.load(hf_hub_download(DS, p, repo_type="dataset", token=tok, revision="v4"))
+        img = nib.load(hf_hub_download(DS, p, repo_type="dataset", token=tok, revision=REV))
         lab = np.asanyarray(img.dataobj); aff = img.affine
         ok, msgs = RA.structure_integrity(lab, aff)
         splits = [m[2:] for m in msgs if m.startswith("X")]       # "X <name> is split..." -> drop "X "
@@ -44,11 +45,11 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=0); ap.add_argument("--workers", type=int, default=4)
     a = ap.parse_args(argv); tok = os.environ["HF_TOKEN"]
-    recs = json.load(open(hf_hub_download(DS, "manifest.json", repo_type="dataset", token=tok, revision="v4")))
+    recs = json.load(open(hf_hub_download(DS, "manifest.json", repo_type="dataset", token=tok, revision=REV)))
     recs = recs if isinstance(recs, list) else recs.get("records", [])
     reviewed = set()
     try:
-        wl = json.load(open(hf_hub_download(DS, "rib_worklist.json", repo_type="dataset", token=tok, revision="v4")))
+        wl = json.load(open(hf_hub_download(DS, "rib_worklist.json", repo_type="dataset", token=tok, revision=REV)))
         reviewed = {str(x) for x in (wl.get("tokens") if isinstance(wl, dict) else wl)}
     except Exception:
         pass
