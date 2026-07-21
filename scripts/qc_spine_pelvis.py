@@ -67,9 +67,14 @@ def main(argv=None) -> int:
             if done % 50 == 0: print(f"  ...{done}/{len(items)}", flush=True)
             if not r: continue
             t, rev, splits, vmix = r; n += 1
-            if not splits and not vmix: continue
+            # class-mixing == a bone SPLIT into pieces (structure_integrity). _vertebra_label_mixing
+            # is NOT used to flag: its 1-iter erosion doesn't separate stacked touching vertebrae, so
+            # it fires on ~every normal spine -> useless as a screen. Reported as a raw count only.
+            if not splits:
+                if vmix: vmix_c += 1
+                continue
             is_pelvis = any(any(w in s for w in PELVIS_WORDS) for s in splits)
-            is_spine = any(not any(w in s for w in PELVIS_WORDS) for s in splits) or vmix
+            is_spine = any(not any(w in s for w in PELVIS_WORDS) for s in splits)
             if is_spine: spine_c += 1
             if is_pelvis: pelvis_c += 1
             if vmix: vmix_c += 1
