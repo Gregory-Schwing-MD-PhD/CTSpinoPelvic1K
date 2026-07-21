@@ -148,6 +148,28 @@ def _startup():
             if pruned:
                 print(f"[startup] rib_fix: pruned {pruned} stale unassigned case(s) not in the worklist")
             tag = f"rib_fix case(s) from {SERVICE.v2_repo}@{SERVICE.source_revision}"
+        elif TASK == "spine_extend":
+            # v4 SPINE-EXTENSION: seed ONLY the flagged thoracic-missing cases
+            # (spine_extend_worklist.json), serving the v4 label for the student to ADD the missing
+            # thoracic vertebrae. SOURCE_REVISION=v4, CHECK=spine_extend (additive-only normalizer).
+            tokens = set()
+            try:
+                wp = hf_hub_download(repo_id=SERVICE.v2_repo, repo_type="dataset",
+                                     filename="spine_extend_worklist.json",
+                                     revision=SERVICE.source_revision)
+                wl = json.loads(Path(wp).read_text())
+                raw = wl.get("tokens") if isinstance(wl, dict) else wl
+                tokens = {str(t) for t in (raw or [])}
+                print(f"[startup] spine_extend worklist: {len(tokens)} flagged case(s)")
+            except Exception as e:                       # refuse to seed all 802
+                print(f"[startup] spine_extend: no spine_extend_worklist.json ({e}); seeding NOTHING")
+            n = store_mod.init_spine_extend_cases(
+                SERVICE.store, recs, worklist_tokens=tokens,
+                source_revision=SERVICE.source_revision)
+            pruned = SERVICE.store.prune_unassigned_not_in(tokens, keep_region="spine")
+            if pruned:
+                print(f"[startup] spine_extend: pruned {pruned} stale unassigned case(s) not in worklist")
+            tag = f"spine_extend case(s) from {SERVICE.v2_repo}@{SERVICE.source_revision}"
         elif TASK in schema.OVERLAY_TASKS:
             # v4 overlay pass (rib_anchor | ribs | ls_nerve | iliolumbar): serve
             # the v3 label as the editable base; the student ADDS this task's

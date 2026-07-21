@@ -1,0 +1,114 @@
+{
+  "schema": "spine_extend_worklist/v1",
+  "task": "annotate thoracic vertebrae that are in the FOV but not yet labelled; number UPWARD from the most rostral annotated vertebra; do NOT change existing vertebrae",
+  "source": "qc_v4_ribs_and_verts.py missing_vertebra.csv (interior gaps + ribs-above-spine)",
+  "tokens": [
+    "140",
+    "169",
+    "173",
+    "22",
+    "233",
+    "254",
+    "272",
+    "276",
+    "295",
+    "302",
+    "306",
+    "311",
+    "46",
+    "482",
+    "512",
+    "61",
+    "618",
+    "7",
+    "703",
+    "725",
+    "746"
+  ],
+  "cases": [
+    {
+      "token": "7",
+      "reason": "gap:T8 T9"
+    },
+    {
+      "token": "22",
+      "reason": "missing-above:L4 L5 L6 L7 L8 L9 L10 L11 R4 R5 R6 R7 R8 R9 R10 R11"
+    },
+    {
+      "token": "46",
+      "reason": "missing-above:L7 L8 L9 L10 L11 L12 R5 R6 R7 R8 R9 R10 R11 R12"
+    },
+    {
+      "token": "61",
+      "reason": "missing-above:L4 L5 L6 L7 L8 L9 L10 L11 L12 R5 R6 R7 R8 R9 R10 R11"
+    },
+    {
+      "token": "140",
+      "reason": "missing-above:L7 L8 L9 L10 L11 R7 R8 R9 R10 R11"
+    },
+    {
+      "token": "169",
+      "reason": "missing-above:L4 L5 L6 L7 L8 L9 L10 L11 R4 R5 R6 R7 R8 R9 R10 R11"
+    },
+    {
+      "token": "173",
+      "reason": "missing-above:L6 L7 L8 L9 L10 L11 R6 R7 R8 R9 R10 R11"
+    },
+    {
+      "token": "233",
+      "reason": "gap:T7"
+    },
+    {
+      "token": "254",
+      "reason": "missing-above:L5 L6 L7 L8 L9 L10 L11 R6 R7 R8 R9 R10 R11"
+    },
+    {
+      "token": "276",
+      "reason": "missing-above:L6 L7 L8 L9 L10 L11 L12 R7 R8 R9 R10 R11"
+    },
+    {
+      "token": "302",
+      "reason": "missing-above:L5 L6 L7 L8 L9 L10 L11 R7 R8 R9 R10 R11"
+    },
+    {
+      "token": "295",
+      "reason": "missing-above:L7 L8 L9 L10 L11 R6 R7 R8 R9 R10 R11"
+    },
+    {
+      "token": "306",
+      "reason": "gap:T9"
+    },
+    {
+      "token": "311",
+      "reason": "gap:T8"
+    },
+    {
+      "token": "272",
+      "reason": "missing-above:L5 L6 L7 L8 L9 L10 L11 R6 R7 R8 R9 R10 R11"
+    },
+    {
+      "token": "482",
+      "reason": "gap:T8"
+    },
+    {
+      "token": "512",
+      "reason": "missing-above:L5 L6 L7 L8 L9 L10 L11 R5 R6 R7 R8 R9 R10 R11"
+    },
+    {
+      "token": "618",
+      "reason": "missing-above:L4 L5 L6 L7 L8 L9 L10 L11 L12 R4 R5 R6 R7 R8 R9 R10 R11 R12"
+    },
+    {
+      "token": "703",
+      "reason": "missing-above:L5 L6 L7 L8 L9 L10 L11 R6 R7 R8 R9 R10 R11"
+    },
+    {
+      "token": "725",
+      "reason": "missing-above:L6 L7 L8 L9 L10 L11 R6 R7 R8 R9 R10 R11"
+    },
+    {
+      "token": "746",
+      "reason": "gap:T7"
+    }
+  ]
+}

@@ -208,6 +208,52 @@ class ReviewService:
         except Exception:                                       # noqa: BLE001  (never block a submit)
             return label_bytes
 
+    def _reserialize(self, out, sub, label_bytes, label_name):
+        """Write `out` back with the submission's own affine/header (shared by the normalizers)."""
+        import numpy as np
+        import nibabel as nib
+        if np.array_equal(out, sub):
+            return label_bytes                                  # unchanged -> keep original bytes
+        suffix = ".nii.gz" if label_name.endswith(".gz") else ".nii"
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+            tmp_in = f.name
+            f.write(label_bytes)
+        ref = nib.load(tmp_in)
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / ("l" + suffix)
+            nib.save(nib.Nifti1Image(out.astype(sub.dtype), ref.affine, ref.header), str(p))
+            data = p.read_bytes()
+        Path(tmp_in).unlink(missing_ok=True)
+        return data
+
+    def _normalize_spine_extend(self, label_bytes: Optional[bytes], label_name: str,
+                                case: Optional[dict]) -> Optional[bytes]:
+        """SPINE-EXTENSION task (students continue the thoracic numbering upward). Keep ONLY the
+        student's THORACIC vertebra ADDITIONS (ids 8-19) drawn on UNLABELLED background; force-restore
+        everything else -- existing vertebrae, ribs, pelvis -- to the reference. So a student can ADD a
+        thoracic vertebra that is in the FOV but was never labelled, and can NEVER alter, renumber, or
+        delete the radiologist's existing ground truth. Additive twin of _normalize_spine.
+
+            out = reference
+            out[student THORACIC vertebra & reference==background] = student   (additions only)
+        """
+        if self.check != "spine_extend" or label_bytes is None or not case:
+            return label_bytes
+        try:
+            import numpy as np
+            given = self._given_label(case)
+            if given is None:
+                return label_bytes
+            sub = _load_label_array(label_bytes, label_name)
+            if sub.shape != given.shape:
+                return label_bytes
+            out = given.copy()
+            add = (sub >= 8) & (sub <= 19) & (given == 0)      # thoracic vertebra on background only
+            out[add] = sub[add]
+            return self._reserialize(out, sub, label_bytes, label_name)
+        except Exception:                                       # noqa: BLE001  (never block a submit)
+            return label_bytes
+
     def _qc_gate(self, label_bytes: Optional[bytes], label_name: str,
                  case: Optional[dict] = None) -> None:
         """Server-side anatomy QC: REJECT a submission whose label fails self.check
@@ -473,9 +519,13 @@ class ReviewService:
         if decision in ("accept", "corrected"):
             if label_bytes is None:
                 raise ReviewError(f"{decision} requires a label upload")
-            # FORCE the radiologist's spine back before anything is checked or stored: a rib
-            # reviewer cannot corrupt the spine because their vertebra edits never survive.
-            label_bytes = self._normalize_spine(label_bytes, label_name, case)
+            # Normalize BEFORE anything is checked or stored, so a student's edits outside their
+            # remit never survive: rib task force-restores the whole spine; spine-extension task keeps
+            # only their thoracic vertebra ADDITIONS and restores everything else.
+            if self.check == "spine_extend":
+                label_bytes = self._normalize_spine_extend(label_bytes, label_name, case)
+            else:
+                label_bytes = self._normalize_spine(label_bytes, label_name, case)
             self._qc_gate(label_bytes, label_name, case)  # reject if it fails QC (fails closed)
             label_path = f"reviews/{case_id}/{slot}_label{_ext(label_name)}"
             files[label_path] = label_bytes

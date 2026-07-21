@@ -442,3 +442,45 @@ def init_rib_fix_cases(store: ReviewStore, records: List[dict],
         })
     store.put_cases(new_cases)                   # single commit (no-op if empty)
     return len(new_cases)
+
+
+def init_spine_extend_cases(store: ReviewStore, records: List[dict],
+                            worklist_tokens, source_revision: str = "v4") -> int:
+    """Seed the SPINE-EXTENSION task: ONLY the flagged cases (token in `worklist_tokens`), serving the
+    v4 label as the editable base. The student ADDS thoracic vertebrae that are in the FOV but not yet
+    labelled, numbering upward. region_to_review='spine' so IRR runs over the vertebrae; the server
+    normalizer keeps ONLY their additions (existing GT is force-restored). Idempotent; single commit;
+    seeds nothing if the worklist is empty (a missing worklist can never enqueue all 802)."""
+    want = {str(t) for t in (worklist_tokens or set())}
+    if not want:
+        return 0
+    existing = {p[len("cases/"):-len(".json")]
+                for p in store.b.list("cases/")
+                if p.startswith("cases/") and p.endswith(".json")}
+    new_cases = []
+    for rec in records:
+        if str(rec.get("token")) not in want:
+            continue
+        if not rec.get("ct_file") or not rec.get("label_file"):
+            continue
+        cid = schema.case_id(rec.get("token"), rec.get("config"))
+        if cid in existing:
+            continue
+        new_cases.append({
+            "case_id": cid,
+            "token": str(rec.get("token")),
+            "config": rec.get("config"),
+            "task": "spine",
+            "stratum": rec.get("lstv_label") or "normal",
+            "priority": 0,
+            "source_revision": source_revision,
+            "ct_file": rec.get("ct_file"),
+            "pseudo_label_file": rec.get("label_file"),   # v4 label is the editable base
+            "region_to_review": "spine",
+            "prov_before": {"spine": rec.get("prov_spine"),
+                            "pelvis": rec.get("prov_pelvis")},
+            "slots": {},
+            "final": None,
+        })
+    store.put_cases(new_cases)
+    return len(new_cases)

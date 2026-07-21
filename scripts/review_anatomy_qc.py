@@ -653,6 +653,14 @@ def check_label(check: str, lab: np.ndarray, affine,
     `gating_only=True` skips the advisory checks (incl. the slow rib->spine EDT) when only the
     pass/fail verdict matters (e.g. auto-adjudication's auto-finalize decision)."""
     gating, advisory = [], []
+    if check == "spine_extend":
+        # SPINE-EXTENSION task: additive-only is enforced structurally by the server normalizer
+        # (_normalize_spine_extend), so the gate never hard-blocks -- a mis-count is caught by
+        # double-review, not here. spine_sanity is advisory (monotonic numbering hint).
+        advisory.append(spine_sanity(lab, affine))
+        ok = True
+        return ok, [_a if not _a.startswith("X") else "note:" + _a[1:]
+                    for _, ms in advisory for _a in ms]
     if check in ("spine", "both"):
         gating.append(spine_sanity(lab, affine))
     if check in ("ribs", "both"):
