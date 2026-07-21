@@ -227,6 +227,40 @@ def spine_extend_qc(lab: np.ndarray, affine,
     return ok, msgs
 
 
+def class_mixing_qc(lab: np.ndarray, affine,
+                    given: Optional[np.ndarray] = None) -> Tuple[bool, List[str]]:
+    """STRICT QC for the CLASS-MIXING FIX task (students EDIT the spine/pelvis GT to merge a bone that
+    is split into disconnected pieces). Passes only if ALL hold:
+      * structure_integrity — every solid bone (ids 1-33) is now ONE dominant piece (the split is fixed)
+      * spine_sanity — the column stays contiguous, ascending, no one-bone-two-labels
+      * NO RENUMBER / NO DELETE — every bone present in `given` keeps its MAIN body under the SAME id.
+        The student may relabel / merge / delete a STRAY piece, but must not renumber or remove a real
+        bone's body. This is what makes letting students edit the ground truth safe.
+    `given` (the v4 base) is required for the no-renumber guard; without it only the first two run."""
+    ok_s, m_s = structure_integrity(lab, affine)
+    ok_v, m_v = spine_sanity(lab, affine)
+    ok = ok_s and ok_v
+    msgs = [m for m in (m_s + m_v) if m.startswith("X")]
+    names = _id2name()
+    if given is not None and given.shape == lab.shape:
+        st = ndimage.generate_binary_structure(3, 3)
+        for b in range(1, 34):                                  # vertebrae, sacrum, S1, hips, femurs
+            gm = given == b
+            if int(gm.sum()) < STRUCT_MIN_VOX:
+                continue
+            cc, k = ndimage.label(gm, structure=st)
+            body = cc == (int(np.argmax(np.bincount(cc.ravel())[1:])) + 1)   # largest given piece
+            sv = lab[body]; sv = sv[sv > 0]
+            maj = int(np.bincount(sv).argmax()) if sv.size else 0
+            if maj != b:
+                ok = False
+                msgs.append(f"X {names.get(b, b)}: its main body is now {names.get(maj, maj)} -> you "
+                            f"renumbered or deleted a real bone; only relabel/merge the STRAY piece")
+    if ok:
+        msgs.append("OK: every bone is one clean piece, correctly numbered (no renumber/delete)")
+    return ok, msgs
+
+
 def rib_contact(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     """Every rib touches its vertebra; every thoracic vertebra has L+R ribs."""
     spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
@@ -720,6 +754,10 @@ def check_label(check: str, lab: np.ndarray, affine,
         # added vertebra a clean connected blob). Pre-existing splits in the radiologist's vertebrae
         # are exempted -- they can't be fixed here and must not block. `given` marks the additions.
         return spine_extend_qc(lab, affine, given)
+    if check == "class_mixing":
+        # CLASS-MIXING FIX task: students EDIT the spine/pelvis GT to merge a split bone. STRICT gate:
+        # bones one-piece + column sane + NO renumber/delete of a real bone's body (needs `given`).
+        return class_mixing_qc(lab, affine, given)
     if check in ("spine", "both"):
         gating.append(spine_sanity(lab, affine))
     if check in ("ribs", "both"):
@@ -775,6 +813,19 @@ def check_label(check: str, lab: np.ndarray, affine,
 def report(check: str, lab: np.ndarray, affine) -> bool:
     """Run the requested check(s) and print a PASS/FAIL block. Returns overall ok."""
     blocks = []   # (name, ok, msgs, gating?)
+    if check == "class_mixing":
+        # class-mixing FIX task: bones one-piece + column sane. The no-renumber guard needs `given`
+        # (server-side); client shows the structure/column verdict so students see when the split is
+        # actually merged.
+        blocks.append(("CLASS-MIXING FIX", *class_mixing_qc(lab, affine), True))
+        allok = all(ok for _, ok, _, gate in blocks if gate)
+        for name, okk, ms, gate in blocks:
+            print(f"  [{name}] {'PASS' if okk else 'FAIL'}")
+            for m in ms:
+                print(f"    {m}")
+        print("  ===> ALL CHECKS PASS -> Save once more if you edited, then quit to submit."
+              if allok else "  ===> fix the 'X' items above, then Save again to re-check.")
+        return allok
     if check == "spine_extend":
         # spine-EXTENSION task: validate the additions (contiguous, ascending, connected). Client has
         # no `given`, so per-added-vertebra checks are the server's job; contiguity + order run here.

@@ -30,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TASKS = {
     "ribs":       {"slug": "ribs",  "task": "rib_fix",    "revision": "v4", "check": "ribs"},
     "spine_extend": {"slug": "spine", "task": "spine_extend", "revision": "v4", "check": "spine_extend"},
+    "class_mixing": {"slug": "classfix", "task": "class_mixing", "revision": "v4", "check": "class_mixing"},
     "ls_nerve":   {"slug": "nerve", "task": "ls_nerve",   "revision": "v3", "check": "none"},
     "iliolumbar": {"slug": "ili",   "task": "iliolumbar", "revision": "v3", "check": "none"},
 }

@@ -1,0 +1,499 @@
+{
+  "schema": "class_mixing_worklist/v1",
+  "task": "merge a spine/pelvis bone that is SPLIT into disconnected pieces; relabel/delete the STRAY piece so each bone is ONE class; do NOT renumber or delete a real bone's body",
+  "source": "qc_spine_pelvis.py structure_integrity splits",
+  "tokens": [
+    "101",
+    "103",
+    "112",
+    "121",
+    "128",
+    "136",
+    "138",
+    "14",
+    "143",
+    "144",
+    "150",
+    "155",
+    "169",
+    "173",
+    "179",
+    "181",
+    "220",
+    "223",
+    "23",
+    "232",
+    "234",
+    "248",
+    "252",
+    "255",
+    "256",
+    "261",
+    "262",
+    "267",
+    "273",
+    "276",
+    "286",
+    "288",
+    "292",
+    "295",
+    "305",
+    "307",
+    "337",
+    "339",
+    "351",
+    "359",
+    "369",
+    "370",
+    "374",
+    "382",
+    "397",
+    "398",
+    "435",
+    "44",
+    "450",
+    "459",
+    "46",
+    "478",
+    "486",
+    "499",
+    "510",
+    "511",
+    "525",
+    "542",
+    "561",
+    "584",
+    "586",
+    "592",
+    "595",
+    "614",
+    "619",
+    "621",
+    "630",
+    "631",
+    "636",
+    "639",
+    "648",
+    "65",
+    "665",
+    "670",
+    "681",
+    "687",
+    "696",
+    "702",
+    "704",
+    "723",
+    "731",
+    "739",
+    "742",
+    "746",
+    "747",
+    "750",
+    "753",
+    "756",
+    "758",
+    "770",
+    "772",
+    "778",
+    "781",
+    "8",
+    "84",
+    "9",
+    "CTC-1018399231",
+    "CTC-3105782108"
+  ],
+  "cases": [
+    {
+      "token": "103",
+      "reason": "T11 is split into pieces (largest 82% of the bone) -> one bone must be ONE class; relabel the stray part | L4 is split into pieces (largest 69% of the bone) -> "
+    },
+    {
+      "token": "112",
+      "reason": "T8 is split into pieces (largest 60% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "128",
+      "reason": "T6 is split into pieces (largest 70% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "136",
+      "reason": "T8 is split into pieces (largest 54% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "138",
+      "reason": "T7 is split into pieces (largest 75% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "14",
+      "reason": "T8 is split into pieces (largest 66% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "143",
+      "reason": "T9 is split into pieces (largest 69% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "144",
+      "reason": "T8 is split into pieces (largest 61% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "155",
+      "reason": "L5 is split into pieces (largest 81% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "169",
+      "reason": "L1 is split into pieces (largest 77% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "173",
+      "reason": "L5 is split into pieces (largest 83% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "179",
+      "reason": "T9 is split into pieces (largest 60% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "181",
+      "reason": "T8 is split into pieces (largest 65% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "220",
+      "reason": "T9 is split into pieces (largest 72% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "223",
+      "reason": "T8 is split into pieces (largest 54% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "23",
+      "reason": "T8 is split into pieces (largest 57% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "232",
+      "reason": "T9 is split into pieces (largest 69% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "234",
+      "reason": "T9 is split into pieces (largest 56% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "252",
+      "reason": "T9 is split into pieces (largest 59% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "255",
+      "reason": "T6 is split into pieces (largest 81% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "256",
+      "reason": "T7 is split into pieces (largest 58% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "261",
+      "reason": "T9 is split into pieces (largest 67% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "262",
+      "reason": "T8 is split into pieces (largest 64% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "273",
+      "reason": "T7 is split into pieces (largest 70% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "276",
+      "reason": "L3 is split into pieces (largest 73% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "286",
+      "reason": "T10 is split into pieces (largest 69% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "288",
+      "reason": "T9 is split into pieces (largest 65% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "292",
+      "reason": "T8 is split into pieces (largest 65% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "295",
+      "reason": "L2 is split into pieces (largest 78% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "305",
+      "reason": "T9 is split into pieces (largest 56% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "307",
+      "reason": "T8 is split into pieces (largest 59% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "337",
+      "reason": "T8 is split into pieces (largest 63% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "339",
+      "reason": "T9 is split into pieces (largest 50% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "351",
+      "reason": "T11 is split into pieces (largest 55% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "359",
+      "reason": "T7 is split into pieces (largest 72% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "369",
+      "reason": "T9 is split into pieces (largest 63% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "370",
+      "reason": "T9 is split into pieces (largest 58% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "374",
+      "reason": "T8 is split into pieces (largest 81% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "382",
+      "reason": "T10 is split into pieces (largest 84% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "397",
+      "reason": "T9 is split into pieces (largest 84% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "398",
+      "reason": "T10 is split into pieces (largest 63% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "435",
+      "reason": "T10 is split into pieces (largest 77% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "450",
+      "reason": "T9 is split into pieces (largest 60% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "459",
+      "reason": "T7 is split into pieces (largest 59% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "46",
+      "reason": "L3 is split into pieces (largest 80% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "478",
+      "reason": "T8 is split into pieces (largest 60% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "486",
+      "reason": "T8 is split into pieces (largest 59% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "499",
+      "reason": "T8 is split into pieces (largest 69% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "510",
+      "reason": "T7 is split into pieces (largest 75% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "511",
+      "reason": "T9 is split into pieces (largest 59% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "542",
+      "reason": "T7 is split into pieces (largest 66% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "561",
+      "reason": "T10 is split into pieces (largest 84% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "584",
+      "reason": "T7 is split into pieces (largest 83% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "592",
+      "reason": "T11 is split into pieces (largest 61% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "595",
+      "reason": "T8 is split into pieces (largest 70% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "614",
+      "reason": "T8 is split into pieces (largest 67% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "619",
+      "reason": "T10 is split into pieces (largest 71% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "621",
+      "reason": "T7 is split into pieces (largest 52% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "630",
+      "reason": "T10 is split into pieces (largest 71% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "631",
+      "reason": "T8 is split into pieces (largest 80% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "636",
+      "reason": "T8 is split into pieces (largest 77% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "639",
+      "reason": "T9 is split into pieces (largest 50% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "648",
+      "reason": "T10 is split into pieces (largest 51% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "65",
+      "reason": "T8 is split into pieces (largest 73% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "665",
+      "reason": "T10 is split into pieces (largest 55% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "670",
+      "reason": "T7 is split into pieces (largest 50% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "681",
+      "reason": "T9 is split into pieces (largest 80% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "687",
+      "reason": "T6 is split into pieces (largest 66% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "696",
+      "reason": "T8 is split into pieces (largest 50% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "702",
+      "reason": "T10 is split into pieces (largest 55% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "704",
+      "reason": "T11 is split into pieces (largest 76% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "731",
+      "reason": "T8 is split into pieces (largest 56% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "739",
+      "reason": "T9 is split into pieces (largest 50% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "742",
+      "reason": "T7 is split into pieces (largest 52% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "746",
+      "reason": "T9 is split into pieces (largest 62% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "747",
+      "reason": "T8 is split into pieces (largest 52% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "750",
+      "reason": "T7 is split into pieces (largest 54% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "753",
+      "reason": "T8 is split into pieces (largest 71% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "756",
+      "reason": "T7 is split into pieces (largest 74% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "758",
+      "reason": "T7 is split into pieces (largest 54% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "770",
+      "reason": "T9 is split into pieces (largest 52% of the bone) -> one bone must be ONE class; relabel the stray part | L5 is split into pieces (largest 82% of the bone) -> o"
+    },
+    {
+      "token": "772",
+      "reason": "T8 is split into pieces (largest 61% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "781",
+      "reason": "T11 is split into pieces (largest 67% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "84",
+      "reason": "T7 is split into pieces (largest 72% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "CTC-1018399231",
+      "reason": "T6 is split into pieces (largest 70% of the bone) -> one bone must be ONE class; relabel the stray part | L5 is split into pieces (largest 82% of the bone) -> o"
+    },
+    {
+      "token": "CTC-3105782108",
+      "reason": "T10 is split into pieces (largest 52% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "101",
+      "reason": "left_hip is split into pieces (largest 66% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "121",
+      "reason": "right_hip is split into pieces (largest 64% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "150",
+      "reason": "left_hip is split into pieces (largest 78% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "248",
+      "reason": "S1 is split into pieces (largest 76% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "267",
+      "reason": "T10 is split into pieces (largest 51% of the bone) -> one bone must be ONE class; relabel the stray part | left_hip is split into pieces (largest 51% of the bon"
+    },
+    {
+      "token": "44",
+      "reason": "left_hip is split into pieces (largest 69% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "525",
+      "reason": "left_hip is split into pieces (largest 83% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "586",
+      "reason": "right_hip is split into pieces (largest 56% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "723",
+      "reason": "left_hip is split into pieces (largest 66% of the bone) -> one bone must be ONE class; relabel the stray part | right_hip is split into pieces (largest 83% of t"
+    },
+    {
+      "token": "778",
+      "reason": "T7 is split into pieces (largest 71% of the bone) -> one bone must be ONE class; relabel the stray part | right_hip is split into pieces (largest 77% of the bon"
+    },
+    {
+      "token": "8",
+      "reason": "right_hip is split into pieces (largest 68% of the bone) -> one bone must be ONE class; relabel the stray part"
+    },
+    {
+      "token": "9",
+      "reason": "left_hip is split into pieces (largest 80% of the bone) -> one bone must be ONE class; relabel the stray part"
+    }
+  ]
+}

@@ -254,6 +254,29 @@ class ReviewService:
         except Exception:                                       # noqa: BLE001  (never block a submit)
             return label_bytes
 
+    def _normalize_class_mixing(self, label_bytes: Optional[bytes], label_name: str,
+                                case: Optional[dict]) -> Optional[bytes]:
+        """CLASS-MIXING FIX task: students EDIT the spine/pelvis (ids 1-33) to merge a split bone. Keep
+        all of their 1-33 edits, but force the RIBS + soft-tissue (ids >= 34) back to the reference so
+        a spine/pelvis fix can never touch them. The strict class_mixing_qc gate then verifies the fix
+        (bones one-piece, no renumber/delete)."""
+        if self.check != "class_mixing" or label_bytes is None or not case:
+            return label_bytes
+        try:
+            import numpy as np
+            given = self._given_label(case)
+            if given is None:
+                return label_bytes
+            sub = _load_label_array(label_bytes, label_name)
+            if sub.shape != given.shape:
+                return label_bytes
+            out = sub.copy()
+            follow = (given >= 34) | ((sub >= 34) & (given < 34))   # rib/soft region + student stray ribs
+            out[follow] = given[follow]
+            return self._reserialize(out, sub, label_bytes, label_name)
+        except Exception:                                       # noqa: BLE001
+            return label_bytes
+
     def _qc_gate(self, label_bytes: Optional[bytes], label_name: str,
                  case: Optional[dict] = None) -> None:
         """Server-side anatomy QC: REJECT a submission whose label fails self.check
@@ -524,6 +547,8 @@ class ReviewService:
             # only their thoracic vertebra ADDITIONS and restores everything else.
             if self.check == "spine_extend":
                 label_bytes = self._normalize_spine_extend(label_bytes, label_name, case)
+            elif self.check == "class_mixing":
+                label_bytes = self._normalize_class_mixing(label_bytes, label_name, case)
             else:
                 label_bytes = self._normalize_spine(label_bytes, label_name, case)
             self._qc_gate(label_bytes, label_name, case)  # reject if it fails QC (fails closed)

@@ -170,6 +170,27 @@ def _startup():
             if pruned:
                 print(f"[startup] spine_extend: pruned {pruned} stale unassigned case(s) not in worklist")
             tag = f"spine_extend case(s) from {SERVICE.v2_repo}@{SERVICE.source_revision}"
+        elif TASK == "class_mixing":
+            # v4 CLASS-MIXING FIX: seed ONLY the flagged split-bone cases (class_mixing_worklist.json);
+            # students EDIT the v4 spine/pelvis to merge the split; CHECK=class_mixing gate is strict.
+            tokens = set()
+            try:
+                wp = hf_hub_download(repo_id=SERVICE.v2_repo, repo_type="dataset",
+                                     filename="class_mixing_worklist.json",
+                                     revision=SERVICE.source_revision)
+                wl = json.loads(Path(wp).read_text())
+                raw = wl.get("tokens") if isinstance(wl, dict) else wl
+                tokens = {str(t) for t in (raw or [])}
+                print(f"[startup] class_mixing worklist: {len(tokens)} flagged case(s)")
+            except Exception as e:
+                print(f"[startup] class_mixing: no class_mixing_worklist.json ({e}); seeding NOTHING")
+            n = store_mod.init_class_mixing_cases(
+                SERVICE.store, recs, worklist_tokens=tokens,
+                source_revision=SERVICE.source_revision)
+            pruned = SERVICE.store.prune_unassigned_not_in(tokens, keep_region="spine")
+            if pruned:
+                print(f"[startup] class_mixing: pruned {pruned} stale unassigned case(s)")
+            tag = f"class_mixing case(s) from {SERVICE.v2_repo}@{SERVICE.source_revision}"
         elif TASK in schema.OVERLAY_TASKS:
             # v4 overlay pass (rib_anchor | ribs | ls_nerve | iliolumbar): serve
             # the v3 label as the editable base; the student ADDS this task's

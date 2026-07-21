@@ -484,3 +484,37 @@ def init_spine_extend_cases(store: ReviewStore, records: List[dict],
         })
     store.put_cases(new_cases)
     return len(new_cases)
+
+
+def init_class_mixing_cases(store: ReviewStore, records: List[dict],
+                            worklist_tokens, source_revision: str = "v4") -> int:
+    """Seed the CLASS-MIXING FIX task: ONLY the flagged split-bone cases. Students EDIT the spine/pelvis
+    to merge a bone split into pieces; the strict class_mixing gate verifies the fix (bones one-piece,
+    no renumber/delete). region_to_review='spine' for IRR. Idempotent; single commit; empty worklist
+    seeds nothing."""
+    want = {str(t) for t in (worklist_tokens or set())}
+    if not want:
+        return 0
+    existing = {p[len("cases/"):-len(".json")]
+                for p in store.b.list("cases/")
+                if p.startswith("cases/") and p.endswith(".json")}
+    new_cases = []
+    for rec in records:
+        if str(rec.get("token")) not in want:
+            continue
+        if not rec.get("ct_file") or not rec.get("label_file"):
+            continue
+        cid = schema.case_id(rec.get("token"), rec.get("config"))
+        if cid in existing:
+            continue
+        new_cases.append({
+            "case_id": cid, "token": str(rec.get("token")), "config": rec.get("config"),
+            "task": "class_mixing", "stratum": rec.get("lstv_label") or "normal", "priority": 0,
+            "source_revision": source_revision, "ct_file": rec.get("ct_file"),
+            "pseudo_label_file": rec.get("label_file"),
+            "region_to_review": "spine",
+            "prov_before": {"spine": rec.get("prov_spine"), "pelvis": rec.get("prov_pelvis")},
+            "slots": {}, "final": None,
+        })
+    store.put_cases(new_cases)
+    return len(new_cases)
