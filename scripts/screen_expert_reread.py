@@ -44,11 +44,16 @@ def screen(lab: np.ndarray, affine) -> list:
     if int((lab == L6_ID).sum()) >= MIN_VOX:
         out.append(("L6_present", "id 25 labelled — confirm lumbarization vs mis-count"))
 
-    # a rib on L1? map each rib to a vertebra by SI level (bbox), EDT-free
+    # a rib on L1? map each rib to a vertebra by SI level (bbox), EDT-free.
+    # REQUIRES a thoracic anchor (T12 = id 19 labelled): without it, a lumbar-only-annotated scan makes
+    # EVERY rib's nearest vertebra lumbar by default (a 186 mm thoracic rib falsely reads 'on L1'). With
+    # T12 present we know the vertebra labelled L1 really is L1, so a rib on it is meaningful. (Run this
+    # AFTER the spine-extension fixes, when the thoracic column is annotated, for full coverage.)
     ids = set(int(v) for v in np.unique(lab))
     rib_ids = [v for v in range(LO, HI + 1) if v in ids]
     vpres = [v for v in range(8, 26) if v in ids]
-    if L1_ID in ids and rib_ids:
+    T12 = 19
+    if L1_ID in ids and T12 in ids and rib_ids:
         objs = ndimage.find_objects(lab if lab.dtype.kind in "iu" else lab.astype(np.int32))
         R = np.asarray(affine)[:3, :3]; si = int(np.argmax(np.abs(R[2, :]))); sup = R[2, si] >= 0
         vranges = [(v, objs[v - 1][si].start, objs[v - 1][si].stop) for v in vpres if objs[v - 1]]
