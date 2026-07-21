@@ -37,6 +37,8 @@ FEMUR_LEFT, FEMUR_RIGHT = 32, 33
 
 # ── ribs: numbered off the GT thoracic, fixed block above the femurs ─────────
 RIB_LEFT_OFFSET, RIB_RIGHT_OFFSET = 33, 45                     # rib_*_N -> OFFSET+N (34-45, 46-57)
+# a rib on a LUMBAR vertebra (13th-rib / LSTV) gets its own id, ABOVE the soft-tissue block (58-73)
+LUMBAR_RIB_LEFT, LUMBAR_RIB_RIGHT = 74, 75
 
 # ── soft-tissue overlays (v4) ────────────────────────────────────────────────
 SOFT_TISSUE = {
@@ -71,6 +73,10 @@ def label_dict() -> Dict[str, int]:
     for n in range(1, 13):
         d[f"rib_right_{n}"] = RIB_RIGHT_OFFSET + n             # 46..57
     d.update(SOFT_TISSUE)                                      # 58..73
+    # a rib articulating with a LUMBAR vertebra (13th-rib / LSTV phenotype) is its own class, NOT
+    # forced to be "rib 12" -- appended AFTER the soft-tissue block so every existing id is unchanged.
+    d["rib_left_lumbar"] = LUMBAR_RIB_LEFT                     # 74
+    d["rib_right_lumbar"] = LUMBAR_RIB_RIGHT                   # 75
     d["ignore"] = IGNORE_LABEL                                 # 255
     return d
 
