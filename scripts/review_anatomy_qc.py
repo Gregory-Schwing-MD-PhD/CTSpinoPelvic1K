@@ -165,6 +165,68 @@ def spine_sanity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     return ok, msgs
 
 
+def spine_extend_qc(lab: np.ndarray, affine,
+                    given: Optional[np.ndarray] = None) -> Tuple[bool, List[str]]:
+    """QC for the SPINE-EXTENSION task (students ADD missing thoracic vertebrae, numbering upward).
+    Gates on what the student controls:
+      * CONTIGUOUS numbering  — no missing level in the run (a skipped / mis-counted vertebra)
+      * ASCENDING order       — each vertebra caudal to the one above (an off-target / swapped add)
+      * each ADDED vertebra is a single clean blob, of plausible size, TOUCHING the column
+        (a floating blob out in the ribs/soft-tissue = 'far off target')
+    A pre-existing split in an EXISTING (radiologist) vertebra is EXEMPTED — the student cannot fix it
+    on this task, so it must never block; it is a spine_fix-queue item, not a rejection. `given` (the
+    v4 base) identifies the additions; without it (client-side) only contiguity + order run."""
+    names = _id2name()
+    present = [v for v in range(1, 27) if (lab == v).any()]
+    if not present:
+        return True, ["(no spine vertebrae in view)"]
+    ok, msgs = True, []
+    st = ndimage.generate_binary_structure(3, 3)
+
+    added = set()
+    if given is not None and given.shape == lab.shape:
+        added = {int(v) for v in np.unique(lab[(lab >= 8) & (lab <= 19) & (given == 0)])}
+
+    # 1) contiguity — no missing level inside the run (L6 optional)
+    lo, hi = min(present), max(present)
+    for v in range(lo, hi + 1):
+        if v not in present and v != 25:
+            ok = False
+            msgs.append(f"X gap: {names.get(v, v)} (id {v}) is missing in the column -> "
+                        f"label it (number consecutively, no skipped levels)")
+
+    # 2) ascending order — a mis-placed / mis-numbered vertebra breaks the sequence
+    zc = _centroid_z(lab, present, affine)
+    for a, b in zip(sorted(present), sorted(present)[1:]):
+        if a in zc and b in zc and zc[b] >= zc[a]:
+            ok = False
+            msgs.append(f"X order: {names.get(b, b)} sits at/above {names.get(a, a)} -> a vertebra is "
+                        f"mis-placed or mis-numbered (numbering must ascend down the column)")
+
+    # 3) each ADDED vertebra: clean blob, plausible size, connected to the column
+    ADDED_MIN_VOX = 800                              # a speck, not a (possibly FOV-truncated) vertebra
+    for v in sorted(added):
+        m = lab == v; nvox = int(m.sum())
+        if nvox < ADDED_MIN_VOX:
+            ok = False
+            msgs.append(f"X added {names.get(v, v)} is only {nvox} voxels -> too small to be a vertebra")
+            continue
+        cc, k = ndimage.label(m, structure=st)
+        if k > 1 and np.sort(np.bincount(cc.ravel())[1:])[-2] >= MIX_MIN_VOX:
+            ok = False
+            msgs.append(f"X added {names.get(v, v)} is in {k} pieces -> one vertebra must be ONE blob")
+        others = (lab >= 1) & (lab <= 26) & (~m)
+        if others.any() and not (ndimage.binary_dilation(m, iterations=2) & others).any():
+            ok = False
+            msgs.append(f"X added {names.get(v, v)} is floating (not touching the spine) -> it must sit "
+                        f"in the column, adjacent to the vertebra below it")
+
+    if ok:
+        msgs.append(f"OK spine additions {sorted(names.get(v, v) for v in added) or '[none]'}: "
+                    f"consecutive, ascending, connected")
+    return ok, msgs
+
+
 def rib_contact(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     """Every rib touches its vertebra; every thoracic vertebra has L+R ribs."""
     spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
@@ -654,13 +716,10 @@ def check_label(check: str, lab: np.ndarray, affine,
     pass/fail verdict matters (e.g. auto-adjudication's auto-finalize decision)."""
     gating, advisory = [], []
     if check == "spine_extend":
-        # SPINE-EXTENSION task: additive-only is enforced structurally by the server normalizer
-        # (_normalize_spine_extend), so the gate never hard-blocks -- a mis-count is caught by
-        # double-review, not here. spine_sanity is advisory (monotonic numbering hint).
-        advisory.append(spine_sanity(lab, affine))
-        ok = True
-        return ok, [_a if not _a.startswith("X") else "note:" + _a[1:]
-                    for _, ms in advisory for _a in ms]
+        # SPINE-EXTENSION task: GATE on the additions (contiguous numbering, ascending order, each
+        # added vertebra a clean connected blob). Pre-existing splits in the radiologist's vertebrae
+        # are exempted -- they can't be fixed here and must not block. `given` marks the additions.
+        return spine_extend_qc(lab, affine, given)
     if check in ("spine", "both"):
         gating.append(spine_sanity(lab, affine))
     if check in ("ribs", "both"):
@@ -716,6 +775,19 @@ def check_label(check: str, lab: np.ndarray, affine,
 def report(check: str, lab: np.ndarray, affine) -> bool:
     """Run the requested check(s) and print a PASS/FAIL block. Returns overall ok."""
     blocks = []   # (name, ok, msgs, gating?)
+    if check == "spine_extend":
+        # spine-EXTENSION task: validate the additions (contiguous, ascending, connected). Client has
+        # no `given`, so per-added-vertebra checks are the server's job; contiguity + order run here.
+        # Pre-existing vertebra splits are NOT gated (that's why we don't call spine_sanity here).
+        blocks.append(("SPINE EXTENSION", *spine_extend_qc(lab, affine), True))
+        allok = all(ok for _, ok, _, gate in blocks if gate)
+        for name, ok, msgs, gate in blocks:
+            print(f"  [{name}] {'PASS' if ok else 'FAIL'}")
+            for m in msgs:
+                print(f"    {m}")
+        print("  ===> ALL CHECKS PASS -> Save once more if you edited, then quit to submit."
+              if allok else "  ===> fix the 'X' items above, then Save again to re-check.")
+        return allok
     if check in ("spine", "both"):
         blocks.append(("SPINE", *spine_sanity(lab, affine), True))
     if check in ("ribs", "both"):

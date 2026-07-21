@@ -326,7 +326,7 @@ class ReviewService:
         return {
             "case_id": case["case_id"], "token": case["token"],
             "config": case["config"], "slot": slot,
-            "region_to_review": case["region_to_review"],
+            "region_to_review": case["region_to_review"], "check": self.check,
             "claim_token": token, "expires_at": expires,
             "v2_repo": self.v2_repo, "source_revision": self.source_revision,
             "ct_file": case["ct_file"], "label_file": case["pseudo_label_file"],
@@ -364,7 +364,7 @@ class ReviewService:
                 return {
                     "case_id": case["case_id"], "token": case["token"],
                     "config": case["config"], "slot": slot,
-                    "region_to_review": case["region_to_review"],
+                    "region_to_review": case["region_to_review"], "check": self.check,
                     "claim_token": token, "expires_at": sl["expires_at"],
                     "v2_repo": self.v2_repo, "source_revision": self.source_revision,
                     "ct_file": case["ct_file"], "label_file": base,
@@ -630,7 +630,7 @@ class ReviewService:
             return {
                 "case_id": case["case_id"], "token": case["token"],
                 "config": case["config"], "claim_token": token,
-                "region_to_review": case["region_to_review"],
+                "region_to_review": case["region_to_review"], "check": self.check,
                 "v2_repo": self.v2_repo, "source_revision": self.source_revision,
                 "ct_file": case["ct_file"], "label_file": case["pseudo_label_file"],
                 "ct_url": self._blob_url(case["ct_file"]),

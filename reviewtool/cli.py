@@ -155,7 +155,7 @@ def _auto_merge_case(s, base, job, work, ct_path, seg_path):
         B = np.asanyarray(nib.load(str(r2)).dataobj)
         ct = np.asanyarray(nib.load(str(ct_path)).dataobj)
         region = job.get("region_to_review") or "ribs"
-        chk = region if region in ("ribs", "spine", "both") else "ribs"
+        chk = job.get("check") or (region if region in ("ribs", "spine", "both") else "ribs")
         res = AA.auto_adjudicate(P, A, B, ct, aff, check=chk)
         nib.save(nib.Nifti1Image(res["final"].astype(P.dtype), aff, pimg.header), str(seg_path))
         conflict_path = None
@@ -1025,11 +1025,12 @@ def cmd_next(a):
     # we must NOT submit a phantom voxels_changed=0 'accept'.
     pre_mtime = snap_seg.stat().st_mtime if snap_seg.exists() else 0.0
     rib_passed = None
-    if region == "ribs" and not getattr(a, "no_watch", False):
-        # Live rib QC on every Save (same engine as review-cases): show exactly what's still
-        # wrong + how to fix it, and gate the submit client-side so students don't quit into a
-        # server rejection. The server CHECK=ribs gate is still the hard backstop on /submit.
-        rc, rib_passed = _watch_anatomy(snap, snap_ct, snap_seg, labels, check="ribs")
+    chk = job.get("check") or (region if region in ("ribs", "spine", "both") else None)
+    if chk and not getattr(a, "no_watch", False):
+        # Live QC on every Save (ribs OR spine-extension), same engine as review-cases: show exactly
+        # what's still wrong + how to fix it, and gate the submit client-side so students don't quit
+        # into a server rejection. The server CHECK=<task> gate is still the hard backstop on /submit.
+        rc, rib_passed = _watch_anatomy(snap, snap_ct, snap_seg, labels, check=chk)
     elif getattr(a, "no_watch", False):                 # watch is the default
         rc = _launch_itksnap(snap, snap_ct, snap_seg, labels)
     else:
@@ -1169,14 +1170,15 @@ def cmd_adjudicate(a):
         dis_procs += _open_reviewer_window(s, base, job, ct, work, a, other_slot)
     if auto and auto.get("conflict_path"):               # --auto: show the conflict blobs to paint
         dis_procs.append(_launch_itksnap_bg(snap, ct, auto["conflict_path"], labels))
-    if region in ("ribs", "spine", "both"):   # live QC as you decide; gate the submit on it
-        rc, passed = _watch_anatomy(snap, ct, seg, labels, check=region)
+    chk = job.get("check") or (region if region in ("ribs", "spine", "both") else None)
+    if chk:                                   # live QC as you decide; gate the submit on it
+        rc, passed = _watch_anatomy(snap, ct, seg, labels, check=chk)
     else:
         rc, passed = _launch_itksnap(snap, ct, seg, labels), True   # no QC for this region
     for _p in dis_procs:
         if _p is not None:
             _p.terminate()
-    chk = region if region in ("ribs", "spine", "both") else "ribs"
+    chk = job.get("check") or (region if region in ("ribs", "spine", "both") else "ribs")
     saved = seg.exists() and seg.stat().st_mtime > pre_mtime + 1e-6
     if not saved:                            # only NOW does the exit code matter (nothing saved)
         if rc != 0:
