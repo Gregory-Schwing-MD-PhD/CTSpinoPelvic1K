@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # The other two are the v3 additive overlays (no server gate).
 TASKS = {
     "ribs":       {"slug": "ribs",  "task": "rib_fix",    "revision": "v4", "check": "ribs"},
+    "spine_extend": {"slug": "spine", "task": "spine_extend", "revision": "v4", "check": "spine_extend"},
     "ls_nerve":   {"slug": "nerve", "task": "ls_nerve",   "revision": "v3", "check": "none"},
     "iliolumbar": {"slug": "ili",   "task": "iliolumbar", "revision": "v3", "check": "none"},
 }
