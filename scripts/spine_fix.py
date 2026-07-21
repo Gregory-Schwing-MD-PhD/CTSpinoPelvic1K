@@ -60,6 +60,13 @@ def _flagged_tokens(only=None):
                 t = r["case"].rsplit("__", 1)[0]
                 prev = reasons.get(t, "")
                 reasons[t] = (prev + "; " if prev else "") + f"L6/transitional (student added {r['added_verts']})"
+    if Path("spine_pelvis_mixing.csv").exists():
+        for r in csv.DictReader(open("spine_pelvis_mixing.csv")):
+            t = r.get("token")
+            if not t or t == "token" or not (r.get("splits") or "").strip():
+                continue                                     # only rows with a real structure split
+            prev = reasons.get(t, "")
+            reasons[t] = (prev + "; " if prev else "") + f"class-mixing: {r['splits'][:80]}"
     return reasons
 
 
