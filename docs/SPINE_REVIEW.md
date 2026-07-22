@@ -1,55 +1,25 @@
-# CTSpinoPelvic1K — Spine Extension Task (last stretch!)
+# CTSpinoPelvic1K — Spine Review
 
-This is a **small, final** task: **21 cases** where thoracic vertebrae are clearly **in the scan's field of view but were never labeled**. Your job is to **continue the numbering upward** and label them. That's it.
+One Space for all spine corrections. For each case, follow this order:
 
-You already know the tools from the rib task — this is the same workflow pointed at a new Space.
+## The procedure (every case)
+1. **Check for class-mixing / a duplicate.** Is a vertebra split into two disconnected pieces, or does one mask cover **two vertebral bodies** (a duplicated level)?
+2. **Find the LAST FULL RIB.** The vertebra it attaches to is your **T12 anchor** (a *full* rib — long, curving — not a little stump). Everything is numbered from here: below T12 → L1, L2, L3…
+3. **If a lumbar vertebra is duplicated:** the count is short one — **add an L6 caudally** and renumber so the lumbar run is L1→L6, anchored to T12.
+4. **If not:** just **fix the class-mixing** — merge/relabel the stray piece so each bone is one clean mask. Don't renumber.
+5. **Always:** **segment every thoracic vertebra in the field of view**, numbering **upward** from T12.
 
----
+## Rules
+- **Stay in the spine.** Only correct vertebrae/sacrum/pelvis here. If you spot a **rib** problem, don't fix it here — `python -m reviewtool flag "reason"`.
+- **Ribs are protected** automatically; you can only edit ids for the spine/pelvis.
+- **When a transitional level is unclear, `flag` it** for the radiologist instead of guessing.
+- The QC on Save checks: every bone one piece, ascending/contiguous, **last full rib on T12**, and **no vertebra covering two bodies** — it won't let a bad count through.
 
-## What you're doing
-
-Some scans have ribs (or clearly-visible vertebral bodies) **above the topmost labeled vertebra**. The spine label just stops early. You **add the missing thoracic vertebrae**, numbering **up** from the most rostral (highest) vertebra that's already labeled.
-
-**Example:** the spine is labeled up to **T10**, but you can see **T9, T8, T7** vertebral bodies above it in the CT. You label them **T9, then T8, then T7** — counting upward, one level at a time.
-
----
-
-## The rules (short + important)
-
-1. **Only ADD thoracic vertebrae (T1–T12).** Number them upward from the existing top.
-2. **Do NOT change anything already labeled** — vertebrae, ribs, pelvis are the radiologist's ground truth. (The server automatically keeps *only* your new additions and restores everything else, so you can't break anything — but please don't try to "fix" existing labels here.)
-3. **Count carefully, one level at a time.** Use the ribs as a guide where present. If you're unsure how high to go, label what you're confident about and stop.
-4. Two people review each case independently; disagreements go to an adjudicator — so just do your honest best read.
-
----
-
-## Setup (once)
-
+## Commands
 ```bash
-hf auth login                       # your HuggingFace account
+hf auth login
 python -m reviewtool login --service https://anonymous-mlhc-ctspinopelvic1k-review-spine.hf.space
+python -m reviewtool next          # edit in ITK-SNAP, Save, quit
+python -m reviewtool resume        # submit
+python -m reviewtool flag "possible L6"   # send a transitional case to the radiologist
 ```
-
-## Reviewing a case
-
-```bash
-python -m reviewtool next           # claims a case, opens CT + label in ITK-SNAP
-# -> add the missing thoracic vertebrae (number upward), then SAVE and QUIT ITK-SNAP
-python -m reviewtool resume         # submits; then run `next` for the following case
-```
-
-- `python -m reviewtool skip` — if a case is unclear or you'd rather leave it.
-- `python -m reviewtool mystats` — see your counts.
-
-## Switching back to ribs
-
-Point the tool back at the rib Space anytime:
-```bash
-python -m reviewtool login --service https://anonymous-mlhc-ctspinopelvic1k-review-ribs.hf.space
-```
-
----
-
-## Please also wrap up your rib work
-
-If you have **open rib reviews or adjudications**, please finish them (`reviewtool resume`, and for adjudicators `reviewtool adjudicate`). **The dataset is almost complete** — these last pieces are what get us to the finish line. Thank you!
