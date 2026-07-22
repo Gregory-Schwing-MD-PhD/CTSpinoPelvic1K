@@ -38,10 +38,10 @@ def _rows():
                 bone = m.group(1) if m else s.split()[0]
                 pct = m.group(2) if m else "?"
                 pelvis = any(w in bone for w in PELVIS_WORDS)
+                stray = str(100 - int(pct)) if pct.isdigit() else "?"
                 rows.append({"case": r["token"], "source": "CTPelvic1K" if pelvis else "CTSpine1K",
                              "structure": bone, "error": "split_into_pieces",
-                             "detail": f"labelled as {(100 - int(pct)) if pct.isdigit() else '?'}% "
-                                       f"main body + a disconnected stray piece",
+                             "detail": f"main body {pct}% + {stray}% in a disconnected stray piece",
                              "correction": "pending (in review)"})
     p = Path("missing_vertebra.csv")
     if p.exists():
