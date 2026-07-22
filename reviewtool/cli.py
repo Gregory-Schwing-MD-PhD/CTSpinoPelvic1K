@@ -1232,6 +1232,43 @@ def cmd_skip(a):
     print("Done. Get your next case with:  python -m reviewtool next --amend   (or  next)")
 
 
+def cmd_flag(a):
+    """FLAG a case you're holding for RADIOLOGIST re-read — a transitional/ambiguous level you should
+    NOT decide (a 6th lumbar / L6, a rib on a lumbar vertebra, a duplicated vertebra). It's taken off
+    the student queue and sent to the radiologist; use this instead of emailing."""
+    s, base = _api()
+    claims = []
+    for f in (sorted(ACTIVE_DIR.glob("*.json")) if ACTIVE_DIR.exists() else []):
+        try:
+            d = json.loads(f.read_text())
+        except Exception:                                # noqa: BLE001
+            continue
+        if d.get("kind") in ("review", "adjudicate"):
+            claims.append(d)
+    if a.case:
+        claims = [d for d in claims if Path(d["workdir"]).name == a.case]
+    if not claims:
+        print("no claimed scan to flag — `reviewtool next` to claim one first.")
+        return
+    if len(claims) > 1 and not a.case:
+        print("you're holding more than one — pass which to flag: `reviewtool flag <case> \"reason\"`")
+        for d in claims:
+            print("   ", Path(d["workdir"]).name)
+        return
+    for d in claims:
+        job = d["job"]; cid = job.get("case_id", Path(d["workdir"]).name)
+        try:
+            r = s.post(base + "/flag", data={"claim_token": job.get("claim_token"),
+                                             "reason": a.reason or ""}, timeout=60)
+            r.raise_for_status()
+            print(f"flagged {cid} for radiologist re-read" + (f": {a.reason}" if a.reason else "")
+                  + " — released from your queue.")
+        except Exception as exc:                         # noqa: BLE001
+            print(f"could not flag {cid} on the server ({exc}); cleared it locally.")
+        _clear_active(Path(d["workdir"]))
+    print("Done. Next case:  python -m reviewtool next")
+
+
 def cmd_mystats(a):
     """Private self-service scorecard: YOUR own submissions, pass-rate, and amend queue."""
     s, base = _api()
@@ -2042,6 +2079,12 @@ def main(argv=None) -> int:
     p.add_argument("case", nargs="?", default=None, help="case id (omit if you hold only one)")
     p.add_argument("--all", action="store_true", help="clear ALL your held/stale local claims")
     p.set_defaults(fn=cmd_skip)
+
+    p = sub.add_parser("flag",
+                       help="flag a held case for radiologist re-read (transitional level you shouldn't decide)")
+    p.add_argument("case", nargs="?", default=None, help="case id (omit if you hold only one)")
+    p.add_argument("reason", nargs="?", default="", help="short reason (e.g. \"possible L6\")")
+    p.set_defaults(fn=cmd_flag)
 
     for name, fn in (("next", cmd_next), ("adjudicate", cmd_adjudicate)):
         p = sub.add_parser(name)

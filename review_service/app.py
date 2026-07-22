@@ -312,6 +312,16 @@ async def defer(claim_token: str = Form(...), who: dict = Depends(auth)):
         raise HTTPException(400, str(e))
 
 
+@app.post("/flag")
+async def flag(claim_token: str = Form(...), reason: str = Form(""), who: dict = Depends(auth)):
+    """Flag the current case for RADIOLOGIST re-read (transitional / ambiguous level)."""
+    try:
+        with _LOCK:
+            return SERVICE.flag(claim_token, reason, who.get("id"))
+    except svc.ReviewError as e:
+        raise HTTPException(400, str(e))
+
+
 @app.get("/me/stats")
 def me_stats(who: dict = Depends(auth)):
     # private self-service: a reviewer only ever sees their OWN numbers

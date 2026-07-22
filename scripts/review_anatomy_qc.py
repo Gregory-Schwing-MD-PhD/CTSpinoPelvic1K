@@ -221,6 +221,20 @@ def spine_extend_qc(lab: np.ndarray, affine,
             msgs.append(f"X added {names.get(v, v)} is floating (not touching the spine) -> it must sit "
                         f"in the column, adjacent to the vertebra below it")
 
+    # TRANSITIONAL / MISCOUNT guard: a vertebra labelled as TWO substantial bodies (e.g. two L2's) is a
+    # duplicate the student must NOT resolve by guessing a shift / an L6 -- that is a radiologist call.
+    for v in present:
+        if not (1 <= v <= 25):
+            continue
+        cc, k = ndimage.label(lab == v, structure=st)
+        if k < 2:
+            continue
+        sizes = np.sort(np.bincount(cc.ravel())[1:])
+        if sizes[-2] >= 3000 and sizes[-2] >= 0.25 * sizes[-1]:
+            ok = False
+            msgs.append(f"X {names.get(v, v)} appears as TWO separate bodies -> a duplicated / "
+                        f"transitional level (possible L6). Do NOT guess a shift -- run "
+                        f"`reviewtool flag` to send it to the radiologist.")
     if ok:
         msgs.append(f"OK spine additions {sorted(names.get(v, v) for v in added) or '[none]'}: "
                     f"consecutive, ascending, connected")

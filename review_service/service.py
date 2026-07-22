@@ -322,7 +322,7 @@ class ReviewService:
         now_s = schema.utcnow()
         candidates = []
         for case in self.store.list_cases():
-            if case.get("final"):
+            if case.get("final") or case.get("needs_expert"):   # flagged for radiologist -> off queue
                 continue
             slot = schema.claimable_primary_slot(case, reviewer_id, now=now_s)
             if slot is None:
@@ -457,6 +457,31 @@ class ReviewService:
         case.get("slots", {}).pop(slot, None)          # release -> case re-enters the queue
         self.store.put_case(case)
         return {"case_id": case_id, "deferred": True, "status": schema.derive_status(case)}
+
+    def flag(self, claim_token: str, reason: str = "", reviewer_id: Optional[str] = None) -> dict:
+        """A reviewer FLAGS a case for RADIOLOGIST re-read (a transitional / ambiguous level they must
+        not decide -- L6, a rib on a lumbar vertebra, a duplicated vertebra). The case is marked
+        needs_expert (so no student is served it again) and their claim is released. Greg reads the
+        flags via the expert queue. Accepts an owner-authenticated flag even if the local token drifted."""
+        case_id, slot = self._parse_token(claim_token)
+        case = self.store.get_case(case_id)
+        if case is None:
+            raise ReviewError(f"unknown case {case_id}")
+        sl = case.get("slots", {}).get(slot)
+        if not sl or (sl.get("claim_token") != claim_token
+                      and not (reviewer_id and sl.get("reviewer") == reviewer_id)):
+            raise ReviewError("claim token does not match an open claim")
+        reviewer = sl.get("reviewer") or reviewer_id
+        case["needs_expert"] = True                     # claim() skips these -> off the student queue
+        case.setdefault("reread", []).append(
+            {"by": reviewer, "reason": reason or "(no reason given)", "at": schema.utcnow()})
+        dby = case.setdefault("deferred_by", [])
+        if reviewer and reviewer not in dby:
+            dby.append(reviewer)
+        if not sl.get("done"):
+            case.get("slots", {}).pop(slot, None)       # release an unsubmitted claim
+        self.store.put_case(case)
+        return {"case_id": case_id, "flagged": True, "reason": reason}
 
     def me_stats(self, reviewer_id: str) -> dict:
         """A reviewer's OWN progress (private, self-service): how many of their submissions passed
