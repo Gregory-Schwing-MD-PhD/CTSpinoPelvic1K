@@ -165,6 +165,67 @@ def spine_sanity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     return ok, msgs
 
 
+def _fused_two_bodies(lab: np.ndarray, v: int, st) -> bool:
+    """True if vertebra `v`'s single mask actually covers TWO vertebral bodies -- fused across the disc,
+    so eroding it splits it into two BALANCED blobs (the 'two L2's' miscount). A spinous process spur
+    splits off small + unbalanced, so the balance test excludes it."""
+    idx = np.argwhere(lab == v)
+    if len(idx) < 8000:
+        return False
+    lo = idx.min(0); hi = idx.max(0) + 1
+    crop = lab[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]] == v
+    er = ndimage.binary_erosion(crop, iterations=3, structure=st)
+    if not er.any():
+        return False
+    sizes = np.sort(np.bincount(ndimage.label(er, structure=st)[0].ravel())[1:])
+    return len(sizes) >= 2 and sizes[-2] >= 5000 and sizes[-2] >= 0.35 * sizes[-1]
+
+
+def t12_anchor(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
+    """The LAST (most caudal) FULL rib must articulate with T12 (id 19). If it sits on a LUMBAR level,
+    the vertebra numbering is mis-anchored (a transitional level / missing L6); if on a thoracic level
+    other than T12, the thoracic numbering is off. Runs on the SUBMITTED label (after the student has
+    segmented the thoracic), so T12 is present to anchor against. A stump rib (<=38 mm) is not a full
+    rib, so it never anchors."""
+    names = _id2name()
+    spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
+    RLO, RHI = LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 12
+    objs = ndimage.find_objects(lab if lab.dtype.kind in "iu" else lab.astype(np.int32))
+    R = np.asarray(affine)[:3, :3]; si = int(np.argmax(np.abs(R[2, :]))); sup = R[2, si] >= 0
+    vpres = [v for v in range(8, 26) if v - 1 < len(objs) and objs[v - 1] is not None]
+    if not vpres:
+        return True, ["(no thoracolumbar vertebrae -> T12 anchor skipped)"]
+    vranges = [(v, objs[v - 1][si].start, objs[v - 1][si].stop) for v in vpres]
+    caudal = None                                             # (head_si, rid) of the most caudal FULL rib
+    for rid in range(RLO, RHI + 1):
+        sl = objs[rid - 1] if rid - 1 < len(objs) else None
+        if sl is None:
+            continue
+        r = np.argwhere(lab[sl] == rid)
+        if len(r) < 2:
+            continue
+        rr = (r[:: max(1, len(r) // 300)]) * spacing
+        length = float(np.sqrt(((rr[:, None, :] - rr[None, :, :]) ** 2).sum(-1)).max())
+        if length <= 38.0:                                    # stump rib -> not an anchor
+            continue
+        head_si = sl[si].stop - 1 if sup else sl[si].start
+        if caudal is None or (head_si < caudal[0] if sup else head_si > caudal[0]):
+            caudal = (head_si, rid)
+    if caudal is None:
+        return True, ["(no full rib in view -> T12 anchor skipped)"]
+    hs = caudal[0]
+    inside = [v for v, lo, hi in vranges if lo <= hs < hi]
+    v = inside[0] if inside else min(vranges, key=lambda x: abs((x[1] + x[2]) // 2 - hs))[0]
+    if v == 19:
+        return True, ["OK: the last full rib sits on T12"]
+    if 20 <= v <= 25:
+        return False, [f"X the LAST full rib sits on {names.get(v, v)} -> it must be T12. The count is "
+                       f"mis-anchored (transitional level / possible L6): re-anchor so the last full "
+                       f"rib is T12."]
+    return False, [f"X the last full rib sits on {names.get(v, v)}, not T12 -> the thoracic numbering "
+                   f"is off; number so the last full rib is T12."]
+
+
 def spine_extend_qc(lab: np.ndarray, affine,
                     given: Optional[np.ndarray] = None) -> Tuple[bool, List[str]]:
     """QC for the SPINE-EXTENSION task (students ADD missing thoracic vertebrae, numbering upward).
@@ -221,23 +282,25 @@ def spine_extend_qc(lab: np.ndarray, affine,
             msgs.append(f"X added {names.get(v, v)} is floating (not touching the spine) -> it must sit "
                         f"in the column, adjacent to the vertebra below it")
 
-    # TRANSITIONAL / MISCOUNT guard: a vertebra labelled as TWO substantial bodies (e.g. two L2's) is a
-    # duplicate the student must NOT resolve by guessing a shift / an L6 -- that is a radiologist call.
+    # TRANSITIONAL / MISCOUNT guard: a vertebra whose ONE mask actually covers TWO vertebral bodies
+    # (fused across the disc -> erodes into two balanced blobs) is a duplicated / mis-counted level
+    # (e.g. two L2's -> a 6th lumbar). The student must NOT resolve it by guessing -- radiologist call.
     for v in present:
-        if not (1 <= v <= 25):
-            continue
-        cc, k = ndimage.label(lab == v, structure=st)
-        if k < 2:
-            continue
-        sizes = np.sort(np.bincount(cc.ravel())[1:])
-        if sizes[-2] >= 3000 and sizes[-2] >= 0.25 * sizes[-1]:
+        if 1 <= v <= 25 and _fused_two_bodies(lab, v, st):
             ok = False
-            msgs.append(f"X {names.get(v, v)} appears as TWO separate bodies -> a duplicated / "
-                        f"transitional level (possible L6). Do NOT guess a shift -- run "
-                        f"`reviewtool flag` to send it to the radiologist.")
+            msgs.append(f"X {names.get(v, v)} covers TWO vertebral bodies (a duplicated / transitional "
+                        f"level -- possible L6). Do NOT guess a shift -- run `reviewtool flag` to send "
+                        f"it to the radiologist.")
+    # T12 anchor: the last full rib must land on T12 (needs the student's thoracic to be segmented).
+    ok_a, msg_a = t12_anchor(lab, affine)
+    if not ok_a:
+        for m in msg_a:
+            if m.startswith("X"):
+                ok = False
+                msgs.append(m + "  (you cannot renumber the lumbar here -- run `reviewtool flag`)")
     if ok:
         msgs.append(f"OK spine additions {sorted(names.get(v, v) for v in added) or '[none]'}: "
-                    f"consecutive, ascending, connected")
+                    f"consecutive, ascending, connected; last full rib on T12")
     return ok, msgs
 
 
@@ -253,25 +316,36 @@ def class_mixing_qc(lab: np.ndarray, affine,
     `given` (the v4 base) is required for the no-renumber guard; without it only the first two run."""
     ok_s, m_s = structure_integrity(lab, affine)
     ok_v, m_v = spine_sanity(lab, affine)
-    ok = ok_s and ok_v
-    msgs = [m for m in (m_s + m_v) if m.startswith("X")]
-    names = _id2name()
+    ok_t, m_t = t12_anchor(lab, affine)                          # numbering validated by ANATOMY
+    ok = ok_s and ok_v and ok_t
+    names = _id2name(); st = ndimage.generate_binary_structure(3, 3)
+    msgs = [m for m in (m_s + m_v + m_t) if m.startswith("X")]
+    # the fused duplicate must be RESOLVED (split + re-anchored, e.g. an L6 added)
+    for v in range(1, 26):
+        if (lab == v).any() and _fused_two_bodies(lab, v, st):
+            ok = False
+            msgs.append(f"X {names.get(v, v)} still covers TWO vertebral bodies -> separate them and "
+                        f"re-anchor to T12 (add L6 if there is a 6th lumbar)")
+    # protect every bone EXCEPT the lumbar (20-25): a class-mixing fix must not renumber/delete a
+    # thoracic vertebra, hip, femur, sacrum. LUMBAR may be renumbered -- that is the L6 re-anchor, and
+    # t12_anchor + spine_sanity above prove it landed correctly.
     if given is not None and given.shape == lab.shape:
-        st = ndimage.generate_binary_structure(3, 3)
-        for b in range(1, 34):                                  # vertebrae, sacrum, S1, hips, femurs
+        for b in range(1, 34):
+            if 20 <= b <= 25:
+                continue                                        # lumbar: re-numbering allowed (L6)
             gm = given == b
             if int(gm.sum()) < STRUCT_MIN_VOX:
                 continue
             cc, k = ndimage.label(gm, structure=st)
-            body = cc == (int(np.argmax(np.bincount(cc.ravel())[1:])) + 1)   # largest given piece
+            body = cc == (int(np.argmax(np.bincount(cc.ravel())[1:])) + 1)
             sv = lab[body]; sv = sv[sv > 0]
             maj = int(np.bincount(sv).argmax()) if sv.size else 0
             if maj != b:
                 ok = False
-                msgs.append(f"X {names.get(b, b)}: its main body is now {names.get(maj, maj)} -> you "
-                            f"renumbered or deleted a real bone; only relabel/merge the STRAY piece")
+                msgs.append(f"X {names.get(b, b)}: its main body is now {names.get(maj, maj)} -> only "
+                            f"the LUMBAR numbering may change (for an L6); don't renumber/delete this")
     if ok:
-        msgs.append("OK: every bone is one clean piece, correctly numbered (no renumber/delete)")
+        msgs.append("OK: bones one piece, ascending, last full rib on T12, no fused duplicate")
     return ok, msgs
 
 
