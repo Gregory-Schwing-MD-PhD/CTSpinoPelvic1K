@@ -196,6 +196,21 @@ def t12_anchor(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     if not vpres:
         return True, ["(no thoracolumbar vertebrae -> T12 anchor skipped)"]
     vranges = [(v, objs[v - 1][si].start, objs[v - 1][si].stop) for v in vpres]
+    # spine column centre (in-plane) so we can take each rib's true HEAD (its medial-most voxel)
+    plane = [a for a in range(3) if a != si]
+    vcent = {}                                                # vertebra -> SI centroid (global coords)
+    cxs, cys = [], []
+    for v in vpres:
+        s = objs[v - 1]
+        idx = np.argwhere(lab[s] == v)
+        if len(idx) == 0:
+            continue
+        vcent[v] = float(idx[:, si].mean()) + s[si].start
+        cxs.append(float(idx[:, plane[0]].mean()) + s[plane[0]].start)
+        cys.append(float(idx[:, plane[1]].mean()) + s[plane[1]].start)
+    if not vcent:
+        return True, ["(no vertebra centroids -> T12 anchor skipped)"]
+    cx, cy = float(np.mean(cxs)), float(np.mean(cys))
     caudal = None                                             # (head_si, rid) of the most caudal FULL rib
     for rid in range(RLO, RHI + 1):
         sl = objs[rid - 1] if rid - 1 < len(objs) else None
@@ -208,14 +223,24 @@ def t12_anchor(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
         length = float(np.sqrt(((rr[:, None, :] - rr[None, :, :]) ** 2).sum(-1)).max())
         if length <= 38.0:                                    # stump rib -> not an anchor
             continue
-        head_si = sl[si].stop - 1 if sup else sl[si].start
+        g = r + np.array([sl[0].start, sl[1].start, sl[2].start])   # global coords
+        dx = g[:, plane[0]] - cx; dy = g[:, plane[1]] - cy
+        head_si = float(g[np.argmin(dx * dx + dy * dy), si])  # medial-most voxel = the rib HEAD
         if caudal is None or (head_si < caudal[0] if sup else head_si > caudal[0]):
             caudal = (head_si, rid)
     if caudal is None:
         return True, ["(no full rib in view -> T12 anchor skipped)"]
     hs = caudal[0]
-    inside = [v for v, lo, hi in vranges if lo <= hs < hi]
-    v = inside[0] if inside else min(vranges, key=lambda x: abs((x[1] + x[2]) // 2 - hs))[0]
+    # Assign by NEAREST vertebra CENTROID, not bbox containment: vertebra bounding boxes overlap
+    # (spinous processes run caudally), which biased containment to the vertebra ABOVE -> a false
+    # "last full rib is on T11". If the two nearest are near-tied the level is ambiguous -> don't block.
+    order = sorted(vcent, key=lambda k: abs(vcent[k] - hs))
+    v = order[0]
+    if len(order) > 1:
+        d0, d1 = abs(vcent[order[0]] - hs), abs(vcent[order[1]] - hs)
+        if d1 - d0 < 0.25 * max(d1, 1e-6):                    # too close to call
+            return True, [f"note: last full rib is between {names.get(order[0], order[0])} and "
+                          f"{names.get(order[1], order[1])} — ambiguous, not blocking"]
     if v == 19:
         return True, ["OK: the last full rib sits on T12"]
     if 20 <= v <= 25:

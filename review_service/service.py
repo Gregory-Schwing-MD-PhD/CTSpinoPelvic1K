@@ -369,9 +369,10 @@ class ReviewService:
         (they are fixing THEIR OWN slot) and hands back their own previous label as the editable
         base, not the pseudo. Resubmit goes through the normal /submit QC gate (fails closed)."""
         for case in self.store.list_cases():
-            # We are only running the RIB correction task now. Never re-serve a leftover
-            # spine/pelvis pseudolabel amend (its base label lives elsewhere and 404s the client).
-            if case.get("region_to_review") != "ribs":
+            # Serve amends for ANY task (ribs AND spine). The old ribs-only guard dated from when
+            # only the rib task ran; it silently made every re-opened SPINE slot un-amendable
+            # ("nothing to amend"). The base falls back to the case's own v4 label, which exists.
+            if not case.get("region_to_review"):
                 continue
             for slot in schema.PRIMARY_SLOTS:
                 sl = case.get("slots", {}).get(slot)
