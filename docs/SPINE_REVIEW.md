@@ -56,9 +56,41 @@ T10–T12 have been added rostrally. Below them the lumbar run contains **six** 
 
 ---
 
+## How to flag a case for the radiologist
+
+If a case has something you **shouldn't decide** — flag it instead of guessing. This replaces emailing.
+
+While you are **holding** the case (you claimed it with `next`), run:
+
+```bash
+python -m reviewtool flag "possible L6"
+```
+
+Put a short reason in quotes — whatever you would have written in an email. If you're holding more than one case, name which one:
+
+```bash
+python -m reviewtool flag 22__pelvic_native "duplicated L2, possible L6"
+```
+
+**What happens:** the case goes to the radiologist's queue, it comes **off** the student queue (nobody else is served it), and your claim is released. Then just carry on:
+
+```bash
+python -m reviewtool next
+```
+
+**Flag — don't guess — when:**
+- a lumbar level looks duplicated / transitional, or you think there may be an **L6**
+- you can't confidently identify the **last full rib** (so you can't anchor T12)
+- the vertebra count doesn't work out
+- you spot a **rib** problem while working in the spine Space
+
+Flagging is always the right call when you're unsure. It costs nothing and it's how these cases are meant to reach me.
+
+---
+
 ## Rules
 
-- **Stay in the spine here.** Only correct vertebrae / sacrum / pelvis in this Space. If you notice a **rib** problem, don't fix it here — flag it (below).
+- **Stay in the spine here.** Only correct vertebrae / sacrum / pelvis in this Space. If you notice a **rib** problem, don't fix it here — flag it (above).
 - **Ribs are protected automatically** — you can only edit the spine/pelvis labels.
 - **If a transitional level is genuinely unclear, flag it** instead of guessing. It goes straight to the radiologist.
 - **The QC runs on every Save** and checks: every bone is one piece, numbering is ascending and contiguous, the **last full rib lands on T12**, and **no vertebra covers two bodies**. It will tell you exactly what's wrong and won't let a bad count through.
