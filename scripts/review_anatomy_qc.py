@@ -346,17 +346,14 @@ def spine_extend_qc(lab: np.ndarray, affine,
             msgs.append(f"X {names.get(v, v)} covers TWO vertebral bodies (a duplicated / transitional "
                         f"level -- possible L6). Do NOT guess a shift -- run `reviewtool flag` to send "
                         f"it to the radiologist.")
-    # T12 rib-anchor: ADVISORY ONLY. Absolute level identity is not determinable from a limited FOV
-    # (a normal SHORT 12th rib puts the last FULL rib on T11, and T13-vs-L1 is a naming convention, not
-    # a measurement). It informs; it must never block a submission.
-    ok_a, msg_a = t12_anchor(lab, affine)
-    if not ok_a:
-        for m in msg_a:
-            if m.startswith("X"):
-                msgs.append("note:" + m[1:] + "  (advisory — level identity can't be fixed from this FOV)")
+    # NOTE: no rib-based T12 check. Level identity is anchored at the LUMBOSACRAL JUNCTION (count up
+    # from S1), NOT from the ribs -- a rib attaches to whatever vertebra the count places it on and
+    # never renames it. So this QC gates only on facts (one mask/label, no duplicate body, consecutive
+    # + ascending, FOV-truncation exempt); the count itself is the annotator's judgment, flagged when
+    # ambiguous.
     if ok:
         msgs.append(f"OK spine additions {sorted(names.get(v, v) for v in added) or '[none]'}: "
-                    f"consecutive, ascending, connected; last full rib on T12")
+                    f"consecutive, ascending, connected")
     return ok, msgs
 
 
@@ -375,10 +372,8 @@ def class_mixing_qc(lab: np.ndarray, affine,
     ok = ok_s and ok_v                       # class-mixing is a FACT and gates; level identity is not
     names = _id2name(); st = ndimage.generate_binary_structure(3, 3)
     msgs = [m for m in (m_s + m_v) if m.startswith("X")]
-    # T12 rib-anchor: ADVISORY ONLY -- absolute level identity is not determinable from a limited FOV.
-    ok_t, m_t = t12_anchor(lab, affine)
-    if not ok_t:
-        msgs += ["note:" + m[1:] + "  (advisory)" for m in m_t if m.startswith("X")]
+    # No rib-based T12 check: identity is anchored at the lumbosacral junction (count up from S1),
+    # not from the ribs. Facts only here; the count is the annotator's judgment, flagged when unclear.
     # the fused duplicate must be RESOLVED (split + re-anchored, e.g. an L6 added)
     for v in range(1, 26):
         if (lab == v).any() and _fused_two_bodies(lab, v, st, affine):

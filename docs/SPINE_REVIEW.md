@@ -2,79 +2,61 @@
 
 **Read this fully before your next case.**
 
+Our field of view is the **lumbar spine plus the lower thoracic only** — the top of the spine is not in view. So we **cannot count from the top.** The only reliable anchor is the **bottom (the lumbosacral junction)**, counting upward.
+
+**Key principle: ribs do not define a vertebra's identity.** We fix the vertebral *number* first (by counting from the sacrum), then a rib simply belongs to whatever vertebra it sits on.
+
 ---
 
 ## Why there's another pass
 
-The spinal-column labels come from **CTSpine1K**, and our quality control found genuine errors in that original ground truth:
-
-- **Split vertebrae** — one vertebra broken into two disconnected masks.
-- **Merged / duplicated vertebrae** — one label covering **two** vertebral bodies (e.g. two bodies both labelled L2).
-- **Missing vertebrae** — levels clearly inside the scan that were never labelled.
-
-We are correcting the source data. **13 earlier submissions were re-opened** because the QC is now stricter; if one comes back to you it will say exactly what to fix.
+The spine labels come from **CTSpine1K**, and QC found genuine errors in that original ground truth: vertebrae split into two masks, one label covering two vertebral bodies, and levels in the scan that were never labelled. We're correcting the source data. **Some earlier submissions were re-opened** under the stricter QC; if one comes back to you it will say exactly what to fix.
 
 ---
 
-## What you fix — three things, all unambiguous
+## The convention
 
-### 1. One vertebra = one label = one connected mask
+### 1. Anchor at the lumbosacral junction and count **up**
+Identify **S1 / the sacrum**, count up **five lumbar** vertebrae (L5, L4, L3, L2, L1); the next vertebra above L1 is **T12**. Use the radiologist's existing labels as a **starting point to reconcile — not as ground truth** — since they're sometimes inconsistent at this junction.
 
-- If a vertebra is **split into disconnected pieces** → **merge it** (relabel/connect the stray piece).
-  *Exception:* if the vertebra is **cut off by the top or bottom of the scan**, it is genuinely in two pieces — that's field-of-view truncation, leave it. The QC knows and won't flag it.
-- If **one label covers two vertebral bodies** (a "tall" mask spanning two discs) → **separate them into two masks.** Two vertebrae can never share a label.
+### 2. A rib belongs to the vertebra the count places it on — it does **not** rename it
+- If the count says the rib-bearing vertebra is **T12**, it's a **T12 rib** (full or stump — length doesn't matter).
+- If the count says it's **L1**, it stays **L1 with a lumbar rib** — **do not promote it to T12.**
+- Force-promoting a rib-bearing vertebra is exactly what miscounts the spine and manufactures false sacralization.
 
-### 2. Numbering must be consecutive and in order — with the fewest changes possible
+### 3. Ribless ⇒ lumbar; but a real L1 lumbar rib is a real variant
+Lumbar vertebrae are normally rib-free, so **a vertebra with no rib is lumbar.** A genuine **L1 lumbar rib** does occur, though — label it per rule 2 (keep it L1), don't absorb it into T12.
 
-**Change as little as you can.** Keep the existing labels wherever they're consistent; you are repairing the sequence, not re-deriving the spine.
+### 4. Fix the unambiguous structural errors (the QC enforces these)
+- **One vertebra = one label = one connected mask.** If a vertebra is split into disconnected pieces, **merge it.** *Exception:* a vertebra **clipped by the top/bottom of the scan** is genuinely in two pieces (FOV truncation) — leave it; the QC exempts it.
+- **Two vertebrae can never share a label.** If one mask covers two vertebral bodies, **separate them**, then renumber by the S1 count (rule 1).
+- **Numbering must be consecutive and ascending** — no gaps, no repeats. **Change as little as possible**: repair the sequence, don't re-derive the whole spine.
 
-**The one absolute rule: a vertebra with NO rib is a LUMBAR vertebra.**
-
-After separating a merged mask you'll have one **extra** body, so the numbers no longer fit. Resolve it with that rule:
-
-- Look at the **top** of the lumbar run. **Does it carry a rib** (full *or* stump)?
-  - **Yes → it is thoracic.** Relabel it **T12** and put its rib on T12. The ribless vertebrae below then renumber **L1, L2, L3, L4, L5** — the count works out and nothing else moves.
-  - **No (it's ribless) → it is lumbar**, so the extra body stays lumbar and the run becomes **L1 … L6**.
-
-**Worked example — two vertebrae labelled L2, and the top "L1" has a stump rib:**
-that "L1" carries a rib, so it is really **T12**. Shift it up to T12 (rib stays on it), and the five ribless bodies below become L1–L5. No L6 is needed.
-
-*(A stump rib does **not** by itself tell you the level — a short rib can sit on T12 **or** on L1. Use the ribless rule and the surrounding count, not the rib's length.)*
-
-### 3. Annotate every vertebra visible in the field of view
-
-- Segment each vertebral body you can clearly see, continuing the **consecutive** numbering upward (…T11, T10, T9).
-- If a vertebra is partly cut off at the edge of the scan, label the part that's actually there. Don't invent what isn't visible.
+### 5. Annotate every vertebra visible in the FOV
+Segment each vertebral body you can clearly see, continuing the consecutive numbering upward. If one is partly cut off at the scan edge, label what's actually there.
 
 ---
 
-## What you do **not** decide
+## What to do with the radiologist's existing label
 
-- **A stump rib does not fix the level by itself.** A short rib can sit on **T12 or on L1** — its length tells you nothing definitive. Don't reason from "the last *full* rib must be T12"; that's not reliable (plenty of people have a naturally short 12th rib).
-- **Don't renumber the whole column** to make it match the ribs. Repair the sequence with the fewest changes.
-- **Don't guess a transitional level.** If the count still doesn't resolve using the ribless rule, or the sacrum looks transitional — **flag it**.
-
-The only thing you can rely on absolutely: **no rib ⇒ lumbar.**
+**Keep it** — unless it conflicts with the **S1-anchored count** (rule 1) or with **rib evidence** (rule 2). If it conflicts, don't silently overwrite it and don't force it to fit: **flag the case** (below). The radiologist's labels are a prior to reconcile, and the junction is exactly where they're least reliable.
 
 ---
 
-## How to flag a case for the radiologist
+## Flag — don't guess
 
-While you are **holding** the case (claimed with `next`), run:
+Some cases can't be resolved from these images. **Flag and move on** instead of forcing a label:
+- the count and the ribs **disagree** (e.g. a rib on what counting says is L1, and you're unsure);
+- the **lumbosacral junction is ambiguous** (possible sacralization or lumbarization), so the upward count is uncertain;
+- the radiologist's label **conflicts** with the S1-anchored count or with rib evidence;
+- you spot a **rib** problem while in the spine Space.
 
 ```bash
-python -m reviewtool flag "possible extra lumbar level"
+python -m reviewtool flag "junction ambiguous — possible sacralization"
 ```
+…while holding the case. It goes to the radiologist's queue, comes off the student queue, and releases your claim. Then `python -m reviewtool next`.
 
-Add the case name if you're holding more than one:
-
-```bash
-python -m reviewtool flag 22__pelvic_native "two bodies labelled L2"
-```
-
-**What happens:** it goes to the radiologist's queue, comes **off** the student queue, and releases your claim. Then carry on with `python -m reviewtool next`.
-
-**Flag — don't guess — when:** the level identity is ambiguous, the count doesn't work out, the sacrum looks transitional, or you spot a **rib** problem while in the spine Space.
+**The honest limitation:** with only a bottom anchor and a limited FOV, a sacralized or lumbarized junction throws off the entire upward count, and we sometimes can't tell a T12 stump rib from an L1 lumbar rib. When that's the case, we **flag rather than guess** — that's the correct, rigorous answer.
 
 ---
 
@@ -82,19 +64,15 @@ python -m reviewtool flag 22__pelvic_native "two bodies labelled L2"
 
 ![sagittal example](example_22.png)
 
-One lumbar mask covers **two** vertebral bodies — two vertebrae cannot share a label, so separate them. Then apply the ribless rule to the top of the lumbar run: if that vertebra carries a rib (full or stump) it is **T12** — shift it up and the ribless bodies below become L1–L5. If it is ribless, it stays lumbar and the run becomes L1–L6. Thoracic vertebrae visible above are segmented and numbered consecutively upward.
+One lumbar mask covers **two** vertebral bodies — separate them (two vertebrae can't share a label). Then renumber by counting up from S1: five lumbar (L5→L1), and the body above L1 is T12. Ribs attach to whatever level the count lands on; they don't rename it. If the junction or the count is ambiguous, flag it.
 
 ---
 
-## Rules
+## Rules & commands
 
 - **Stay in the spine here.** Only correct vertebrae / sacrum / pelvis. Rib problems → flag, don't fix them here.
 - **Ribs are protected automatically** — you can only edit the spine/pelvis labels.
-- **The QC runs on every Save** and gates on the facts: every bone is one connected mask, no label covers two bodies, numbering is consecutive and ascending. FOV-truncated vertebrae are exempt. Level-identity hints are advisory only and never block you.
-
----
-
-## Commands
+- **The QC gates only on facts:** one connected mask per label, no label covering two bodies, consecutive + ascending numbering; FOV-truncated vertebrae exempt. Level identity is your judgment (count from S1) — flag it when unsure; the QC won't second-guess your count.
 
 ```bash
 hf auth login
