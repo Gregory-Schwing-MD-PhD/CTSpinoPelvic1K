@@ -1,50 +1,66 @@
 # CTSpinoPelvic1K — Spine Review Instructions
 
-**Read this fully before your next case.** This is the method for every spine case.
+**Read this fully before your next case.**
 
 ---
 
 ## Why there's another pass
 
-The spinal-column labels in this dataset come from **CTSpine1K**. Our quality control found genuine errors in that original ground truth:
+The spinal-column labels come from **CTSpine1K**, and our quality control found genuine errors in that original ground truth:
 
-- **Split vertebrae** — one bone broken into two disconnected pieces.
-- **Transitional miscounts** — a vertebra mask covering *two* bodies, where there's really a **6th lumbar (L6)**.
-- **Missing thoracic vertebrae** — levels clearly inside the scan that were never labelled.
+- **Split vertebrae** — one vertebra broken into two disconnected masks.
+- **Merged / duplicated vertebrae** — one label covering **two** vertebral bodies (e.g. two bodies both labelled L2).
+- **Missing vertebrae** — levels clearly inside the scan that were never labelled.
 
-We're correcting the source data, so it has to be right. The QC is now stricter, and **13 earlier spine submissions were re-opened** for redo — if one comes back to you, it will tell you exactly what to fix.
+We are correcting the source data. **13 earlier submissions were re-opened** because the QC is now stricter; if one comes back to you it will say exactly what to fix.
 
 ---
 
-## The procedure — every case, in this order
+## What you fix — three things, all unambiguous
 
-### Step 1 — Find **T12** using the last full rib
+### 1. One vertebra = one label = one connected mask
 
-You anchor the whole count on T12, and you find T12 from the **ribs** — never by guessing.
+- If a vertebra is **split into disconnected pieces** → **merge it** (relabel/connect the stray piece).
+  *Exception:* if the vertebra is **cut off by the top or bottom of the scan**, it is genuinely in two pieces — that's field-of-view truncation, leave it. The QC knows and won't flag it.
+- If **one label covers two vertebral bodies** (a "tall" mask spanning two discs) → **separate them into two masks.** Two vertebrae can never share a label.
 
-- Ribs attach to thoracic vertebrae: rib 1 → T1, rib 2 → T2, … **rib 12 → T12**.
-- Therefore: **the lowest vertebra carrying a FULL rib is T12.**
-- A **full rib** is long and curving, wrapping toward the front. A small nub (a **stump rib**, roughly ≤ 4 cm) is **not** a full rib — skip it.
-- Scroll to the **most caudal (lowest) full rib**, follow it medially to the spine — **that vertebra is T12.**
+### 2. Numbering must be consecutive and in order
 
-From T12: everything **below** is lumbar (L1, L2, L3 …), everything **above** is thoracic (T11, T10 …). Trust this over whatever the existing labels say.
+- After separating a merged mask you'll have one **extra** body. Renumber **consecutively** so the run has no gaps and no repeats — e.g. six lumbar bodies become **L1 → L6** (the extra one becomes **L6**).
+- **Keep the numbering that's already there** where it's consistent. You are making the sequence internally correct — not re-deriving levels from scratch.
 
-### Step 2 — Fix class-mixing / duplicates
+### 3. Annotate every vertebra visible in the field of view
 
-Check each vertebra:
+- Segment each vertebral body you can clearly see, continuing the **consecutive** numbering upward (…T11, T10, T9).
+- If a vertebra is partly cut off at the edge of the scan, label the part that's actually there. Don't invent what isn't visible.
 
-- **Split bone** (one label in two disconnected pieces, or a stray blob floating off the bone):
-  → **Merge it.** Relabel or connect the stray piece so the vertebra is a single clean connected mask. **Do not renumber anything.**
+---
 
-- **One mask covering TWO vertebral bodies** (a "tall" vertebra spanning two discs — the classic *duplicated L2*):
-  → That's a **miscount**. Anchored on T12 from Step 1, count the lumbar bodies. If there are **six**, they are **L1–L6**: separate the fused mask into two bodies and label the extra one **L6** at the bottom.
+## What you do **not** decide
 
-Only the **lumbar** numbering may change (to introduce an L6). **Never** renumber a thoracic vertebra, hip, femur, or sacrum.
+**Do not try to determine absolute vertebral levels from the ribs.** Whether a small rib sits on "T12", "L1" or "T13" cannot be established from these scans — the field of view usually has no reliable anchor, and T13-vs-L1 is a naming convention rather than a measurement. A short 12th rib is also perfectly normal.
 
-### Step 3 — Extend the spine rostrally (upward)
+So: **don't renumber the whole column to match a rib**, and **don't guess a transitional level.** Fix the internal consistency (Steps 1–3) and flag anything ambiguous.
 
-- **Segment every thoracic vertebra clearly visible in the field of view**, numbering **upward** from T12: T11, T10, T9 …
-- Go as high as you can confidently identify a vertebral body. If a vertebra is cut off by the edge of the scan, label what's actually there — don't invent what isn't visible.
+---
+
+## How to flag a case for the radiologist
+
+While you are **holding** the case (claimed with `next`), run:
+
+```bash
+python -m reviewtool flag "possible extra lumbar level"
+```
+
+Add the case name if you're holding more than one:
+
+```bash
+python -m reviewtool flag 22__pelvic_native "two bodies labelled L2"
+```
+
+**What happens:** it goes to the radiologist's queue, comes **off** the student queue, and releases your claim. Then carry on with `python -m reviewtool next`.
+
+**Flag — don't guess — when:** the level identity is ambiguous, the count doesn't work out, the sacrum looks transitional, or you spot a **rib** problem while in the spine Space.
 
 ---
 
@@ -52,48 +68,15 @@ Only the **lumbar** numbering may change (to introduce an L6). **Never** renumbe
 
 ![sagittal example](example_22.png)
 
-T10–T12 have been added rostrally. Below them the lumbar run contains **six** bodies but is numbered L1–L5 — one mask covers two vertebrae. Anchored to T12 (the last full rib), the correct labelling is **L1 → L6**, with the extra body becoming **L6**.
-
----
-
-## How to flag a case for the radiologist
-
-If a case has something you **shouldn't decide** — flag it instead of guessing. This replaces emailing.
-
-While you are **holding** the case (you claimed it with `next`), run:
-
-```bash
-python -m reviewtool flag "possible L6"
-```
-
-Put a short reason in quotes — whatever you would have written in an email. If you're holding more than one case, name which one:
-
-```bash
-python -m reviewtool flag 22__pelvic_native "duplicated L2, possible L6"
-```
-
-**What happens:** the case goes to the radiologist's queue, it comes **off** the student queue (nobody else is served it), and your claim is released. Then just carry on:
-
-```bash
-python -m reviewtool next
-```
-
-**Flag — don't guess — when:**
-- a lumbar level looks duplicated / transitional, or you think there may be an **L6**
-- you can't confidently identify the **last full rib** (so you can't anchor T12)
-- the vertebra count doesn't work out
-- you spot a **rib** problem while working in the spine Space
-
-Flagging is always the right call when you're unsure. It costs nothing and it's how these cases are meant to reach me.
+One lumbar mask covers **two** vertebral bodies. Separate them, then renumber the lumbar run consecutively (here L1 → L6). The thoracic vertebrae visible above are segmented and numbered consecutively upward.
 
 ---
 
 ## Rules
 
-- **Stay in the spine here.** Only correct vertebrae / sacrum / pelvis in this Space. If you notice a **rib** problem, don't fix it here — flag it (above).
+- **Stay in the spine here.** Only correct vertebrae / sacrum / pelvis. Rib problems → flag, don't fix them here.
 - **Ribs are protected automatically** — you can only edit the spine/pelvis labels.
-- **If a transitional level is genuinely unclear, flag it** instead of guessing. It goes straight to the radiologist.
-- **The QC runs on every Save** and checks: every bone is one piece, numbering is ascending and contiguous, the **last full rib lands on T12**, and **no vertebra covers two bodies**. It will tell you exactly what's wrong and won't let a bad count through.
+- **The QC runs on every Save** and gates on the facts: every bone is one connected mask, no label covers two bodies, numbering is consecutive and ascending. FOV-truncated vertebrae are exempt. Level-identity hints are advisory only and never block you.
 
 ---
 
@@ -105,11 +88,11 @@ python -m reviewtool login --service https://anonymous-mlhc-ctspinopelvic1k-revi
 
 python -m reviewtool next                  # claim a case; edit in ITK-SNAP, Save, then Quit
 python -m reviewtool resume                # submit
-python -m reviewtool next --amend          # redo a case that was re-opened for you
-python -m reviewtool flag "possible L6"    # send a transitional case to the radiologist
+python -m reviewtool next --amend          # redo a case re-opened for you
+python -m reviewtool flag "reason"         # send an ambiguous case to the radiologist
 python -m reviewtool mystats               # your own progress
 ```
 
-Make sure you `git pull` your reviewtool checkout first — the checks and the `flag` command are new.
+`git pull` your reviewtool checkout first — the checks and the `flag` command are new.
 
 **Thank you — this is the last major pass.**

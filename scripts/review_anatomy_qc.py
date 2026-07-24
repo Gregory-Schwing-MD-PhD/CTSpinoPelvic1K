@@ -329,13 +329,14 @@ def spine_extend_qc(lab: np.ndarray, affine,
             msgs.append(f"X {names.get(v, v)} covers TWO vertebral bodies (a duplicated / transitional "
                         f"level -- possible L6). Do NOT guess a shift -- run `reviewtool flag` to send "
                         f"it to the radiologist.")
-    # T12 anchor: the last full rib must land on T12 (needs the student's thoracic to be segmented).
+    # T12 rib-anchor: ADVISORY ONLY. Absolute level identity is not determinable from a limited FOV
+    # (a normal SHORT 12th rib puts the last FULL rib on T11, and T13-vs-L1 is a naming convention, not
+    # a measurement). It informs; it must never block a submission.
     ok_a, msg_a = t12_anchor(lab, affine)
     if not ok_a:
         for m in msg_a:
             if m.startswith("X"):
-                ok = False
-                msgs.append(m + "  (you cannot renumber the lumbar here -- run `reviewtool flag`)")
+                msgs.append("note:" + m[1:] + "  (advisory — level identity can't be fixed from this FOV)")
     if ok:
         msgs.append(f"OK spine additions {sorted(names.get(v, v) for v in added) or '[none]'}: "
                     f"consecutive, ascending, connected; last full rib on T12")
@@ -354,10 +355,13 @@ def class_mixing_qc(lab: np.ndarray, affine,
     `given` (the v4 base) is required for the no-renumber guard; without it only the first two run."""
     ok_s, m_s = structure_integrity(lab, affine)
     ok_v, m_v = spine_sanity(lab, affine)
-    ok_t, m_t = t12_anchor(lab, affine)                          # numbering validated by ANATOMY
-    ok = ok_s and ok_v and ok_t
+    ok = ok_s and ok_v                       # class-mixing is a FACT and gates; level identity is not
     names = _id2name(); st = ndimage.generate_binary_structure(3, 3)
-    msgs = [m for m in (m_s + m_v + m_t) if m.startswith("X")]
+    msgs = [m for m in (m_s + m_v) if m.startswith("X")]
+    # T12 rib-anchor: ADVISORY ONLY -- absolute level identity is not determinable from a limited FOV.
+    ok_t, m_t = t12_anchor(lab, affine)
+    if not ok_t:
+        msgs += ["note:" + m[1:] + "  (advisory)" for m in m_t if m.startswith("X")]
     # the fused duplicate must be RESOLVED (split + re-anchored, e.g. an L6 added)
     for v in range(1, 26):
         if (lab == v).any() and _fused_two_bodies(lab, v, st):
