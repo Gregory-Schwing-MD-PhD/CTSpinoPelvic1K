@@ -178,13 +178,19 @@ def spine_sanity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     return ok, msgs
 
 
-def _fused_two_bodies(lab: np.ndarray, v: int, st) -> bool:
+def _fused_two_bodies(lab: np.ndarray, v: int, st, affine=None) -> bool:
     """True if vertebra `v`'s single mask actually covers TWO vertebral bodies -- fused across the disc,
     so eroding it splits it into two BALANCED blobs (the 'two L2's' miscount). A spinous process spur
-    splits off small + unbalanced, so the balance test excludes it."""
+    splits off small + unbalanced, so the balance test excludes it. A vertebra CLIPPED by the top/bottom
+    of the scan is exempt (FOV truncation can fragment it for real, and it cannot be fixed)."""
     idx = np.argwhere(lab == v)
     if len(idx) < 8000:
         return False
+    if affine is not None:
+        R = np.asarray(affine)[:3, :3]
+        si = int(np.argmax(np.abs(R[2, :])))
+        if idx[:, si].min() == 0 or idx[:, si].max() == lab.shape[si] - 1:
+            return False                                   # FOV-truncated -> never call it a duplicate
     lo = idx.min(0); hi = idx.max(0) + 1
     crop = lab[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]] == v
     er = ndimage.binary_erosion(crop, iterations=3, structure=st)
@@ -304,7 +310,18 @@ def spine_extend_qc(lab: np.ndarray, affine,
 
     # 3) each ADDED vertebra: clean blob, plausible size, connected to the column
     ADDED_MIN_VOX = 800                              # a speck, not a (possibly FOV-truncated) vertebra
+    # A vertebra CLIPPED by the top/bottom of the scan is small and can be in two pieces for real --
+    # exactly like a FOV-truncated rib. Exempt it from the size / one-piece / connectivity checks;
+    # the annotator cannot fix the edge of the field of view.
+    _R = np.asarray(affine)[:3, :3]
+    _si = int(np.argmax(np.abs(_R[2, :])))
+    _objs = ndimage.find_objects(lab if lab.dtype.kind in "iu" else lab.astype(np.int32))
     for v in sorted(added):
+        _sl = _objs[v - 1] if v - 1 < len(_objs) else None
+        if _sl is not None and (_sl[_si].start == 0 or _sl[_si].stop == lab.shape[_si]):
+            msgs.append(f"note added {names.get(v, v)} is clipped by the edge of the scan "
+                        f"(FOV-truncated) -> size / one-piece checks skipped")
+            continue
         m = lab == v; nvox = int(m.sum())
         if nvox < ADDED_MIN_VOX:
             ok = False
@@ -324,7 +341,7 @@ def spine_extend_qc(lab: np.ndarray, affine,
     # (fused across the disc -> erodes into two balanced blobs) is a duplicated / mis-counted level
     # (e.g. two L2's -> a 6th lumbar). The student must NOT resolve it by guessing -- radiologist call.
     for v in present:
-        if 1 <= v <= 25 and _fused_two_bodies(lab, v, st):
+        if 1 <= v <= 25 and _fused_two_bodies(lab, v, st, affine):
             ok = False
             msgs.append(f"X {names.get(v, v)} covers TWO vertebral bodies (a duplicated / transitional "
                         f"level -- possible L6). Do NOT guess a shift -- run `reviewtool flag` to send "
@@ -364,7 +381,7 @@ def class_mixing_qc(lab: np.ndarray, affine,
         msgs += ["note:" + m[1:] + "  (advisory)" for m in m_t if m.startswith("X")]
     # the fused duplicate must be RESOLVED (split + re-anchored, e.g. an L6 added)
     for v in range(1, 26):
-        if (lab == v).any() and _fused_two_bodies(lab, v, st):
+        if (lab == v).any() and _fused_two_bodies(lab, v, st, affine):
             ok = False
             msgs.append(f"X {names.get(v, v)} still covers TWO vertebral bodies -> separate them and "
                         f"re-anchor to T12 (add L6 if there is a 6th lumbar)")
