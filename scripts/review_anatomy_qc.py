@@ -125,7 +125,13 @@ def spine_sanity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     ok, msgs = True, []
     st = ndimage.generate_binary_structure(3, 3)
 
-    # 1) class mixing -> a vertebra label split into a big second blob
+    # 1) class mixing -> a vertebra label split into a big second blob.
+    # A vertebra CLIPPED by the top/bottom slice of the scan genuinely enters and leaves the field of
+    # view as two pieces -- that is FOV truncation, not a mislabel, and the annotator cannot fix it.
+    # Exempt it (advisory note), exactly as structure_integrity already does.
+    R = np.asarray(affine)[:3, :3]
+    si_axis = int(np.argmax(np.abs(R[2, :])))
+    _objs = ndimage.find_objects(lab if lab.dtype.kind in "iu" else lab.astype(np.int32))
     for v in present:
         m = lab == v
         n = int(m.sum())
@@ -133,6 +139,13 @@ def spine_sanity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
         if k > 1:
             sizes = np.sort(np.bincount(cc.ravel())[1:])
             if sizes[-2] >= MIX_FRAC * n and sizes[-2] >= MIX_MIN_VOX:
+                sl = _objs[v - 1] if v - 1 < len(_objs) else None
+                truncated = sl is not None and (sl[si_axis].start == 0
+                                                or sl[si_axis].stop == lab.shape[si_axis])
+                if truncated:
+                    msgs.append(f"note {names.get(v, v)} is in {k} pieces but is clipped by the top/"
+                                f"bottom of the scan (FOV-truncated) -> advisory, not blocking")
+                    continue
                 ok = False
                 msgs.append(f"X {names.get(v, v)} (id {v}) is split into {k} pieces "
                             f"({100 * sizes[-2] / n:.0f}% in a stray blob) -> "
