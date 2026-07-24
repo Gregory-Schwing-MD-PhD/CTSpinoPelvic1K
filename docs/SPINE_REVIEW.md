@@ -24,10 +24,22 @@ We are correcting the source data. **13 earlier submissions were re-opened** bec
   *Exception:* if the vertebra is **cut off by the top or bottom of the scan**, it is genuinely in two pieces — that's field-of-view truncation, leave it. The QC knows and won't flag it.
 - If **one label covers two vertebral bodies** (a "tall" mask spanning two discs) → **separate them into two masks.** Two vertebrae can never share a label.
 
-### 2. Numbering must be consecutive and in order
+### 2. Numbering must be consecutive and in order — with the fewest changes possible
 
-- After separating a merged mask you'll have one **extra** body. Renumber **consecutively** so the run has no gaps and no repeats — e.g. six lumbar bodies become **L1 → L6** (the extra one becomes **L6**).
-- **Keep the numbering that's already there** where it's consistent. You are making the sequence internally correct — not re-deriving levels from scratch.
+**Change as little as you can.** Keep the existing labels wherever they're consistent; you are repairing the sequence, not re-deriving the spine.
+
+**The one absolute rule: a vertebra with NO rib is a LUMBAR vertebra.**
+
+After separating a merged mask you'll have one **extra** body, so the numbers no longer fit. Resolve it with that rule:
+
+- Look at the **top** of the lumbar run. **Does it carry a rib** (full *or* stump)?
+  - **Yes → it is thoracic.** Relabel it **T12** and put its rib on T12. The ribless vertebrae below then renumber **L1, L2, L3, L4, L5** — the count works out and nothing else moves.
+  - **No (it's ribless) → it is lumbar**, so the extra body stays lumbar and the run becomes **L1 … L6**.
+
+**Worked example — two vertebrae labelled L2, and the top "L1" has a stump rib:**
+that "L1" carries a rib, so it is really **T12**. Shift it up to T12 (rib stays on it), and the five ribless bodies below become L1–L5. No L6 is needed.
+
+*(A stump rib does **not** by itself tell you the level — a short rib can sit on T12 **or** on L1. Use the ribless rule and the surrounding count, not the rib's length.)*
 
 ### 3. Annotate every vertebra visible in the field of view
 
@@ -38,9 +50,11 @@ We are correcting the source data. **13 earlier submissions were re-opened** bec
 
 ## What you do **not** decide
 
-**Do not try to determine absolute vertebral levels from the ribs.** Whether a small rib sits on "T12", "L1" or "T13" cannot be established from these scans — the field of view usually has no reliable anchor, and T13-vs-L1 is a naming convention rather than a measurement. A short 12th rib is also perfectly normal.
+- **A stump rib does not fix the level by itself.** A short rib can sit on **T12 or on L1** — its length tells you nothing definitive. Don't reason from "the last *full* rib must be T12"; that's not reliable (plenty of people have a naturally short 12th rib).
+- **Don't renumber the whole column** to make it match the ribs. Repair the sequence with the fewest changes.
+- **Don't guess a transitional level.** If the count still doesn't resolve using the ribless rule, or the sacrum looks transitional — **flag it**.
 
-So: **don't renumber the whole column to match a rib**, and **don't guess a transitional level.** Fix the internal consistency (Steps 1–3) and flag anything ambiguous.
+The only thing you can rely on absolutely: **no rib ⇒ lumbar.**
 
 ---
 
@@ -68,7 +82,7 @@ python -m reviewtool flag 22__pelvic_native "two bodies labelled L2"
 
 ![sagittal example](example_22.png)
 
-One lumbar mask covers **two** vertebral bodies. Separate them, then renumber the lumbar run consecutively (here L1 → L6). The thoracic vertebrae visible above are segmented and numbered consecutively upward.
+One lumbar mask covers **two** vertebral bodies — two vertebrae cannot share a label, so separate them. Then apply the ribless rule to the top of the lumbar run: if that vertebra carries a rib (full or stump) it is **T12** — shift it up and the ribless bodies below become L1–L5. If it is ribless, it stays lumbar and the run becomes L1–L6. Thoracic vertebrae visible above are segmented and numbered consecutively upward.
 
 ---
 
