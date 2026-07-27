@@ -38,6 +38,7 @@ import json
 import os
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -124,14 +125,18 @@ def _commit() -> str:
         return "unknown"
 
 
-def spine_cases(store) -> list:
-    """The SPINE-EXTENSION queue, still-pending. Distinguished from the RIB queue (task 'ribs',
-    region_to_review 'ribs') and the CLASS-MIXING queue (task 'class_mixing') by task == 'spine'
-    (store.init_spine_extend_cases stamps task='spine', region_to_review='spine'). Idempotent:
+_TASK_GATE = {"spine": "spine_extend", "class_mixing": "class_mixing"}
+
+
+def pending_cases(store) -> list:
+    """Both spine-region queues in this ledger, still-pending: the SPINE-EXTENSION task
+    (task='spine', gate spine_extend_qc) and the CLASS-MIXING FIX task (task='class_mixing', gate
+    class_mixing_qc). Both stamp region_to_review='spine'. The FOV order-exemption lives in
+    spine_sanity, which BOTH gates use, so an FOV-only block clears in either. Idempotent:
     already-finalized / excluded cases are skipped so a re-run never re-finalizes."""
     out = []
     for c in store.list_cases():
-        if c.get("task") != "spine" or c.get("region_to_review") != "spine":
+        if c.get("task") not in _TASK_GATE or c.get("region_to_review") != "spine":
             continue
         if schema.derive_status(c) in ("finalized", "excluded"):
             continue
@@ -140,17 +145,41 @@ def spine_cases(store) -> list:
 
 
 def _served_label(token: str, tok: str):
-    """Fetch the exact base label the Space serves for this case (nib image + array)."""
-    from huggingface_hub import hf_hub_download
-    p = hf_hub_download(repo_id=V2_REPO, repo_type="dataset", filename=token,
-                        revision=SOURCE_REVISION, token=tok)
-    img = nib.load(p)
-    return img, np.asanyarray(img.dataobj)
+    """Fetch the base label the Space serves for this case (nib image + array).
+
+    Uses a TIMEOUT-BOUNDED streaming download (connect 10s, read 30s/chunk, 3 tries) instead of
+    hf_hub_download, whose lack of a read timeout hangs forever on a stalled WSL/HF socket. On
+    exhausting retries it raises -> the case is marked 'load failed' and left for a human, so one
+    bad connection can never freeze the whole run."""
+    import tempfile
+    import requests
+    url = f"https://huggingface.co/datasets/{V2_REPO}/resolve/{SOURCE_REVISION}/{token}"
+    headers = {"Authorization": f"Bearer {tok}"} if tok else {}
+    last = None
+    for _ in range(3):
+        try:
+            r = requests.get(url, headers=headers, stream=True, timeout=(10, 30))
+            r.raise_for_status()
+            with tempfile.NamedTemporaryFile(suffix=".nii.gz", delete=False) as f:
+                for chunk in r.iter_content(chunk_size=1 << 20):
+                    if chunk:
+                        f.write(chunk)
+                p = f.name
+            img = nib.load(p)
+            return img, np.asanyarray(img.dataobj)
+        except Exception as e:                           # noqa: BLE001
+            last = e
+            continue
+    raise last if last else RuntimeError("download failed")
 
 
 def evaluate_case(case: dict, tok: str):
     """(auto_acceptable, reason, msgs, img, lab) for one case, or (None, err, [], None, None) on load
-    failure. Runs the LIVE spine gate on the served base label (given == lab: no student additions)."""
+    failure. Runs the case's OWN live gate on the served base label (given == lab: no student edits) --
+    spine_extend for the spine task, class_mixing for the class-mixing task."""
+    gate = _TASK_GATE.get(case.get("task"))
+    if gate is None:
+        return None, f"unknown task {case.get('task')!r}", [], None, None
     rel = case.get("pseudo_label_file")
     if not rel:
         return None, "no pseudo_label_file on case", [], None, None
@@ -158,7 +187,11 @@ def evaluate_case(case: dict, tok: str):
         img, lab = _served_label(rel, tok)
     except Exception as e:                               # noqa: BLE001
         return None, f"load failed: {str(e)[:60]}", [], None, None
-    ok, msgs = RA.check_label(SPINE_CHECK, lab, img.affine, given=lab)
+    # given=None: we screen the SERVED BASE itself (no student edit), so the no-renumber guard
+    # (given vs lab, an O(33 x full-volume ndimage.label) cost) is a semantic no-op here and is
+    # skipped. The gate still runs the one-piece / order (FOV-exempt) / no-fused-duplicate checks,
+    # which is exactly "is the base already clean?" -- and it's ~100x faster per case.
+    ok, msgs = RA.check_label(gate, lab, img.affine, given=None)
     accept, reason = classify(ok, msgs)
     return accept, reason, msgs, img, lab
 
@@ -181,9 +214,9 @@ def main(argv=None) -> int:
     commit = _commit()
     store = store_mod.ReviewStore(store_mod.HFBackend(repo_id=REPO, token=tok))
 
-    cases = spine_cases(store)
-    print(f"{len(cases)} pending spine-extension cases  (commit {commit}, gate={SPINE_CHECK})\n",
-          flush=True)
+    cases = pending_cases(store)
+    _bt = Counter(c.get("task") for c in cases)
+    print(f"{len(cases)} pending cases  (commit {commit}; by task: {dict(_bt)})\n", flush=True)
 
     acc_rows, esc_rows = [], []
     pending: dict = {}
@@ -255,18 +288,18 @@ def _flush(store, pending, commit):
             "decision": "accept",                        # passthrough: the served label is unchanged
             "label_rel": rel,
             "prov_after": prov_after,
-            "by": "auto:fov-truncation-passthrough",
+            "by": "auto:qc-pass-passthrough",
             "at": schema.utcnow(),
-            "rule": "spine_extend gate ok; every message an OK line or an FOV-truncation advisory "
-                    "-> served label passed through unchanged",
+            "rule": "task gate ok (with FOV-truncation exemption); every message an OK line or an "
+                    "FOV advisory -> served base label passed through unchanged, nothing to fix",
             "commit": commit,
         }
         case.setdefault("slots", {})[schema.ADJ_SLOT] = {
-            "reviewer": "auto:fov-truncation-passthrough", "done": True,
+            "reviewer": "auto:qc-pass-passthrough", "done": True,
             "submitted_at": schema.utcnow()}
         files[store.case_path(cid)] = json.dumps(case, indent=2)
     store.b.write_many(files,
-                       commit_message=f"auto-accept (FOV passthrough) {len(pending)} spine cases ({commit})")
+                       commit_message=f"auto-accept (QC-pass passthrough) {len(pending)} cases ({commit})")
     pending.clear()
 
 

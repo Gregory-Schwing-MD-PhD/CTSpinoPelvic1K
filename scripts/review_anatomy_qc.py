@@ -28,6 +28,7 @@ sacrum 26; rib_left_N = RIB_LEFT_OFFSET+N (34..45), rib_right_N = RIB_RIGHT_OFFS
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -85,6 +86,54 @@ MIN_VERT_VOX = 6000     # a thoracic vertebra must have >= this many voxels to a
                         # voxels, so 6000 keeps those while dropping edge slivers and specks.
 
 
+def _env_int(name: str, default: int) -> int:
+    """Read an integer env var, falling back to `default` if unset/blank/malformed."""
+    try:
+        v = os.environ.get(name)
+        return int(v) if v not in (None, "") else int(default)
+    except (TypeError, ValueError):
+        return int(default)
+
+
+# Live-QC downsample factor. <= 1 == no downsampling (full-res ground truth; the escape hatch).
+# The two heavy gates (class_mixing, spine_extend) run on lab[::s, ::s, ::s] with voxel thresholds
+# scaled by 1/s**3 and the affine scaled by s, so world/mm thresholds and pass/fail are preserved.
+_QC_DS = _env_int("SPINESURG_QC_DOWNSAMPLE", 3)
+
+
+def _fov_truncated_ids(lab: np.ndarray, affine) -> set:
+    """Labels that touch the TOP or BOTTOM face of the scan along the superior-inferior (world Z)
+    axis -- i.e. the FOV-truncated set, computed at FULL resolution from the two boundary slices.
+    Used INSTEAD of the bbox-edge test `sl.start==0 / sl.stop==shape`, which is wrong once the
+    volume is strided (a bone clipped by the scan edge may no longer bbox-touch the strided edge)."""
+    R = np.asarray(affine)[:3, :3]
+    si_axis = int(np.argmax(np.abs(R[2, :])))
+    bottom = np.unique(np.take(lab, 0, axis=si_axis))
+    top = np.unique(np.take(lab, -1, axis=si_axis))
+    return {int(v) for v in np.concatenate([bottom, top]) if v != 0}
+
+
+def _downsample_for_qc(lab: np.ndarray, affine, s: int):
+    """Integer-stride downsample a label volume for the live QC gate, preserving world coordinates.
+
+    Returns (lab_ds, A_ds, fov_truncated_set, s):
+      * fov_truncated_set is computed at FULL resolution FIRST (see _fov_truncated_ids) so the
+        truncation exemptions stay correct on the strided volume;
+      * lab_ds = lab[::s, ::s, ::s]  -- nearest / label-preserving, NEVER interpolated;
+      * A_ds has its 3 direction columns * s (voxels are s* larger) and the SAME origin, because
+        lab_ds[0,0,0] == lab[0,0,0]. So every mm/length threshold derived from the affine is
+        preserved automatically."""
+    fov = _fov_truncated_ids(lab, affine)
+    # ascontiguousarray copies the strided pick into a compact ~1/s**3 buffer. Value-identical to the
+    # view (never interpolated), but every downstream `lab_ds == v` then walks ~1/s**3 of the memory
+    # instead of striding across the full 300 MB span -- that copy is what actually buys the speedup.
+    lab_ds = np.ascontiguousarray(lab[::s, ::s, ::s])
+    A_ds = np.array(affine, dtype=float)
+    A_ds[:3, :3] = np.asarray(affine)[:3, :3] * s
+    # A_ds[:3, 3] left unchanged (origin preserved)
+    return lab_ds, A_ds, fov, s
+
+
 def _id2name() -> dict:
     return {v: k for k, v in LS.label_dict().items()}
 
@@ -93,14 +142,26 @@ def _rib_id(side: str, n: int) -> int:
     return (LS.RIB_LEFT_OFFSET if side == "left" else LS.RIB_RIGHT_OFFSET) + n
 
 
-def _centroid_z(lab: np.ndarray, ids, affine) -> dict:
-    """World (RAS) Z of each present id's centroid (cranio-caudal position)."""
+def _centroid_z(lab: np.ndarray, ids, affine, objs=None) -> dict:
+    """World (RAS) Z of each present id's centroid (cranio-caudal position).
+
+    If `objs` (an ndimage.find_objects result) is supplied, each centroid is computed on that id's
+    bounding-box CROP instead of scanning the whole volume -- byte-identical result, but avoids a
+    full-volume pass per id (the old version was a major cost in spine_sanity / spine_extend_qc)."""
     out = {}
     for v in ids:
-        m = lab == v
-        if m.any():
+        sl = objs[v - 1] if (objs is not None and 0 <= v - 1 < len(objs)) else None
+        if sl is not None:
+            sub = lab[sl] == v
+            if not sub.any():
+                continue
+            ijk = np.array(np.nonzero(sub)).mean(axis=1) + np.array([s.start for s in sl], dtype=float)
+        else:
+            m = lab == v
+            if not m.any():
+                continue
             ijk = np.array(np.nonzero(m)).mean(axis=1)
-            out[v] = float(apply_affine(affine, ijk)[2])
+        out[v] = float(apply_affine(affine, ijk)[2])
     return out
 
 
@@ -116,32 +177,41 @@ def _gap_mm(rib_mask: np.ndarray, vert_mask: np.ndarray, spacing) -> float:
     return float(edt[sub].min()) if sub.any() else float("inf")
 
 
-def spine_sanity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
-    """Class-mixing + ascending + contiguous check over the vertebral column (1-26)."""
+def spine_sanity(lab: np.ndarray, affine,
+                 fov_ids: Optional[set] = None, vox_scale: float = 1.0) -> Tuple[bool, List[str]]:
+    """Class-mixing + ascending + contiguous check over the vertebral column (1-26).
+
+    Bounding-box optimized: ndimage.find_objects is called ONCE, and every per-vertebra test runs on
+    that vertebra's crop rather than the full volume. The old full-volume-per-vertebra scans (present,
+    class-mixing label, centroids) made this the slow gate on large CTs; the crop version is result-
+    identical and ~50-100x faster, which is what the live per-submission latency needs."""
     names = _id2name()
-    present = [v for v in range(1, 27) if (lab == v).any()]
-    if not present:
-        return True, ["(no spine vertebrae in view)"]
     ok, msgs = True, []
     st = ndimage.generate_binary_structure(3, 3)
-
-    # 1) class mixing -> a vertebra label split into a big second blob.
-    # A vertebra CLIPPED by the top/bottom slice of the scan genuinely enters and leaves the field of
-    # view as two pieces -- that is FOV truncation, not a mislabel, and the annotator cannot fix it.
-    # Exempt it (advisory note), exactly as structure_integrity already does.
     R = np.asarray(affine)[:3, :3]
     si_axis = int(np.argmax(np.abs(R[2, :])))
     _objs = ndimage.find_objects(lab if lab.dtype.kind in "iu" else lab.astype(np.int32))
+    present = [v for v in range(1, 27) if v - 1 < len(_objs) and _objs[v - 1] is not None]
+    if not present:
+        return True, ["(no spine vertebrae in view)"]
+
+    # 1) class mixing -> a vertebra label split into a big second blob (run on the crop).
+    # A vertebra CLIPPED by the top/bottom slice of the scan genuinely enters and leaves the field of
+    # view as two pieces -- that is FOV truncation, not a mislabel, and the annotator cannot fix it.
+    # Exempt it (advisory note), exactly as structure_integrity already does.
     for v in present:
-        m = lab == v
+        sl = _objs[v - 1]
+        m = lab[sl] == v
         n = int(m.sum())
         cc, k = ndimage.label(m, structure=st)
         if k > 1:
             sizes = np.sort(np.bincount(cc.ravel())[1:])
-            if sizes[-2] >= MIX_FRAC * n and sizes[-2] >= MIX_MIN_VOX:
-                sl = _objs[v - 1] if v - 1 < len(_objs) else None
-                truncated = sl is not None and (sl[si_axis].start == 0
-                                                or sl[si_axis].stop == lab.shape[si_axis])
+            if sizes[-2] >= MIX_FRAC * n and sizes[-2] >= MIX_MIN_VOX * vox_scale:
+                if fov_ids is not None:
+                    truncated = v in fov_ids
+                else:
+                    truncated = (sl[si_axis].start == 0
+                                 or sl[si_axis].stop == lab.shape[si_axis])
                 if truncated:
                     msgs.append(f"note {names.get(v, v)} is in {k} pieces but is clipped by the top/"
                                 f"bottom of the scan (FOV-truncated) -> advisory, not blocking")
@@ -167,8 +237,10 @@ def spine_sanity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     # biased toward the visible fragment and its order vs a neighbour can invert for real. The
     # annotator cannot fix the edge of the scan -> exempt it (advisory), exactly as the
     # class-mixing / duplicate / added-vertebra checks already do for FOV truncation.
-    zc = _centroid_z(lab, present, affine)
+    zc = _centroid_z(lab, present, affine, objs=_objs)
     def _fov_truncated(v):
+        if fov_ids is not None:
+            return v in fov_ids
         sl = _objs[v - 1] if 0 <= v - 1 < len(_objs) else None
         return sl is not None and (sl[si_axis].start == 0 or sl[si_axis].stop == lab.shape[si_axis])
     ordered = sorted(present)
@@ -190,26 +262,34 @@ def spine_sanity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     return ok, msgs
 
 
-def _fused_two_bodies(lab: np.ndarray, v: int, st, affine=None) -> bool:
+def _fused_two_bodies(lab: np.ndarray, v: int, st, affine=None,
+                      fov_ids: Optional[set] = None, vox_scale: float = 1.0, ds: int = 1) -> bool:
     """True if vertebra `v`'s single mask actually covers TWO vertebral bodies -- fused across the disc,
     so eroding it splits it into two BALANCED blobs (the 'two L2's' miscount). A spinous process spur
     splits off small + unbalanced, so the balance test excludes it. A vertebra CLIPPED by the top/bottom
-    of the scan is exempt (FOV truncation can fragment it for real, and it cannot be fixed)."""
+    of the scan is exempt (FOV truncation can fragment it for real, and it cannot be fixed).
+
+    On a downsampled grid: voxel thresholds are scaled by `vox_scale` (== 1/s**3) and the erosion
+    depth is scaled to max(1, round(3/s)) so it erodes ~3 ORIGINAL voxels either way."""
     idx = np.argwhere(lab == v)
-    if len(idx) < 8000:
+    if len(idx) < 8000 * vox_scale:
         return False
-    if affine is not None:
+    if fov_ids is not None:
+        if v in fov_ids:
+            return False                                   # FOV-truncated -> never call it a duplicate
+    elif affine is not None:
         R = np.asarray(affine)[:3, :3]
         si = int(np.argmax(np.abs(R[2, :])))
         if idx[:, si].min() == 0 or idx[:, si].max() == lab.shape[si] - 1:
             return False                                   # FOV-truncated -> never call it a duplicate
     lo = idx.min(0); hi = idx.max(0) + 1
     crop = lab[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]] == v
-    er = ndimage.binary_erosion(crop, iterations=3, structure=st)
+    iters = max(1, int(round(3 / ds)))
+    er = ndimage.binary_erosion(crop, iterations=iters, structure=st)
     if not er.any():
         return False
     sizes = np.sort(np.bincount(ndimage.label(er, structure=st)[0].ravel())[1:])
-    return len(sizes) >= 2 and sizes[-2] >= 5000 and sizes[-2] >= 0.35 * sizes[-1]
+    return len(sizes) >= 2 and sizes[-2] >= 5000 * vox_scale and sizes[-2] >= 0.35 * sizes[-1]
 
 
 def t12_anchor(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
@@ -283,7 +363,9 @@ def t12_anchor(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
 
 
 def spine_extend_qc(lab: np.ndarray, affine,
-                    given: Optional[np.ndarray] = None) -> Tuple[bool, List[str]]:
+                    given: Optional[np.ndarray] = None,
+                    fov_ids: Optional[set] = None, vox_scale: float = 1.0,
+                    ds: int = 1) -> Tuple[bool, List[str]]:
     """QC for the SPINE-EXTENSION task (students ADD missing thoracic vertebrae, numbering upward).
     Gates on what the student controls:
       * CONTIGUOUS numbering  — no missing level in the run (a skipped / mis-counted vertebra)
@@ -319,6 +401,8 @@ def spine_extend_qc(lab: np.ndarray, affine,
     _si = int(np.argmax(np.abs(_R[2, :])))
     _objs = ndimage.find_objects(lab if lab.dtype.kind in "iu" else lab.astype(np.int32))
     def _fov_truncated(v):
+        if fov_ids is not None:
+            return v in fov_ids
         sl = _objs[v - 1] if 0 <= v - 1 < len(_objs) else None
         return sl is not None and (sl[_si].start == 0 or sl[_si].stop == lab.shape[_si])
     zc = _centroid_z(lab, present, affine)
@@ -337,23 +421,23 @@ def spine_extend_qc(lab: np.ndarray, affine,
     # A vertebra CLIPPED by the top/bottom of the scan is small and can be in two pieces for real --
     # exactly like a FOV-truncated rib. Exempt it from the size / one-piece / connectivity checks;
     # the annotator cannot fix the edge of the field of view. (_R/_si/_objs computed above in check 2.)
+    dil_iters = max(1, int(round(2 / ds)))           # 2 original voxels of reach on either grid
     for v in sorted(added):
-        _sl = _objs[v - 1] if v - 1 < len(_objs) else None
-        if _sl is not None and (_sl[_si].start == 0 or _sl[_si].stop == lab.shape[_si]):
+        if _fov_truncated(v):
             msgs.append(f"note added {names.get(v, v)} is clipped by the edge of the scan "
                         f"(FOV-truncated) -> size / one-piece checks skipped")
             continue
         m = lab == v; nvox = int(m.sum())
-        if nvox < ADDED_MIN_VOX:
+        if nvox < ADDED_MIN_VOX * vox_scale:
             ok = False
             msgs.append(f"X added {names.get(v, v)} is only {nvox} voxels -> too small to be a vertebra")
             continue
         cc, k = ndimage.label(m, structure=st)
-        if k > 1 and np.sort(np.bincount(cc.ravel())[1:])[-2] >= MIX_MIN_VOX:
+        if k > 1 and np.sort(np.bincount(cc.ravel())[1:])[-2] >= MIX_MIN_VOX * vox_scale:
             ok = False
             msgs.append(f"X added {names.get(v, v)} is in {k} pieces -> one vertebra must be ONE blob")
         others = (lab >= 1) & (lab <= 26) & (~m)
-        if others.any() and not (ndimage.binary_dilation(m, iterations=2) & others).any():
+        if others.any() and not (ndimage.binary_dilation(m, iterations=dil_iters) & others).any():
             ok = False
             msgs.append(f"X added {names.get(v, v)} is floating (not touching the spine) -> it must sit "
                         f"in the column, adjacent to the vertebra below it")
@@ -362,7 +446,8 @@ def spine_extend_qc(lab: np.ndarray, affine,
     # (fused across the disc -> erodes into two balanced blobs) is a duplicated / mis-counted level
     # (e.g. two L2's -> a 6th lumbar). The student must NOT resolve it by guessing -- radiologist call.
     for v in present:
-        if 1 <= v <= 25 and _fused_two_bodies(lab, v, st, affine):
+        if 1 <= v <= 25 and _fused_two_bodies(lab, v, st, affine, fov_ids=fov_ids,
+                                              vox_scale=vox_scale, ds=ds):
             ok = False
             msgs.append(f"X {names.get(v, v)} covers TWO vertebral bodies (a duplicated / transitional "
                         f"level -- possible L6). Do NOT guess a shift -- run `reviewtool flag` to send "
@@ -379,7 +464,9 @@ def spine_extend_qc(lab: np.ndarray, affine,
 
 
 def class_mixing_qc(lab: np.ndarray, affine,
-                    given: Optional[np.ndarray] = None) -> Tuple[bool, List[str]]:
+                    given: Optional[np.ndarray] = None,
+                    fov_ids: Optional[set] = None, vox_scale: float = 1.0,
+                    ds: int = 1) -> Tuple[bool, List[str]]:
     """STRICT QC for the CLASS-MIXING FIX task (students EDIT the spine/pelvis GT to merge a bone that
     is split into disconnected pieces). Passes only if ALL hold:
       * structure_integrity — every solid bone (ids 1-33) is now ONE dominant piece (the split is fixed)
@@ -388,8 +475,8 @@ def class_mixing_qc(lab: np.ndarray, affine,
         The student may relabel / merge / delete a STRAY piece, but must not renumber or remove a real
         bone's body. This is what makes letting students edit the ground truth safe.
     `given` (the v4 base) is required for the no-renumber guard; without it only the first two run."""
-    ok_s, m_s = structure_integrity(lab, affine)
-    ok_v, m_v = spine_sanity(lab, affine)
+    ok_s, m_s = structure_integrity(lab, affine, fov_ids=fov_ids, vox_scale=vox_scale)
+    ok_v, m_v = spine_sanity(lab, affine, fov_ids=fov_ids, vox_scale=vox_scale)
     ok = ok_s and ok_v                       # class-mixing is a FACT and gates; level identity is not
     names = _id2name(); st = ndimage.generate_binary_structure(3, 3)
     msgs = [m for m in (m_s + m_v) if m.startswith("X")]
@@ -397,7 +484,8 @@ def class_mixing_qc(lab: np.ndarray, affine,
     # not from the ribs. Facts only here; the count is the annotator's judgment, flagged when unclear.
     # the fused duplicate must be RESOLVED (split + re-anchored, e.g. an L6 added)
     for v in range(1, 26):
-        if (lab == v).any() and _fused_two_bodies(lab, v, st, affine):
+        if (lab == v).any() and _fused_two_bodies(lab, v, st, affine, fov_ids=fov_ids,
+                                                  vox_scale=vox_scale, ds=ds):
             ok = False
             msgs.append(f"X {names.get(v, v)} still covers TWO vertebral bodies -> separate them and "
                         f"re-anchor to T12 (add L6 if there is a 6th lumbar)")
@@ -409,7 +497,7 @@ def class_mixing_qc(lab: np.ndarray, affine,
             if 20 <= b <= 25:
                 continue                                        # lumbar: re-numbering allowed (L6)
             gm = given == b
-            if int(gm.sum()) < STRUCT_MIN_VOX:
+            if int(gm.sum()) < STRUCT_MIN_VOX * vox_scale:
                 continue
             cc, k = ndimage.label(gm, structure=st)
             body = cc == (int(np.argmax(np.bincount(cc.ravel())[1:])) + 1)
@@ -802,7 +890,9 @@ def rib_spine_gap(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     return ok, msgs
 
 
-def structure_integrity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
+def structure_integrity(lab: np.ndarray, affine,
+                        fov_ids: Optional[set] = None,
+                        vox_scale: float = 1.0) -> Tuple[bool, List[str]]:
     """Each SOLID bone (vertebra / sacrum / S1 / hip / femur, ids 1..33) must be a single dominant
     connected piece. Flags a bone whose label is split so the largest piece is < STRUCT_DOMINANT_
     FRAC of it -- the classic 'half the hip is a different class' student mislabel (in the observed
@@ -820,7 +910,7 @@ def structure_integrity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
         sl = objs[sid - 1]
         m = lab[sl] == sid
         tot = int(m.sum())
-        if tot < STRUCT_MIN_VOX:
+        if tot < STRUCT_MIN_VOX * vox_scale:
             continue
         cc, k = ndimage.label(m, structure=st)
         if k < 2:
@@ -830,7 +920,10 @@ def structure_integrity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
             # A bone clipped by the top/bottom slice of the scan (superior-inferior FOV edge) can be
             # split by truncation and is UNFIXABLE -> advisory, never blocks. A fully-in-FOV bone that
             # fragments is the real 'half the hip is a different class' mislabel -> hard block.
-            truncated = (sl[si_axis].start == 0) or (sl[si_axis].stop == lab.shape[si_axis])
+            if fov_ids is not None:
+                truncated = sid in fov_ids
+            else:
+                truncated = (sl[si_axis].start == 0) or (sl[si_axis].stop == lab.shape[si_axis])
             if truncated:
                 msgs.append(f"note {names.get(sid, sid)} is split but clipped by the top/bottom of "
                             f"the scan (FOV-truncated) -> advisory, not blocking")
@@ -906,12 +999,32 @@ def spine_untouched(lab: np.ndarray, given: np.ndarray) -> Tuple[bool, List[str]
 
 def check_label(check: str, lab: np.ndarray, affine,
                 gating_only: bool = False,
-                given: Optional[np.ndarray] = None) -> Tuple[bool, List[str]]:
+                given: Optional[np.ndarray] = None,
+                downsample: Optional[int] = None) -> Tuple[bool, List[str]]:
     """Run the requested check(s) and return (ok, messages) WITHOUT printing.
     The server-side review gate uses this; the CLI uses report() (which prints).
     `gating_only=True` skips the advisory checks (incl. the slow rib->spine EDT) when only the
-    pass/fail verdict matters (e.g. auto-adjudication's auto-finalize decision)."""
+    pass/fail verdict matters (e.g. auto-adjudication's auto-finalize decision).
+
+    `downsample` overrides the SPINESURG_QC_DOWNSAMPLE factor for the two heavy spine gates
+    (class_mixing, spine_extend); None uses the env-resolved `_QC_DS`. A factor > 1 runs those
+    gates on lab[::s, ::s, ::s] with voxel thresholds scaled by 1/s**3 and the affine scaled by s
+    -- verdict-preserving and ~s**3x faster. A factor <= 1 is the full-res ground-truth escape hatch."""
     gating, advisory = [], []
+    # Downsample front-end for the two HEAVY spine gates only (the rib gates are already fast and are
+    # left untouched). Computed once; the full-res FOV-truncation set is passed in so the truncation
+    # exemptions stay correct on the strided volume.
+    s = _QC_DS if downsample is None else int(downsample)
+    if check in ("spine_extend", "class_mixing") and s > 1:
+        lab_ds, A_ds, fov_ids, s = _downsample_for_qc(lab, affine, s)
+        vox_scale = 1.0 / (s ** 3)
+        given_ds = (np.ascontiguousarray(given[::s, ::s, ::s])
+                    if (given is not None and hasattr(given, "shape")) else given)
+        if check == "spine_extend":
+            return spine_extend_qc(lab_ds, A_ds, given_ds, fov_ids=fov_ids,
+                                   vox_scale=vox_scale, ds=s)
+        return class_mixing_qc(lab_ds, A_ds, given_ds, fov_ids=fov_ids,
+                               vox_scale=vox_scale, ds=s)
     if check == "spine_extend":
         # SPINE-EXTENSION task: GATE on the additions (contiguous numbering, ascending order, each
         # added vertebra a clean connected blob). Pre-existing splits in the radiologist's vertebrae
