@@ -162,11 +162,23 @@ def spine_sanity(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
             msgs.append(f"X gap: {names.get(v, v)} (id {v}) is missing between "
                         f"{names.get(lo, lo)} and {names.get(hi, hi)} -> label it")
 
-    # 3) ascending order -> higher id must sit more caudal (lower world Z)
+    # 3) ascending order -> higher id must sit more caudal (lower world Z).
+    # A vertebra CLIPPED by the top/bottom slice is only partially in view, so its centroid is
+    # biased toward the visible fragment and its order vs a neighbour can invert for real. The
+    # annotator cannot fix the edge of the scan -> exempt it (advisory), exactly as the
+    # class-mixing / duplicate / added-vertebra checks already do for FOV truncation.
     zc = _centroid_z(lab, present, affine)
+    def _fov_truncated(v):
+        sl = _objs[v - 1] if 0 <= v - 1 < len(_objs) else None
+        return sl is not None and (sl[si_axis].start == 0 or sl[si_axis].stop == lab.shape[si_axis])
     ordered = sorted(present)
     for a, b in zip(ordered, ordered[1:]):
         if a in zc and b in zc and zc[b] >= zc[a]:
+            if _fov_truncated(a) or _fov_truncated(b):
+                msgs.append(f"note {names.get(b, b)} sits at/above {names.get(a, a)} but one is "
+                            f"clipped by the top/bottom of the scan (FOV-truncated) -> centroid "
+                            f"order unreliable, advisory not blocking")
+                continue
             ok = False
             msgs.append(f"X order: {names.get(b, b)} (id {b}) sits at/above "
                         f"{names.get(a, a)} (id {a}) -> vertebrae out of sequence "
@@ -300,10 +312,22 @@ def spine_extend_qc(lab: np.ndarray, affine,
             msgs.append(f"X gap: {names.get(v, v)} (id {v}) is missing in the column -> "
                         f"label it (number consecutively, no skipped levels)")
 
-    # 2) ascending order — a mis-placed / mis-numbered vertebra breaks the sequence
+    # 2) ascending order — a mis-placed / mis-numbered vertebra breaks the sequence.
+    # FOV-truncated (top/bottom-clipped) vertebrae have unreliable centroids and can invert order
+    # for real, so they are exempted (advisory) — the annotator cannot fix the edge of the scan.
+    _R = np.asarray(affine)[:3, :3]
+    _si = int(np.argmax(np.abs(_R[2, :])))
+    _objs = ndimage.find_objects(lab if lab.dtype.kind in "iu" else lab.astype(np.int32))
+    def _fov_truncated(v):
+        sl = _objs[v - 1] if 0 <= v - 1 < len(_objs) else None
+        return sl is not None and (sl[_si].start == 0 or sl[_si].stop == lab.shape[_si])
     zc = _centroid_z(lab, present, affine)
     for a, b in zip(sorted(present), sorted(present)[1:]):
         if a in zc and b in zc and zc[b] >= zc[a]:
+            if _fov_truncated(a) or _fov_truncated(b):
+                msgs.append(f"note {names.get(b, b)} sits at/above {names.get(a, a)} but one is "
+                            f"FOV-truncated (clipped by the scan edge) -> advisory, not blocking")
+                continue
             ok = False
             msgs.append(f"X order: {names.get(b, b)} sits at/above {names.get(a, a)} -> a vertebra is "
                         f"mis-placed or mis-numbered (numbering must ascend down the column)")
@@ -312,10 +336,7 @@ def spine_extend_qc(lab: np.ndarray, affine,
     ADDED_MIN_VOX = 800                              # a speck, not a (possibly FOV-truncated) vertebra
     # A vertebra CLIPPED by the top/bottom of the scan is small and can be in two pieces for real --
     # exactly like a FOV-truncated rib. Exempt it from the size / one-piece / connectivity checks;
-    # the annotator cannot fix the edge of the field of view.
-    _R = np.asarray(affine)[:3, :3]
-    _si = int(np.argmax(np.abs(_R[2, :])))
-    _objs = ndimage.find_objects(lab if lab.dtype.kind in "iu" else lab.astype(np.int32))
+    # the annotator cannot fix the edge of the field of view. (_R/_si/_objs computed above in check 2.)
     for v in sorted(added):
         _sl = _objs[v - 1] if v - 1 < len(_objs) else None
         if _sl is not None and (_sl[_si].start == 0 or _sl[_si].stop == lab.shape[_si]):
