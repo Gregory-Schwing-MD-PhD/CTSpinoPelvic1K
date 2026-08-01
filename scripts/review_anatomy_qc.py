@@ -845,6 +845,26 @@ def rib_spine_gap(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
     sup_face = (shape[si] - 1) if affine[2, si] >= 0 else 0
     margin = int(round(HEAD_FOV_MARGIN_MM / spacing[si]))
     band = int(round(HEAD_BAND_MM / spacing[si]))
+    # Superior extent of the labelled VERTEBRAL COLUMN (vertebrae only -- sacrum/coccyx/S1 are not
+    # rib-bearing). A rib whose head sits ABOVE this has no vertebra of its own in the label, so the
+    # only vertebra the band can find is the level BELOW it -- see the exemption in step 3b.
+    # Scanned plane-by-plane from the superior end and stopped at the first hit: a full-volume
+    # vertebra mask is a second 145M-voxel temporary on top of `spine` and blows the memory budget.
+    vert_sup = None
+    _order = range(shape[si] - 1, -1, -1) if affine[2, si] >= 0 else range(shape[si])
+    for _i in _order:
+        _sl = [slice(None)] * 3; _sl[si] = _i
+        _pl = lab[tuple(_sl)]
+        if bool(((_pl >= 1) & (_pl <= 25)).any()) or bool((_pl == 28).any()):
+            vert_sup = int(_i)
+            break
+
+    def _above_column(rib_sup_idx: int) -> bool:
+        """True if the rib head is superior to every labelled vertebra (its own is missing)."""
+        if vert_sup is None:
+            return False
+        return (rib_sup_idx > vert_sup) if affine[2, si] >= 0 else (rib_sup_idx < vert_sup)
+
     names = _id2name(); ok, msgs = True, []
     for rid, g in zip(rib_ids, mins):
         if g is None or not np.isfinite(g):                      # rib absent (or too thin at 2x)
@@ -876,6 +896,17 @@ def rib_spine_gap(lab: np.ndarray, affine) -> Tuple[bool, List[str]]:
             if is_halo_speck(lab, rid, o):
                 msgs.append(f"note {names.get(rid, rid)}: halo speck ({g:.0f} mm out) fused to the "
                             f"neighbouring rib -> auto-removed in post-processing, not blocking")
+                continue
+            # 3b. The rib's OWN vertebra is not labelled: its head sits ABOVE the whole labelled
+            #     column, so the only vertebra the band can see is the level BELOW it (the 12th rib
+            #     on a pelvic_native scan where T12 was never segmented -> nearest is L1). Pulling
+            #     the head down to that vertebra would be anatomically WRONG, and a rib reviewer
+            #     cannot add the missing vertebra (the server force-restores the spine) -> an
+            #     impossible block. Advisory only, like the other unfixable cases above.
+            if _above_column(rib_sup):
+                msgs.append(f"note {names.get(rid, rid)}: {g:.0f} mm, but its own vertebra is not "
+                            f"segmented (the head sits above the labelled column; the nearest "
+                            f"vertebra is the level BELOW it) -> advisory, not blocking")
                 continue
             ok = False                                           # vertebra IS there -> connect it
             msgs.append(f"X {names.get(rid, rid)}: DETACHED — {g:.0f} mm from its vertebra (which is "
