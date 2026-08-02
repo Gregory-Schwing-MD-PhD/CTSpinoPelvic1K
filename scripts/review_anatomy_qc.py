@@ -74,6 +74,17 @@ SPINE_AT_LEVEL_MIN = 1000  # >= this many vertebra voxels at the head level = a 
                          # but in view -> it should be ADDED (numbered up from the bottom), NOT a rib
                          # defect. Cleanly separates real cases (present ~50k-150k vs missing 0-2).
                          # (number-agnostic: distance to ANY vertebra, no dependence on numbering.)
+FOV_EDGE_SLICES = 3     # how many slices at each end of the scan count as "the scan boundary" when
+                        # deciding a bone is FOV-truncated. >1 because a clipped bone routinely stops
+                        # a voxel or two short of the literal edge (blank first slice / partial volume
+                        # at the cut face); a single-slice test misses those and then reports the
+                        # vertebra's disconnected body + arch as a class-mixing split.
+# The window in which a class-mixing fix MAY re-number a vertebra: T11 (18) .. L6 (25). This is the
+# thoracolumbar junction plus the lumbar spine -- the region where the vertebra COUNT is genuinely
+# uncertain (hypoplastic/absent 12th rib, lumbar rib, L6), so separating a two-body label or merging a
+# split bone legitimately shifts every number above it. Outside the window (mid-thoracic, sacrum, hips,
+# femurs) the numbering is a fixed anchor and may not move. Deletion is barred everywhere.
+RENUMBER_OK_LO, RENUMBER_OK_HI = 18, 25
 STRUCT_MIN_VOX = 3000        # ignore a barely-present (partial-FOV) bone in the integrity check
 STRUCT_DOMINANT_FRAC = 0.85  # a solid bone (vertebra/sacrum/hip/femur) must be >= this fraction
                              # ONE connected piece; below it the label is split across the bone
@@ -108,9 +119,16 @@ def _fov_truncated_ids(lab: np.ndarray, affine) -> set:
     volume is strided (a bone clipped by the scan edge may no longer bbox-touch the strided edge)."""
     R = np.asarray(affine)[:3, :3]
     si_axis = int(np.argmax(np.abs(R[2, :])))
-    bottom = np.unique(np.take(lab, 0, axis=si_axis))
-    top = np.unique(np.take(lab, -1, axis=si_axis))
-    return {int(v) for v in np.concatenate([bottom, top]) if v != 0}
+    n = lab.shape[si_axis]
+    k = min(FOV_EDGE_SLICES, n)
+    # A BAND at each end, not a single slice. A bone clipped by the scan boundary often stops 1-2
+    # voxels short of it (a blank first slice, partial-volume at the cut face), and the old
+    # single-slice test then missed it entirely -- so a truncated top vertebra whose body and
+    # posterior arch are two islands (the pedicles joining them are outside the FOV) got reported
+    # as a split-class mislabel. Within a couple of voxels of the edge the bone IS cut.
+    faces = [np.take(lab, i, axis=si_axis) for i in range(k)]
+    faces += [np.take(lab, n - 1 - i, axis=si_axis) for i in range(k)]
+    return {int(v) for v in np.unique(np.concatenate([f.ravel() for f in faces])) if v != 0}
 
 
 def _downsample_for_qc(lab: np.ndarray, affine, s: int):
@@ -489,13 +507,16 @@ def class_mixing_qc(lab: np.ndarray, affine,
             ok = False
             msgs.append(f"X {names.get(v, v)} still covers TWO vertebral bodies -> separate them and "
                         f"re-anchor to T12 (add L6 if there is a 6th lumbar)")
-    # protect every bone EXCEPT the lumbar (20-25): a class-mixing fix must not renumber/delete a
-    # thoracic vertebra, hip, femur, sacrum. LUMBAR may be renumbered -- that is the L6 re-anchor, and
-    # t12_anchor + spine_sanity above prove it landed correctly.
+    # protect every bone EXCEPT the thoracolumbar junction + lumbar (18-25 = T11..L6): a class-mixing
+    # fix must not renumber/delete a mid-thoracic vertebra, hip, femur or sacrum -- those are the fixed
+    # anchors. Inside 18-25 the COUNT is what is genuinely uncertain: separating a label that covered two
+    # bodies, or merging one bone split across two ids, changes the count and therefore re-anchors the
+    # whole column -- including its thoracic end. Forbidding that made the gate contradict the very
+    # instruction _fused_two_bodies gives above ("separate them and re-anchor"). spine_sanity's one-piece
+    # / ascending / contiguous checks are what actually prove the re-anchor landed correctly.
+    # A vertebra may still never be DELETED, inside the window or out.
     if given is not None and given.shape == lab.shape:
         for b in range(1, 34):
-            if 20 <= b <= 25:
-                continue                                        # lumbar: re-numbering allowed (L6)
             gm = given == b
             if int(gm.sum()) < STRUCT_MIN_VOX * vox_scale:
                 continue
@@ -503,12 +524,19 @@ def class_mixing_qc(lab: np.ndarray, affine,
             body = cc == (int(np.argmax(np.bincount(cc.ravel())[1:])) + 1)
             sv = lab[body]; sv = sv[sv > 0]
             maj = int(np.bincount(sv).argmax()) if sv.size else 0
+            if maj == 0:
+                ok = False
+                msgs.append(f"X {names.get(b, b)}: its main body is now BACKGROUND -> a real bone may be "
+                            f"renumbered but never deleted; restore it")
+                continue
+            if RENUMBER_OK_LO <= b <= RENUMBER_OK_HI:
+                continue                     # T11..L6: re-anchoring the count is the task, not an error
             if maj != b:
                 ok = False
-                msgs.append(f"X {names.get(b, b)}: its main body is now {names.get(maj, maj)} -> only "
-                            f"the LUMBAR numbering may change (for an L6); don't renumber/delete this")
+                msgs.append(f"X {names.get(b, b)}: its main body is now {names.get(maj, maj)} -> only the "
+                            f"THORACOLUMBAR JUNCTION and lumbar (T11-L6) may be renumbered; not this")
     if ok:
-        msgs.append("OK: bones one piece, ascending, last full rib on T12, no fused duplicate")
+        msgs.append("OK: bones one piece, ascending, no fused duplicate")
     return ok, msgs
 
 
@@ -1056,15 +1084,19 @@ def check_label(check: str, lab: np.ndarray, affine,
                                    vox_scale=vox_scale, ds=s)
         return class_mixing_qc(lab_ds, A_ds, given_ds, fov_ids=fov_ids,
                                vox_scale=vox_scale, ds=s)
+    # The FOV-truncation exemption used to be computed ONLY inside _downsample_for_qc, so the
+    # full-res path (s <= 1) ran with fov_ids=None and flagged every scan-clipped vertebra as a
+    # split -- making the documented "full-res ground truth" the LESS correct path and the two
+    # paths disagree in both directions. Compute it here so s=1 and s>1 give the same verdict.
     if check == "spine_extend":
         # SPINE-EXTENSION task: GATE on the additions (contiguous numbering, ascending order, each
         # added vertebra a clean connected blob). Pre-existing splits in the radiologist's vertebrae
         # are exempted -- they can't be fixed here and must not block. `given` marks the additions.
-        return spine_extend_qc(lab, affine, given)
+        return spine_extend_qc(lab, affine, given, fov_ids=_fov_truncated_ids(lab, affine))
     if check == "class_mixing":
         # CLASS-MIXING FIX task: students EDIT the spine/pelvis GT to merge a split bone. STRICT gate:
         # bones one-piece + column sane + NO renumber/delete of a real bone's body (needs `given`).
-        return class_mixing_qc(lab, affine, given)
+        return class_mixing_qc(lab, affine, given, fov_ids=_fov_truncated_ids(lab, affine))
     if check in ("spine", "both"):
         gating.append(spine_sanity(lab, affine))
     if check in ("ribs", "both"):
