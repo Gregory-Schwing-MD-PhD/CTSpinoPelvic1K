@@ -1,0 +1,13 @@
+case,reason,commit
+103__fused,blocking: gate ok == False,58f2f13
+140__pelvic_native,blocking: gate ok == False,58f2f13
+155__fused,blocking: gate ok == False,58f2f13
+22__pelvic_native,blocking: gate ok == False,58f2f13
+248__fused,blocking: gate ok == False,58f2f13
+46__pelvic_native,blocking: gate ok == False,58f2f13
+525__spine_only,blocking: gate ok == False,58f2f13
+61__pelvic_native,blocking: gate ok == False,58f2f13
+723__spine_only,blocking: gate ok == False,58f2f13
+770__spine_only,blocking: gate ok == False,58f2f13
+778__spine_only,blocking: gate ok == False,58f2f13
+9__spine_only,blocking: gate ok == False,58f2f13
