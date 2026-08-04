@@ -176,6 +176,17 @@ def _auto_merge_case(s, base, job, work, ct_path, seg_path):
         return None
 
 
+def _prepare_reviewer_layer(s, base, job, work, slot):
+    """Fetch ONE reviewer's full submitted label and return it as a layer path (no window)."""
+    try:
+        lp = _fetch_adj_label(s, base, job["case_id"], slot, Path(work) / f"r{slot}_full.nii.gz")
+        print(f"  layer: reviewer {slot}'s full label")
+        return [lp]
+    except Exception as exc:                             # noqa: BLE001
+        print(f"  (reviewer {slot} layer unavailable: {str(exc)[:70]})")
+        return []
+
+
 def _open_reviewer_window(s, base, job, ct, work, a, slot):
     """Open ONE reviewer's FULL submitted label read-only beside the editor (v4 palette), so the
     adjudicator can compare it against the base they're editing and pick the better one. Returns
@@ -384,25 +395,32 @@ def _itksnap_env():
     return e
 
 
-def _launch_itksnap_bg(itksnap: str, ct: Path, seg: Path, labels: Path):
-    """Open ITK-SNAP NON-blocking (for a persistent reference window). Returns a
-    Popen handle (or None if it couldn't launch)."""
+def _launch_itksnap_bg(itksnap: str, ct: Path, seg: Path, labels: Path, extra_segs=None):
+    """Open ITK-SNAP NON-blocking. `extra_segs` are loaded as ADDITIONAL segmentation
+    LAYERS in the SAME window (ITK-SNAP 4.4 `-s FILE [FILE+]`), instead of spawning a
+    window per label. One window means: no inter-session cursor/zoom sync fighting
+    (ITK-SNAP syncs between instances by default), and one OpenGL context instead of
+    three -- which is what made the 3D pane render and then vanish."""
     try:
-        return subprocess.Popen([itksnap, "-g", str(ct), "-s", str(seg),
-                                 "-l", str(labels)], env=_itksnap_env())
+        cmd = [itksnap, "-g", str(ct), "-s", str(seg)]
+        cmd += [str(x) for x in (extra_segs or [])]   # ITK-SNAP 4.4: -s takes FILE [FILE+]
+        cmd += ["-l", str(labels)]
+        return subprocess.Popen(cmd, env=_itksnap_env())
     except (FileNotFoundError, OSError):
         return None
 
 
-def _launch_itksnap(itksnap: str, ct: Path, seg: Path, labels: Path) -> int:
+def _launch_itksnap(itksnap: str, ct: Path, seg: Path, labels: Path, extra_segs=None) -> int:
     """Open ITK-SNAP on the case and return its exit code. A non-zero code
     means it failed to start or crashed (e.g. missing Qt platform lib) — the
     caller must treat that as 'no edit captured' and NOT submit."""
     print(f"\nOpening ITK-SNAP ({itksnap}) — edit the segmentation, Save "
           f"Segmentation to:\n  {seg}\nthen quit ITK-SNAP to continue.\n")
     try:
-        proc = subprocess.run([itksnap, "-g", str(ct), "-s", str(seg),
-                               "-l", str(labels)], check=False, env=_itksnap_env())
+        cmd = [itksnap, "-g", str(ct), "-s", str(seg)]
+        cmd += [str(x) for x in (extra_segs or [])]
+        cmd += ["-l", str(labels)]
+        proc = subprocess.run(cmd, check=False, env=_itksnap_env())
     except FileNotFoundError:
         sys.exit(f"'{itksnap}' not found — install ITK-SNAP, add it to PATH, "
                  f"set REVIEWTOOL_ITKSNAP, or pass --itksnap /path/to/itksnap")
@@ -564,7 +582,7 @@ def _watch_itksnap(itksnap, ct, seg, labels, *, qc_ct, before, live_qc=False) ->
              "(Ctrl-S), then ")
     print(f"\nOpening ITK-SNAP ({itksnap}) — WATCH mode.\n"
           f"{extra}Quit ITK-SNAP when you're done — it submits then.\n")
-    proc = _launch_itksnap_bg(itksnap, ct, seg, labels)
+    proc = _launch_itksnap_bg(itksnap, ct, seg, labels, extra_segs=extra_segs)
     if proc is None:
         print(f"'{itksnap}' not found — install ITK-SNAP, add it to PATH, set "
               f"REVIEWTOOL_ITKSNAP, or pass --itksnap /path/to/itksnap")
@@ -589,7 +607,7 @@ def _watch_itksnap(itksnap, ct, seg, labels, *, qc_ct, before, live_qc=False) ->
     return proc.returncode if proc.returncode is not None else 0
 
 
-def _watch_anatomy(itksnap, ct, seg, labels, *, check="spine"):
+def _watch_anatomy(itksnap, ct, seg, labels, *, check="spine", extra_segs=None):
     """Open ITK-SNAP non-blocking; run the anatomy QC in a BACKGROUND thread on each Save
     (the editor never waits on it) and print PASS / exactly what to fix when it finishes.
     Used by `review-cases` and `next` so students get a guiding, non-blocking gate.
@@ -639,7 +657,7 @@ def _watch_anatomy(itksnap, ct, seg, labels, *, check="spine"):
               "  Use nnInteractive, don't hand-trace. Full guide: docs/RIB_REVIEW_GUIDE.md")
     print(f"Opening ITK-SNAP ({itksnap}) — edit, **Save (Ctrl-S)** to re-check (runs in the\n"
           f"  background — keep working), quit once it prints OK.\n")
-    proc = _launch_itksnap_bg(itksnap, ct, seg, labels)
+    proc = _launch_itksnap_bg(itksnap, ct, seg, labels, extra_segs=extra_segs)
     if proc is None:
         print(f"'{itksnap}' not found — install ITK-SNAP, add it to PATH, set "
               f"REVIEWTOOL_ITKSNAP, or pass --itksnap /path/to/itksnap")
@@ -1163,18 +1181,26 @@ def cmd_adjudicate(a):
         return
     snap = a.itksnap or _default_itksnap()
     pre_mtime = seg.stat().st_mtime if seg.exists() else 0.0
-    # read-only reference windows beside the editor (best-effort)
-    dis_procs = ([] if getattr(a, "no_disagreement", False)
-                 else _open_disagreement_ref(s, base, job, ct, work, a))
-    if auto is None:                                     # pick-better: show the OTHER reviewer's FULL label
-        dis_procs += _open_reviewer_window(s, base, job, ct, work, a, other_slot)
-    if auto and auto.get("conflict_path"):               # --auto: show the conflict blobs to paint
-        dis_procs.append(_launch_itksnap_bg(snap, ct, auto["conflict_path"], labels))
+    # ONE window, extra labels as segmentation LAYERS (ITK-SNAP 4.4 `-s FILE [FILE+]`).
+    # Three separate instances used to fight each other: ITK-SNAP synchronises cursor/zoom
+    # BETWEEN sessions by default, so scrolling one moved the others, and three OpenGL
+    # contexts on a ~240 MB CT made the 3D pane render and then vanish. Layers avoid both.
+    extra = []
+    if not getattr(a, "no_disagreement", False):
+        extra += _prepare_disagreement_layer(s, base, job, work)
+    if auto is None:
+        extra += _prepare_reviewer_layer(s, base, job, work, other_slot)
+    if auto and auto.get("conflict_path"):
+        extra.append(Path(auto["conflict_path"]))
+    dis_procs = []
+    if extra:
+        print(f"  {len(extra)} comparison layer(s) loaded in the SAME window "
+              f"(switch with the segmentation layer selector) — no second window to sync with.")
     chk = job.get("check") or (region if region in ("ribs", "spine", "both") else None)
     if chk:                                   # live QC as you decide; gate the submit on it
-        rc, passed = _watch_anatomy(snap, ct, seg, labels, check=chk)
+        rc, passed = _watch_anatomy(snap, ct, seg, labels, check=chk, extra_segs=extra)
     else:
-        rc, passed = _launch_itksnap(snap, ct, seg, labels), True   # no QC for this region
+        rc, passed = _launch_itksnap(snap, ct, seg, labels, extra_segs=extra), True
     for _p in dis_procs:
         if _p is not None:
             _p.terminate()
@@ -2021,6 +2047,31 @@ def cmd_disagreement(a):
     print("  '1 agree' to see ONLY where they differ. This is just a viewer; make the actual")
     print("  decision in your adjudicate/edit window.")
     _launch_itksnap(a.itksnap or _default_itksnap(), Path(ct), out, desc)
+
+
+def _prepare_disagreement_layer(s, base, job, work):
+    """Build the reviewer-1-vs-2 disagreement volume and return it as a layer path
+    (no window). Same computation _open_disagreement_ref did, minus the extra process."""
+    import numpy as np
+    import nibabel as nib
+    cid = job["case_id"]
+    try:
+        l1 = _fetch_adj_label(s, base, cid, "1", Path(work) / "r1_label.nii.gz")
+        l2 = _fetch_adj_label(s, base, cid, "2", Path(work) / "r2_label.nii.gz")
+        i1 = nib.load(str(l1))
+        A, B = np.asanyarray(i1.dataobj), np.asanyarray(nib.load(l2).dataobj)
+        if A.shape != B.shape:
+            print("  (disagree: reviewer label shapes differ — skipping that layer)")
+            return []
+        dis = A.copy(); dis[A == B] = 0
+        m = (A != B) & (A == 0); dis[m] = B[m]
+        ds = Path(work) / "disagree.nii.gz"
+        nib.save(nib.Nifti1Image(dis.astype(A.dtype), i1.affine, i1.header), str(ds))
+        print(f"  layer: disagreement ({int((A != B).sum())} voxels differ)")
+        return [ds]
+    except Exception as exc:                             # noqa: BLE001
+        print(f"  (disagreement layer unavailable: {str(exc)[:70]})")
+        return []
 
 
 def _open_disagreement_ref(s, base, job, ct, work, a):
