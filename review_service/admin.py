@@ -141,6 +141,136 @@ def cmd_reset_slot(a) -> int:
     return 0
 
 
+def cmd_queue(a) -> int:
+    """Everything not yet finalized, and why. Read-only.
+
+    The ledger records state but nothing ever printed it, so 'what is still
+    outstanding' meant opening case JSONs by hand. Distinguishes an EXPIRED
+    claim (reclaimable by anyone — `claimable_primary_slot` frees it
+    automatically, no admin action needed) from a HELD one (still the
+    reviewer's), because those need opposite responses."""
+    repo = a.repo or os.environ.get("REVIEW_REPO")
+    token = a.token or os.environ.get("HF_TOKEN")
+    if not repo or not token:
+        sys.exit("need --repo/REVIEW_REPO and --token/HF_TOKEN.")
+    store = store_mod.ReviewStore(store_mod.HFBackend(repo_id=repo, token=token))
+    now = schema.utcnow()
+
+    cases = store.list_cases()
+    by_status, open_n = {}, 0
+    print(f"repo {repo} | {len(cases)} cases | now {now[:19]}\n")
+    for case in sorted(cases, key=lambda c: c["case_id"]):
+        st = schema.derive_status(case)
+        by_status[st] = by_status.get(st, 0) + 1
+        if st == "finalized" and not a.all:
+            continue
+        open_n += 1
+        tags = []
+        if case.get("needs_expert"):
+            tags.append("NEEDS_EXPERT")
+        if case.get("agree") is False:
+            tags.append("disagree")
+        if case.get("deferred_by"):
+            tags.append("deferred_by=" + ",".join(case["deferred_by"]))
+        print(f"{case['case_id']:22s} {st:18s} {'  '.join(tags)}")
+        for slot, s in sorted((case.get("slots") or {}).items()):
+            exp = str(s.get("expires_at") or "")[:19]
+            if s.get("done"):
+                state = "done"
+            elif s.get("amend"):
+                state = "AMEND"          # theirs to fix; never auto-reclaimed
+            elif exp and exp < now:
+                state = "EXPIRED"        # free for anyone to claim, no action needed
+            else:
+                state = "held"
+            print(f"    slot {slot:3s} {str(s.get('reviewer')):20s} {state:8s} "
+                  f"exp={exp}  decision={s.get('decision')}")
+        if not (case.get("slots") or {}):
+            print("    (no slots — unassigned)")
+    print(f"\nstatus counts: {by_status}")
+    print(f"open: {open_n}")
+    return 0
+
+
+def plan_expert_take(case: dict, expert: str, roster) -> dict:
+    """Pure: hand a flagged case to the EXPERT, without opening it to students.
+
+    A student flags a transitional level they must not decide; `flag()` sets
+    needs_expert, which `claim()` skips — correct, but it means the case is
+    then served to NOBODY. The docstring on flag() says 'Greg reads the flags
+    via the expert queue'; that queue was never built, so flagged cases just
+    accumulate. This is that queue, expressed in mechanics that already exist
+    rather than a new trust path in the service:
+
+      needs_expert cleared      -> claim() will consider it again
+      every OTHER reviewer into deferred_by
+                                -> claimable_primary_slot() returns None for
+                                   them, so clearing the flag cannot leak the
+                                   case back to a student
+      priority raised           -> the expert is served it before anything else
+
+    The reread history is kept: the reason the student flagged it is what the
+    expert needs to read. Returns a NEW case dict.
+    """
+    case = json.loads(json.dumps(case))
+    case.pop("needs_expert", None)
+    dby = case.setdefault("deferred_by", [])
+    for r in sorted(roster):
+        if r and r.lower() != expert.lower() and r not in dby:
+            dby.append(r)
+    # the expert must NOT be deferred, or the case is claimable by no one at all
+    case["deferred_by"] = [r for r in dby if r.lower() != expert.lower()]
+    case["priority"] = max(int(case.get("priority", 0)), 1_000_000)
+    return case
+
+
+def cmd_expert_take(a) -> int:
+    repo = a.repo or os.environ.get("REVIEW_REPO")
+    token = a.token or os.environ.get("HF_TOKEN")
+    if not repo or not token:
+        sys.exit("need --repo/REVIEW_REPO and --token/HF_TOKEN (the WRITE token).")
+    store = store_mod.ReviewStore(store_mod.HFBackend(repo_id=repo, token=token))
+
+    # Roster from the LEDGER, not a hardcoded list: a reviewer who never appears
+    # here cannot be blocked, and one that is invented would block nothing.
+    roster = {s.get("reviewer") for c in store.list_cases()
+              for s in (c.get("slots") or {}).values() if s.get("reviewer")}
+    print(f"roster from ledger: {sorted(roster)}\n")
+
+    now = schema.utcnow()
+    planned = False
+    for cid in a.cases:
+        case = store.get_case(cid)
+        if case is None:
+            print(f"[skip] {cid}: no such case in {repo}")
+            continue
+        new_case = plan_expert_take(case, a.expert, roster)
+        slot = schema.claimable_primary_slot(new_case, a.expert, now=now)
+        print(f"{cid}: needs_expert {bool(case.get('needs_expert'))} -> False | "
+              f"priority {case.get('priority', 0)} -> {new_case['priority']} | "
+              f"status {schema.derive_status(case)}")
+        for r in (case.get("reread") or []):
+            print(f"    flagged by {r.get('by')}: {r.get('reason')}")
+        if slot is None:
+            # Almost always: the expert already holds a slot on this case, and
+            # double-review distinctness forbids a second. Say so plainly instead
+            # of writing a change that silently achieves nothing.
+            why = ("expert already holds a slot here"
+                   if any(s.get("reviewer") == a.expert
+                          for s in (new_case.get("slots") or {}).values())
+                   else "no primary slot is open (both done?)")
+            print(f"    !! {a.expert} still could NOT claim it: {why}")
+        else:
+            print(f"    -> {a.expert} will be served slot {slot}")
+        planned = True
+        if a.apply:
+            store.put_case(new_case)
+            print("    committed")
+    if not a.apply and planned:
+        print("\nDRY RUN — nothing written. Re-run with --apply to commit.")
+    return 0
+
+
 def cmd_set_priority(a) -> int:
     """Set a case's claim priority. The server serves UNASSIGNED cases highest-
     priority-first, so a big number makes `reviewtool next` hand out that case
@@ -185,6 +315,23 @@ def main(argv=None) -> int:
     p.add_argument("--apply", action="store_true",
                    help="actually commit (default is a dry run)")
     p.set_defaults(fn=cmd_reset_slot)
+
+    p = sub.add_parser("queue", help="print every case that is not finalized, and why")
+    p.add_argument("--all", action="store_true", help="include finalized cases too")
+    p.add_argument("--repo", default=None, help="review repo (or REVIEW_REPO env)")
+    p.add_argument("--token", default=None, help="HF token (or HF_TOKEN env)")
+    p.set_defaults(fn=cmd_queue)
+
+    p = sub.add_parser("expert-take",
+                       help="hand a needs_expert case to the expert WITHOUT "
+                            "reopening it to students")
+    p.add_argument("cases", nargs="+", help="case ids, e.g. 155__fused")
+    p.add_argument("--expert", required=True, help="HF username of the radiologist")
+    p.add_argument("--repo", default=None, help="review repo (or REVIEW_REPO env)")
+    p.add_argument("--token", default=None, help="HF write token (or HF_TOKEN env)")
+    p.add_argument("--apply", action="store_true",
+                   help="actually commit (default is a dry run)")
+    p.set_defaults(fn=cmd_expert_take)
 
     p = sub.add_parser("set-priority",
                        help="set a case's claim priority (higher = served sooner; "
