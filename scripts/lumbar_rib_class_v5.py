@@ -19,20 +19,19 @@ Step 1 is what makes step 2 legal: while the L1 rib is called "rib 12" the slot 
 T12 rib needs is occupied, which is exactly why fix_rib_offsets and apply_rib_decisions
 both refused these cases. Pull the 13th rib out of the sequence and the shift is free.
 
-TWO GUARDS, both of which really fire on v5.
+THE RULE: A RIB IS NAMED FOR THE VERTEBRA IT ARTICULATES WITH. That is the whole of it,
+and it decides the awkward cases rather than leaving them to judgement.
 
-  UNIFORMITY. Every rib on the side with a vertebra within reach must imply the SAME
-  delta. A side that disagrees with itself is a segmentation defect and no renumber fits.
+ONE GUARD. Every rib on the side with a vertebra within reach must imply the SAME delta.
+A side that disagrees with itself cannot satisfy the rule at all -- naming each rib for
+its own vertebra would put two ribs on one number and leave a gap -- so no renumber fits
+and the case goes to the review tool.
 
-  SYMMETRY. A UNILATERAL lumbar rib is the dangerous case. If the left side is a clean
-  12-rib cage scoring delta 0 and the right carries the 13th, shifting only the right
-  renumbers its UPPER ribs too -- and those are unverifiable, because the thoracic GT is
-  FOV-limited and there are no labelled vertebrae up there to check against. Worse, the
-  object counts say something is already wrong: on 0315 the right side spans nine levels
-  (T5..T12 + L1) with only eight rib objects, so a rib is merged or missing and a LUT
-  renumber cannot fix that. When the contralateral side has delta-0 evidence and shares
-  rib ids, the reclass still happens -- the rib IS on L1, that is not in doubt -- but the
-  renumber is refused and the case is reported for the review tool.
+UNILATERAL IS REPORTED, NOT REFUSED. Where only one side carries the 13th rib (0315,
+0660), that side is re-anchored and the contralateral one keeps its own numbering, so
+the upper ribs end up one apart across the midline. Those upper ribs are unverifiable
+either way -- the thoracic GT is FOV-limited, there are no labelled vertebrae up there --
+and the rule is worth more than the symmetry. It is recorded in the note.
 
     python scripts/lumbar_rib_class_v5.py --labels data/v5_final --qc qc_rib_incidence_v5_fixed
     python scripts/lumbar_rib_class_v5.py ... --apply
@@ -93,48 +92,51 @@ def plan_case(rows):
         other = "right" if side == "left" else "left"
         o_lum, o_delta, o_have = read[other]
 
-        if not lum:
-            notes[side] = "no lumbar rib" if not delta or set(delta.values()) == {0} \
-                else f"no lumbar rib; deltas {sorted(set(delta.values()))}"
-            continue
-
         # the reclass itself is never in doubt -- the rib's head is on a lumbar body
         for n in lum:
             remap[base + n] = LUMBAR_CLASS[side]
+        head = f"lumbar rib {lum} -> {LUMBAR_CLASS[side]}; " if lum else ""
 
+        # NOT gated on a lumbar rib being present. Re-anchoring is the general rule -- a
+        # rib is named for the vertebra it articulates with -- and a side that has already
+        # had its 13th rib reclassed has no lumbar rib left to gate on, so gating here
+        # would make the second half of a two-pass fix silently do nothing.
         moving = {n: d for n, d in delta.items() if n not in lum}
         ds = set(moving.values())
         if not ds:
-            notes[side] = f"lumbar rib {lum}; no thoracic evidence -> reclass only"
+            notes[side] = head + "no thoracic evidence -> no renumber"
             continue
         if len(ds) > 1:
-            notes[side] = (f"lumbar rib {lum}; REFUSED renumber: side disagrees with "
-                           f"itself (deltas {sorted(ds)})")
+            # the one refusal that stands: naming each rib for its own vertebra would put
+            # two ribs on one number and leave a gap, so no numbering satisfies the rule
+            notes[side] = (head + f"REFUSED renumber: side disagrees with itself "
+                                  f"(deltas {sorted(ds)})")
             continue
         d = ds.pop()
         if d == 0:
-            notes[side] = f"lumbar rib {lum}; already anchored -> reclass only"
-            continue
-
-        # SYMMETRY: shifting one side of a bilaterally-numbered cage desynchronises the
-        # upper ribs, which no labelled vertebra can adjudicate
-        if not o_lum and o_delta and set(o_delta.values()) == {0} \
-                and set(have) & set(o_have):
-            notes[side] = (f"lumbar rib {lum}; REFUSED renumber: unilateral, and {other} "
-                           f"is a clean delta-0 cage sharing rib ids {sorted(set(have) & set(o_have))}"
-                           f" -- shifting only {side} would desync the upper ribs")
+            notes[side] = head + "already anchored to its vertebrae"
             continue
 
         out_of_range = [n + d for n in have if n not in lum and not 1 <= n + d <= 12]
         if out_of_range:
-            notes[side] = f"lumbar rib {lum}; REFUSED renumber: {out_of_range} outside 1-12"
+            notes[side] = head + f"REFUSED renumber: {out_of_range} outside 1-12"
             continue
 
         for n in have:
             if n not in lum:
                 remap[base + n] = base + n + d
-        notes[side] = (f"lumbar rib {lum} -> {LUMBAR_CLASS[side]}; "
-                       f"ribs {have[0]}..{max(n for n in have if n not in lum)} {d:+d}")
+        notes[side] = (head + f"ribs {have[0]}..{max(n for n in have if n not in lum)} "
+                              f"{d:+d} (named for the vertebra each touches)")
+
+        # UNILATERAL: reported, not refused. Naming a rib for its own vertebra is the rule;
+        # the cost is that the contralateral side keeps its own numbering, so the upper
+        # ribs -- which no labelled vertebra can adjudicate, the thoracic GT being
+        # FOV-limited -- end up one apart across the midline. Worth knowing, not worth
+        # overriding the rule for.
+        if not o_lum and o_delta and set(o_delta.values()) == {0} \
+                and set(have) & set(o_have):
+            notes[side] += (f"  [NOTE: unilateral -- {other} is a clean delta-0 cage, so "
+                            f"upper ribs now differ by {d:+d} across the midline]")
     return remap, notes
 
 

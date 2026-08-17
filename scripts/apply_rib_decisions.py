@@ -211,6 +211,14 @@ def main() -> int:
         diff = {int(x) for x in np.unique(lab[lab != new])}
         assert diff <= rib_ids, f"{case}: non-rib labels changed: {sorted(diff)}"
         assert (lab > 0).sum() == (new > 0).sum(), f"{case}: voxel count changed"
+        # the remap comes from the QC csv, which describes the labels as they were BEFORE
+        # any earlier --apply. A single-rib shift re-run is harmlessly inert (its source id
+        # is already gone), but a chain 9->10,10->11 re-run collapses two ribs onto one id.
+        # Counting distinct ribs is what catches that, and it is cheap.
+        before = sum(1 for i in rib_ids if (lab == i).any())
+        after_n = sum(1 for i in rib_ids if (new == i).any())
+        assert after_n == before, (f"{case}: rib count {before} -> {after_n}; the remap "
+                                   f"collided (already applied?)")
         backup.mkdir(parents=True, exist_ok=True)
         if not (backup / case).exists():
             shutil.copy2(fp, backup / case)
