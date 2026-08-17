@@ -9,9 +9,13 @@ Two modes.
               what the shift would have collided with -- which is usually the argument.
 
   --apply     read the `decision` column and act:
-                 shift  renumber by the per-rib delta, simultaneously
-                 keep   no change; the label stands and the proximity metric was fooled
-                 flag   no change; recorded for the review tool
+                 shift       renumber by the per-rib delta, simultaneously
+                 lumbar      the 13th rib gets class 74/75, then the cage is re-anchored
+                             so the rib on T12 is rib 12 (see lumbar_rib_class_v5)
+                 keep        no change; the label stands, the proximity metric was fooled
+                 flag        no change; recorded for the review tool
+                 reannotate  no change; recorded on the reannotation worklist -- the
+                             segmentation itself is wrong, so no renumber can help
 
 WHY SIMULTANEOUS. Testing each rib against its target independently calls a chain a
 collision: shifting 9->10, 10->11, 11->12 looks like three collisions and is actually one
@@ -160,9 +164,35 @@ def main() -> int:
         if not d:
             done["undecided"] += 1
             continue
-        if d in ("keep", "flag"):
+        if d in ("keep", "flag", "reannotate"):
             done[d] += 1
             log.append({"case": case, "decision": d, "note": r.get("note", "")})
+            continue
+        if d == "lumbar":
+            # delegated whole: the reclass and the re-anchor are one operation, and its
+            # symmetry guard can still refuse the renumber while doing the reclass
+            import lumbar_rib_class_v5 as LR
+            fp = labels / case
+            img = nib.load(str(fp))
+            lab = np.asanyarray(img.dataobj).astype(np.int16)
+            remap, notes = LR.plan_case(LR.incidence(lab, img.affine))
+            if not remap:
+                print(f"  NOTHING TO DO {case}: {notes}")
+                done["lumbar_noop"] += 1
+                continue
+            new = LR.apply_remap(lab, remap)
+            assert (lab > 0).sum() == (new > 0).sum(), f"{case}: voxel count changed"
+            backup.mkdir(parents=True, exist_ok=True)
+            if not (backup / case).exists():
+                shutil.copy2(fp, backup / case)
+            nib.save(nib.Nifti1Image(new.astype(img.get_data_dtype()), img.affine,
+                                     img.header), str(fp))
+            after = LR.check_t12(new, img.affine)
+            print(f"  lumbar {case}: {notes['left']} | {notes['right']}  -> {after}")
+            done["lumbar"] += 1
+            log.append({"case": case, "decision": "lumbar", "notes": notes,
+                        "remap": {int(k): int(v) for k, v in remap.items()},
+                        "after": after})
             continue
         if d != "shift":
             print(f"  ! {case}: unknown decision {d!r}")
@@ -189,6 +219,16 @@ def main() -> int:
         print(f"  shifted {case}: {', '.join(f'{o}->{n}' for o, n in sorted(remap.items()))}")
         done["shift"] += 1
         log.append({"case": case, "decision": "shift", "remap": remap})
+
+    wl = [x for x in log if x["decision"] == "reannotate"]
+    if wl:
+        wp = qc / "rib_reannotate_worklist.csv"
+        with open(wp, "w", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["case", "why"])
+            for x in wl:
+                w.writerow([x["case"], x.get("note") or "segmentation defect, not numbering"])
+        print(f"  wrote {wp} ({len(wl)} case(s) for reannotation)")
 
     out = qc / "rib_review_final.json"
     out.write_text(json.dumps({"labels": str(labels), "counts": dict(done),
