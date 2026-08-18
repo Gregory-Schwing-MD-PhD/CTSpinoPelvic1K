@@ -53,7 +53,9 @@ sys.path.insert(0, str(_HERE))
 sys.path.insert(0, str(_HERE / "review"))
 
 import label_scheme as LS                                          # noqa: E402
-from qc_rib_vertebra_incidence import incidence, THORACIC_BASE     # noqa: E402
+from qc_rib_vertebra_incidence import (incidence, THORACIC_BASE,   # noqa: E402
+                                       _pts, _mindist)
+from review_anatomy_qc import MIN_VERT_VOX                         # noqa: E402
 from review_anatomy_qc import ANCHOR_MM                            # noqa: E402
 
 SIDES = {"left": LS.RIB_LEFT_OFFSET, "right": LS.RIB_RIGHT_OFFSET}
@@ -82,7 +84,72 @@ def read_side(rows, side):
     return sorted(lum), delta, sorted(have)
 
 
-def plan_case(rows):
+
+def reanchor_from_vertebra(lab, affine, side, base, ribs_present):
+    """Delta implied by asking FROM the vertebra, uncapped. Returns None if not clear.
+
+    read_side asks per rib "is a thoracic body within ANCHOR_MM", and on a cage floating
+    just above the labelled spine the answer is no -- on 0231 by less than 2mm. Asking
+    which rib is nearest T12 instead, and judging it on its MARGIN over the runner-up
+    rather than on an absolute cap, recovers that case without loosening anything: rib 11
+    at 16.9mm with rib 10 at 56.4mm is a claim; two ribs at similar range is not.
+    """
+    spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
+    ribs = {}
+    for n in ribs_present:
+        m = lab == base + n
+        if m.any():
+            ribs[n] = _pts(m)
+    if not ribs:
+        return None, "no ribs"
+    votes, seen = set(), []
+    for t in range(1, 13):
+        vm = lab == THORACIC_BASE + t
+        if vm.sum() < MIN_VERT_VOX:
+            continue
+        vp = _pts(vm)
+        d = sorted(((_mindist(vp, p, spacing), n) for n, p in ribs.items()))
+        best = d[0]
+        second = d[1] if len(d) > 1 else (float("inf"), None)
+        if second[1] is not None and second[0] <= 2.5 * best[0]:
+            seen.append(f"T{t} ambiguous (r{best[1]} {best[0]:.1f} vs r{second[1]} "
+                        f"{second[0]:.1f} mm)")
+            continue
+        votes.add(t - best[1])
+        seen.append(f"T{t}<-r{best[1]} @{best[0]:.1f}mm -> {t - best[1]:+d}")
+    if not votes:
+        return None, ("; ".join(seen) if seen else "no thoracic body labelled")
+    if len(votes) > 1:
+        return None, f"vertebra-end evidence disagrees: {sorted(votes)}"
+    return votes.pop(), "; ".join(seen)
+
+
+
+def reanchor_from_ordering(lum, have):
+    """Delta implied by rib ORDER alone, with no thoracic vertebra needed.
+
+    The lumbar rib's contact with L1 is measured, not assumed. Ribs are contiguous and
+    ordered. So the rib immediately above the L1 rib articulates with T12, and that fixes
+    the numbering without a single thoracic body being labelled -- which is the situation
+    on 0389 and 0720, where none is.
+
+    ONLY VALID IF L1 IS REALLY L1. If the case is actually a sacralized L5, the count from
+    the sacrum is shifted, that body is T12, its "lumbar rib" is an ordinary T12 rib, and
+    there is nothing to shift at all. The premise is exactly what an LSTV re-read decides,
+    so this is gated behind --allow-ordering rather than run by default: an inference whose
+    only premise is the open question would bake the error in invisibly.
+    """
+    if not lum or len(lum) != 1:
+        return None, "needs exactly one lumbar rib"
+    n = lum[0]
+    if n != max(have):
+        return None, f"lumbar rib {n} is not the most caudal ({max(have)} is)"
+    if (n - 1) not in have:
+        return None, f"no rib {n-1} above the lumbar rib"
+    return 12 - (n - 1), f"rib {n} on L1 -> rib {n-1} is on T12 by ordering"
+
+
+def plan_case(rows, lab=None, affine=None, allow_ordering=False):
     """-> (remap, per-side notes). remap is empty when nothing is safe to do."""
     read = {s: read_side(rows, s) for s in SIDES}
     remap, notes = {}, {}
@@ -103,6 +170,23 @@ def plan_case(rows):
         # would make the second half of a two-pass fix silently do nothing.
         moving = {n: d for n, d in delta.items() if n not in lum}
         ds = set(moving.values())
+        if not ds and lab is not None:
+            d2, why2 = reanchor_from_vertebra(lab, affine, side, base,
+                                              [n for n in have if n not in lum])
+            if d2 is not None:
+                ds = {d2}
+                head += f"[from the vertebra end: {why2}] "
+            elif allow_ordering:
+                d3, why3 = reanchor_from_ordering(lum, have)
+                if d3 is None:
+                    notes[side] = head + f"no renumber ({why2}; ordering: {why3})"
+                    continue
+                ds = {d3}
+                head += f"[BY ORDERING, not measured: {why3}] "
+            else:
+                notes[side] = (head + f"no thoracic evidence -> no renumber ({why2})"
+                               f" [--allow-ordering would infer it from rib order]")
+                continue
         if not ds:
             notes[side] = head + "no thoracic evidence -> no renumber"
             continue
@@ -165,6 +249,10 @@ def main() -> int:
     ap.add_argument("--cases", default="", help="comma-separated stems; default = every "
                                                 "case the QC found a lumbar rib in")
     ap.add_argument("--apply", action="store_true")
+    ap.add_argument("--allow-ordering", action="store_true",
+                    help="infer the shift from rib order when no thoracic "
+                         "body is labelled; only sound if the case is NOT a "
+                         "sacralized L5 -- settle that first")
     a = ap.parse_args()
 
     labels, qc = Path(a.labels), Path(a.qc)
@@ -185,7 +273,7 @@ def main() -> int:
         img = nib.load(str(fp))
         lab = np.asanyarray(img.dataobj).astype(np.int16)
         rows = incidence(lab, img.affine)
-        remap, notes = plan_case(rows)
+        remap, notes = plan_case(rows, lab, img.affine, a.allow_ordering)
 
         print(f"  {stem}")
         for side in ("left", "right"):
