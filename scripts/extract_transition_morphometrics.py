@@ -7,9 +7,9 @@ wherever it can be -- properties of the bone rather than of the numbering:
 
   SACRAL FORAMINA. Four pairs is a normal sacrum, five means it absorbed L5. This is the
   one measure that settles sacralization without trusting any vertebra label at all.
-  Counted on a coronal projection of the ANTERIOR half: the foramina are through-canals,
-  so 3D hole-filling never finds them, and a full-depth projection fills them in from the
-  dorsal cortex.
+  Counted by sliding a THIN coronal slab: the foramina are oblique through-canals,
+  so 3D hole-filling never finds them and any thick slab fills them in from the bone in
+  front of one end and behind the other.
 
   NON-RIB-BEARING VERTEBRAE. Five is normal. Four means either a lumbar rib on L1 or a
   sacralized L5 -- the classic ambiguity -- which is exactly why it is plotted AGAINST the
@@ -85,39 +85,62 @@ def _pca_length(mask, spacing):
 
 
 def count_foramina(lab, spacing):
-    """Foramina per side, from a coronal projection of the ANTERIOR half.
+    """Foramina per side, by sliding a THIN slab through the sacrum front-to-back.
 
-    Through-canals, not cavities: fill holes on the 2D projection, subtract, and keep
-    blobs of plausible foramen size. Anterior half only -- the dorsal cortex closes them
-    in a full-depth projection.
+    A half-depth projection does not work, and the smoke test said so: counts came back
+    0/0 and 4/3 where a normal sacrum should give 4/4. The sacral foramina are oblique
+    canals, so any thick slab has bone in front of one end and behind the other, and the
+    projection fills the hole in. Only a slab thinner than the obliquity keeps the canal
+    open in projection.
+
+    So: slide a ~12mm slab, count enclosed holes of plausible foramen area in each, and
+    take the MAX over slabs per side -- the slab that happens to align with the canals is
+    the one that sees them, and no other slab can invent extras of the right size.
+
+    Returns (left, right, median area, best slab offset in mm) -- the offset is kept so a
+    suspicious count can be re-rendered at the depth that produced it.
     """
     sac = np.isin(lab, [SACRUM, S1])
     if sac.sum() < 5000:
-        return None, None, 0.0
+        return None, None, 0.0, None
     ys = np.nonzero(sac.any(axis=(0, 2)))[0]
     y0, y1 = int(ys.min()), int(ys.max()) + 1
-    ant = sac[:, y0:y0 + max(1, (y1 - y0) // 2)].max(axis=1)
-    filled = ndimage.binary_fill_holes(ant)
-    holes = filled & ~ant
     px_mm2 = float(spacing[0] * spacing[2])
-    lbl, n = ndimage.label(holes)
-    if n == 0:
-        return 0, 0, 0.0
     mid = float(np.average(np.arange(lab.shape[0]), weights=sac.sum(axis=(1, 2))))
-    left = right = 0
-    areas = []
-    for i in range(1, n + 1):
-        m = lbl == i
-        area = float(m.sum()) * px_mm2
-        if not (15.0 <= area <= 600.0):
+
+    slab = max(2, int(round(8.0 / max(spacing[1], 1e-6))))
+    step = max(1, slab // 3)
+    # a foramen at the lateral margin opens outward, so fill_holes never sees it as
+    # enclosed. Closing the projection first turns that notch into a hole; the hole is
+    # still subtracted from the ORIGINAL mask, so closing cannot invent bone.
+    se = np.ones((max(3, int(round(4.0 / spacing[0]))) | 1,
+                  max(3, int(round(4.0 / spacing[2]))) | 1), bool)
+    best = (0, 0, 0.0, None)
+    for yy in range(y0, max(y0 + 1, y1 - slab), step):
+        proj = sac[:, yy:yy + slab].max(axis=1)
+        if proj.sum() < 200:
             continue
-        cx = float(np.argwhere(m)[:, 0].mean())
-        areas.append(area)
-        if cx > mid:
-            right += 1
-        else:
-            left += 1
-    return left, right, (float(np.median(areas)) if areas else 0.0)
+        closed = ndimage.binary_closing(proj, structure=se)
+        holes = ndimage.binary_fill_holes(closed) & ~proj
+        lbl, n = ndimage.label(holes)
+        if n == 0:
+            continue
+        left = right = 0
+        areas = []
+        for i in range(1, n + 1):
+            m = lbl == i
+            area = float(m.sum()) * px_mm2
+            if not (8.0 <= area <= 700.0):
+                continue
+            areas.append(area)
+            if float(np.argwhere(m)[:, 0].mean()) > mid:
+                right += 1
+            else:
+                left += 1
+        if (left + right) > (best[0] + best[1]):
+            best = (left, right, float(np.median(areas)) if areas else 0.0,
+                    round((yy - y0) * spacing[1], 1))
+    return best
 
 
 def _nearest_vert(mask, verts, sp):
@@ -141,11 +164,12 @@ def one(path: str) -> dict:
         return {"case": stem, "error": f"{type(exc).__name__}: {exc}"}
 
     # ---- sacrum ------------------------------------------------------------
-    fl, fr, farea = count_foramina(lab, sp)
+    fl, fr, farea, fdepth = count_foramina(lab, sp)
     r["foramina_left"], r["foramina_right"] = fl, fr
     r["foramina_total"] = (fl + fr) if fl is not None else None
     r["foramina_max_side"] = (max(fl, fr) if fl is not None else None)
     r["foramen_area_mm2"] = round(farea, 1)
+    r["foramen_best_slab_mm"] = fdepth
     sac = np.isin(lab, [SACRUM, S1])
     if sac.any():
         zs = np.nonzero(sac.any(axis=(0, 1)))[0]
