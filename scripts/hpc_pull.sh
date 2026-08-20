@@ -9,7 +9,7 @@
 # Prereqs on HPC:
 #   - Singularity >= 3.9   (module load singularity or in PATH)
 #   - Internet access from login/compute node
-#   - Disk: ~3 GB (lean) + ~5 GB (totalsegmentator)
+#   - Disk: ~3 GB (lean) + ~5 GB (totalsegmentator) + ~10 GB (spineps, weights baked in)
 #
 # Usage:
 #   DOCKERHUB_USER=myusername bash scripts/hpc_pull.sh
@@ -19,6 +19,9 @@
 #
 #   # Pull lean only:
 #   DOCKERHUB_USER=myusername LEAN_ONLY=1 bash scripts/hpc_pull.sh
+#
+#   # Pull the SPINEPS/rib benchmark image only:
+#   DOCKERHUB_USER=myusername SPINEPS_ONLY=1 bash scripts/hpc_pull.sh
 # =============================================================================
 set -euo pipefail
 
@@ -26,10 +29,20 @@ DOCKERHUB_USER="${DOCKERHUB_USER:-gregoryschwingmdphd}"
 TAG="${TAG:-latest}"
 LEAN_ONLY="${LEAN_ONLY:-0}"
 TOTALSEG_ONLY="${TOTALSEG_ONLY:-0}"
+SPINEPS_ONLY="${SPINEPS_ONLY:-0}"
 SIF_DIR="${SIF_DIR:-$(pwd)/containers}"
 
 LEAN_SIF="${SIF_DIR}/ctspinopelvic1k.sif"
 TS_SIF="${SIF_DIR}/ctspinopelvic1k-ts.sif"
+SPINEPS_SIF="${SIF_DIR}/ctspinopelvic1k-spineps.sif"
+
+if [[ "${SPINEPS_ONLY}" == "1" ]]; then
+    PULL_SPINEPS=1; LEAN_ONLY=1; TOTALSEG_ONLY=1
+elif [[ "${LEAN_ONLY}" != "1" && "${TOTALSEG_ONLY}" != "1" ]]; then
+    PULL_SPINEPS=1
+else
+    PULL_SPINEPS=0
+fi
 
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
 die() { echo "[ERROR] $*" >&2; exit 1; }
@@ -64,6 +77,16 @@ else
     log "(skipped TS image)"
 fi
 
+if [[ "${PULL_SPINEPS}" == "1" ]]; then
+    log "Pulling SPINEPS/rib image ..."
+    singularity pull --force \
+        "${SPINEPS_SIF}" \
+        "docker://${DOCKERHUB_USER}/ctspinopelvic1k-spineps:${TAG}"
+    log "  ✓ ${SPINEPS_SIF}  ($(du -sh "${SPINEPS_SIF}" | cut -f1))"
+else
+    log "(skipped SPINEPS image)"
+fi
+
 cat <<EOF
 
   Next steps:
@@ -75,6 +98,9 @@ cat <<EOF
 
     # Stage 4 (TotalSegmentator benchmark):
     sbatch slurm/benchmark_totalseg.sh
+
+    # SPINEPS (CT) + Möller ribs + rib measurements:
+    N_SHARDS_OVERRIDE=8 sbatch slurm/spineps_bench.sh
 
 EOF
 log "Pull complete."

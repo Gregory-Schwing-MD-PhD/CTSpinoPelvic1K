@@ -30,14 +30,35 @@ import nibabel as nib
 import numpy as np
 from nibabel.affines import apply_affine
 
+# Two label schemes are in play. v2 packs everything into 1-9; v4 uses the VerSe
+# vertebra range (lumbar 20-25, sacrum 26) with hips/femurs above it. This module was
+# written for v2 only, so on a v4 label _midline_world_x found no reference, returned
+# None, and lateralize_hips silently returned the input unchanged with n_changed = 0 --
+# a no-op that reported success. Detect the scheme instead.
+SCHEMES = {
+    "v2": {"LEFT_HIP": 8,  "RIGHT_HIP": 9,  "SACRUM": 7,  "LUMBAR": (1, 2, 3, 4, 5, 6)},
+    "v4": {"LEFT_HIP": 30, "RIGHT_HIP": 31, "SACRUM": 26, "LUMBAR": tuple(range(20, 26))},
+}
+# module-level names kept for backwards compatibility with existing callers/tests
 LEFT_HIP, RIGHT_HIP, SACRUM = 8, 9, 7
 LUMBAR = (1, 2, 3, 4, 5, 6)
 
 
-def _midline_world_x(lbl: np.ndarray, affine: np.ndarray):
+def detect_scheme(lbl: np.ndarray) -> dict:
+    """Which label scheme this volume uses. A v4 label carries ids above 25 (VerSe
+    lumbar tops out at 25, sacrum is 26); a v2 label never exceeds 9."""
+    present = {int(v) for v in np.unique(lbl) if v}
+    v4 = SCHEMES["v4"]
+    if present & {v4["LEFT_HIP"], v4["RIGHT_HIP"], v4["SACRUM"], *v4["LUMBAR"]}:
+        return v4
+    return SCHEMES["v2"]
+
+
+def _midline_world_x(lbl: np.ndarray, affine: np.ndarray, scheme: dict = None):
     """World (RAS) X of the patient midline: lumbar-column centroid if present, else
     sacrum. Returns None if neither is available (cannot lateralize)."""
-    for sel in (np.isin(lbl, LUMBAR), lbl == SACRUM):
+    sc = scheme or detect_scheme(lbl)
+    for sel in (np.isin(lbl, sc["LUMBAR"]), lbl == sc["SACRUM"]):
         if sel.any():
             com_ijk = np.array(np.nonzero(sel)).mean(axis=1)   # (i,j,k) centroid
             return float(apply_affine(affine, com_ijk)[0])     # world X
@@ -47,15 +68,16 @@ def _midline_world_x(lbl: np.ndarray, affine: np.ndarray):
 def lateralize_hips(lbl: np.ndarray, affine: np.ndarray):
     """Return (relabelled, n_changed): every hip voxel reassigned to 8/9 by its side
     of the midline. Leaves the label untouched if there are no hips or no midline ref."""
-    hips = (lbl == LEFT_HIP) | (lbl == RIGHT_HIP)
+    sc = detect_scheme(lbl)
+    hips = (lbl == sc["LEFT_HIP"]) | (lbl == sc["RIGHT_HIP"])
     if not hips.any():
         return lbl, 0
-    mx = _midline_world_x(lbl, affine)
+    mx = _midline_world_x(lbl, affine, sc)
     if mx is None:
         return lbl, 0
     idx = np.array(np.nonzero(hips))                # (3, N) voxel coords
     world_x = apply_affine(affine, idx.T)[:, 0]     # (N,) world X per hip voxel
-    new_vals = np.where(world_x > mx, RIGHT_HIP, LEFT_HIP).astype(lbl.dtype)
+    new_vals = np.where(world_x > mx, sc["RIGHT_HIP"], sc["LEFT_HIP"]).astype(lbl.dtype)
     out = lbl.copy()
     out[tuple(idx)] = new_vals
     return out, int((out != lbl).sum())
@@ -77,15 +99,16 @@ def main() -> int:
             continue
         img = nib.load(str(f))
         lbl = np.asarray(img.dataobj).astype(np.int16)
-        before = {c: int((lbl == c).sum()) for c in (LEFT_HIP, RIGHT_HIP)}
+        sc = detect_scheme(lbl)
+        LH, RH = sc["LEFT_HIP"], sc["RIGHT_HIP"]
+        before = {c: int((lbl == c).sum()) for c in (LH, RH)}
         out, n = lateralize_hips(lbl, img.affine)
         if n == 0:
             continue
-        after = {c: int((out == c).sum()) for c in (LEFT_HIP, RIGHT_HIP)}
+        after = {c: int((out == c).sum()) for c in (LH, RH)}
         n_changed_files += 1
         print(f"  {f.name}: {n} hip voxel(s) reassigned | "
-              f"L {before[LEFT_HIP]}->{after[LEFT_HIP]}  "
-              f"R {before[RIGHT_HIP]}->{after[RIGHT_HIP]}")
+              f"L {before[LH]}->{after[LH]}  R {before[RH]}->{after[RH]}")
         if args.dry_run:
             continue
         f.unlink()                              # break any hardlink before writing

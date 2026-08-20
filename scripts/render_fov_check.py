@@ -26,6 +26,7 @@ from pathlib import Path
 
 import numpy as np
 import nibabel as nib
+from scipy import ndimage
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt                                    # noqa: E402
@@ -82,6 +83,15 @@ def one(args):
                 fontweight="bold", ha="center", va="center", zorder=6)
         if nm not in ("sac", "S1"):
             named.append(nm)
+            # the LARGEST COMPONENT only. Vertebra labels here carry speckle -- 0344's L5
+            # has 112 components, with fragments of L3/L4/L5 sitting up at z~660 among the
+            # ribs. Taking the raw max z makes "the highest labelled vertebra" reach the
+            # top of the scan and reports 0mm of unlabelled bone on a case with a whole
+            # thoracic spine unlabelled. The metric would be measuring contamination.
+            cc, ncc = ndimage.label(m)
+            if ncc > 1:
+                sizes = ndimage.sum(m, cc, range(1, ncc + 1))
+                m = cc == (int(np.argmax(sizes)) + 1)
             z = np.nonzero(m.any(axis=(0, 1)))[0].max()
             top_z = z if top_z is None else max(top_z, z)
 

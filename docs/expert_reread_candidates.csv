@@ -1,0 +1,261 @@
+token,config,signal,detail
+4,spine_only,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+22,pelvic_native,full_rib_on_L1,left rib on L1 is 52 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,full_rib_on_L1,left rib on L1 is 49 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,full_rib_on_L1,left rib on L1 is 91 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,full_rib_on_L1,left rib on L1 is 125 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,full_rib_on_L1,left rib on L1 is 157 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,full_rib_on_L1,left rib on L1 is 186 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,full_rib_on_L1,left rib on L1 is 176 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,full_rib_on_L1,left rib on L1 is 180 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,full_rib_on_L1,left rib on L1 is 130 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,stump_rib_on_L1,right rib on L1 is 34 mm (stump) — lumbar-rib / transitional
+22,pelvic_native,full_rib_on_L1,right rib on L1 is 80 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,full_rib_on_L1,right rib on L1 is 109 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,full_rib_on_L1,right rib on L1 is 136 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,full_rib_on_L1,right rib on L1 is 165 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,full_rib_on_L1,right rib on L1 is 169 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,full_rib_on_L1,right rib on L1 is 202 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,full_rib_on_L1,right rib on L1 is 183 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+22,pelvic_native,full_rib_on_L1,right rib on L1 is 125 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+25,fused,stump_rib_on_L1,right rib on L1 is 36 mm (stump) — lumbar-rib / transitional
+46,pelvic_native,full_rib_on_L1,left rib on L1 is 69 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+46,pelvic_native,full_rib_on_L1,left rib on L1 is 105 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+46,pelvic_native,full_rib_on_L1,left rib on L1 is 134 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+46,pelvic_native,full_rib_on_L1,left rib on L1 is 177 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+46,pelvic_native,full_rib_on_L1,left rib on L1 is 199 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+46,pelvic_native,full_rib_on_L1,left rib on L1 is 169 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+46,pelvic_native,stump_rib_on_L1,right rib on L1 is 17 mm (stump) — lumbar-rib / transitional
+46,pelvic_native,full_rib_on_L1,right rib on L1 is 78 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+46,pelvic_native,full_rib_on_L1,right rib on L1 is 94 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+46,pelvic_native,full_rib_on_L1,right rib on L1 is 141 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+46,pelvic_native,full_rib_on_L1,right rib on L1 is 171 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+46,pelvic_native,full_rib_on_L1,right rib on L1 is 183 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+46,pelvic_native,full_rib_on_L1,right rib on L1 is 165 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+46,pelvic_native,full_rib_on_L1,right rib on L1 is 150 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,left rib on L1 is 40 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,left rib on L1 is 79 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,left rib on L1 is 116 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,left rib on L1 is 153 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,left rib on L1 is 196 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,left rib on L1 is 218 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,left rib on L1 is 208 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,left rib on L1 is 184 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,left rib on L1 is 132 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,right rib on L1 is 60 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,right rib on L1 is 93 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,right rib on L1 is 141 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,right rib on L1 is 184 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,right rib on L1 is 169 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,right rib on L1 is 179 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,right rib on L1 is 154 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+61,pelvic_native,full_rib_on_L1,right rib on L1 is 128 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+67,spine_only,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+121,spine_only,full_rib_on_L1,left rib on L1 is 40 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+121,spine_only,full_rib_on_L1,right rib on L1 is 38 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+140,pelvic_native,full_rib_on_L1,left rib on L1 is 51 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+140,pelvic_native,full_rib_on_L1,left rib on L1 is 120 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+140,pelvic_native,full_rib_on_L1,left rib on L1 is 208 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+140,pelvic_native,full_rib_on_L1,left rib on L1 is 203 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+140,pelvic_native,full_rib_on_L1,left rib on L1 is 184 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+140,pelvic_native,full_rib_on_L1,left rib on L1 is 126 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+140,pelvic_native,full_rib_on_L1,right rib on L1 is 50 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+140,pelvic_native,full_rib_on_L1,right rib on L1 is 115 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+140,pelvic_native,full_rib_on_L1,right rib on L1 is 200 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+140,pelvic_native,full_rib_on_L1,right rib on L1 is 197 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+140,pelvic_native,full_rib_on_L1,right rib on L1 is 174 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+140,pelvic_native,full_rib_on_L1,right rib on L1 is 130 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+149,spine_only,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+169,pelvic_native,stump_rib_on_L1,left rib on L1 is 34 mm (stump) — lumbar-rib / transitional
+169,pelvic_native,full_rib_on_L1,left rib on L1 is 77 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,left rib on L1 is 106 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,left rib on L1 is 140 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,left rib on L1 is 166 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,left rib on L1 is 189 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,left rib on L1 is 178 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,left rib on L1 is 149 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,left rib on L1 is 60 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,right rib on L1 is 46 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,right rib on L1 is 92 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,right rib on L1 is 125 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,right rib on L1 is 171 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,right rib on L1 is 178 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,right rib on L1 is 189 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,right rib on L1 is 177 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,right rib on L1 is 141 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+169,pelvic_native,full_rib_on_L1,right rib on L1 is 73 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+167,fused,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+175,spine_only,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+173,pelvic_native,full_rib_on_L1,left rib on L1 is 72 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+173,pelvic_native,full_rib_on_L1,left rib on L1 is 179 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+173,pelvic_native,full_rib_on_L1,left rib on L1 is 211 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+173,pelvic_native,full_rib_on_L1,left rib on L1 is 203 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+173,pelvic_native,full_rib_on_L1,left rib on L1 is 187 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+173,pelvic_native,full_rib_on_L1,left rib on L1 is 150 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+173,pelvic_native,full_rib_on_L1,left rib on L1 is 82 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+173,pelvic_native,full_rib_on_L1,right rib on L1 is 47 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+173,pelvic_native,full_rib_on_L1,right rib on L1 is 190 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+173,pelvic_native,full_rib_on_L1,right rib on L1 is 209 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+173,pelvic_native,full_rib_on_L1,right rib on L1 is 203 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+173,pelvic_native,full_rib_on_L1,right rib on L1 is 185 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+173,pelvic_native,full_rib_on_L1,right rib on L1 is 146 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+173,pelvic_native,full_rib_on_L1,right rib on L1 is 61 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+165,fused,stump_rib_on_L1,left rib on L1 is 9 mm (stump) — lumbar-rib / transitional
+165,fused,full_rib_on_L1,left rib on L1 is 64 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+189,fused,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+215,spine_only,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+254,pelvic_native,full_rib_on_L1,left rib on L1 is 64 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+254,pelvic_native,full_rib_on_L1,left rib on L1 is 123 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+254,pelvic_native,full_rib_on_L1,left rib on L1 is 167 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+254,pelvic_native,full_rib_on_L1,left rib on L1 is 199 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+254,pelvic_native,full_rib_on_L1,left rib on L1 is 206 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+254,pelvic_native,full_rib_on_L1,left rib on L1 is 202 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+254,pelvic_native,full_rib_on_L1,left rib on L1 is 151 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+254,pelvic_native,full_rib_on_L1,left rib on L1 is 78 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+254,pelvic_native,full_rib_on_L1,right rib on L1 is 68 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+254,pelvic_native,full_rib_on_L1,right rib on L1 is 117 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+254,pelvic_native,full_rib_on_L1,right rib on L1 is 163 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+254,pelvic_native,full_rib_on_L1,right rib on L1 is 195 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+254,pelvic_native,full_rib_on_L1,right rib on L1 is 188 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+254,pelvic_native,full_rib_on_L1,right rib on L1 is 141 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+254,pelvic_native,full_rib_on_L1,right rib on L1 is 56 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+276,pelvic_native,full_rib_on_L1,left rib on L1 is 67 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+276,pelvic_native,full_rib_on_L1,left rib on L1 is 105 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+276,pelvic_native,full_rib_on_L1,left rib on L1 is 105 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+276,pelvic_native,full_rib_on_L1,left rib on L1 is 146 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+276,pelvic_native,full_rib_on_L1,left rib on L1 is 174 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+276,pelvic_native,full_rib_on_L1,left rib on L1 is 148 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+276,pelvic_native,full_rib_on_L1,left rib on L1 is 98 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+276,pelvic_native,full_rib_on_L1,right rib on L1 is 91 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+276,pelvic_native,full_rib_on_L1,right rib on L1 is 118 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+276,pelvic_native,full_rib_on_L1,right rib on L1 is 164 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+276,pelvic_native,full_rib_on_L1,right rib on L1 is 177 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+276,pelvic_native,full_rib_on_L1,right rib on L1 is 131 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+276,pelvic_native,stump_rib_on_L1,right rib on L1 is 31 mm (stump) — lumbar-rib / transitional
+261,spine_only,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+302,pelvic_native,stump_rib_on_L1,left rib on L1 is 23 mm (stump) — lumbar-rib / transitional
+302,pelvic_native,full_rib_on_L1,left rib on L1 is 74 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+302,pelvic_native,full_rib_on_L1,left rib on L1 is 112 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+302,pelvic_native,full_rib_on_L1,left rib on L1 is 148 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+302,pelvic_native,full_rib_on_L1,left rib on L1 is 183 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+302,pelvic_native,full_rib_on_L1,left rib on L1 is 190 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+302,pelvic_native,full_rib_on_L1,left rib on L1 is 142 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+302,pelvic_native,stump_rib_on_L1,left rib on L1 is 38 mm (stump) — lumbar-rib / transitional
+302,pelvic_native,full_rib_on_L1,right rib on L1 is 98 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+302,pelvic_native,full_rib_on_L1,right rib on L1 is 143 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+302,pelvic_native,full_rib_on_L1,right rib on L1 is 182 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+302,pelvic_native,full_rib_on_L1,right rib on L1 is 181 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+302,pelvic_native,full_rib_on_L1,right rib on L1 is 150 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+302,pelvic_native,full_rib_on_L1,right rib on L1 is 44 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+295,pelvic_native,full_rib_on_L1,left rib on L1 is 251 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+295,pelvic_native,full_rib_on_L1,left rib on L1 is 245 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+295,pelvic_native,full_rib_on_L1,left rib on L1 is 229 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+295,pelvic_native,full_rib_on_L1,left rib on L1 is 205 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+295,pelvic_native,full_rib_on_L1,left rib on L1 is 162 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+295,pelvic_native,full_rib_on_L1,left rib on L1 is 148 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+295,pelvic_native,stump_rib_on_L1,right rib on L1 is 25 mm (stump) — lumbar-rib / transitional
+295,pelvic_native,full_rib_on_L1,right rib on L1 is 255 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+295,pelvic_native,full_rib_on_L1,right rib on L1 is 244 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+295,pelvic_native,full_rib_on_L1,right rib on L1 is 232 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+295,pelvic_native,full_rib_on_L1,right rib on L1 is 209 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+295,pelvic_native,full_rib_on_L1,right rib on L1 is 192 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+295,pelvic_native,full_rib_on_L1,right rib on L1 is 150 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+267,spine_only,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+272,pelvic_native,stump_rib_on_L1,left rib on L1 is 29 mm (stump) — lumbar-rib / transitional
+272,pelvic_native,full_rib_on_L1,left rib on L1 is 67 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+272,pelvic_native,full_rib_on_L1,left rib on L1 is 112 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+272,pelvic_native,full_rib_on_L1,left rib on L1 is 147 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+272,pelvic_native,full_rib_on_L1,left rib on L1 is 168 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+272,pelvic_native,full_rib_on_L1,left rib on L1 is 176 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+272,pelvic_native,full_rib_on_L1,left rib on L1 is 143 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+272,pelvic_native,full_rib_on_L1,left rib on L1 is 74 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+272,pelvic_native,full_rib_on_L1,right rib on L1 is 74 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+272,pelvic_native,full_rib_on_L1,right rib on L1 is 124 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+272,pelvic_native,full_rib_on_L1,right rib on L1 is 176 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+272,pelvic_native,full_rib_on_L1,right rib on L1 is 188 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+272,pelvic_native,full_rib_on_L1,right rib on L1 is 182 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+272,pelvic_native,full_rib_on_L1,right rib on L1 is 145 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+272,pelvic_native,full_rib_on_L1,right rib on L1 is 124 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+344,spine_only,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+401,spine_only,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+403,fused,full_rib_on_L1,left rib on L1 is 67 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+466,fused,full_rib_on_L1,left rib on L1 is 108 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,left rib on L1 is 55 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,left rib on L1 is 101 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,left rib on L1 is 141 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,left rib on L1 is 176 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,left rib on L1 is 203 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,left rib on L1 is 184 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,left rib on L1 is 150 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,left rib on L1 is 69 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,right rib on L1 is 62 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,right rib on L1 is 115 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,right rib on L1 is 158 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,right rib on L1 is 192 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,right rib on L1 is 204 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,right rib on L1 is 184 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,right rib on L1 is 148 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+512,pelvic_native,full_rib_on_L1,right rib on L1 is 79 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+587,spine_only,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+618,pelvic_native,full_rib_on_L1,left rib on L1 is 77 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,left rib on L1 is 107 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,left rib on L1 is 140 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,left rib on L1 is 166 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,left rib on L1 is 204 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,left rib on L1 is 208 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,left rib on L1 is 205 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,left rib on L1 is 162 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,left rib on L1 is 98 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,right rib on L1 is 64 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,right rib on L1 is 103 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,right rib on L1 is 136 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,right rib on L1 is 162 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,right rib on L1 is 195 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,right rib on L1 is 206 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,right rib on L1 is 189 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,right rib on L1 is 166 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+618,pelvic_native,full_rib_on_L1,right rib on L1 is 116 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+666,spine_only,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+672,spine_only,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+699,fused,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+703,pelvic_native,stump_rib_on_L1,left rib on L1 is 22 mm (stump) — lumbar-rib / transitional
+703,pelvic_native,full_rib_on_L1,left rib on L1 is 101 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+703,pelvic_native,full_rib_on_L1,left rib on L1 is 152 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+703,pelvic_native,full_rib_on_L1,left rib on L1 is 189 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+703,pelvic_native,full_rib_on_L1,left rib on L1 is 192 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+703,pelvic_native,full_rib_on_L1,left rib on L1 is 174 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+703,pelvic_native,full_rib_on_L1,left rib on L1 is 137 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+703,pelvic_native,full_rib_on_L1,left rib on L1 is 73 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+703,pelvic_native,full_rib_on_L1,right rib on L1 is 46 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+703,pelvic_native,full_rib_on_L1,right rib on L1 is 92 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+703,pelvic_native,full_rib_on_L1,right rib on L1 is 173 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+703,pelvic_native,full_rib_on_L1,right rib on L1 is 190 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+703,pelvic_native,full_rib_on_L1,right rib on L1 is 174 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+703,pelvic_native,full_rib_on_L1,right rib on L1 is 137 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+703,pelvic_native,full_rib_on_L1,right rib on L1 is 66 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+725,pelvic_native,full_rib_on_L1,left rib on L1 is 91 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+725,pelvic_native,full_rib_on_L1,left rib on L1 is 179 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+725,pelvic_native,full_rib_on_L1,left rib on L1 is 237 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+725,pelvic_native,full_rib_on_L1,left rib on L1 is 228 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+725,pelvic_native,full_rib_on_L1,left rib on L1 is 225 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+725,pelvic_native,full_rib_on_L1,left rib on L1 is 178 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+725,pelvic_native,full_rib_on_L1,left rib on L1 is 123 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+725,pelvic_native,full_rib_on_L1,right rib on L1 is 107 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+725,pelvic_native,full_rib_on_L1,right rib on L1 is 236 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+725,pelvic_native,full_rib_on_L1,right rib on L1 is 244 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+725,pelvic_native,full_rib_on_L1,right rib on L1 is 233 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+725,pelvic_native,full_rib_on_L1,right rib on L1 is 209 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+725,pelvic_native,full_rib_on_L1,right rib on L1 is 191 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+725,pelvic_native,full_rib_on_L1,right rib on L1 is 140 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+737,spine_only,L6_present,id 25 labelled — confirm lumbarization vs mis-count
+776,fused,stump_rib_on_L1,left rib on L1 is 9 mm (stump) — lumbar-rib / transitional
+776,fused,full_rib_on_L1,left rib on L1 is 45 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+776,fused,full_rib_on_L1,left rib on L1 is 73 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+776,fused,full_rib_on_L1,left rib on L1 is 87 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+776,fused,full_rib_on_L1,left rib on L1 is 98 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+776,fused,full_rib_on_L1,left rib on L1 is 91 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+776,fused,stump_rib_on_L1,right rib on L1 is 22 mm (stump) — lumbar-rib / transitional
+776,fused,full_rib_on_L1,right rib on L1 is 60 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+776,fused,full_rib_on_L1,right rib on L1 is 92 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+776,fused,full_rib_on_L1,right rib on L1 is 96 mm (FULL) — L1 should not carry a full rib; likely a numbering error
+776,fused,full_rib_on_L1,right rib on L1 is 81 mm (FULL) — L1 should not carry a full rib; likely a numbering error
