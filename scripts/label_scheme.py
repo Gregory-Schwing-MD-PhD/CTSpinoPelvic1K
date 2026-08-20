@@ -40,6 +40,26 @@ RIB_LEFT_OFFSET, RIB_RIGHT_OFFSET = 33, 45                     # rib_*_N -> OFFS
 # a rib on a LUMBAR vertebra (13th-rib / LSTV) gets its own id, ABOVE the soft-tissue block (58-73)
 LUMBAR_RIB_LEFT, LUMBAR_RIB_RIGHT = 74, 75
 
+# ── surgical hardware ────────────────────────────────────────────────────────
+# Instrumentation is not bone and not any anatomical class, but it is not nothing either:
+# a cage bridging a disc space fuses two vertebrae into one connected object for any
+# segmenter, and dense metal in the interspace is exactly what makes an iatrogenic fusion
+# look like a congenital transitional vertebra to a distance measurement. Labelling it
+# keeps that distinction recoverable; `ignore` would erase it.
+#
+# A RESERVED BLOCK, not a single id. Cage / screw / rod / plate are different objects with
+# different consequences, and a lone generic class cannot be subdivided later without
+# rewriting every label that used it. 76 is the generic call to use when the subtype is not
+# being distinguished; 77-79 are reserved so that decision stays open.
+# Subtypes are named where they are identifiable. A reader who can see it is a cage should
+# say so: collapsing `cage` into generic `hardware` later is a one-line merge, whereas
+# splitting a generic label back into subtypes means revisiting every case that used it.
+# 76 stays available for instrumentation whose subtype is unclear or not being recorded.
+HARDWARE = 76                       # instrumentation, subtype not distinguished
+HARDWARE_CAGE = 77                  # interbody cage / spacer
+HARDWARE_SCREW_ROD = 78             # pedicle screws and rods
+HARDWARE_PLATE = 79                 # plates and other fixation
+
 # ── soft-tissue overlays (v4) ────────────────────────────────────────────────
 SOFT_TISSUE = {
     "iliolumbar_left": 58, "iliolumbar_right": 59,
@@ -77,6 +97,10 @@ def label_dict() -> Dict[str, int]:
     # forced to be "rib 12" -- appended AFTER the soft-tissue block so every existing id is unchanged.
     d["rib_left_lumbar"] = LUMBAR_RIB_LEFT                     # 74
     d["rib_right_lumbar"] = LUMBAR_RIB_RIGHT                   # 75
+    d["hardware"] = HARDWARE                                   # 76 — subtype not distinguished
+    d["hardware_cage"] = HARDWARE_CAGE                         # 77 — interbody cage
+    d["hardware_screw_rod"] = HARDWARE_SCREW_ROD               # 78 — screws / rods
+    d["hardware_plate"] = HARDWARE_PLATE                       # 79 — plates
     d["ignore"] = IGNORE_LABEL                                 # 255
     return d
 
@@ -99,6 +123,11 @@ def verify() -> None:
         assert d[nm] >= 26, f"{nm}={d[nm]} collides with the VerSe vertebra range (1–25)"
     # ribs don't overlap femurs/pelvis
     assert RIB_LEFT_OFFSET + 1 > FEMUR_RIGHT, "ribs overlap femurs"
+    # hardware sits above every anatomical class and clear of its own reserved block
+    assert HARDWARE > LUMBAR_RIB_RIGHT, "hardware collides with the lumbar-rib block"
+    hw = (HARDWARE, HARDWARE_CAGE, HARDWARE_SCREW_ROD, HARDWARE_PLATE)
+    assert len(set(hw)) == len(hw), "duplicate hardware id"
+    assert all(h > LUMBAR_RIB_RIGHT for h in hw), "hardware collides with an anatomy block"
 
 
 verify()
