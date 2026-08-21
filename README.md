@@ -108,6 +108,9 @@ every non-VerSe structure gets a fixed id above the VerSe range. Source of truth
 | 32 / 33 | femur_left / femur_right | TS                                       |
 | 34–45 | rib_left_1 … rib_left_12 | RibSeg (numbered off GT thoracic)            |
 | 46–57 | rib_right_1 … rib_right_12 | RibSeg (numbered off GT thoracic)           |
+| 58–73 | soft tissue | TS — iliolumbar, psoas, quadratus, gluteus, aorta, kidneys, iliac vessels |
+| 74 / 75 | **rib_left_lumbar / rib_right_lumbar** | a rib on a lumbar body, kept as its own class |
+| 76–79 | hardware / cage / screw-rod / plate | **declared, not yet populated** — see below |
 | 255 | **ignore**            | partial-annotation only — un-traced region, NOT bg |
 
 CTPelvic1K's sacrum takes priority over CTSpine1K's sacrum (VerSe label 26)
@@ -115,6 +118,89 @@ to avoid the two labelling conventions colliding on lumbosacral transitional
 vertebrae. The vertebral column is VerSe-native (C1–C7 = 1–7, T1–T12 = 8–19,
 L1–L6 = 20–25, sacrum = 26, coccyx = 27, T13 = 28); the rostral counting anchor
 is the last thoracic vertebra (T12 = 19), not a stored class.
+
+**Why a lumbar rib gets its own class (74/75).** A rib on a lumbar body and a hypoplastic
+twelfth rib are the same object under two counts, and forcing it to be "rib 12" would
+bake one reading of the count into the label. Keeping it separate lets a user apply
+either convention. 16 cases carry one.
+
+**The hardware classes are declared but empty.** Ids 76–79 exist in
+[`scripts/label_scheme.py`](scripts/label_scheme.py) and in the ITK-SNAP descriptor, and
+no case in v5 carries them. The first candidate — an interbody cage bridging a lumbar
+interspace — is deferred to hand annotation, because dense metal leaves no image gradient
+where the boundary between the two bodies belongs and no segmenter can find an edge that
+is not in the image. See [docs/DEFERRED_CASES.md](docs/DEFERRED_CASES.md).
+
+## Release QC — v5
+
+Produced by `slurm/finalize_release.sh`. Gates run before measurements and a failed gate
+stops the chain, because morphometrics computed on an inconsistent corpus do not look
+broken — they look finished.
+
+### Invariants — 802 / 802 pass
+
+Per case: label shape, affine and voxel spacing agree with the CT; no id outside the
+published scheme; the label is not empty; left- and right-side ids fall on the correct
+sides of the midline, with the left–right axis read from the affine rather than assumed.
+
+### Rib numbering — 2 offsets in 11,548 ribs evaluated (0.017%)
+
+| bucket | ribs |
+|---|---:|
+| matches its expected vertebra | 5,747 |
+| **offset** | **2** |
+| no contact with any vertebra | 11 |
+| not evaluable (vertebra out of field) | 5,788 |
+
+**0 cases are misnumbered** (no case has three or more ribs sharing one offset). Both
+remaining offsets are field-of-view truncations on cases that are individually
+understood: in one, the rib's own vertebra is present but clipped at the last slice of
+the scan and falls below the QC's voxel floor; in the other, the rib heads sit more than
+100 mm from the spine and only two thoracic vertebrae are in view, so rib-to-vertebra
+matching carries no information there.
+
+They are reported rather than suppressed. A threshold tuned until the count reaches zero
+produces a cleaner number and a less useful one.
+
+### Spinopelvic and surgical measures — every median inside its published range
+
+| measure | median | IQR | published |
+|---|---:|---|---|
+| pelvic incidence | 51.1° | 44.3–59.5 | ~50 |
+| sacral slope | 36.9° | 30.1–45.9 | ~40 |
+| pelvic tilt | 13.9° | 9.1–18.5 | ~13 |
+| lumbar lordosis (supine) | 52.7° | 43.5–61.5 | ~50 (supine sits ~4.6° below standing) |
+| PI−LL mismatch | −1.4° | −7.4–5.5 | ~0 |
+| iliac crest above the L4–5 disc | 4.4 mm | −3.2–11.6 | — |
+| lowest rib to iliac crest | 62.4 mm | 52.8–72.8 | — |
+| narrowest lumbar pedicle | 7.1 mm | 5.6–9.0 | 7–15 by level |
+
+The extraction script holds these ranges and **exits non-zero if a median falls outside
+one**. That check exists because an earlier version of the geometry returned a sacral
+slope of 83° and a pelvic incidence of 155° for all 802 cases, printed them in a tidy
+table, and exited zero.
+
+PI−LL centring on zero across an unoperated cohort is the strongest available check on
+the two angles: they are measured from different structures and still agree.
+
+Lordosis is computed only where the arc reaches the top of the lumbar segment
+(801 / 801 measured cases), because a field of view that clips the upper lumbar spine
+returns a smaller angle than the patient has, and that error would land in the mismatch.
+
+24.7% of cases (195 / 789) have an iliac crest 12 mm or more above the L4–5 disc, the
+published threshold above which subsidence risk rises after oblique lateral fusion at
+that level.
+
+### What this release does not support
+
+- **Thoracic ground truth is field-of-view limited** — roughly T8 downward, not T1.
+- **Lordosis, pelvic tilt and sacral slope are supine.** Pelvic incidence is not: it is
+  a morphological property of the pelvis and is identical in any posture.
+- **Hardware is unpopulated** (above).
+- **LSTV labels come from more than one source** and are not all expert-adjudicated.
+- **Level names are not asserted from a spine-limited field of view.** Sacralisation and
+  lumbarisation are one morphology under two counts; the derived measures are count-free
+  for that reason.
 
 ## Bone augmentation (TotalSegmentator)
 
