@@ -190,6 +190,39 @@ def _angle(u, v):
     return float(np.degrees(np.arccos(np.clip(cu @ cv, -1, 1))))
 
 
+
+def _femoral_head(fem_mask, hip_mask, sp):
+    """Centroid of the femoral head: the part of the femur inside the acetabulum.
+
+    Defined by contact rather than by a percentile — the head is what sits against the
+    hip bone. Falls back to the whole-femur centroid only when the hip label is absent,
+    which is the behaviour this replaces.
+    """
+    if hip_mask is None or not hip_mask.any():
+        return _com(fem_mask, sp)
+    # CROP FIRST. A distance transform over the whole volume allocates a 512^3 float64
+    # array -- a gigabyte per call, twice per case, across every worker. It OOM-killed
+    # the job. The femoral head is where femur and hip meet, so only the box containing
+    # both can matter, and the answer is identical.
+    both = fem_mask | hip_mask
+    idx = np.argwhere(both)
+    if not len(idx):
+        return _com(fem_mask, sp)
+    lo = np.maximum(idx.min(0) - 4, 0)
+    hi = np.minimum(idx.max(0) + 5, np.array(fem_mask.shape))
+    sl = tuple(slice(int(a), int(b)) for a, b in zip(lo, hi))
+    fsub, hsub = fem_mask[sl], hip_mask[sl]
+    d = ndimage.distance_transform_edt(~hsub, sampling=sp)
+    near = fsub & (d <= 6.0)
+    if near.sum() < 200:
+        near = fsub & (d <= 12.0)
+    if near.sum() < 200:
+        return _com(fem_mask, sp)
+    # centroid of the cropped selection, shifted back into the full volume's frame
+    c = _com(near, sp)
+    return None if c is None else c + lo * sp
+
+
 def one(path: str) -> dict:
     stem = Path(path).name.replace("_label.nii.gz", "")
     r = {"case": stem}
@@ -206,8 +239,11 @@ def one(path: str) -> dict:
     # ---- pelvic incidence (position independent) ---------------------------------
     fem = None
     if FEM_L in have and FEM_R in have:
-        cl, cr = _com(have[FEM_L], sp), _com(have[FEM_R], sp)
-        fem = (cl + cr) / 2
+        cl = _femoral_head(have[FEM_L], have.get(HIP_L), sp)
+        cr = _femoral_head(have[FEM_R], have.get(HIP_R), sp)
+        if cl is not None and cr is not None:
+            fem = (cl + cr) / 2
+            r["bi_acetabular_mm"] = round(float(np.linalg.norm(cl - cr)), 1)
     elif HIP_L in have and HIP_R in have:
         # fall back to the acetabular centroids; less exact than femoral heads but the
         # bicoxofemoral axis is a midpoint either way
@@ -255,6 +291,51 @@ def one(path: str) -> dict:
             if "pelvic_incidence_deg" in r and r["ll_complete"]:
                 r["pi_ll_mismatch_deg"] = round(r["pelvic_incidence_deg"]
                                                 - r["ll_supine_deg"], 1)
+
+    # ---- pelvic shape: the measures that ARE dimorphic ----------------------------
+    # These exist to be checked against a century of anatomy, and to fail loudly if the
+    # pelvic labels, the sidedness or the voxel spacing ever go wrong.
+    if HIP_L in have and HIP_R in have:
+        hl, hr = np.argwhere(have[HIP_L]), np.argwhere(have[HIP_R])
+        # widest outer span across both crests, measured along the left-right axis
+        allx = np.concatenate([hl[:, 0], hr[:, 0]])
+        r["bi_iliac_width_mm"] = round(float(allx.max() - allx.min()) * sp[0], 1)
+        # sacral shape: width over height. The most reported pelvic sex difference.
+        if SACRUM in have:
+            si = np.argwhere(have[SACRUM])
+            w = float(si[:, 0].max() - si[:, 0].min()) * sp[0]
+            h = float(si[:, 2].max() - si[:, 2].min()) * sp[2]
+            if h > 1:
+                r["sacral_width_mm"] = round(w, 1)
+                r["sacral_height_mm"] = round(h, 1)
+                r["sacral_width_ratio"] = round(w / h, 3)
+
+    # pelvic inlet, anteroposterior: sacral promontory forward to the pubic symphysis.
+    # The promontory is the most anterior-superior point of S1; the symphysis is the most
+    # anterior point of the hips at roughly that height.
+    if S1 in have and (HIP_L in have or HIP_R in have):
+        si = np.argwhere(have[S1])
+        top = si[si[:, 2] >= np.percentile(si[:, 2], 88)]
+        if len(top):
+            prom = top[np.argmax(top[:, 1])] * sp
+            hips = np.zeros_like(lab, bool)
+            for h in (HIP_L, HIP_R):
+                if h in have:
+                    hips |= have[h]
+            hi = np.argwhere(hips)
+            # the pubic bones meet at the ANTERIOR MIDLINE: that is the symphysis. The
+            # first version took the most anterior hip voxel at the promontory's height,
+            # which is up on the iliac wing and gave an inlet of 70 mm.
+            midx = float(np.median(hi[:, 0]))
+            near = hi[np.abs(hi[:, 0] - midx) * sp[0] <= 18.0]
+            if len(near) > 50:
+                sym = near[np.argmax(near[:, 1])] * sp
+                ap = float(np.hypot(sym[1] - prom[1], sym[2] - prom[2]))
+                if 60 < ap < 200:
+                    r["pelvic_inlet_ap_mm"] = round(ap, 1)
+                    if r.get("bi_acetabular_mm"):
+                        # rounder inlet -> higher index. The classic shape ratio.
+                        r["inlet_index"] = round(ap / r["bi_acetabular_mm"], 3)
 
     # ---- the lateral corridor ----------------------------------------------------
     crest = None
@@ -323,31 +404,69 @@ def one(path: str) -> dict:
             depth = float(len(by)) * sp[1]
             if depth > 0:
                 torg[LUMBAR[vid]] = round(canal[LUMBAR[vid]] / depth, 3)
-            # PEDICLE ISTHMUS, PER SIDE. The old form took the full left-right extent of
-            # bone across the slice and halved it, so the canal itself was inside the
-            # measurement -- it read about 17mm where a lumbar pedicle is 7-15mm. Measure
-            # instead the run of bone OUTBOARD of each canal edge, and take the narrowest
-            # such run over the canal's height: that is the isthmus, which is what limits
-            # screw diameter.
-            runs = []
-            for y in hy:
-                cx = np.nonzero(big[:, y])[0]
-                bx = np.nonzero(sl[:, y])[0]
-                if len(cx) < 2 or len(bx) < 2:
+            # PEDICLE ISTHMUS, PER SIDE, AT THE SLICE WHERE THE PEDICLE EXISTS.
+            # Two earlier versions were wrong in opposite directions. The first took the
+            # full left-right extent of bone and halved it, canal included, and read
+            # ~17mm. The second took the narrowest bone run outboard of the canal over
+            # the canal's WHOLE anteroposterior range -- but at the back of the canal
+            # that bone is LAMINA, which is thinner than any pedicle, so it read ~5mm
+            # where L5 is 15-18.
+            #
+            # The pedicle is the bridge at the ANTERIOR corner of the canal, joining body
+            # to arch, and it exists only over part of the vertebra's height. So: look
+            # only at the front third of the canal, and take the widest slice, because a
+            # slice below the pedicle has no bridge to measure and would win a minimum
+            # for the wrong reason.
+            per_side = {"l": [], "r": []}
+            zlo, zhi = int(np.percentile(idx[:, 2], 20)), int(np.percentile(idx[:, 2], 80))
+            for z in range(zlo, zhi + 1):
+                s2 = m[:, :, z]
+                if s2.sum() < 60:
                     continue
-                for lo_hi, side in ((bx[bx < cx.min()], "l"), (bx[bx > cx.max()], "r")):
-                    if len(lo_hi) < 2:
-                        continue
-                    # contiguous run adjacent to the canal, not every speck on that side
-                    d = np.diff(lo_hi)
-                    brk = np.nonzero(d > 1)[0]
-                    seg = (lo_hi[brk[-1] + 1:] if side == "l" and len(brk)
-                           else lo_hi[:brk[0] + 1] if side == "r" and len(brk)
-                           else lo_hi)
-                    if len(seg) >= 2:
-                        runs.append(float(seg.max() - seg.min() + 1) * sp[0])
-            if runs:
-                ped[LUMBAR[vid]] = round(float(np.min(runs)), 1)
+                h2 = ndimage.binary_fill_holes(s2) & ~s2
+                if not h2.any():
+                    continue
+                c2, n2 = ndimage.label(h2)
+                if n2 == 0:
+                    continue
+                sz = ndimage.sum(h2, c2, range(1, n2 + 1))
+                cn = c2 == (int(np.argmax(sz)) + 1)
+                if cn.sum() < 20:
+                    continue
+                cy = np.nonzero(cn.any(axis=0))[0]
+                # front third of the canal: where the pedicle is, not the lamina
+                y_front = cy[cy >= cy.min() + 0.66 * (cy.max() - cy.min())]
+                if len(y_front) < 2:
+                    continue
+                for side in ("l", "r"):
+                    runs_z = []
+                    for y in y_front:
+                        cx = np.nonzero(cn[:, y])[0]
+                        bx = np.nonzero(s2[:, y])[0]
+                        if len(cx) < 2 or len(bx) < 2:
+                            continue
+                        out = bx[bx < cx.min()] if side == "l" else bx[bx > cx.max()]
+                        if len(out) < 2:
+                            continue
+                        d = np.diff(out)
+                        brk = np.nonzero(d > 1)[0]
+                        seg = (out[brk[-1] + 1:] if side == "l" and len(brk)
+                               else out[:brk[0] + 1] if side == "r" and len(brk)
+                               else out)
+                        if len(seg) >= 2:
+                            runs_z.append(float(seg.max() - seg.min() + 1) * sp[0])
+                    if runs_z:
+                        per_side[side].append(min(runs_z))
+            # MEDIAN ACROSS SLICES, not the widest and not the narrowest. The widest
+            # slice is where the transverse process merges into the arch and reads far
+            # too broad (L5 came back 22.7mm); the narrowest is a slice with no real
+            # bridge at all. The isthmus is a waist, so the typical slice is the honest
+            # one.
+            got = [float(np.median(v)) for v in per_side.values() if v]
+            if got:
+                # the narrower pedicle is the one that limits the screw
+                ped[LUMBAR[vid]] = round(min(got), 1)
+
         # WEDGING IS A PROPERTY OF THE BODY. Taking the posterior fifth of the whole
         # vertebra measures the spinous process, which spans far more height than the
         # posterior body wall does, so every vertebra read as anteriorly collapsed.
@@ -431,7 +550,16 @@ def main() -> int:
         "ll_supine_deg": (35, 65),             # ~50 supine, ~55 standing
         "pi_ll_mismatch_deg": (-15, 20),       # centred near zero in the unoperated
         "pedicle_min_mm": (5, 16),             # L1 ~7 rising to L5 ~15
-        "torg_min": (0.6, 1.6),                # ~1.0; below 0.8 is the stenosis threshold
+        # NOT the cervical Torg-Pavlov range. That ratio is ~1.0 in the neck, but a
+        # lumbar canal is about half the depth of a lumbar body, so ~0.5 is normal here
+        # and the cervical figure would condemn a correct measurement.
+        "torg_min": (0.35, 0.75),
+        # adult pelvis, both sexes pooled
+        "bi_iliac_width_mm": (220, 320),
+        "bi_acetabular_mm": (130, 210),
+        "pelvic_inlet_ap_mm": (95, 145),
+        "sacral_width_ratio": (0.9, 2.2),
+        "canal_ap_min_mm": (11, 22),           # lumbar midsagittal canal, ~15-18
     }
     suspect = []
 
@@ -455,6 +583,9 @@ def main() -> int:
                  ("pelvic_tilt_deg", "°"), ("ll_supine_deg", "°"),
                  ("pi_ll_mismatch_deg", "°"), ("crest_above_l45_mm", "mm"),
                  ("rib12_to_crest_mm", "mm"), ("pedicle_min_mm", "mm"),
+                 ("bi_iliac_width_mm", "mm"), ("bi_acetabular_mm", "mm"),
+                 ("pelvic_inlet_ap_mm", "mm"), ("sacral_width_ratio", ""),
+                 ("inlet_index", ""),
                  ("torg_min", "")):
         summarise(k, u)
     n_ll = sum(1 for x in ok if x.get("ll_supine_deg") is not None)
@@ -467,6 +598,29 @@ def main() -> int:
     if n_cr:
         print(f"\n  crest >= 12mm above the L4-5 disc (raised subsidence risk after "
               f"lateral fusion): {blocked}/{n_cr} = {100*blocked/n_cr:.1f}%")
+    # BY SEX, on the measures where a difference is expected. This is the sanity check
+    # that pelvic incidence could not be: if the pelvic labels, the sidedness or the
+    # spacing were wrong, these would move. Reported as a check on the pipeline, not as
+    # a finding -- the sex difference in pelvic shape has been known for a century.
+    def by_sex(key, unit=""):
+        g = {}
+        for want, lab_ in (("F", "female"), ("M", "male")):
+            v = [x[key] for x in ok
+                 if isinstance(x.get(key), (int, float))
+                 and str(x.get("sex", "")).strip().upper().startswith(want)]
+            if len(v) >= 20:
+                g[lab_] = (len(v), float(np.median(v)))
+        if len(g) == 2:
+            (nf, mf), (nm, mm_) = g["female"], g["male"]
+            print(f"  {key:22s} female {mf:7.1f}{unit} (n={nf})   "
+                  f"male {mm_:7.1f}{unit} (n={nm})   diff {mf - mm_:+.1f}")
+
+    print("\n  pelvic shape by sex (a check on the pipeline, not a finding):")
+    for k, u in (("bi_iliac_width_mm", "mm"), ("bi_acetabular_mm", "mm"),
+                 ("pelvic_inlet_ap_mm", "mm"), ("sacral_width_ratio", ""),
+                 ("inlet_index", ""), ("pelvic_incidence_deg", "\u00b0")):
+        by_sex(k, u)
+
     print(f"\n  wrote {p}")
     if suspect:
         print(f"\n  *** {len(suspect)} measure(s) outside the plausible range: "

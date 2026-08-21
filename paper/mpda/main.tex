@@ -1,0 +1,141 @@
+% ============================================================================
+%  CTSpinoPelvic1K — Medical Physics Dataset Article
+%
+%  REVTeX 4.2 with the AAPM substyle, which is what Medical Physics expects.
+%  Overleaf: "Template for Medical Physics Journal" (RevTeX + aapm) —
+%  https://www.overleaf.com/latex/templates/template-for-medical-physics-journal
+%
+%  THREE CONSTRAINTS SHAPE THIS FILE, all from the MPDA policy:
+%
+%    1. Ten published pages. Every figure has to earn its place.
+%    2. NO HYPOTHESIS TESTING. Comprehensive descriptive analysis is required and
+%       visualisation is encouraged, but nothing here may be framed as a result,
+%       tested for significance, or offered as evidence for a mechanism. Where a
+%       distribution has structure, describe the structure and stop.
+%    3. The dataset DOI must exist before submission and be cited in the text.
+%
+%  See PLAN.md in this directory for the full requirements and the order of work.
+% ============================================================================
+\documentclass[aapm,mph,amsmath,amssymb,preprint]{revtex4-2}
+
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage[colorlinks=true,allcolors=blue]{hyperref}
+
+% The dataset DOI. Reserve it on Zenodo BEFORE writing the final draft: a reserved DOI
+% is quotable while the record is still a private draft. Deleting that draft destroys
+% the DOI and the files with it.
+\newcommand{\datasetdoi}{10.5281/zenodo.XXXXXXX}
+
+\begin{document}
+
+\title{CTSpinoPelvic1K: a fused spine and pelvis CT segmentation dataset
+       built for lumbosacral transitional anatomy}
+
+\author{Gregory Schwing}
+ \affiliation{[VERIFY affiliation]}
+\author{[co-authors]}
+
+\date{\today}
+
+% ---------------------------------------------------------------------------
+%  STRUCTURED ABSTRACT — four named sections, under 300 words total.
+%  The section names are fixed by policy; do not rename them.
+% ---------------------------------------------------------------------------
+\begin{abstract}
+\textbf{Purpose:} [What the dataset is; its scope; who it is for. State the problem it
+exists to address: lumbar levels cannot be numbered reliably in the presence of a
+lumbosacral transitional vertebra, and existing public collections do not annotate the
+anatomy that makes the count ambiguous.]
+
+\textbf{Acquisition and Validation Methods:} [The population and how the records were
+produced: patient-level crosswalk of three public collections, labels placed on the
+acquisition with the highest bone coverage, unified under a VerSe-native scheme. Then
+how they were validated: per-case geometric invariants, rib--vertebra incidence QC, and
+agreement of derived spinopelvic measures with published adult reference values.]
+
+\textbf{Data Format and Usage Notes:} [NIfTI volumes and label masks; \emph{N} subjects;
+frozen patient-grouped splits; the loader; the archive and its DOI \datasetdoi.]
+
+\textbf{Potential Applications:} [Segmentation and level-numbering benchmarks, anatomical
+variant studies, surgical planning research. \textbf{And the limitations}: thoracic ground
+truth is field-of-view limited, postural angles are supine, and level names are not
+asserted where the field of view cannot support them.]
+\end{abstract}
+
+\maketitle
+
+% ---------------------------------------------------------------------------
+\section{Purpose}
+% Why this dataset exists. The count problem, stated concretely and without argument:
+% sacralisation and lumbarisation are one morphology under two counts, and a
+% spine-limited field of view cannot decide between them. Say what existing collections
+% do and where that leaves a user. No claims about model performance.
+
+\section{Acquisition and Validation Methods}
+
+\subsection{Sources and patient-level crosswalk}
+% The three collections, and the rule for placing labels onto a CT series.
+
+\subsection{Label scheme}
+% VerSe-native. The full class table goes here, INCLUDING the lumbar rib classes and the
+% hardware classes marked as declared-but-unpopulated if they ship that way. A class
+% listed without that note reads as populated.
+
+\subsection{Annotation and review}
+% Dual review, server-side gating, adjudication of disagreements.
+
+\subsection{Validation}
+% This is the section the data-curation reviewer reads first.
+%
+%   - Release invariants, per case: label geometry against its CT (shape, affine,
+%     spacing), no id outside the scheme, non-empty label, and left/right structures on
+%     the correct sides with the axis read from the affine rather than assumed.
+%   - Rib--vertebra incidence QC across every rib in the release.
+%   - Agreement of derived measures with published reference values.
+%
+% Report the two remaining rib offsets and say why they remain. A threshold tuned until
+% the count reaches zero produces a cleaner number and a less useful one, and a curation
+% reviewer who finds an unreported discrepancy trusts nothing else in the table.
+
+\section{Data Format and Usage Notes}
+% Formats, units, header conventions, orientation, the frozen splits, the loader, and
+% the archive. State plainly that masks are NIfTI rather than DICOM and why: DICOM is the
+% policy's preference "if applicable", and for segmentation masks it is not the format
+% downstream tools expect.
+
+\section{Descriptive Analysis}
+% Required, and the largest section. Describe the cohort and the anatomy WITHOUT testing
+% anything.
+%
+% Count-free measures — valid without knowing which vertebra is which:
+%   - vertebrae between the lowest rib and the sacrum (an interval, not a level)
+%   - lowest rib length as a fraction of the rib above (bimodal: describe the two modes,
+%     do not test them or explain them)
+%   - lowest disc gap over the one above
+%   - lowest lumbar transverse span against its gap to the ala
+%
+% Spinopelvic and corridor measures, each reported against its published value. Frame
+% these as characterisation and as a consistency check on the measurements — NOT as
+% findings about spines.
+
+\section{Potential Applications and Limitations}
+% Applications, then limitations in the same section and with equal weight:
+% field-of-view-limited thoracic ground truth; supine postural angles (pelvic incidence
+% excepted, being position-independent); any declared-but-empty class; multi-source LSTV
+% labels that are not uniformly adjudicated; and no level names asserted from a
+% spine-limited field of view.
+
+\section*{Data Availability}
+The dataset is permanently archived at \url{https://doi.org/\datasetdoi}.
+% Code repository and its release tag. If a mirror exists on a model hub, name it as a
+% convenience mirror and not as the archive of record.
+
+\section*{Conflict of Interest}
+% [VERIFY]
+
+\bibliographystyle{medphy}
+\bibliography{refs}
+
+\end{document}

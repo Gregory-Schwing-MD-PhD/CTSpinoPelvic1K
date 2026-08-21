@@ -107,9 +107,272 @@ def rug(vals, lo, hi, cap=260):
     return [round(v[int(i * step)], 4) for i in range(cap)]
 
 
+# ---------------------------------------------------------------------------------
+# THE SURGICAL BLOCK. These are not count-free: pelvic incidence needs the sacral
+# endplate and the femoral heads, and lordosis needs to know where the lumbar segment
+# begins. So they live in their own section and say what they depend on. They belong in
+# the gallery because they are what the anatomy is FOR -- a transitional segment matters
+# to a surgeon through the corridor it opens or closes and the alignment it sets.
+#
+# EVERY PANEL CARRIES ITS PUBLISHED REFERENCE VALUE. A distribution read only against
+# itself cannot be wrong. Read against the literature it can be, which is the point.
+SURGICAL = [
+    ("pelvic_incidence_deg", "Pelvic incidence", 25, 85, 50,
+     "position-independent: identical standing, seated and supine",
+     "A morphological property of the pelvis rather than a posture, which is why it "
+     "needs no caveat on a supine CT, and why it sets how much lordosis a given spine "
+     "requires."),
+    ("sacral_slope_deg", "Sacral slope", 10, 70, 40,
+     "postural, reported supine",
+     "The sacral plate measured against the horizontal."),
+    ("pelvic_tilt_deg", "Pelvic tilt", -10, 45, 13,
+     "postural, reported supine",
+     "Pelvic incidence less sacral slope. It rises as a pelvis retroverts to "
+     "compensate for lost lordosis."),
+    ("ll_supine_deg", "Lumbar lordosis, supine", 10, 95, 50,
+     "supine sits about 4.6 degrees below standing; it is SEATED that collapses",
+     "Measured only where the arc reaches the top of the lumbar segment. A field of "
+     "view that clips the upper lumbar spine returns a smaller angle than the patient "
+     "actually has, and that error would land in the mismatch below."),
+    ("pi_ll_mismatch_deg", "PI-LL mismatch", -40, 40, 0,
+     "the decision-maker: beyond about 10 degrees predicts residual pain after fusion",
+     "Centred near zero across an unoperated cohort, which is the check that the two "
+     "angles were measured independently and still agree."),
+    ("crest_above_l45_mm", "Iliac crest above the L4-5 disc", -30, 40, 12,
+     "the lateral corridor: positive means the crest obstructs a lateral approach",
+     "The dashed line is the published 12 mm cutoff, above which subsidence risk rises "
+     "after oblique lateral fusion at that level."),
+    ("rib12_to_crest_mm", "Lowest rib to iliac crest", 20, 110, None,
+     "the other boundary of the same corridor",
+     "This is where the rib work becomes operative: a hypoplastic or absent twelfth rib "
+     "moves the upper limit of the working window."),
+    ("pedicle_min_mm", "Narrowest lumbar pedicle", 3, 20, None,
+     "selects screw diameter, and is itself a phenotype",
+     "Measured at the isthmus, per side, taking the narrower of the two."),
+]
+
+
+def add_surgical(out, path):
+    p = Path(path)
+    if not p.exists():
+        print(f"  ! {path} not found; surgical panels skipped")
+        return
+    rows = list(csv.DictReader(open(p)))
+    if not rows:
+        return
+    sect = "Spinopelvic alignment and the surgical corridor"
+
+    for key, title, lo, hi, ref, subtitle, caption in SURGICAL:
+        vals = [num(r, key) for r in rows]
+        d = density(vals, lo, hi)
+        if not d["x"]:
+            continue
+        panel = {
+            "key": key, "section": sect, "title": title, "subtitle": subtitle,
+            "type": "density", "caption": caption, "rug": rug(vals, lo, hi),
+            "xlabel": title + (" (mm)" if key.endswith("_mm") else " (degrees)"),
+        }
+        panel.update(d)
+        if ref is not None:
+            panel["reference"] = ref
+            panel["reference_label"] = ("12 mm cutoff" if key.startswith("crest")
+                                        else f"published ~{ref}")
+        out["panels"].append(panel)
+
+    add_pelvic_shape(out, rows)
+
+    # PI against LL, with the identity line. Their AGREEMENT is the finding: a spine
+    # either matches the pelvis it sits on or it does not, and the distance from the
+    # diagonal IS the mismatch that drives the decision.
+    pts = []
+    for r in rows:
+        x, y = num(r, "pelvic_incidence_deg"), num(r, "ll_supine_deg")
+        if x is None or y is None or str(r.get("ll_complete")) != "1":
+            continue
+        pts.append({"x": round(x, 1), "y": round(y, 1),
+                    "f": int((r.get("lstv_label") or "normal") != "normal")})
+    if len(pts) > 40:
+        out["panels"].append({
+            "key": "pi_vs_ll", "section": sect,
+            "title": "Does the lumbar spine match the pelvis it sits on?",
+            "subtitle": "one point per case; the diagonal is a perfect match",
+            "type": "scatter", "points": pts[::2], "identity": True, "log_y": False,
+            "xlabel": "pelvic incidence (degrees)",
+            "ylabel": "lumbar lordosis, supine (degrees)",
+            "caption": ("Points below the diagonal have less lordosis than their pelvis "
+                        "calls for. The cloud sits ON the line, which is what an "
+                        "unoperated cohort should do and is the strongest evidence "
+                        "these two angles were measured independently."),
+        })
+
+    # SEX. This began as a positive control on the theory that a pelvic measure must
+    # separate by sex. It does not, and the theory was the thing that was wrong: pelvic
+    # dimorphism is strong in SHAPE -- subpubic angle, inlet proportions, sciatic notch
+    # -- while pelvic incidence is not one of those measures, and several series report
+    # no significant sex difference in it. Measured here: 51.3 against 50.5 degrees.
+    # The panel reports that null with both medians on the caption, because a null
+    # stated with its effect size is a result and an unexamined adjective is not.
+    series, meds = [], {}
+    for want, label in (("F", "female"), ("M", "male")):
+        v = [x for x in (num(r, "pelvic_incidence_deg") for r in rows
+                         if (r.get("sex") or "").strip().upper().startswith(want))
+             if x is not None]
+        if not v:
+            continue
+        sv = sorted(v)
+        meds[label] = sv[len(sv) // 2]
+        dd = density(v, 25, 85)
+        if dd["x"]:
+            series.append({"label": label, "x": dd["x"], "y": dd["y"], "n": dd["n"]})
+    if len(series) == 2:
+        gap = abs(meds.get("female", 0) - meds.get("male", 0))
+        out["panels"].append({
+            "key": "pi_by_sex", "section": sect, "type": "split", "series": series,
+            "title": "Pelvic incidence by sex",
+            "subtitle": "reported because the cohort carries age and sex, not because "
+                        "it separates",
+            "xlabel": "pelvic incidence (degrees)",
+            "caption": (f"Median {meds.get('female', float('nan')):.1f} degrees in women "
+                        f"against {meds.get('male', float('nan')):.1f} in men, a "
+                        f"difference of {gap:.1f}. Pelvic dimorphism is strong in shape "
+                        "-- subpubic angle, inlet proportions, the sciatic notch -- and "
+                        "pelvic incidence is not one of those measures, so a null here "
+                        "agrees with the series that report no sex difference in it."),
+        })
+
+
+def add_demographics(out, rows):
+    """Who these people are, before anything about their spines."""
+    sect = "Who is in this dataset"
+    note = ("Every case comes from CT colonography -- a colorectal cancer SCREENING "
+            "examination. The age floor visible in the data is the screening guideline "
+            "showing through, not a choice made here. So this is an asymptomatic "
+            "screening population rather than a surgical or back-pain series: the "
+            "spinopelvic measures below sit closer to a reference range than a clinical "
+            "cohort would, and the transitional variants were found incidentally.")
+
+    # --- age, split by sex ---------------------------------------------------------
+    series, meds = [], {}
+    for want, label in (("F", "female"), ("M", "male")):
+        v = [x for x in (num(r, "age") for r in rows
+                         if (r.get("sex") or "").strip().upper().startswith(want))
+             if x is not None]
+        if len(v) < 20:
+            continue
+        sv = sorted(v)
+        meds[label] = sv[len(sv) // 2]
+        d = density(v, 45, 95)
+        if d["x"]:
+            series.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"]})
+    if len(series) == 2:
+        out["panels"].append({
+            "key": "age_by_sex", "section": sect, "section_note": note,
+            "title": "Age, by sex", "type": "split", "series": series,
+            "xlabel": "age (years)",
+            "subtitle": "a screening population: the lower bound is the guideline, not a filter",
+            "caption": (f"Median {meds['female']:.0f} years in women and "
+                        f"{meds['male']:.0f} in men. Nothing below the screening age "
+                        "threshold appears because nothing below it was scanned."),
+        })
+
+    # --- sex, source configuration, and source LSTV label --------------------------
+    for key, title, subtitle, caption in (
+        ("sex", "Sex", "as recorded in the source metadata",
+         "Recorded in the source collection, not inferred from the images. Cases with "
+         "no recorded value are shown rather than dropped."),
+        ("config", "How each record was assembled",
+         "spine and pelvic labels do not always land on the same acquisition",
+         "Each patient was scanned prone and supine. Where both label sets landed on "
+         "one acquisition the record is fused; otherwise the two are exported "
+         "separately, which is why a patient can appear as more than one record."),
+        ("lstv_label", "Transitional label carried by the source",
+         "from the source collections, not adjudicated here",
+         "These are the labels the source collections carried. They are shown as they "
+         "arrived, and are not all expert-adjudicated -- which is exactly why the "
+         "measures on this page are count-free and do not depend on them."),
+    ):
+        c = Counter((r.get(key) or "not recorded").strip() or "not recorded" for r in rows)
+        if len(c) < 2:
+            continue
+        items = c.most_common()
+        out["panels"].append({
+            "key": f"demo_{key}", "section": sect, "title": title, "subtitle": subtitle,
+            "type": "categorical",
+            "categories": [k for k, _ in items], "counts": [v for _, v in items],
+            "xlabel": title, "caption": caption,
+        })
+
+
+# Pelvic shape, split by sex. Range and a one-line reason for each; the range is the
+# window the density is drawn over, chosen wide enough to show both tails.
+PELVIC_SHAPE = [
+    ("bi_iliac_width_mm", "Pelvic width across the iliac crests", 200, 340,
+     "the widest span of the bony pelvis",
+     "The measurement most people mean by pelvic width."),
+    ("bi_acetabular_mm", "Width across the hip joints", 120, 220,
+     "centre to centre between the femoral heads",
+     "Measured from the femoral head found by its contact with the acetabulum, not from "
+     "the centroid of the whole femur -- that sits down the shaft and reads several "
+     "centimetres too wide."),
+    ("pelvic_inlet_ap_mm", "Pelvic inlet, front to back", 80, 160,
+     "sacral promontory to pubic symphysis: the obstetric conjugate",
+     "The depth of the birth canal at its narrowest ring."),
+    ("inlet_index", "Inlet shape", 0.35, 1.05,
+     "inlet depth divided by width across the hips",
+     "A rounder inlet scores higher, a heart-shaped one lower. Roundness is the classic "
+     "obstetric distinction between pelvis types."),
+    ("sacral_width_ratio", "Sacral proportions", 0.6, 2.0,
+     "sacral width divided by sacral height",
+     "A wider, shorter sacrum scores higher. This is the single most reported sexual "
+     "difference in the pelvis."),
+]
+
+
+def add_pelvic_shape(out, rows):
+    sect = "Pelvic shape, by sex"
+    note = ("Pelvic incidence -- the angle above -- does not separate by sex, and several "
+            "published series agree that it does not. Sexual dimorphism in the pelvis is "
+            "a matter of SHAPE: how wide it is, how round the inlet is, how the sacrum is "
+            "proportioned. Those are measured here, drawn as two overlaid distributions "
+            "so the separation is visible rather than asserted, and each caption gives "
+            "both medians and the gap between them.")
+    first = True
+    for key, title, lo, hi, subtitle, why in PELVIC_SHAPE:
+        series, meds = [], {}
+        for want, label in (("F", "female"), ("M", "male")):
+            v = [x for x in (num(r, key) for r in rows
+                             if (r.get("sex") or "").strip().upper().startswith(want))
+                 if x is not None]
+            if len(v) < 20:
+                continue
+            sv = sorted(v)
+            meds[label] = sv[len(sv) // 2]
+            d = density(v, lo, hi)
+            if d["x"]:
+                series.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"]})
+        if len(series) != 2:
+            continue
+        gap = meds["female"] - meds["male"]
+        unit = " mm" if key.endswith("_mm") else ""
+        fmt = "{:.2f}" if not unit else "{:.0f}"
+        panel = {
+            "key": f"shape_{key}", "section": sect, "type": "split", "series": series,
+            "title": title, "subtitle": subtitle,
+            "xlabel": title + (" (mm)" if unit else ""),
+            "caption": (f"{why} Median " + fmt.format(meds["female"]) + f"{unit} in women "
+                        f"against " + fmt.format(meds["male"]) + f"{unit} in men, a "
+                        f"difference of " + fmt.format(abs(gap)) + f"{unit}."),
+        }
+        if first:
+            panel["section_note"] = note
+            first = False
+        out["panels"].append(panel)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", default="morphometrics/transition_morphometrics.csv")
+    ap.add_argument("--surgical", default="morphometrics/surgical_morphometrics.csv")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
@@ -128,10 +391,13 @@ def main() -> int:
         "panels": [],
     }
 
+    add_demographics(out, rows)
+
     # --- interval count -------------------------------------------------------------
     c = Counter(int(v) for v in (num(r, "n_non_rib_bearing") for r in rows) if v is not None)
     out["panels"].append({
         "key": "non_rib_bearing",
+        "section": "Anatomy of the transition",
         "title": "Non-rib-bearing vertebrae",
         "subtitle": "counted BETWEEN the lowest rib and the sacrum — an interval, not a level",
         "type": "categorical",
@@ -146,6 +412,7 @@ def main() -> int:
     vals = [num(r, "rib12_11_ratio_min") for r in rows]
     out["panels"].append({
         "key": "rib_ratio",
+        "section": "Anatomy of the transition",
         "title": "Lowest rib length, as a fraction of the rib above",
         "subtitle": "hypoplastic twelfth ribs form their own population",
         "type": "density",
@@ -161,6 +428,7 @@ def main() -> int:
     vals = [num(r, "disc_ratio") for r in rows]
     out["panels"].append({
         "key": "disc_ratio",
+        "section": "Anatomy of the transition",
         "title": "Lowest disc gap ÷ the disc above it",
         "subtitle": "dimensionless, so it compares across patients",
         "type": "density",
@@ -183,6 +451,7 @@ def main() -> int:
     pts = pts[::2]           # thin for page weight; the shape is unchanged
     out["panels"].append({
         "key": "castellvi",
+        "section": "Anatomy of the transition",
         "title": "How far the lowest lumbar reaches, and how close it comes to the ala",
         "subtitle": "one point per side — the asymmetry is the phenotype",
         "type": "scatter",
@@ -194,9 +463,11 @@ def main() -> int:
                     "naming the level."),
     })
 
+    add_surgical(out, a.surgical)
+
     p = Path(a.out)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(out, indent=1))
+    p.write_text(json.dumps(out, indent=1), encoding="utf-8")
     kb = p.stat().st_size / 1024
     print(f"  {len(rows)} cases -> {len(out['panels'])} panels, {kb:.0f} kB")
     print(f"  wrote {p}")

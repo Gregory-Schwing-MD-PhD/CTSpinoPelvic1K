@@ -84,10 +84,16 @@ FIXED = {
     # femurs go COOL against the warm grey of the hips: they meet at the acetabulum and
     # a shade-deeper version of the same grey does not survive that boundary
     32: (110, 122, 148), 33: (84, 96, 122),
-    # the rare findings, deliberately loud
+    # THE RARE FINDINGS, DELIBERATELY LOUD -- and hardware especially, because that is
+    # the one you go looking for. White was the first choice for generic hardware and it
+    # was the wrong one: metal on CT is already the brightest thing in the image, so a
+    # white label is invisible against exactly the voxels it is marking. These are
+    # saturated hues no bone takes.
     74: (255, 60, 200), 75: (120, 255, 220),
-    76: (255, 255, 255), 77: (255, 40, 40),
-    78: (60, 255, 60), 79: (255, 220, 40),
+    76: (255, 0, 255),      # generic hardware: magenta, nothing anatomical is magenta
+    77: (0, 255, 255),      # cage: cyan
+    78: (80, 255, 0),       # screws and rods: acid green
+    79: (255, 140, 0),      # plate: orange
     255: (40, 40, 40),
 }
 # soft tissue: muted, and semi-transparent so it never hides bone

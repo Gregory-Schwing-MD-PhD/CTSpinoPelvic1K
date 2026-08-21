@@ -45,17 +45,17 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 import label_scheme as LS                                          # noqa: E402
 
-# Triangle budget per structure class. The first pass set these for latency alone and the
-# result looked it -- faceted vertebrae and ribs coarse enough to read as blobs. A rib is
-# a thin curved shell, so it is the structure that suffers first and needs the most
-# triangles per unit volume, not the fewest.
-BUDGET = {"vertebra": 6000, "rib": 3000, "pelvis": 8000, "hardware": 4000, "other": 3000}
+# Triangle budget per structure class. High enough that the fallback decimator is a
+# light touch: vertex clustering tears thin shells when it has to work hard, and a rib
+# is the thinnest shell here.
+BUDGET = {"vertebra": 9000, "rib": 5000, "pelvis": 14000, "hardware": 6000,
+          "other": 5000}
 MIN_VOX = 150
-# Mask downsample before marching cubes. At 3 a rib is only two or three voxels thick in
-# the downsampled grid, so anti-aliasing plus the 0.5 isolevel can erode it to nothing --
-# structures were dropping out entirely. 2 keeps thin cortex present, at roughly twice
-# the payload, which lazy per-card loading pays for.
-DOWNSAMPLE = 2
+# NO MASK DOWNSAMPLING. At a third of resolution a rib is two or three voxels thick in
+# the downsampled grid and the 0.5 isolevel erodes it to nothing -- which is where the
+# patchy holes came from. Full resolution costs triangles, and the budget above spends
+# them where the geometry is thin.
+DOWNSAMPLE = 1
 
 
 def kind(vid: int) -> str:
@@ -82,6 +82,22 @@ def read_colours(path):
             continue
         out[int(t[0])] = [int(t[1]), int(t[2]), int(t[3])]
     return out
+
+
+
+def open_edge_fraction(faces):
+    """Fraction of edges used by exactly one triangle -- i.e. how holed the surface is.
+
+    A closed surface has every edge shared by two triangles. This is the number that
+    decides whether a render reads as a bone or as something with bites taken out of it,
+    and it is cheap enough to compute for every structure on every build.
+    """
+    if len(faces) == 0:
+        return 1.0
+    e = np.concatenate([faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]])
+    e = np.sort(e, axis=1)
+    _, counts = np.unique(e, axis=0, return_counts=True)
+    return float((counts == 1).sum()) / max(1, len(counts))
 
 
 def decimate(verts, faces, target):
@@ -188,6 +204,7 @@ def main() -> int:
         span = np.maximum(hi - lo, 1e-3)
 
         blob, meta, off = bytearray(), [], 0
+        holed = []          # structures still carrying boundary edges
         # every structure's first section starts 4-aligned because each
         # section is padded up to 4 on the way in
         for vid in ids:
@@ -200,10 +217,16 @@ def main() -> int:
             # indistinguishable. Anti-aliasing the boolean first stops the coarser grid
             # from turning smooth cortex into stairs.
             step = DOWNSAMPLE
-            sm = ndimage.zoom(m.astype(np.float32), 1.0 / step, order=1)
+            if step == 1:
+                # a light blur, not a resample: it takes the staircase off the cortex
+                # without moving the surface, and gives the decimator a smoother field
+                sm = ndimage.gaussian_filter(m.astype(np.float32), 0.6)
+                eff = tuple(np.asarray(sp, float))
+            else:
+                sm = ndimage.zoom(m.astype(np.float32), 1.0 / step, order=1)
+                eff = tuple(np.asarray(sp, float) * step)
             if sm.size == 0 or sm.max() < 0.5:
                 continue
-            eff = tuple(np.asarray(sp, float) * step)
             try:
                 v, f, _, _ = measure.marching_cubes(sm, level=0.5, spacing=eff)
             except Exception:                                       # noqa: BLE001
@@ -215,6 +238,9 @@ def main() -> int:
             if len(f) == 0:
                 continue
             v = taubin(v, f)
+            _open = open_edge_fraction(f)
+            if _open > 0.02:
+                holed.append((int(vid), round(_open, 3)))
             # normals from face geometry, averaged per vertex
             tri = v[f]
             fn = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
@@ -252,12 +278,24 @@ def main() -> int:
             meta.append(rec)
 
         (out / f"{stem}.bin").write_bytes(bytes(blob))
+        # THE AXIS CODES TRAVEL WITH THE MESH. Vertices are in the label array's own
+        # axes, and these volumes are ('P','I','R') -- the first mesh axis runs
+        # posterior, not right. Without this the viewer has to assume a patient frame,
+        # and its "anterior" view looked at the back. Recording what nibabel reports
+        # means nothing downstream has to guess.
         head = {"case": stem, "bbox_lo": lo.tolist(), "bbox_hi": hi.tolist(),
-                "quant": 65535, "structures": meta}
+                "quant": 65535, "axcodes": list(nib.aff2axcodes(img.affine)),
+                "mm_per_unit": 1.0, "structures": meta}
         (out / f"{stem}.json").write_text(json.dumps(head))
         kb = len(blob) / 1024
         tris = sum(m["ntris"] for m in meta)
         print(f"  {stem}: {len(meta)} structures, {tris} tris, {kb:.0f} kB")
+        if holed:
+            worst = sorted(holed, key=lambda t: -t[1])[:4]
+            print("      holes: " + ", ".join(f"id{v} {o:.1%}" for v, o in worst)
+                  + (f"  (+{len(holed) - len(worst)} more)" if len(holed) > 4 else ""))
+        else:
+            print("      holes: none above 2% of edges")
         index.append({"case": stem, "structures": len(meta), "kB": round(kb)})
 
     (out / "index.json").write_text(json.dumps({"cases": index}, indent=1))

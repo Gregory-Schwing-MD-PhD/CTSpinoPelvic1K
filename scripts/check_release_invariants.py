@@ -86,18 +86,29 @@ def one(args) -> dict:
     if stray:
         bad.append(f"ids outside the scheme: {stray[:6]}")
 
-    # sidedness, in the file's own frame: work out which array axis is left-right from
-    # the affine rather than assuming, then check the two rib families separate on it
-    lr_axis = int(np.argmax(np.abs(li.affine[0, :3])))
-    sign = np.sign(li.affine[0, lr_axis]) or 1.0
+    # SIDEDNESS, VIA NIBABEL'S OWN ORIENTATION CODES. The first version of this read
+    # affine[0, :3] and asserted that anatomical left is +x. Both halves were wrong:
+    # these volumes are ('P', 'I', 'R'), so the left-right axis is the THIRD array axis
+    # and not the one the first world row points along, and in RAS +x is the patient's
+    # RIGHT. It reported 801 of 802 cases as defective, which is the useful shape of a
+    # false positive -- a check that fails almost everything is accusing itself.
+    #
+    # aff2axcodes says, for each ARRAY axis, which way anatomically the index grows.
+    # Nothing here has to remember a convention.
+    codes = nib.aff2axcodes(li.affine)
+    lr = [i for i, k in enumerate(codes) if k in ("L", "R")]
     lm = np.isin(lab, list(RIB_L))
     rm = np.isin(lab, list(RIB_R))
-    if lm.any() and rm.any():
-        lc = float(np.argwhere(lm)[:, lr_axis].mean()) * sign
-        rc = float(np.argwhere(rm)[:, lr_axis].mean()) * sign
-        # anatomical left is +x in RAS, so left ribs must sit at the larger coordinate
-        if lc <= rc:
-            bad.append("left and right ribs are on the wrong sides")
+    if lr and lm.any() and rm.any():
+        ax = lr[0]
+        lc = float(np.argwhere(lm)[:, ax].mean())
+        rc = float(np.argwhere(rm)[:, ax].mean())
+        # code "R": the index grows toward the patient's right, so right-side structures
+        # sit at the higher index and left-side at the lower. "L" is the mirror.
+        wrong = (lc >= rc) if codes[ax] == "R" else (lc <= rc)
+        if wrong:
+            bad.append(f"left and right ribs are on the wrong sides "
+                       f"(axis {ax} grows toward {codes[ax]}; left {lc:.0f}, right {rc:.0f})")
 
     r["ok"] = 0 if bad else 1
     r["problems"] = "; ".join(bad)
