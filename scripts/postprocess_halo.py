@@ -55,33 +55,52 @@ def engulf_halo(lab: np.ndarray) -> Tuple[np.ndarray, List[dict]]:
     same rule the QC uses to stop blocking on it, so the gate and the cleanup can never disagree."""
     out = lab.copy()
     log: List[dict] = []
-    objs = ndimage.find_objects(lab if lab.dtype.kind in "iu" else lab.astype(np.int32))
     lo_id, hi_id = LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 12
     for rid in range(lo_id, hi_id + 1):
-        o = objs[rid - 1] if rid - 1 < len(objs) else None
-        if o is None:
+        whole = (lab == rid)
+        if not whole.any():
             continue
-        if not RA.is_halo_speck(lab, rid, o):
-            continue
-        # which adjacent rib absorbs it: the neighbour it touches most
-        pad = tuple(slice(max(0, o[i].start - 3), min(lab.shape[i], o[i].stop + 3)) for i in range(3))
-        sub = lab[pad]
-        m = (sub == rid)
-        dil = ndimage.binary_dilation(m, iterations=2)
-        adj = RA._adjacent_rib_ids(rid)
-        touched = sub[dil & (sub > 0) & (sub != rid)]
-        # Only a REAL rib may absorb the halo (never a fellow fragment -- otherwise two small pieces
-        # would engulf each other and the result would depend on iteration order).
-        cand = [int(v) for v in touched
-                if int(v) in adj and int((lab == int(v)).sum()) >= RA.HALO_MAX_VOX]
-        if not cand:
-            continue
-        winner = int(np.bincount(np.asarray(cand)).argmax())     # most-contacted real neighbour
-        n = int(m.sum())
-        out[pad][m] = winner                                     # the correct class engulfs the halo
-        names = RA._id2name()
-        log.append({"rib": names.get(rid, rid), "rib_id": rid, "voxels": n,
-                    "engulfed_by": names.get(winner, winner), "engulfed_by_id": winner})
+        # PER CONNECTED COMPONENT, not per label id. The size test was applied to the
+        # label's whole mass, so a label that had SHATTERED into specks scattered along a
+        # neighbouring rib summed past the threshold and was read as a real rib. 0378 had
+        # 428 fragments of rib_left_12 totalling 3350 voxels, every one of them within
+        # 1.3mm of rib_left_11 and the largest only 1240 -- not a rib by any reading, but
+        # the whole-label test called it one. Scatter IS the defect, so the unit of
+        # judgement has to be the piece, not the id.
+        cc, ncc = ndimage.label(whole)
+        boxes = ndimage.find_objects(cc)
+        for ci in range(1, ncc + 1):
+            o = boxes[ci - 1]
+            if o is None:
+                continue
+            pad = tuple(slice(max(0, o[i].start - 3), min(lab.shape[i], o[i].stop + 3))
+                        for i in range(3))
+            sub = lab[pad]
+            m = cc[pad] == ci
+            # The two signals of RA.is_halo_speck, applied to the PIECE and evaluated on
+            # the padded neighbourhood only. Calling the helper here would mean building a
+            # whole-volume array per component -- 428 of them on 0378 -- so the size test
+            # is inlined and the fused-to-a-real-adjacent-rib test is the `cand` filter
+            # below, which is the same rule the helper applies.
+            if int(m.sum()) >= RA.HALO_MAX_VOX:
+                continue
+            dil = ndimage.binary_dilation(m, iterations=2)
+            adj = RA._adjacent_rib_ids(rid)
+            touched = sub[dil & (sub > 0) & (sub != rid)]
+            # Only a REAL rib may absorb the halo (never a fellow fragment -- otherwise two
+            # small pieces would engulf each other and the result would depend on iteration
+            # order). This is also what protects a genuine hypoplastic rib: at 2247 voxels
+            # the right twelfth in 0378 is over the threshold and is never a candidate.
+            cand = [int(v) for v in touched
+                    if int(v) in adj and int((lab == int(v)).sum()) >= RA.HALO_MAX_VOX]
+            if not cand:
+                continue
+            winner = int(np.bincount(np.asarray(cand)).argmax())  # most-contacted neighbour
+            n = int(m.sum())
+            out[pad][m] = winner                        # the correct class engulfs the halo
+            names = RA._id2name()
+            log.append({"rib": names.get(rid, rid), "rib_id": rid, "voxels": n,
+                        "engulfed_by": names.get(winner, winner), "engulfed_by_id": winner})
     return out, log
 
 

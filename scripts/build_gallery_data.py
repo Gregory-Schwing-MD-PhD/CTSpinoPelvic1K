@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 from collections import Counter
 from pathlib import Path
 
@@ -43,6 +44,67 @@ def hist(vals, lo, hi, nbins):
         counts[i] += 1
     return {"edges": [round(e, 3) for e in edges], "counts": counts,
             "n": sum(counts)}
+
+
+def density(vals, lo, hi, npts=220):
+    """A fitted density curve rather than bars.
+
+    WHY NOT BARS. A binned chart makes the reader see the bin edges as if they were in
+    the data: the rib ratio drew two bars wide enough that the gap between the two modes
+    read as an artefact of where the cuts fell. A continuous estimate has no edges to
+    misread, and the shape is what these panels are for.
+
+    BANDWIDTH. Silverman's rule with a ROBUST scale -- the smaller of the standard
+    deviation and IQR/1.34. That distinction is the whole game here: on bimodal data the
+    plain standard deviation is inflated by the separation between the modes, so the rule
+    returns a bandwidth wide enough to smooth the two modes into one. The robust scale
+    does not inflate, so the structure survives. Trimmed a further 15% because the point
+    of the rib panel is that there ARE two modes, and a curve that merges them is not a
+    conservative choice, it is a wrong one.
+
+    A gaussian kernel puts mass outside [lo, hi] for values near an edge, so the curve is
+    reflected back at both bounds -- these are ratios with hard floors, and letting the
+    estimate leak past them would invent density where none can exist.
+    """
+    v = sorted(x for x in vals if x is not None and lo <= x <= hi)
+    n = len(v)
+    if n < 8:
+        return {"x": [], "y": [], "n": n, "bandwidth": None}
+    mean = sum(v) / n
+    sd = (sum((x - mean) ** 2 for x in v) / max(1, n - 1)) ** 0.5
+    q1 = v[int(0.25 * (n - 1))]
+    q3 = v[int(0.75 * (n - 1))]
+    scale = min(sd, (q3 - q1) / 1.34) if q3 > q1 else sd
+    if scale <= 0:
+        scale = sd or (hi - lo) / 50
+    h = 0.85 * 0.9 * scale * n ** (-0.2)
+
+    xs = [lo + (hi - lo) * i / (npts - 1) for i in range(npts)]
+    ys = []
+    c = 1.0 / (n * h * (2 * math.pi) ** 0.5)
+    for x in xs:
+        acc = 0.0
+        for p in v:
+            for q in (p, 2 * lo - p, 2 * hi - p):     # reflect at both bounds
+                z = (x - q) / h
+                if -5.0 < z < 5.0:
+                    acc += math.exp(-0.5 * z * z)
+        ys.append(acc * c)
+    return {"x": [round(t, 4) for t in xs], "y": [round(t, 5) for t in ys],
+            "n": n, "bandwidth": round(h, 4)}
+
+
+def rug(vals, lo, hi, cap=260):
+    """The observations themselves, thinned, drawn as ticks under the curve.
+
+    A fitted curve is a model. Showing the data beneath it keeps the reader able to see
+    where it is carrying many points and where it is carrying three.
+    """
+    v = [x for x in vals if x is not None and lo <= x <= hi]
+    if len(v) <= cap:
+        return [round(x, 4) for x in v]
+    step = len(v) / cap
+    return [round(v[int(i * step)], 4) for i in range(cap)]
 
 
 def main() -> int:
@@ -86,10 +148,13 @@ def main() -> int:
         "key": "rib_ratio",
         "title": "Lowest rib length, as a fraction of the rib above",
         "subtitle": "hypoplastic twelfth ribs form their own population",
-        "type": "hist",
-        **hist(vals, 0.05, 1.05, 25),
+        "type": "density",
+        **density(vals, 0.05, 1.05),
+        "rug": rug(vals, 0.05, 1.05),
         "caption": ("Two modes, near 0.68 and near 0.32 — not one distribution with a "
-                    "tail. That shape is what a discrete developmental variant looks like."),
+                    "tail. That shape is what a discrete developmental variant looks like. "
+                    "The curve is a kernel density estimate; the ticks beneath it are the "
+                    "cases themselves, thinned."),
     })
 
     # --- disc ratio -----------------------------------------------------------------
@@ -98,8 +163,9 @@ def main() -> int:
         "key": "disc_ratio",
         "title": "Lowest disc gap ÷ the disc above it",
         "subtitle": "dimensionless, so it compares across patients",
-        "type": "hist",
-        **hist(vals, 0.2, 4.0, 24),
+        "type": "density",
+        **density(vals, 0.2, 4.0),
+        "rug": rug(vals, 0.2, 4.0),
         "caption": ("A rudimentary lowest disc runs low. Values near zero also arise from "
                     "fusion of any cause — congenital, surgical or bridging osteophyte — "
                     "which is why this measure alone cannot say why a gap closed."),
