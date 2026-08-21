@@ -76,28 +76,111 @@ def _com(mask, sp):
     return (idx.mean(0) * sp) if len(idx) else None
 
 
-def _endplate(mask, sp, superior=True):
-    """Centroid and normal of a vertebral endplate.
+def _canal_front(mask, sp):
+    """Anterior wall of the spinal canal, in voxel units along y. None if not found.
 
-    The top (or bottom) decile of the body by height, fitted with a plane. A decile rather
-    than a single slice because one slice of a curved endplate is noise, and rather than the
-    whole body because the body's own principal axis is not the endplate normal.
+    The canal's anterior wall IS the posterior wall of the vertebral body, so it splits
+    body from posterior elements without needing a threshold or a fraction.
     """
-    idx = np.argwhere(mask)
-    if len(idx) < 50:
+    zs = np.nonzero(mask.any(axis=(0, 1)))[0]
+    if len(zs) < 5:
+        return None
+    fronts = []
+    # sample the middle of the body's height: the canal is open there, whereas near the
+    # endplates the ring is incomplete and fill_holes finds nothing
+    lo, hi = int(np.percentile(zs, 30)), int(np.percentile(zs, 70))
+    for z in range(lo, hi + 1):
+        sl = mask[:, :, z]
+        if sl.sum() < 60:
+            continue
+        hole = ndimage.binary_fill_holes(sl) & ~sl
+        if not hole.any():
+            continue
+        cc, n = ndimage.label(hole)
+        if n == 0:
+            continue
+        sizes = ndimage.sum(hole, cc, range(1, n + 1))
+        big = cc == (int(np.argmax(sizes)) + 1)
+        if big.sum() < 20:
+            continue
+        # y increases anteriorly in canonical orientation, and the canal sits behind the
+        # body, so the canal's largest y is its anterior wall
+        fronts.append(int(np.nonzero(big.any(axis=0))[0].max()))
+    return float(np.median(fronts)) if fronts else None
+
+
+def _body_mask(mask, sp):
+    """The vertebral BODY, split off from the posterior elements.
+
+    THE LABELS ARE WHOLE VERTEBRAE. Every measure that says "body" -- the endplate
+    normal, the Torg denominator, wedging -- is wrong if the spinous process and the
+    articular processes are inside it. The spinous process alone roughly triples the
+    anteroposterior extent, which is what drove the Torg ratio to 0.2 against a normal
+    near 1.0.
+    """
+    front = _canal_front(mask, sp)
+    if front is None:
+        # no canal found (a sacral segment, or a body too clipped to close a ring):
+        # fall back to the anterior 55% of the y-extent
+        ys = np.nonzero(mask.any(axis=(0, 2)))[0]
+        if len(ys) < 4:
+            return mask
+        front = ys.min() + 0.45 * (ys.max() - ys.min())
+    out = np.zeros_like(mask)
+    out[:, int(np.ceil(front)):, :] = mask[:, int(np.ceil(front)):, :]
+    return out if out.sum() >= 50 else mask
+
+
+def _endplate(mask, sp, superior=True):
+    """Centroid and normal of a vertebral endplate, fitted to the ENDPLATE SURFACE.
+
+    WHY NOT A TOP-DECILE SLAB. Selecting the top decile of voxels BY HEIGHT bounds the
+    selection with two horizontal planes, so the thinnest direction of what comes back is
+    z -- always, whatever the endplate is actually doing. An SVD then returns the vertical
+    as the "normal" for every vertebra in every case. That is what put sacral slope at 83
+    degrees across the whole release and collapsed lumbar lordosis to 10.
+
+    So fit the SURFACE instead: for each (x, y) column through the body take the topmost
+    (or bottommost) voxel, which traces the real plate, and fit a plane to those points.
+    The rim rolls off, so the outer margin is dropped and the fit is trimmed once against
+    its own residuals -- osteophytes and a clipped corner should not tilt the plate.
+    """
+    body = _body_mask(mask, sp)
+    idx = np.argwhere(body)
+    if len(idx) < 80:
         return None, None
-    z = idx[:, 2]
-    cut = np.percentile(z, 90 if superior else 10)
-    sel = idx[z >= cut] if superior else idx[z <= cut]
-    if len(sel) < 20:
+
+    xs, ys = idx[:, 0], idx[:, 1]
+    # keep the central core of the plate: the peripheral ring curves away from the plane
+    x0, x1 = np.percentile(xs, [18, 82])
+    y0, y1 = np.percentile(ys, [18, 82])
+    keep = (xs >= x0) & (xs <= x1) & (ys >= y0) & (ys <= y1)
+    idx = idx[keep]
+    if len(idx) < 60:
         return None, None
-    pts = sel * sp
-    c = pts.mean(0)
-    q = pts - c
-    # smallest singular direction is the plate normal
-    n = np.linalg.svd(q, full_matrices=False)[2][-1]
-    if n[2] < 0:
-        n = -n
+
+    # the surface: one z per (x, y) column
+    order = np.lexsort((idx[:, 2], idx[:, 1], idx[:, 0]))
+    idx = idx[order]
+    col = idx[:, 0] * (body.shape[1] + 1) + idx[:, 1]
+    edge = np.nonzero(np.diff(col))[0]
+    starts = np.concatenate(([0], edge + 1))
+    ends = np.concatenate((edge, [len(idx) - 1]))
+    pick = ends if superior else starts          # z is sorted ascending within a column
+    pts = idx[pick].astype(float) * sp
+    if len(pts) < 40:
+        return None, None
+
+    def fit(p):
+        c = p.mean(0)
+        n = np.linalg.svd(p - c, full_matrices=False)[2][-1]
+        return c, (n if n[2] >= 0 else -n)
+
+    c, n = fit(pts)
+    resid = np.abs((pts - c) @ n)
+    keep = resid <= np.percentile(resid, 80)
+    if keep.sum() >= 30:
+        c, n = fit(pts[keep])
     return c, n
 
 
@@ -140,12 +223,17 @@ def one(path: str) -> dict:
         vs = np.array([0.0, v[1], v[2]])
         ns = np.array([0.0, s1n[1], s1n[2]])
         if np.linalg.norm(vs) > 1 and np.linalg.norm(ns) > 1e-6:
-            r["pelvic_incidence_deg"] = round(_angle(ns, vs), 1)
-            # sacral slope: S1 endplate against the axial plane
-            r["sacral_slope_deg"] = round(90.0 - _angle(ns, np.array([0.0, 0.0, 1.0])), 1)
-            if "pelvic_incidence_deg" in r:
-                r["pelvic_tilt_deg"] = round(r["pelvic_incidence_deg"]
-                                             - r["sacral_slope_deg"], 1)
+            # PI is the angle at the endplate midpoint between the plate's PERPENDICULAR
+            # and the line to the bicoxofemoral axis. The femoral heads sit below and in
+            # front of S1, so that line runs opposite to the superior-pointing normal and
+            # the raw angle comes back obtuse; PI is its supplement.
+            r["pelvic_incidence_deg"] = round(180.0 - _angle(ns, vs), 1)
+            # Sacral slope: the S1 plate against the horizontal, which is the angle its
+            # NORMAL makes with the vertical -- not ninety minus that. A horizontal plate
+            # has a vertical normal and a slope of zero, and the old form returned 90.
+            r["sacral_slope_deg"] = round(_angle(ns, np.array([0.0, 0.0, 1.0])), 1)
+            r["pelvic_tilt_deg"] = round(r["pelvic_incidence_deg"]
+                                         - r["sacral_slope_deg"], 1)
 
     # ---- lumbar lordosis, SUPINE -------------------------------------------------
     # WHAT THE TOP OF THE ARC ACTUALLY IS. Lordosis is conventionally L1 superior to S1
@@ -181,8 +269,12 @@ def one(path: str) -> dict:
     l4 = next((v for v in have if LUMBAR.get(v) == "L4"), None)
     l5 = next((v for v in have if LUMBAR.get(v) == "L5"), None)
     if crest is not None and l4 and l5:
-        z4 = np.nonzero(have[l4].any(axis=(0, 1)))[0]
-        z5 = np.nonzero(have[l5].any(axis=(0, 1)))[0]
+        # the disc sits between the BODIES. Using whole vertebrae puts L4's inferior
+        # articular process and L5's superior one into the span, and those overlap each
+        # other by design -- the midpoint of the two would land inside the facet joint
+        # rather than at the disc.
+        z4 = np.nonzero(_body_mask(have[l4], sp).any(axis=(0, 1)))[0]
+        z5 = np.nonzero(_body_mask(have[l5], sp).any(axis=(0, 1)))[0]
         disc = (z4.min() + z5.max()) / 2 * sp[2]
         # POSITIVE means the crest rises above the L4-5 disc and obstructs a lateral
         # approach; the published subsidence cutoff is +12mm
@@ -221,27 +313,54 @@ def one(path: str) -> dict:
             big = cc == (int(np.argmax(sizes)) + 1)
             hy = np.nonzero(big.any(axis=0))[0]
             canal[LUMBAR[vid]] = round(float(len(hy)) * sp[1], 1)
-            by = np.nonzero(sl.any(axis=0))[0]
+            # TORG DENOMINATOR IS THE BODY, NOT THE VERTEBRA. Measuring the whole slice
+            # puts the spinous process in the denominator, roughly tripling it -- which
+            # is why the ratio came back near 0.2 against a normal near 1.0. The canal's
+            # anterior wall is the body's posterior wall, so the body runs from there
+            # forward.
+            bsl = sl[:, hy.max():]
+            by = np.nonzero(bsl.any(axis=0))[0]
             depth = float(len(by)) * sp[1]
             if depth > 0:
                 torg[LUMBAR[vid]] = round(canal[LUMBAR[vid]] / depth, 3)
-            # pedicle isthmus: narrowest left-right run of bone between body and canal
-            rows = []
+            # PEDICLE ISTHMUS, PER SIDE. The old form took the full left-right extent of
+            # bone across the slice and halved it, so the canal itself was inside the
+            # measurement -- it read about 17mm where a lumbar pedicle is 7-15mm. Measure
+            # instead the run of bone OUTBOARD of each canal edge, and take the narrowest
+            # such run over the canal's height: that is the isthmus, which is what limits
+            # screw diameter.
+            runs = []
             for y in hy:
-                col = np.nonzero(sl[:, y])[0]
-                if len(col) > 3:
-                    rows.append(float(col.max() - col.min()) * sp[0])
-            if rows:
-                ped[LUMBAR[vid]] = round(min(rows) / 2.0, 1)
-        # wedging: anterior vs posterior body height
-        ys = np.nonzero(m.any(axis=(0, 2)))[0]
+                cx = np.nonzero(big[:, y])[0]
+                bx = np.nonzero(sl[:, y])[0]
+                if len(cx) < 2 or len(bx) < 2:
+                    continue
+                for lo_hi, side in ((bx[bx < cx.min()], "l"), (bx[bx > cx.max()], "r")):
+                    if len(lo_hi) < 2:
+                        continue
+                    # contiguous run adjacent to the canal, not every speck on that side
+                    d = np.diff(lo_hi)
+                    brk = np.nonzero(d > 1)[0]
+                    seg = (lo_hi[brk[-1] + 1:] if side == "l" and len(brk)
+                           else lo_hi[:brk[0] + 1] if side == "r" and len(brk)
+                           else lo_hi)
+                    if len(seg) >= 2:
+                        runs.append(float(seg.max() - seg.min() + 1) * sp[0])
+            if runs:
+                ped[LUMBAR[vid]] = round(float(np.min(runs)), 1)
+        # WEDGING IS A PROPERTY OF THE BODY. Taking the posterior fifth of the whole
+        # vertebra measures the spinous process, which spans far more height than the
+        # posterior body wall does, so every vertebra read as anteriorly collapsed.
+        bm = _body_mask(m, sp)
+        ys = np.nonzero(bm.any(axis=(0, 2)))[0]
         if len(ys) > 6:
-            ant = m[:, ys[-max(2, len(ys) // 5):], :]
-            post = m[:, ys[:max(2, len(ys) // 5)], :]
+            k = max(2, len(ys) // 5)
+            ant = bm[:, ys[-k:], :]
+            post = bm[:, ys[:k], :]
             za = np.nonzero(ant.any(axis=(0, 1)))[0]
             zp = np.nonzero(post.any(axis=(0, 1)))[0]
-            if len(za) and len(zp) and len(zp) > 0:
-                wedge[LUMBAR[vid]] = round(len(za) / max(1, len(zp)), 3)
+            if len(za) and len(zp):
+                wedge[LUMBAR[vid]] = round(len(za) / len(zp), 3)
 
     for nm, d in (("pedicle_mm", ped), ("canal_ap_mm", canal),
                   ("torg", torg), ("wedge", wedge)):
@@ -300,13 +419,36 @@ def main() -> int:
         w = csv.DictWriter(fh, fieldnames=cols, extrasaction="ignore")
         w.writeheader(); w.writerows(ok)
 
+    # WHAT A HUMAN PELVIS AND LUMBAR SPINE ACTUALLY MEASURE. A geometry bug does not
+    # announce itself -- an earlier version returned sacral slope 83 deg and a Torg ratio
+    # of 0.2 for all 802 cases and reported them in a neat table, and nothing in the run
+    # objected. These are generous windows around published adult medians; a median that
+    # falls outside one is a defect in the measurement, not a finding about the cohort.
+    PLAUSIBLE = {
+        "pelvic_incidence_deg": (35, 70),      # adult median ~50-52
+        "sacral_slope_deg": (25, 55),          # ~40
+        "pelvic_tilt_deg": (2, 25),            # ~13
+        "ll_supine_deg": (35, 65),             # ~50 supine, ~55 standing
+        "pi_ll_mismatch_deg": (-15, 20),       # centred near zero in the unoperated
+        "pedicle_min_mm": (5, 16),             # L1 ~7 rising to L5 ~15
+        "torg_min": (0.6, 1.6),                # ~1.0; below 0.8 is the stenosis threshold
+    }
+    suspect = []
+
     def summarise(key, unit=""):
         v = np.array([x[key] for x in ok if isinstance(x.get(key), (int, float))], float)
         if v.size < 5:
             print(f"  {key:24s} n={v.size} (too few)")
             return
-        print(f"  {key:24s} n={v.size:4d}  median {np.median(v):7.1f}{unit}  "
-              f"IQR {np.percentile(v,25):.1f}-{np.percentile(v,75):.1f}")
+        med = float(np.median(v))
+        flag = ""
+        if key in PLAUSIBLE:
+            lo, hi = PLAUSIBLE[key]
+            if not lo <= med <= hi:
+                flag = f"   <-- IMPLAUSIBLE (expected {lo}-{hi})"
+                suspect.append(key)
+        print(f"  {key:24s} n={v.size:4d}  median {med:7.1f}{unit}  "
+              f"IQR {np.percentile(v,25):.1f}-{np.percentile(v,75):.1f}{flag}")
 
     print(f"\n  {len(ok)} of {len(res)} cases measured\n")
     for k, u in (("pelvic_incidence_deg", "°"), ("sacral_slope_deg", "°"),
@@ -326,6 +468,12 @@ def main() -> int:
         print(f"\n  crest >= 12mm above the L4-5 disc (raised subsidence risk after "
               f"lateral fusion): {blocked}/{n_cr} = {100*blocked/n_cr:.1f}%")
     print(f"\n  wrote {p}")
+    if suspect:
+        print(f"\n  *** {len(suspect)} measure(s) outside the plausible range: "
+              f"{', '.join(suspect)}")
+        print("  *** These are measurement defects, not cohort findings. Do not report "
+              "them until the geometry is fixed.")
+        return 2
     return 0
 
 
