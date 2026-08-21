@@ -1,0 +1,166 @@
+# Finalising a CTSpinoPelvic1K release
+
+What has to be true before a version is published, in the order it has to become true.
+Nothing here is ceremony: each item exists because its absence has produced, or would
+have produced, a wrong number that looked finished.
+
+The governing rule is in [DATASET_PRINCIPLES.md](DATASET_PRINCIPLES.md). This document
+is the operational form of it.
+
+---
+
+## 0. The one rule that orders everything else
+
+**Gates run before measurements, and a failed gate stops the chain.**
+
+Morphometrics computed on an inconsistent corpus do not look broken. They look
+finished — a tidy table of medians, exit code zero. That is exactly what happened on
+2026-08-20: pelvic incidence came back at 154.6° for all 802 cases, sacral slope at
+82.9°, and the run reported them without complaint. `slurm/finalize_release.sh` now
+runs the invariant check first and exits before computing anything if it fails.
+
+---
+
+## 1. Data completeness
+
+| item | state | blocker |
+|---|---|---|
+| Rib numbering offsets | **closed** — 9 of 11,552 ribs resolved across 5 cases | — |
+| Thoracic vertebrae on FOV-limited cases | done | — |
+| Lumbar rib class (74/75) | applied release-wide | — |
+| Hardware classes (76–79) | **defined but unpopulated** | `0068` needs hand annotation |
+| `pelvic_native` cases never reviewed | 6 outstanding: 0090, 0196, 0236, 0419, 0877, 1037 | reviewer time |
+| Stray voxels, 0344 | outstanding | reviewer time |
+
+A class that is declared but carries no data must be described that way everywhere it
+appears — in the label table, the dataset card, and any figure. The website gallery says
+"pending annotation" on its instrumentation card for exactly this reason: a card
+claiming segmented hardware would have been claiming something the release does not
+contain.
+
+**Deferred cases are listed in [DEFERRED_CASES.md](DEFERRED_CASES.md) and must be
+excluded from derived measurements until resolved, not silently included.**
+
+---
+
+## 2. Automated gates
+
+Run by `slurm/finalize_release.sh`, in this order.
+
+### 2.1 Release invariants — `scripts/check_release_invariants.py`
+
+Every case, four questions with exactly one right answer:
+
+- **Geometry.** Label shape, affine and voxel spacing agree with the CT.
+- **Ids.** No label id outside the published scheme.
+- **Emptiness.** The label is not blank.
+- **Sidedness.** Left-side ids and right-side ids fall on the correct sides of the
+  midline, with the left–right axis read from `nib.aff2axcodes` rather than assumed.
+
+The geometry check exists because a renumbering pass loaded labels through
+`as_closest_canonical` and wrote the reoriented array back under the canonical affine,
+transposing one label away from its CT. Renumbering is pure id arithmetic and never
+needed the reorientation. Nothing in the pipeline noticed; it surfaced only when a human
+opened an unrelated case and ITK-SNAP refused the pair.
+
+The sidedness check exists because it is nearly free, and it catches a transposition
+that happens to preserve the array shape — which the geometry check cannot.
+
+> A check that fails almost everything is accusing itself. The first version of the
+> sidedness test reported 801 of 802 cases as defective; it had the RAS convention
+> backwards and was reading the wrong axis. Before believing a mass failure, verify the
+> check against cases a human has already reviewed.
+
+### 2.2 Rib–vertebra incidence — `scripts/qc_rib_vertebra_incidence.py`
+
+Reports every rib whose nearest vertebra is not the one its number implies. Interpreting
+the output requires knowing the three failure modes, which look identical in the CSV and
+have completely different fixes:
+
+| signature | what it is | fix |
+|---|---|---|
+| blank `gap_own_mm`, rib falls to the vertebra below | the rib's own vertebra is **missing or truncated** | draw the vertebra, or accept if it is cut by the FOV |
+| hundreds of connected components, all within ~1 mm of a neighbouring rib | **speckle**, not a rib | engulf per component (`scripts/postprocess_halo.py`) |
+| whole side consistently one level out | genuine **off-by-one** | shift that side |
+
+### 2.3 Morphometrics plausibility — built into `extract_surgical_morphometrics.py`
+
+The script holds published adult ranges for the measures that have them, flags any
+median outside, and exits 2. Ranges must be for the **right anatomy**: the Torg–Pavlov
+ratio is ~1.0 in the cervical spine but ~0.5 in the lumbar, and applying the cervical
+figure condemns a correct measurement.
+
+---
+
+## 3. Splits
+
+Patient-grouped and LSTV-stratified, blind to which source a label came from. **A
+release that adds or changes cases needs a fresh split**, and the split file must be
+frozen and shipped with the data — comparisons across papers are worthless otherwise.
+
+---
+
+## 4. Documentation
+
+- `README.md` — doubles as the HF dataset card; front-matter must match the licence
+- Label table — every id, including any that are declared-but-empty, marked as such
+- [DEFERRED_CASES.md](DEFERRED_CASES.md) — what is excluded and why
+- [CORRECTIONS.md](CORRECTIONS.md) — corrections made to the source labels
+- Release notes — what changed since the previous version, and what a user must re-run
+- **Limitations, stated positively.** What the release does not support is part of the
+  release. Thoracic ground truth is FOV-limited (roughly T8 down, not T1); lordosis is
+  supine; hardware is unpopulated; LSTV labels come from more than one source and are
+  not all expert-adjudicated.
+
+---
+
+## 5. Deposit
+
+Target for the data descriptor is a Medical Physics Dataset Article, which requires a
+citable archive, not a model hub alone.
+
+1. **Zenodo** — mint the DOI. This is the citable object.
+2. **Hugging Face** — `anonymous-mlhc` for the anonymous review copy; the token lives at
+   `~/.hf_org_token` and is read with `HF_TOKEN=$(cat ~/.hf_org_token)`, never pasted.
+3. **TCIA** — for provenance back to the source imaging collection.
+4. **GitHub** — code and documentation, tagged at the release commit.
+
+Every one of them must name the same version and the same DOI.
+
+### Licence and attribution
+
+The release inherits obligations from three sources — TCIA CT COLONOGRAPHY, CTSpine1K
+and CTPelvic1K. The most restrictive term wins, and each source must be named with its
+own licence. Current front-matter declares `cc-by-nc-4.0`; confirm that is compatible
+with all three before the DOI is minted, because a DOI is not retractable.
+
+---
+
+## 6. Reproducibility
+
+- Tag the commit; every derived artefact records the commit that produced it
+- Containers pinned by digest, not by tag
+- Every heavy step is a batch job, never a login-node process
+- Manifests, not remembered numbers: "how many cases were cleaned, and which" must be
+  answerable from a CSV rather than from a conversation
+
+---
+
+## 7. Before you publish, the honesty pass
+
+Read the dataset card as a sceptical reader who wants to find something overstated.
+
+- Does every number in it come from a run that is still current, or is any of it from a
+  pipeline version since fixed?
+- Is any class described as populated when it is empty?
+- Is any measure presented without the caveat that limits it (supine, FOV-limited,
+  count-free)?
+- Does any figure assert a level name that a spine-limited field of view cannot support?
+- Is any null reported as a positive finding, or any positive finding reported without
+  its effect size?
+
+The last one has already caught something once: a "positive control" panel asserted that
+pelvic incidence must separate by sex. Measured, the difference was 0.8° — the claim was
+wrong, not the measurement, because pelvic dimorphism is strong in shape rather than in
+incidence. A null stated with its effect size is a result; an unexamined adjective is
+not.
