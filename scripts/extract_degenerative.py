@@ -150,14 +150,38 @@ def one(args) -> dict:
         if len(sel_u) < 40 or len(sel_l) < 40:
             bridged.append(None)
             continue
-        z_low_of_upper = float(sel_u[:, 2].min())
-        z_top_of_lower = float(sel_l[:, 2].max())
-        gap_vox = z_low_of_upper - z_top_of_lower
-        if not (-4 < gap_vox < 60):
+        # DISC HEIGHT, PER COLUMN, THEN THE MEDIAN.
+        # Vertebral endplates are CONCAVE: the disc is thickest in the middle and the
+        # rim projects toward it. Taking the lowest voxel of the upper body anywhere in
+        # the column and the highest of the lower body measures RIM TO RIM -- the
+        # narrowest part of the space -- which read 4 to 6 mm against a published 8 to 12.
+        # Measuring each column separately and taking the median gives the height a
+        # radiologist would read off a mid-sagittal slice.
+        cols = {}
+        for xx, yy, zz in sel_u:
+            k = (xx, yy)
+            cols.setdefault(k, [None, None])
+            c0 = cols[k][0]
+            cols[k][0] = zz if c0 is None else min(c0, zz)
+        for xx, yy, zz in sel_l:
+            k = (xx, yy)
+            if k not in cols:
+                continue
+            c1 = cols[k][1]
+            cols[k][1] = zz if c1 is None else max(c1, zz)
+        gaps = [a - b for a, b in cols.values() if a is not None and b is not None]
+        if len(gaps) < 15:
+            bridged.append(None)
+            continue
+        gap_vox = float(np.median(gaps))
+        if not (-2 < gap_vox < 60):
             bridged.append(None)
             continue
         h = max(0.0, gap_vox * sp[2])
         r[f"disc_height_{name}_mm"] = round(h, 1)
+        z_low_of_upper = float(np.median([a for a, b in cols.values()
+                                          if a is not None and b is not None]))
+        z_top_of_lower = z_low_of_upper - gap_vox
 
         # gas inside that disc space -- pathognomonic for degeneration
         z0, z1 = int(np.floor(z_top_of_lower)) + 1, int(np.ceil(z_low_of_upper))
@@ -168,18 +192,29 @@ def one(args) -> dict:
                 frac = float((box < GAS_HU).mean())
                 r[f"vacuum_frac_{name}"] = round(frac, 4)
 
-        # BONY BRIDGE. Dilate both bodies a little and ask whether they meet. Resnick
-        # requires the disc height to be PRESERVED, which is what separates flowing
-        # ossification from a collapsed degenerative segment, so a bridge only counts
-        # when the disc is not collapsed.
-        pad = 2
-        zlo = max(0, int(z_top_of_lower) - 6)
-        zhi = min(lab.shape[2], int(z_low_of_upper) + 7)
-        su = ndimage.binary_dilation(bu[:, :, zlo:zhi], iterations=pad)
-        sl_ = bl[:, :, zlo:zhi]
-        touch = bool((su & sl_).any())
-        bridged.append(bool(touch and h >= 4.0))
-        r[f"bridge_{name}"] = int(touch and h >= 4.0)
+        # A DISH BRIDGE IS ANTERIOR FLOWING OSSIFICATION, so look for BONE in the
+        # anterior disc space rather than asking whether two dilated labels happen to
+        # touch. Dilation finds any contact, including a posterior facet or a
+        # segmentation seam; ossification in front of the bodies is the actual sign.
+        #
+        # Resnick also requires the disc height to be PRESERVED -- that is what separates
+        # flowing ossification from a collapsed degenerative segment -- so the test is
+        # relative to this spine's own discs rather than to an absolute millimetre.
+        if z1 > z0 and h > 0:
+            ay = int(cy + ry)                     # just anterior to the bodies' midline
+            ah = max(3, int(round(10.0 / sp[1])))
+            front = ct[int(cx - rx):int(cx + rx) + 1, ay:ay + ah, z0:z1]
+            if front.size > 20:
+                # a column of cortical-density voxels spanning the space
+                bone = front > 200.0
+                span = bone.any(axis=(0, 1)).mean() if bone.size else 0.0
+                r[f"anterior_bone_{name}"] = round(float(bone.mean()), 4)
+                bridged.append(bool(span > 0.85 and bone.mean() > 0.10))
+                r[f"bridge_{name}"] = int(span > 0.85 and bone.mean() > 0.10)
+            else:
+                bridged.append(None)
+        else:
+            bridged.append(None)
 
     # Resnick: four or more CONTIGUOUS vertebrae bridged, i.e. three consecutive levels
     run = best = 0
