@@ -169,26 +169,18 @@ def one(args) -> dict:
         # --- head: fit a sphere to the superomedial quarter -------------------------
         # The head is the superior end; fitting the whole label would drag the centre
         # down the shaft, which is the error that read bi-acetabular width 18 mm wide.
-        # SEEDED ON THE ACETABULUM, NOT ON A HEIGHT PERCENTILE. The acetabulum wraps the
-        # head and nothing else, so femur voxels close to the hip bone are head surface
-        # by construction -- where "the top 30% by height" also collects the greater
-        # trochanter. The height rule is kept only as a fallback for a case whose hip
-        # label is missing.
-        hip = lab == hid
-        head_pts = None
-        if hip.sum() > MIN_VOX:
-            both = fem | hip
-            bi = np.argwhere(both)
-            lo = np.maximum(bi.min(0) - 4, 0)
-            hi = np.minimum(bi.max(0) + 5, np.array(fem.shape))
-            sl = tuple(slice(int(a), int(b)) for a, b in zip(lo, hi))
-            d = ndimage.distance_transform_edt(~hip[sl], sampling=sp)
-            near = fem[sl] & (d <= 8.0)
-            if near.sum() >= 200:
-                head_pts = (np.argwhere(near) + lo) * sp
-        if head_pts is None or len(head_pts) < 200:
-            zc = np.percentile(idx[:, 2], 70)
-            head_pts = pts[idx[:, 2] >= zc]
+        # THE ACETABULAR SEED WAS TRIED AND MADE IT WORSE, WHICH IS WORTH RECORDING.
+        # Selecting femur voxels near the hip bone looked strictly better: the acetabulum
+        # wraps the head and nothing else, so those voxels are head surface by
+        # construction. But it selects only the CAP of the head that is in contact with
+        # the socket, and a least-trimmed-squares fit to a cap converges onto the cap's
+        # own curvature rather than the sphere it came from. Median head diameter fell
+        # from 47.1 mm to 42.1 -- women 39.6 against a published 43-45, men 45.8 against
+        # 48-52 -- and the neck-shaft angle, which is computed from the head centre, went
+        # with it from 125.2 to 136.4 degrees. The plain height percentile validates and
+        # the clever seed does not, so the percentile stays.
+        zc = np.percentile(idx[:, 2], 70)
+        head_pts = pts[idx[:, 2] >= zc]
 
         c, rad, inlier, rms = _fit_sphere_robust(head_pts)
         # A fit is only accepted if it converged onto something actually spherical.
