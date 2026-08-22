@@ -5,8 +5,7 @@
 %    - No article processing charge.
 %    - PubMed, Scopus, DOAJ, Embase indexed.
 %    - ~15 weeks submission to publication.
-%    - Official journal of the Japanese Society for Spine Surgery and Related Research;
-%      scope covers clinical spine research including imaging morphometry.
+%    - Official journal of the Japanese Society for Spine Surgery and Related Research.
 %
 %  WHY THIS IS A SEPARATE PAPER FROM THE DATASET ARTICLE. The Medical Physics dataset
 %  article may not contain hypothesis testing or generalisable conclusions -- that is
@@ -14,15 +13,14 @@
 %  a single sentence: the landmark surgeons use to find L4-5 fails hardest in exactly the
 %  patients whose levels are already ambiguous.
 %
-%  STATUS: complete draft. Needs a literature introduction expanded by a co-author, and
-%  someone to argue with the interpretation in the discussion.
+%  STATUS: complete draft with real numbers. Needs the introduction expanded and someone
+%  to argue with the discussion. Marked [CO-AUTHOR] where that work goes.
 % ============================================================================
 \documentclass[11pt,a4paper]{article}
 
 \usepackage[margin=1in]{geometry}
 \usepackage{graphicx}
 \usepackage{booktabs}
-\usepackage{siunitx}
 \usepackage{authblk}
 \usepackage[colorlinks=true,allcolors=blue]{hyperref}
 \usepackage{setspace}
@@ -35,7 +33,6 @@
 \author[1]{Gregory Schwing}
 \author[1]{[co-authors]}
 \affil[1]{[VERIFY affiliation]}
-
 \date{}
 
 \begin{document}
@@ -44,8 +41,8 @@
 \begin{abstract}
 \noindent\textbf{Introduction.} Surgeons locate the lumbar spine by palpating the iliac
 crest, which is taught to lie at the L4--5 interspace. Lumbosacral transitional vertebrae
-(LSTV) make level assignment ambiguous by altering the vertebral count. Whether the
-palpable landmark remains reliable in those same patients has not been quantified.
+make level assignment ambiguous by altering the vertebral count. Whether the palpable
+landmark remains reliable in those same patients has not been quantified.
 
 \noindent\textbf{Methods.} 802 abdominal CT examinations from a colorectal cancer
 screening cohort (393 women, 345 men; median age 59, range 50--89) were segmented for
@@ -54,43 +51,44 @@ by the highest point of the iliac crest, and the number of rib-free vertebrae be
 lowest rib and the sacrum --- a count-free description of transitional status that does
 not require naming a level.
 
-\noindent\textbf{Results.} In spines with the typical five rib-free vertebrae, the crest
-reached L4 in [X]\% of cases. In spines with four rib-free vertebrae it reached L4 in
-only [X]\%, reaching L5 in [X]\% and L3 in [X]\%. [Add the association statistic once a
-co-author has chosen the test.]
+\noindent\textbf{Results.} With the typical five rib-free vertebrae ($n=706$) the crest
+reached L4 in 87.1\% of cases (95\% CI 84.4--89.4). With four rib-free vertebrae ($n=28$)
+it reached L4 in 46.4\% (29.5--64.2), reaching L5 in 28.6\% (15.3--47.1) and L3 in 25.0\%
+(12.7--43.4). With six ($n=25$) it reached L4 in 64.0\% (44.5--79.8). The intervals for
+the typical and four-vertebra groups do not overlap.
 
-\noindent\textbf{Conclusions.} The iliac crest is a reliable indicator of the L4--5
-interspace in typical anatomy and considerably less reliable in transitional anatomy. The
-two sources of level error do not cancel: the landmark is least trustworthy in precisely
-the patients in whom the count is already uncertain. Intraoperative imaging confirmation
-should not be waived on the basis of a palpable crest when transitional anatomy is
-suspected.
+\noindent\textbf{Conclusions.} The iliac crest indicates the L4--5 interspace in roughly
+seven of eight patients with typical anatomy and in fewer than half of those with four
+rib-free vertebrae, in whom it is as likely to point at L5 as at L3. The two sources of
+level error do not cancel: the landmark is least trustworthy in precisely the patients in
+whom the count is already uncertain. Intraoperative imaging confirmation should not be
+waived on the basis of a palpable crest when transitional anatomy is suspected.
 \end{abstract}
 
 \section{Introduction}
 
 % [CO-AUTHOR: expand. The pieces that need to be here:]
-%  - LSTV prevalence and its range by definition (4-30%), and why the range is that wide
+%  - LSTV prevalence and why published figures range from 4 to 30 percent
 %  - wrong-level spine surgery: incidence, consequences, medicolegal weight
-%  - the iliac crest / Tuffier's line as a taught landmark, for surgery and for neuraxial
-%    anaesthesia, and the existing evidence that it is imprecise even in normal anatomy
+%  - the iliac crest and Tuffier's line as taught landmarks, in surgery and in neuraxial
+%    anaesthesia, and the existing evidence that they are imprecise even in normal anatomy
 %  - what has NOT been asked: whether landmark reliability and count ambiguity are
 %    independent, or whether they fail together
 
-Level identification in the lumbar spine rests on two independent things: a count, and a
-palpable landmark. Both are known to be imperfect. What has not been established is
-whether their errors are independent --- and if they are not, a surgeon relying on the
-landmark to resolve an ambiguous count is relying on the wrong thing at the wrong moment.
+Level identification in the lumbar spine rests on two things: a count, and a palpable
+landmark. Both are known to be imperfect. What has not been established is whether their
+errors are independent --- and if they are not, a surgeon resolving an ambiguous count by
+palpating the crest is relying on the wrong thing at the wrong moment.
 
 \section{Materials and Methods}
 
 \subsection{Cohort}
 
-Records derive from the publicly available CTSpinoPelvic1K collection, itself built from
-the TCIA CT~COLONOGRAPHY imaging archive with vertebral and pelvic segmentations unified
+Records derive from the publicly available CTSpinoPelvic1K collection, built from the
+TCIA CT~COLONOGRAPHY imaging archive with vertebral and pelvic segmentations unified
 under a single label scheme. All examinations were performed for colorectal cancer
-screening; no participant was imaged for a spinal indication. The lower age bound of 50
-reflects the screening guideline rather than any selection applied here.
+screening; no participant was imaged for a spinal indication, and the lower age bound of
+50 reflects the screening guideline rather than any selection applied here.
 
 Ethical approval: the source collections are de-identified and publicly released;
 [VERIFY institutional determination].
@@ -104,24 +102,26 @@ the vertebral level whose segmentation spans that height was recorded.
 
 \emph{Transitional status, without naming a level.} We counted the vertebrae lying
 between the lowest rib-bearing vertebra and the sacrum. This is an interval count rather
-than a level assignment and remains valid without deciding whether a given segment is a
-sacralised L5 or a lumbarised S1 --- a distinction a spine-limited field of view cannot
+than a level assignment, and it remains valid without deciding whether a given segment is
+a sacralised L5 or a lumbarised S1 --- a distinction a spine-limited field of view cannot
 make. Five is typical; four and six indicate transitional anatomy.
 
 \emph{Quality control.} Every case passed geometric invariants: label geometry agreeing
 with its CT in shape, affine and voxel spacing; no identifier outside the published
 scheme; and left- and right-sided structures on the correct sides of the midline. Rib
-numbering was verified by rib--vertebra incidence across 11{,}548 ribs, with 2 residual
+numbering was verified by rib--vertebra incidence across 11{,}548 ribs, with two residual
 offsets (0.017\%), both field-of-view truncations.
 
 \subsection{Analysis}
 
-% [CO-AUTHOR: choose and justify. Note this paper MAY test -- unlike the dataset article.]
-% Proportions with Wilson score intervals; association between crest level and rib-free
-% count by [chi-square / Fisher exact]; report effect size, not only a p-value.
+Proportions are reported with Wilson score intervals, which remain within the unit
+interval at the small counts present in the transitional subgroups --- a property the
+normal approximation does not have.
 
-Proportions are reported with Wilson score intervals, which remain within $[0,1]$ at the
-small counts present in the transitional subgroups.
+% [CO-AUTHOR: choose and justify a test of association between crest level and rib-free
+% count. Unlike the dataset article, this paper MAY test. Report an effect size, not only
+% a p-value; with n = 28 in the smallest group the interval is the more honest statistic
+% and the test is a formality.]
 
 \section{Results}
 
@@ -130,71 +130,74 @@ small counts present in the transitional subgroups.
 \caption{Vertebral level reached by the iliac crest, by rib-free vertebral count.
 Percentages with 95\% Wilson score intervals.}
 \label{tab:crest}
-\begin{tabular}{lccc}
+\begin{tabular}{lcccc}
 \toprule
-Rib-free count & $n$ & Crest at L4 & Crest elsewhere \\
+Rib-free count & $n$ & Crest at L4 & Crest at L3 & Crest at L5 \\
 \midrule
-5 (typical) & [n] & [X]\% & L3 [X]\%, L5 [X]\% \\
-4 & [n] & [X]\% & L3 [X]\%, L5 [X]\% \\
-6 & [n] & [X]\% & L3 [X]\%, L5 [X]\% \\
+5 (typical) & 706 & 87.1 (84.4--89.4) & 8.9 (7.0--11.3) & 4.0 (2.8--5.7) \\
+4 & 28 & 46.4 (29.5--64.2) & 25.0 (12.7--43.4) & 28.6 (15.3--47.1) \\
+6 & 25 & 64.0 (44.5--79.8) & 12.0 (4.2--30.0) & 24.0 (11.5--43.4) \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 Cases in which the crest reached a thoracic level are excluded from
-Table~ef{tab:crest}: in those examinations the pelvis was barely within the field of
-view, which is a coverage fact about the scan rather than an anatomical one about the
-patient.
+Table~\ref{tab:crest}: in those examinations the pelvis was barely within the field of
+view, which is a fact about the scan rather than about the patient.
 
 The direction of the shift differs between the two transitional groups. Where there are
 four rib-free vertebrae the crest moves in both directions, appearing at L3 and at L5 in
 roughly equal proportion; where there are six it moves predominantly caudally. Both
 groups are small and neither proportion should be read as a precise estimate --- the
-intervals in Table~ef{tab:crest} are wide for that reason. What is robust is the
-collapse in reliability itself, since the interval for the typical group does not
-approach that of the four-vertebra group.
+intervals are wide for that reason. What is robust is the collapse in reliability itself:
+the interval for the typical group does not approach that of the four-vertebra group.
 
 % [FIGURE: grouped bar chart with Wilson intervals, exported from the gallery]
 
 \section{Discussion}
 
 The clinical reading is a single sentence: \emph{the landmark is least reliable in exactly
-the patients whose count is already uncertain.} In typical anatomy the crest identifies
-L4 in roughly seven of eight patients; in the presence of four rib-free vertebrae it does
-so in fewer than half, and it is as likely to point at L5 as at L3. Level-identification error has two
+the patients whose count is already uncertain.} In typical anatomy the crest identifies L4
+in roughly seven of eight patients; with four rib-free vertebrae it does so in fewer than
+half, and it is as likely to point at L5 as at L3. Level-identification error has two
 sources, and a surgeon who resolves an ambiguous count by palpating the crest is
 compounding them rather than cross-checking one against the other.
 
 % [CO-AUTHOR: argue with this. Points that need making, and points that need attacking:]
-%  - this is a SCREENING cohort, not a surgical one. Selection differs. Say so.
-%  - the crest level was measured on supine CT; palpation is done prone or lateral, and
-%    soft tissue lies between finger and bone. The CT measurement is an upper bound on
-%    landmark accuracy: palpation cannot be MORE accurate than the bone it is feeling for.
-%  - transitional status here is by rib-free count. Radiographic LSTV classification
-%    (Castellvi) is a different axis and is not interchangeable.
-%  - what follows practically: when transitional anatomy is suspected, the crest should
-%    not substitute for intraoperative imaging.
+%  - this is a SCREENING cohort, not a surgical one; selection differs and it matters
+%  - transitional status here is by rib-free count, not Castellvi grade; the two are
+%    different axes and are not interchangeable
+%  - what follows practically, and how strongly it can be said from n = 28
 
 \subsection{Limitations}
 
-The cohort is asymptomatic and undergoing screening, so these distributions are closer to
-a reference range than a surgical series would be. Crest level was determined from supine
-CT; palpation adds soft-tissue error on top of the bony variation measured here, so these
-figures are an upper bound on landmark reliability rather than an estimate of it.
-Transitional status is described by rib-free count rather than by Castellvi grade, and the
-two are not interchangeable.
+The cohort is asymptomatic and undergoing screening, so these distributions sit closer to
+a reference range than a surgical series would.
+
+Crest level was determined from supine CT, whereas palpation is performed through soft
+tissue with the patient prone or lateral. That difference runs in one direction only:
+palpation cannot be more accurate than the bone it is feeling for, so the figures here
+are an \emph{upper bound} on landmark reliability rather than an estimate of it. The
+true reliability of a palpated crest in transitional anatomy is therefore at best what
+Table~\ref{tab:crest} reports, and plausibly worse.
+
+Transitional status is described by rib-free count rather than by Castellvi grade. The
+two describe different things --- one a count, the other a morphology --- and are not
+interchangeable. The transitional subgroups are small ($n=28$ and $n=25$), which is why
+the intervals are reported prominently and why no precise prevalence should be read from
+them.
 
 \section*{Data availability}
-All measurements, the segmentations they derive from, and the code are publicly available
-[DOI].
+All measurements, the segmentations they derive from, and the code that produced them are
+publicly available [DOI].
 
 \section*{Conflicts of interest}
 % [VERIFY]
 
 \begin{thebibliography}{9}
-% [ADD] Castellvi 1984; Bron 2007 (LSTV prevalence); Konin & Walz 2010 (AJNR, LSTV
-% [ADD] classification and clinical relevance); wrong-level surgery incidence; Tuffier's
-% [ADD] line accuracy studies; Vialle 2005; the CTSpinoPelvic1K dataset article
+% [ADD] Castellvi 1984 (classification); Konin \& Walz 2010 AJNR (LSTV imaging and
+% [ADD] clinical relevance); LSTV prevalence series; wrong-level spine surgery incidence;
+% [ADD] Tuffier's line accuracy studies; the CTSpinoPelvic1K dataset article
 \end{thebibliography}
 
 \end{document}
