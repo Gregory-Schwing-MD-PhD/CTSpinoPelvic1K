@@ -71,6 +71,72 @@ def _fit_sphere(pts):
     return c, float(np.sqrt(r2))
 
 
+def _fit_sphere_robust(pts, iters=4, keep_mm=3.5):
+    """Sphere fit that throws away the points that are not on the head.
+
+    WHY THE PLAIN FIT WAS NOT ENOUGH. The head used to be taken as the top 30% of the
+    femur label by height. That region is not the head: it also contains the greater
+    trochanter, which sits at much the same height, and a variable amount of neck. How
+    much of each depends on how far down the shaft the scan reached -- these labels span
+    61 to 109 mm -- so the same anatomy gave different answers in different fields of
+    view. It showed up as male head diameters clustering near 35 mm, where 50 is the
+    median, and as left-right differences of up to 21 mm in the same patient, which no
+    hip has.
+
+    The fix is the standard one in hip morphometry and in femoroacetabular-impingement
+    work: fit, keep the points that lie on the fitted surface, refit. Trochanter and
+    neck points are far from the head's sphere and drop out within two passes; the head
+    is close to spherical, which is the assumption the whole measurement already rests
+    on. Points are kept within KEEP_MM of the surface rather than by a quantile, so a
+    fit that started badly cannot keep a fixed fraction of the wrong cloud.
+
+    Returns (centre, radius, inlier_fraction, rms_mm) so the caller can refuse a fit that
+    did not converge onto something spherical.
+    """
+    c, rad = _fit_sphere(pts)
+    if rad is None:
+        return None, None, 0.0, None
+
+    # TRIM BY RANK FIRST, THEN BY DISTANCE. Keeping every point within a fixed band of
+    # the current sphere only works if the current sphere is roughly right, and the
+    # first fit need not be: on a cloud carrying head, neck and greater trochanter the
+    # opening fit came out at 53 mm diameter against a true 48, and a band drawn around
+    # THAT sphere keeps the points that put it there. Discarding the worst half by
+    # residual instead cannot be captured that way, because the head is the majority of
+    # the cloud and the majority is what survives a rank trim. This is least-trimmed-
+    # squares, and the reason it is used wherever a fit has to survive contamination it
+    # cannot identify in advance.
+    sel = pts
+    for frac in (0.7, 0.55, 0.5):
+        d = np.abs(np.linalg.norm(pts - c, axis=1) - rad)
+        k = max(100, int(frac * len(pts)))
+        if k >= len(pts):
+            continue
+        sel = pts[np.argsort(d)[:k]]
+        c2, r2 = _fit_sphere(sel)
+        if r2 is None:
+            break
+        c, rad = c2, r2
+
+    # now the band, to settle onto the surface rather than a fixed share of it
+    for _ in range(iters):
+        d = np.abs(np.linalg.norm(pts - c, axis=1) - rad)
+        keep = d <= keep_mm
+        if keep.sum() < 100:
+            break
+        sel = pts[keep]
+        c2, r2 = _fit_sphere(sel)
+        if r2 is None:
+            break
+        if abs(r2 - rad) < 1e-3:
+            c, rad = c2, r2
+            break
+        c, rad = c2, r2
+    resid = np.linalg.norm(sel - c, axis=1) - rad
+    rms = float(np.sqrt((resid ** 2).mean())) if len(sel) else None
+    return c, rad, float(len(sel) / max(1, len(pts))), rms
+
+
 def _axis(pts):
     """Principal axis of a point cloud, as a unit vector."""
     q = pts - pts.mean(0)
@@ -103,11 +169,40 @@ def one(args) -> dict:
         # --- head: fit a sphere to the superomedial quarter -------------------------
         # The head is the superior end; fitting the whole label would drag the centre
         # down the shaft, which is the error that read bi-acetabular width 18 mm wide.
-        zc = np.percentile(idx[:, 2], 70)
-        head_pts = pts[idx[:, 2] >= zc]
-        c, rad = _fit_sphere(head_pts)
-        if rad is not None and 15.0 < rad < 35.0:
-            r[f"femoral_head_diameter_{side}_mm"] = round(2 * rad, 1)
+        # SEEDED ON THE ACETABULUM, NOT ON A HEIGHT PERCENTILE. The acetabulum wraps the
+        # head and nothing else, so femur voxels close to the hip bone are head surface
+        # by construction -- where "the top 30% by height" also collects the greater
+        # trochanter. The height rule is kept only as a fallback for a case whose hip
+        # label is missing.
+        hip = lab == hid
+        head_pts = None
+        if hip.sum() > MIN_VOX:
+            both = fem | hip
+            bi = np.argwhere(both)
+            lo = np.maximum(bi.min(0) - 4, 0)
+            hi = np.minimum(bi.max(0) + 5, np.array(fem.shape))
+            sl = tuple(slice(int(a), int(b)) for a, b in zip(lo, hi))
+            d = ndimage.distance_transform_edt(~hip[sl], sampling=sp)
+            near = fem[sl] & (d <= 8.0)
+            if near.sum() >= 200:
+                head_pts = (np.argwhere(near) + lo) * sp
+        if head_pts is None or len(head_pts) < 200:
+            zc = np.percentile(idx[:, 2], 70)
+            head_pts = pts[idx[:, 2] >= zc]
+
+        c, rad, inlier, rms = _fit_sphere_robust(head_pts)
+        # A fit is only accepted if it converged onto something actually spherical.
+        # A femoral head is smooth; an rms above ~2 mm means the cloud still contains
+        # trochanter or neck, and the radius from it is not a head radius.
+        if (rad is not None and 15.0 < rad < 35.0
+                and rms is not None and rms < 2.0 and inlier > 0.35):
+            r[f"femoral_head_diameter_{side}_mm"] = round(2 * rad, 2)
+            r[f"head_fit_rms_{side}_mm"] = round(rms, 2)
+            r[f"head_fit_inlier_{side}"] = round(inlier, 3)
+        elif rad is not None and 15.0 < rad < 35.0:
+            # kept out of the diameter column but recorded, so the rejection rate is
+            # visible rather than showing up as silently missing data
+            r[f"head_fit_rejected_{side}"] = 1
 
         # --- neck-shaft angle -------------------------------------------------------
         # neck: between the head centre and the trochanteric mass; shaft: the inferior

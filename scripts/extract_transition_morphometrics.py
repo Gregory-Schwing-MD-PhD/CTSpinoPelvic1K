@@ -31,6 +31,30 @@ rib is a curved oblique object and its box says more about its obliquity than it
 
     python scripts/extract_transition_morphometrics.py --labels data/v5_final \
         --manifest data/hf_export_v4/manifest.json --workers 24 --out morphometrics
+
+THE MINIMUM DISTANCE BETWEEN TWO BONES IS ALMOST NEVER THE MEASUREMENT YOU WANTED.
+This file made that mistake twice, in different places, and neither showed up as an
+error -- both produced plausible millimetre values that were simply of something else.
+
+  tp_gap        was the minimum distance from the whole lateral third of the lowest
+                lumbar vertebra to the sacrum. That region contains the inferior
+                articular process, and the L5-S1 facet is a 2-4 mm synovial cleft, so
+                the "gap from the transverse process to the ala" read 3.4 mm in normal
+                cases. A Castellvi screen built on it recovered 0% of held-out positives.
+
+  disc_above    was the minimum distance between two adjacent whole vertebrae. They
+                meet at the disc AND at both facet joints, and the facets are closer, so
+                a "disc height" read 1.7 to 4.9 mm where a lumbar disc is 8 to 12.
+
+The general form: two articulating bones approach each other at several sites, and a
+minimum finds the tightest one, which is usually a joint nobody asked about. A distance
+between structures needs the SITE named -- a region of one bone and a region of the
+other -- before it means anything anatomical.
+
+Both are now measured by naming the site: the transverse process by its lateral tip, and
+the disc by columns through the central endplate. The rest of this file was swept for the
+same pattern; the only other _mindist is a nearest-vertebra ASSIGNMENT, where a minimum
+is the correct operation.
 """
 from __future__ import annotations
 
@@ -151,6 +175,60 @@ def _nearest_vert(mask, verts, sp):
         if d < best:
             best, bid = d, vid
     return bid, best
+
+
+def _disc_height_mm(lab, upper_mask, lower_mask, sp, half_mm=8.0):
+    """Height of the space between two adjacent bones, measured column by column.
+
+    THE OBVIOUS VERSION IS WRONG IN TWO SEPARATE WAYS and this measurement was making
+    both of them.
+
+    First, the minimum distance between two whole vertebra masks is not a disc height.
+    Adjacent vertebrae meet at three places -- the disc and both facet joints -- and the
+    facets are the closest, so the minimum returns a 2-4 mm synovial cleft. That is what
+    disc_above_mm was: it read 1.7 to 4.9 mm across this cohort where a lumbar disc is 8
+    to 12, because it was measuring a facet joint and calling it a disc.
+
+    Second, even restricted to the disc, the lowest voxel of the upper body anywhere in
+    the region is its RIM, because endplates are concave. Rim-to-rim measures the
+    narrowest part of the space, not the height.
+
+    So the space is measured in a central column bundle, one column at a time, and the
+    median taken -- which is the height a radiologist reads off a mid-sagittal slice.
+    This is the method already validated in extract_degenerative.py, where it moved the
+    lumbar disc heights from 4-6 mm to 8.8-10.4 against a published 8-12.
+    """
+    iu = np.argwhere(upper_mask)
+    il = np.argwhere(lower_mask)
+    if len(iu) < 40 or len(il) < 40:
+        return None
+    cx = float(np.median(np.concatenate([iu[:, 0], il[:, 0]])))
+    cy = float(np.median(np.concatenate([iu[:, 1], il[:, 1]])))
+    rx = max(2, int(round(half_mm / sp[0])))
+    ry = max(2, int(round(half_mm / sp[1])))
+    sel_u = iu[(np.abs(iu[:, 0] - cx) <= rx) & (np.abs(iu[:, 1] - cy) <= ry)]
+    sel_l = il[(np.abs(il[:, 0] - cx) <= rx) & (np.abs(il[:, 1] - cy) <= ry)]
+    if len(sel_u) < 40 or len(sel_l) < 40:
+        return None
+    cols = {}
+    for xx, yy, zz in sel_u:
+        k = (xx, yy)
+        cols.setdefault(k, [None, None])
+        c0 = cols[k][0]
+        cols[k][0] = zz if c0 is None else min(c0, zz)
+    for xx, yy, zz in sel_l:
+        k = (xx, yy)
+        if k not in cols:
+            continue
+        c1 = cols[k][1]
+        cols[k][1] = zz if c1 is None else max(c1, zz)
+    gaps = [a - b for a, b in cols.values() if a is not None and b is not None]
+    if len(gaps) < 15:
+        return None
+    g = float(np.median(gaps))
+    if not (-2 < g < 60):
+        return None
+    return max(0.0, g * float(sp[2]))
 
 
 def one(path: str) -> dict:
@@ -298,14 +376,14 @@ def one(path: str) -> dict:
             r["tp_gap_asym_mm"] = round(abs(gl - gr), 1)
 
         if (low - 1) in verts:
-            # the same pooled-target contamination reached the disc measurement: the
-            # lowest lumbar vertebra is often nearer the ilium than the sacrum, so this
-            # could silently return a vertebra-to-ilium distance and call it a disc
-            d_low = _mindist(_pts(m), tp_sac, sp)
-            d_up = _mindist(_pts(m), _pts(lab == low - 1), sp)
-            r["disc_low_mm"] = round(d_low, 1)
-            r["disc_above_mm"] = round(d_up, 1)
-            if d_up > 0:
+            # measured as a disc, not as the nearest bony approach -- see _disc_height_mm
+            d_low = _disc_height_mm(lab, m, sac_only, sp)
+            d_up = _disc_height_mm(lab, lab == low - 1, m, sp)
+            if d_low is not None:
+                r["disc_low_mm"] = round(d_low, 2)
+            if d_up is not None:
+                r["disc_above_mm"] = round(d_up, 2)
+            if d_low is not None and d_up and d_up > 0.5:
                 r["disc_ratio"] = round(d_low / d_up, 3)
 
     # ---- iliac crest height ------------------------------------------------

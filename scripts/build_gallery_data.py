@@ -130,7 +130,18 @@ def density(vals, lo, hi, npts=220):
     scale = min(sd, (q3 - q1) / 1.34) if q3 > q1 else sd
     if scale <= 0:
         scale = sd or (hi - lo) / 50
-    h = 0.85 * 0.9 * scale * n ** (-0.2)
+    # UNDERSMOOTHING IS ONLY EARNED BY SAMPLE SIZE. The 15% trim below exists so the
+    # rib-ratio panel keeps its two genuine modes, and on 800 cases that is the right
+    # call. On 30 it is not: a kernel narrower than the reference rule draws whatever
+    # bumps the sample happened to contain, and the bone-density ridges for the oldest
+    # decade came back visibly bimodal at n = 30 and n = 50 with valleys that sat
+    # INSIDE their own 95% band -- structure the data could not support.
+    #
+    # Silverman's normal-reference rule is known to oversmooth genuinely multimodal
+    # data, which is what the trim corrects. It is not known to undersmooth small
+    # samples, so below 100 the rule reverts to it and below 50 it deliberately widens.
+    trim = 0.85 if n >= 200 else (1.0 if n >= 100 else 1.15)
+    h = trim * 0.9 * scale * n ** (-0.2)
 
     # A BANDWIDTH FLOOR AT THE MEASUREMENT'S OWN RESOLUTION.
     # Several of these measures are a voxel COUNT times a spacing, so they can only land
@@ -315,7 +326,8 @@ def add_surgical(out, path):
         meds[label] = sv[len(sv) // 2]
         dd = density(v, 25, 85)
         if dd["x"]:
-            series.append({"label": label, "x": dd["x"], "y": dd["y"], "n": dd["n"]})
+            series.append({"label": label, "x": dd["x"], "y": dd["y"], "n": dd["n"],
+                           "ylo": dd.get("ylo"), "yhi": dd.get("yhi")})
     if len(series) == 2:
         gap = abs(meds.get("female", 0) - meds.get("male", 0))
         out["panels"].append({
@@ -343,29 +355,56 @@ def add_demographics(out, rows):
             "spinopelvic measures below sit closer to a reference range than a clinical "
             "cohort would, and the transitional variants were found incidentally.")
 
-    # --- age, split by sex ---------------------------------------------------------
-    series, meds = [], {}
-    for want, label in (("F", "female"), ("M", "male")):
-        v = [x for x in (num(r, "age") for r in rows
-                         if (r.get("sex") or "").strip().upper().startswith(want))
-             if x is not None]
-        if len(v) < 20:
-            continue
-        sv = sorted(v)
-        meds[label] = sv[len(sv) // 2]
-        d = density(v, 45, 95)
-        if d["x"]:
-            series.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"]})
-    if len(series) == 2:
-        out["panels"].append({
-            "key": "age_by_sex", "section": sect, "section_note": note,
-            "title": "Age, by sex", "type": "split", "series": series,
-            "xlabel": "age (years)",
-            "subtitle": "a screening population: the lower bound is the guideline, not a filter",
-            "caption": (f"Median {meds['female']:.0f} years in women and "
-                        f"{meds['male']:.0f} in men. Nothing below the screening age "
-                        "threshold appears because nothing below it was scanned."),
-        })
+    # --- age, one bar per year -----------------------------------------------------
+    # NOT A SMOOTH CURVE, AND THE REASON IS THE MOST INTERESTING THING ON THIS PANEL.
+    # Age here takes 34 distinct integer values and 48.9% of them end in a zero, against
+    # the 10% a uniform terminal digit would give. A kernel density over that draws a
+    # bimodal hump and invites the reader to explain a shape that is an artefact of how
+    # the ages were recorded. Bars cannot lie about it.
+    ages = [int(x) for x in (num(r, "age") for r in rows) if x is not None]
+    if len(ages) > 100:
+        lo, hi = min(ages), max(ages)
+        yrs = list(range(lo, hi + 1))
+        series, meds = [], {}
+        for want, label in (("F", "female"), ("M", "male")):
+            v = [int(x) for x in (num(r, "age") for r in rows
+                                  if (r.get("sex") or "").strip().upper().startswith(want))
+                 if x is not None]
+            if len(v) < 20:
+                continue
+            sv = sorted(v)
+            meds[label] = sv[len(sv) // 2]
+            counts = [sum(1 for a in v if a == y) for y in yrs]
+            series.append({"label": label, "n": len(v), "counts": counts,
+                           "pct": [100.0 * c / len(v) for c in counts]})
+        # Whipple-type index: share of ages ending 0 or 5 over a band, against uniform
+        band = [a for a in ages if 51 <= a <= 80]
+        whip = 100 * sum(1 for a in band if a % 10 in (0, 5)) / (len(band) / 5) if band else 0
+        pct0 = 100 * sum(1 for a in ages if a % 10 == 0) / len(ages)
+        n89 = sum(1 for a in ages if a == 89)
+        if len(series) == 2:
+            out["panels"].append({
+                "key": "age_by_sex", "section": sect, "section_note": note,
+                "title": "Age, and the fact that half of it is rounded",
+                "type": "grouped", "categories": [str(y) for y in yrs], "series": series,
+                "xlabel": "age (years, as recorded)",
+                "subtitle": "one bar per year of age, because the recorded ages are not continuous",
+                "caption": (
+                    f"Median {meds['female']:.0f} years in women and {meds['male']:.0f} "
+                    f"in men, and nothing below the screening threshold because nothing "
+                    f"below it was scanned. The spikes are the story: {pct0:.0f}% of ages "
+                    f"end in a zero where 10% would be expected, and the Whipple-type "
+                    f"index over 51-80 is {whip:.0f} against 100 for no preference -- the "
+                    f"UN calls anything above 175 'very rough'. The spike at 89 "
+                    f"({n89} records) is the HIPAA Safe Harbor ceiling, which requires "
+                    f"ages above 89 to be aggregated. The one at 50 is partly real, since "
+                    f"screening begins there, but nothing makes a 60-year-old nine times "
+                    f"likelier to be scanned than a 61-year-old. Roughly half these ages "
+                    f"are rounded to the decade and which half cannot be told. This "
+                    f"attenuates any slope against age by about 5% -- small, because the "
+                    f"true spread of ages is wide next to the rounding, but reported "
+                    f"because a null result is exactly what attenuation can manufacture."),
+            })
 
     # --- sex, source configuration, and source LSTV label --------------------------
     for key, title, subtitle, caption in (
@@ -459,7 +498,8 @@ def add_pelvic_shape(out, path, extra=None):
             meds[label] = sv[len(sv) // 2]
             d = density(v, lo, hi)
             if d["x"]:
-                series.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"]})
+                series.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"],
+                       "ylo": d.get("ylo"), "yhi": d.get("yhi")})
         if len(series) != 2:
             continue
         gap = meds["female"] - meds["male"]
@@ -547,7 +587,8 @@ def add_level_gradients(out, path):
             meds.append((lv, sv[len(sv) // 2]))
             d = density(v, lo, hi)
             if d["x"]:
-                series.append({"label": lv, "x": d["x"], "y": d["y"], "n": d["n"]})
+                series.append({"label": lv, "x": d["x"], "y": d["y"], "n": d["n"],
+                       "ylo": d.get("ylo"), "yhi": d.get("yhi")})
         if len(series) < 3:
             continue
         march = " to ".join(f"{m:.1f}" for _, m in (meds[0], meds[-1]))
@@ -624,7 +665,8 @@ def add_relative_width(out, pelvic_path, surgical_path, levels_path):
             meds[label] = sv[len(sv) // 2]
             d = density(v, lo, hi)
             if d["x"]:
-                series.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"]})
+                series.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"],
+                       "ylo": d.get("ylo"), "yhi": d.get("yhi")})
         if len(series) != 2:
             continue
         gap = meds["female"] - meds["male"]
@@ -780,10 +822,14 @@ def add_landmark_reliability(out, rows):
              if x is not None and 0.1 < x < 5]
         if len(v) < 20:
             continue
-        d = density(v, 0.2, 4.0)
+        # WITH ITS BAND. Two of these groups have fewer than 30 cases, and a curve drawn
+        # over 29 points without its uncertainty invites exactly the over-reading this
+        # panel had: a visible second mode whose valley sat well inside the band.
+        d = density_band(density(v, 0.2, 4.0))
         if d["x"]:
             sv = sorted(v)
             series2.append({"label": g, "x": d["x"], "y": d["y"], "n": d["n"],
+                            "ylo": d.get("ylo"), "yhi": d.get("yhi"),
                             "_med": sv[len(sv) // 2]})
     if len(series2) >= 2:
         meds = ", ".join(f'{s["label"]} {s["_med"]:.2f}' for s in series2)
@@ -1143,7 +1189,8 @@ def add_wedge_and_sacrum(out, levels_path, pelvic_path):
         meds[label] = sv[len(sv) // 2]
         d = density(v, 80, 160)
         if d["x"]:
-            series.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"]})
+            series.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"],
+                       "ylo": d.get("ylo"), "yhi": d.get("yhi")})
     if len(series) == 2:
         out["panels"].append({
             "key": "sacral_base", "section": "Pelvic shape, by sex",
@@ -1180,7 +1227,8 @@ def add_wedge_and_sacrum(out, levels_path, pelvic_path):
             meds2[label] = sv[len(sv) // 2]
             d = density(vals, 1.4, 3.6)
             if d["x"]:
-                series2.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"]})
+                series2.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"],
+                       "ylo": d.get("ylo"), "yhi": d.get("yhi")})
         if len(series2) == 2:
             gap = meds2["female"] - meds2["male"]
             out["panels"].append({
@@ -1231,7 +1279,8 @@ def add_vertebral_size_by_sex(out, levels_path, pelvic_path):
         meds[label] = sv[len(sv) // 2]
         d = density(v, 28, 68)
         if d["x"]:
-            series.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"]})
+            series.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"],
+                       "ylo": d.get("ylo"), "yhi": d.get("yhi")})
     if len(series) != 2:
         return
     gap = meds["male"] - meds["female"]
