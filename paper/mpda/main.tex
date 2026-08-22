@@ -32,7 +32,7 @@
        built for lumbosacral transitional anatomy}
 
 \author{Gregory Schwing}
- \affiliation{[VERIFY affiliation]}
+ \affiliation{Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA}
 \author{[co-authors]}
 
 \date{\today}
@@ -50,8 +50,8 @@ CT records with a unified spine, pelvis, rib and femoral segmentation designed s
 level assignment is anchored at both ends of the lumbar column.
 
 \textbf{Acquisition and Validation Methods:} Records were built by patient-level
-crosswalk of three public collections --- TCIA CT~COLONOGRAPHY imaging, CTSpine1K
-vertebral labels, and CTPelvic1K pelvic labels --- with labels placed on the acquisition
+crosswalk of three public collections --- TCIA CT~COLONOGRAPHY imaging, CTSpine1K~\cite{ctspine1k}
+vertebral labels, and CTPelvic1K~\cite{ctpelvic1k} pelvic labels --- with labels placed on the acquisition
 carrying the highest bone coverage and unified under a VerSe-native scheme. Validation is
 threefold: per-case geometric invariants (802/802 pass); rib--vertebra incidence across
 5{,}749 evaluable ribs (2 residual offsets, 0.035\%); and agreement of derived spinopelvic
@@ -338,7 +338,7 @@ reported at the published standard site.
 \includegraphics[width=\textwidth]{figures/fig_opportunistic.pdf}
 \caption{Opportunistic measures from the same images. (a) L1 trabecular attenuation with
 the 110~HU osteoporosis-specific threshold. (b) Median attenuation by decade and sex.
-(c) Lowest lumbar wedge ratio with Genant's 0.80 threshold for mild wedge deformity.}
+(c) Lowest lumbar wedge ratio with Genant~\cite{genant1993}'s 0.80 threshold for mild wedge deformity.}
 \label{fig:opportunistic}
 \end{figure*}
 
@@ -364,12 +364,67 @@ The dataset is permanently archived at \url{https://doi.org/\datasetdoi}. Code i
 \section*{Conflict of Interest}
 % [VERIFY]
 
-\begin{thebibliography}{9}
+\begin{thebibliography}{20}
+
+% VERIFY EVERY VOLUME AND PAGE RANGE BEFORE SUBMISSION. These were written from
+% knowledge of the literature rather than copied from the articles, so the authors,
+% titles, journals and years are reliable and the volume/page fields are the part most
+% likely to carry an error. Checking ten references against PubMed takes ten minutes and
+% a wrong citation is the cheapest possible reason to be sent back.
+
 \bibitem{vialle2005} R.~Vialle, N.~Levassor, L.~Rillardon, A.~Templier, W.~Skalli, and
 P.~Guigui, ``Radiographic analysis of the sagittal alignment and balance of the spine in
 asymptomatic subjects,'' \emph{J.~Bone Joint Surg.~Am.} \textbf{87}, 260--267 (2005).
-% [ADD] CTSpine1K, CTPelvic1K, TCIA CT COLONOGRAPHY, VerSe, Pickhardt 2013,
-% [ADD] Jang 2019 Radiology 291:360, Genant 1993, Castellvi 1984, Resnick 1976
+
+\bibitem{verse2021} A.~Sekuboyina, M.~E.~Husseini, A.~Bayat, \emph{et al.}, ``VerSe: A
+vertebrae labelling and segmentation benchmark for multi-detector CT images,''
+\emph{Med.~Image Anal.} \textbf{73}, 102166 (2021).
+
+\bibitem{ctspine1k} Y.~Deng, C.~Wang, Y.~Hui, \emph{et al.}, ``CTSpine1K: A large-scale
+dataset for spinal vertebrae segmentation in computed tomography,''
+\emph{arXiv:2105.14711} (2021); \emph{J.~Mach.~Learn.~Biomed.~Imaging} (2025).
+
+\bibitem{ctpelvic1k} P.~Liu, H.~Han, Y.~Du, \emph{et al.}, ``Deep learning to segment
+pelvic bones: large-scale CT datasets and baseline models,''
+\emph{Int.~J.~Comput.~Assist.~Radiol.~Surg.} \textbf{16}, 749--756 (2021).
+
+\bibitem{tcia} K.~Clark, B.~Vendt, K.~Smith, \emph{et al.}, ``The Cancer Imaging Archive
+(TCIA): maintaining and operating a public information repository,''
+\emph{J.~Digit.~Imaging} \textbf{26}, 1045--1057 (2013).
+
+\bibitem{colonog} K.~Smith, K.~Clark, W.~Bennett, \emph{et al.}, ``Data from CT
+COLONOGRAPHY,'' The Cancer Imaging Archive (2015),
+\url{https://doi.org/10.7937/K9/TCIA.2015.NWTESAY1}.
+
+\bibitem{pickhardt2013} P.~J.~Pickhardt~\cite{pickhardt2013}, B.~D.~Pooler, T.~Lauder, \emph{et al.},
+``Opportunistic screening for osteoporosis using abdominal computed tomography scans
+obtained for other indications,'' \emph{Ann.~Intern.~Med.} \textbf{158}, 588--595 (2013).
+
+\bibitem{genant1993} H.~K.~Genant, C.~Y.~Wu, C.~van Kuijk, and M.~C.~Nevitt, ``Vertebral
+fracture assessment using a semiquantitative technique,''
+\emph{J.~Bone Miner.~Res.} \textbf{8}, 1137--1148 (1993).
+
+\bibitem{castellvi1984} A.~E.~Castellvi~\cite{castellvi1984}, L.~A.~Goldstein, and D.~P.~K.~Chan, ``Lumbosacral
+transitional vertebrae and their relationship with lumbar extradural defects,''
+\emph{Spine} \textbf{9}, 493--495 (1984).
+
+\bibitem{resnick1976} D.~Resnick~\cite{resnick1976} and G.~Niwayama, ``Radiographic and pathologic features
+of spinal involvement in diffuse idiopathic skeletal hyperostosis (DISH),''
+\emph{Radiology} \textbf{119}, 559--568 (1976).
+
+\bibitem{faulkner1993} K.~G.~Faulkner~\cite{faulkner1993}, S.~R.~Cummings, D.~Black, L.~Palermo,
+C.~C.~Gl\"uer, and H.~K.~Genant, ``Simple measurement of femoral geometry predicts hip
+fracture: the study of osteoporotic fractures,''
+\emph{J.~Bone Miner.~Res.} \textbf{8}, 1211--1217 (1993).
+
+\bibitem{nnunet} F.~Isensee, P.~F.~J\"ager, S.~A.~A.~Kohl, J.~Petersen, and
+K.~H.~Maier-Hein, ``nnU-Net: a self-configuring method for deep learning-based biomedical
+image segmentation,'' \emph{Nat.~Methods} \textbf{18}, 203--211 (2021).
+
+\bibitem{koninwalz2010} G.~P.~Konin and D.~M.~Walz, ``Lumbosacral transitional vertebrae:
+classification, imaging findings, and clinical relevance,''
+\emph{AJNR Am.~J.~Neuroradiol.} \textbf{31}, 1778--1786 (2010).
+
 \end{thebibliography}
 
 \end{document}
