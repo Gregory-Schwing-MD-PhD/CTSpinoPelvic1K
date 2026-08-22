@@ -327,6 +327,61 @@ specific error*. That assumption is exactly what two anchors remove.
 
 ---
 
+## The premise is testable without a GPU, and it holds
+
+Greg's suggestion — use the extracted morphometrics as structured features — turns the
+central architectural claim into a one-minute experiment. The claim is that thoracic and
+lumbar vertebrae are morphologically distinct, so a network can name a rib by the vertebra
+it sits on rather than by counting. Every vertebra in this corpus already carries per-level
+morphometrics and a ground-truth identity, so the claim can simply be measured.
+
+**Method.** Eleven features per vertebra — endplate width, anterior and posterior body
+height, canal width, transverse-process span, and six ratios among them. Every feature is
+divided by **that case's own median across its levels**, which removes patient size
+completely. Without that step the experiment is worthless: lumbar vertebrae are simply
+bigger, a classifier would separate them instantly, and it would have learned nothing about
+shape. Plain logistic regression, grouped five-fold cross-validation by case so no patient
+appears in both train and test.
+
+| task | n | AUC | accuracy |
+|---|---:|---:|---:|
+| thoracic (T11–T12) vs lumbar (L1–L5), shape only | 5232 | **0.998** | 0.991 |
+| **T12 vs L1** — the pair the phenotype turns on | 1485 | **0.990** | **0.973** |
+
+The dominant weight is **transverse-process span** (−1.89 standardised), followed by
+tp-span over body height and tp-span over endplate width. The model rediscovered the
+textbook discriminator unaided: thoracic processes are short and club-shaped, lumbar
+processes are long blades.
+
+**And it does this without the best feature.** Costal facets are not in the feature set at
+all — they are not among the extracted morphometrics. A network sees them directly. So
+97.3% on T12 versus L1 is a floor, obtained from five coarse measurements and a linear
+model, not a ceiling.
+
+### The rib cannot name itself; the vertebra must
+
+The complementary experiment settles the other half. Lumbar ribs are short (median 45.1 mm)
+and twelfth ribs are long (median 104.4), so length looks like it separates them. In the
+overlap it does not, and the overlap is the only region that matters:
+
+| ribs at or below | twelfth ribs | lumbar ribs | share that are twelfth |
+|---:|---:|---:|---:|
+| 40 mm | 79 | 6 | 93% |
+| 50 mm | 152 | 10 | 94% |
+| 65 mm | 276 | 11 | 96% |
+| 80 mm | 383 | 15 | 96% |
+
+**Among short ribs, hypoplastic twelfth ribs outnumber lumbar ribs about fifteen to one.**
+A rule that called short ribs lumbar would be wrong 94% of the time. Rib morphology alone
+cannot decide the question — which is precisely why the design routes the decision through
+the vertebra, where it *is* decidable at 97.3% from coarse shape and better than that from
+the image.
+
+This is the empirical backbone of the whole argument, it cost a minute, and it should be a
+slide.
+
+---
+
 ## Evidence from this corpus that both heads are needed
 
 The rib-free count against the source transitional label, on all 802 records:
