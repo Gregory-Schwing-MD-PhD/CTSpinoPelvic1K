@@ -34,6 +34,47 @@ absent rather than approximated.
 
     python scripts/extract_degenerative.py --labels data/v5_final --ct data/hf_export/ct
 """
+"""
+WITHHELD: DISH. Four detectors were built and none survives its own check.
+
+  1.  0.5% against a published 3.8-27%. Too strict.
+  2. 48.9%. The bridge box still contained vertebral body.
+  3. 48.5%. The disc-space boundary used the MEDIAN of the per-column extremes, so
+     half the columns still had body inside the box.
+  4. 23.3%, which is IN RANGE -- and still wrong, for a reason the headline number
+     cannot show.
+
+WHY THE FOURTH ONE FAILS ANYWAY. Prevalence by decade runs 27.2%, 19.6%, 15.6% from
+the fifties to the seventies and beyond. DISH accumulates; it does not resolve. Every
+published series has prevalence rising steeply with age, and a detector that finds
+less of it in older patients is detecting something else that happens to be commoner
+in the young.
+
+The obvious candidate was bone density -- a HU-threshold detector would find less
+"ossification" in an osteoporotic spine, and this cohort's density does fall with age.
+That is not the explanation, or not the whole one: the point-biserial correlation with
+L1 trabecular attenuation is only r = 0.095, and the inverse age gradient survives
+inside EVERY density tertile (18.4/14.1/8.8, 31.1/24.7/25.0, 28.3/21.7/22.2). Whatever
+the detector is measuring, it is not ossification and it is not density.
+
+The sex ratio, for what it is worth, points the right way: 27.2% in men against 19.1%
+in women, where DISH is male-predominant. One correct gradient out of two is what a
+partly-confounded measure looks like, not what a working one looks like.
+
+WHAT WOULD FIX IT, for whoever picks this up. The anterior ossification is a bridge of
+BONE spanning the disc space, and this pipeline only ever asks whether attenuation is
+high in a box. It cannot distinguish a bridge from an osteophyte pair that nearly
+touches, and near-touching pairs are commoner in the young because the discs are
+taller. That is a plausible source of the inverted gradient and it is testable:
+require a connected path of bone from one vertebral body to the next through the box,
+rather than a count of bright voxels in it. Connectivity is the criterion Resnick's
+definition actually states.
+
+The bridge_* and max_contiguous_bridges columns are still written to the CSV so the
+next attempt has something to compare against. dish_resnick is NOT plotted anywhere
+and must not be until the age gradient points the right way.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -179,9 +220,15 @@ def one(args) -> dict:
             continue
         h = max(0.0, gap_vox * sp[2])
         r[f"disc_height_{name}_mm"] = round(h, 1)
-        z_low_of_upper = float(np.median([a for a, b in cols.values()
-                                          if a is not None and b is not None]))
+        # For the HEIGHT a median is right. For the BRIDGE BOX it is not: a median
+        # boundary leaves half the columns with vertebral body inside the box, and that
+        # body is bone, which is what the bridge test is looking for. The box needs
+        # boundaries no column crosses.
+        pairs = [(a, b) for a, b in cols.values() if a is not None and b is not None]
+        z_low_of_upper = float(np.median([a for a, _ in pairs]))
         z_top_of_lower = z_low_of_upper - gap_vox
+        z_safe_hi = float(min(a for a, _ in pairs))     # below every upper-body voxel
+        z_safe_lo = float(max(b for _, b in pairs))     # above every lower-body voxel
 
         # gas inside that disc space -- pathognomonic for degeneration
         z0, z1 = int(np.floor(z_top_of_lower)) + 1, int(np.ceil(z_low_of_upper))
@@ -192,25 +239,35 @@ def one(args) -> dict:
                 frac = float((box < GAS_HU).mean())
                 r[f"vacuum_frac_{name}"] = round(frac, 4)
 
-        # A DISH BRIDGE IS ANTERIOR FLOWING OSSIFICATION, so look for BONE in the
-        # anterior disc space rather than asking whether two dilated labels happen to
-        # touch. Dilation finds any contact, including a posterior facet or a
-        # segmentation seam; ossification in front of the bodies is the actual sign.
+        # A DISH BRIDGE LIES ANTERIOR TO THE VERTEBRAL BODY LINE.
+        # Two attempts got this wrong in opposite directions. Asking whether two dilated
+        # labels touch found any contact at all, including a posterior facet or a
+        # segmentation seam, and reported 0.5%. Looking for bone 8-18 mm forward of the
+        # body CENTRE was still inside the body footprint -- a lumbar body is about 30 mm
+        # deep -- so it caught the normal endplate rim and reported 48.9%.
         #
-        # Resnick also requires the disc height to be PRESERVED -- that is what separates
-        # flowing ossification from a collapsed degenerative segment -- so the test is
-        # relative to this spine's own discs rather than to an absolute millimetre.
-        if z1 > z0 and h > 0:
-            ay = int(cy + ry)                     # just anterior to the bodies' midline
-            ah = max(3, int(round(10.0 / sp[1])))
-            front = ct[int(cx - rx):int(cx + rx) + 1, ay:ay + ah, z0:z1]
+        # Flowing ossification is visible precisely because it projects BEYOND the
+        # anterior cortex. So find where the two bodies' anterior surfaces actually are
+        # at this level, and look in the space in front of both of them.
+        ay_u = float(np.percentile(sel_u[:, 1], 97)) if len(sel_u) else None
+        ay_l = float(np.percentile(sel_l[:, 1], 97)) if len(sel_l) else None
+        zb0, zb1 = int(np.floor(z_safe_lo)) + 1, int(np.ceil(z_safe_hi))
+        if ay_u is not None and ay_l is not None and zb1 - zb0 >= 2 and h > 0:
+            front_y = int(np.ceil(max(ay_u, ay_l)))            # the anterior body line
+            depth = max(3, int(round(9.0 / sp[1])))
+            fx0, fx1 = int(cx - rx), int(cx + rx) + 1
+            front = ct[fx0:fx1, front_y:front_y + depth, zb0:zb1]
             if front.size > 20:
-                # a column of cortical-density voxels spanning the space
                 bone = front > 200.0
-                span = bone.any(axis=(0, 1)).mean() if bone.size else 0.0
-                r[f"anterior_bone_{name}"] = round(float(bone.mean()), 4)
-                bridged.append(bool(span > 0.85 and bone.mean() > 0.10))
-                r[f"bridge_{name}"] = int(span > 0.85 and bone.mean() > 0.10)
+                # a bridge must be CONTINUOUS across the disc: bone present on nearly
+                # every axial slice of the space, not merely present somewhere in it
+                per_slice = bone.any(axis=(0, 1))
+                span = float(per_slice.mean()) if per_slice.size else 0.0
+                dens = float(bone.mean())
+                r[f"anterior_bone_{name}"] = round(dens, 4)
+                is_bridge = bool(span >= 0.90 and dens >= 0.06)
+                bridged.append(is_bridge)
+                r[f"bridge_{name}"] = int(is_bridge)
             else:
                 bridged.append(None)
         else:

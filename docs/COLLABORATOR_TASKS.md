@@ -49,9 +49,13 @@ one panel, with four existing ones to copy from.
 
 ### B1. Sacroiliac joint measurement
 **What:** SI joint width and the degree of ankylosis, from the sacrum and hip labels.
-**Prior art:** SI abnormalities are reported in a majority of DISH patients (AJR 2017),
-and we already detect DISH by Resnick's criteria — so this closes a loop that is
-currently open.
+**Prior art:** SI abnormalities are reported in a majority of DISH patients (AJR 2017).
+Note that our DISH detector is currently **withheld** — see the header of
+`scripts/extract_degenerative.py` — so this task cannot lean on it yet. Fixing DISH is
+itself a good project and the header says exactly what to try: Resnick's criterion is a
+connected bridge of bone between two bodies, and four attempts have all counted bright
+voxels in a box instead. The fourth landed at a plausible 23.3% and was still rejected,
+because prevalence fell with age when DISH only ever accumulates.
 **Difficulty:** moderate. The joint space is the gap between two labels we already have.
 **Output:** a panel, and a real finding if SI change tracks the DISH cases.
 
@@ -139,7 +143,7 @@ that is already finished.
 
 **The one rule that matters more than any other here:** every measure checks itself
 against a published value, and anything that fails is withheld with the reason recorded
-rather than shipped. Four measures are currently withheld for exactly that reason. That
+rather than shipped. Five measures are currently withheld for exactly that reason. That
 discipline is why the rest can be trusted, and it is not negotiable — if your number
 disagrees with the literature, the number is probably wrong, and finding out why is the
 actual work.
