@@ -817,7 +817,12 @@ def add_landmark_reliability(out, rows):
     # the disc above a transitional segment is described as degenerating earlier than the
     # one below it; a narrower disc above raises this ratio
     series2 = []
+    above = {}
     for g in order:
+        av = sorted(x for x in (num(r, "disc_above_mm") for r in rows if grp(r) == g)
+                    if x is not None and 1 < x < 20)
+        if av:
+            above[g] = av[len(av) // 2]
         v = [x for x in (num(r, "disc_ratio") for r in rows if grp(r) == g)
              if x is not None and 0.1 < x < 5]
         if len(v) < 20:
@@ -842,9 +847,17 @@ def add_landmark_reliability(out, rows):
             "type": "split", "series": series2,
             "xlabel": "lowest disc / disc above",
             "caption": ("A transitional segment moves less, and the level above it is "
-                        "described as taking up that motion and degenerating earlier. A "
-                        "narrower disc above raises this ratio. Medians: " + meds + ". "
-                        "Shown as distributions; nothing here is a test."),
+                        "described as taking up that motion and degenerating earlier. "
+                        "Ratio medians: " + meds + ". A ratio cannot say which of its "
+                        "two terms moved, so the disc ABOVE is given directly: "
+                        + ", ".join(f"{g} {above[g]:.1f} mm" for g in order if g in above)
+                        + ". It is the disc above that narrows, which is the direction "
+                        "the literature describes. This measurement previously reported "
+                        "the minimum distance between two whole vertebrae -- which is a "
+                        "FACET JOINT, not a disc, and read 1.7 to 4.9 mm where a lumbar "
+                        "disc is 8 to 12. It now measures the space column by column and "
+                        "agrees with an independent implementation elsewhere in the "
+                        "pipeline. Shown as distributions; nothing here is a test."),
         })
 
 
