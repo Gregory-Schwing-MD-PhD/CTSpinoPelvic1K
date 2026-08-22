@@ -485,12 +485,31 @@ def one(path: str) -> dict:
                   ("torg", torg), ("wedge", wedge)):
         for k, v in d.items():
             r[f"{nm}_{k}"] = v
-    if ped:
-        r["pedicle_min_mm"] = round(min(ped.values()), 1)
-    if torg:
-        r["torg_min"] = round(min(torg.values()), 3)
-    if wedge:
-        r["wedge_min"] = round(min(wedge.values()), 3)
+    # A MINIMUM OVER LEVELS INHERITS EVERY FAILURE AMONG THEM. The narrowest pedicle is
+    # the clinically useful number -- it constrains screw diameter -- but taken as a raw
+    # minimum across five or six levels it is decided by whichever level was measured
+    # worst, not by the anatomy. It returned 1.8 mm on some cases, which is not a pedicle,
+    # and 27.3 mm on others, which is not one either.
+    #
+    # So each level is checked against a physiological envelope before the minimum is
+    # taken, and the count of levels that survived is recorded alongside it. A minimum
+    # over two levels is a different statistic from a minimum over six and the reader is
+    # entitled to know which one they have.
+    PLAUSIBLE = {"ped": (3.5, 20.0), "torg": (0.15, 1.2), "wedge": (0.4, 1.8)}
+
+    def _min_of(d, key, name, nd=1):
+        lo, hi = PLAUSIBLE[key]
+        ok = {k: v for k, v in d.items() if v is not None and lo <= v <= hi}
+        if not ok:
+            return
+        r[name] = round(min(ok.values()), nd)
+        r[f"{name}_n_levels"] = len(ok)
+        if len(ok) < len(d):
+            r[f"{name}_n_dropped"] = len(d) - len(ok)
+
+    _min_of(ped, "ped", "pedicle_min_mm", 1)
+    _min_of(torg, "torg", "torg_min", 3)
+    _min_of(wedge, "wedge", "wedge_min", 3)
     return r
 
 
