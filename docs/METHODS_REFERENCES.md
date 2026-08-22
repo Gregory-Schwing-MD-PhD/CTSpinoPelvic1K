@@ -114,6 +114,14 @@ whole premise of measuring it on a scan taken for the colon.
 matters actually happens. Reported as a distribution with **no cut-point drawn**, because
 the hip has no validated equivalent of the L1 threshold.
 
+*Open, and deliberately not patched.* Thirteen of 800 cases return 700 to 1368 HU, which is
+cortical bone or metal and not trabecular anything. The envelope check (§2.0 of the release
+checklist) flags them and they are left in the CSV. The likely explanation is a hip
+prosthesis that carries no hardware label — the hardware classes are declared and
+unpopulated — and it is cheap to test by looking at whether the whole femur is bright on
+those cases or only the neck region. Clamping the value to a plausible ceiling would hide
+the thing worth knowing, which is that some of these femora may not be bone.
+
 ---
 
 ## Proximal femur
