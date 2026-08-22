@@ -163,3 +163,64 @@ of those.
 - [Meng et al., *Vertebrae localization, segmentation and identification using a graph optimization and an anatomic consistency cycle*](https://www.researchgate.net/publication/363735732)
 - Payer et al., SpatialConfiguration-Net — integrating local appearance with the joint
   spatial configuration of landmarks
+
+
+---
+
+## The one-shot case, and why attention is the principled answer
+
+The talk is called *A single shot…*, so the one-shot arm is the thesis and not the
+fallback. Two things have to be said for that to be an honest claim.
+
+**First, a correction to the argument above.** "Identity is not a local property" is true
+of L5 versus L6 and false of thoracic versus lumbar. Those are morphologically different
+bones and every discriminating feature is patch-local — costal facets on the body, the
+costotransverse joint, the club-shaped thoracic process against the flat lumbar blade. So
+the hypoplastic-twelfth-rib versus lumbar-rib discrimination is *available* to a
+sufficiently powerful local model, and claiming otherwise was overreach on my part.
+
+**Second, why attention specifically.** Convolution is weight-shared and local, so it is
+translation-equivariant by construction and a feature meaning "vertebra" fires identically
+wherever it sits. Counting requires knowing position in a sequence, which is precisely the
+information equivariance discards. Self-attention does not have that constraint: with
+positional encoding it can attend to the sacrum and aggregate over everything between,
+which is *literally* the counting operation. The intuition that "an attention mechanism
+assigns L1–L6" is the right one, and it is the mechanism, not a metaphor for one.
+
+This matters for how the *nnU-Net Revisited* result should be read. That benchmark found
+CNNs beating Transformers and Mamba under controlled comparison — but on organ
+segmentation, where long-range ordering is not the task. Here it is the whole task. The
+benchmark is evidence against reaching for a transformer by default; it is not evidence
+against reaching for one when the difficulty is specifically global ordering. That
+distinction is worth making explicitly in the talk, because it is the obvious objection.
+
+**The failure mode to design against**, and it is the one VerSe documented: a model that
+learns normal anatomy well predicts the most likely class for anything ambiguous. It will
+call every lowest lumbar vertebra L5, because that is the prior and it is right 97% of the
+time. The model needs a *reason* to deviate, and the reason is the rib evidence — which is
+why the rib and lumbar-rib classes have to exist in the target at all. Mitigations that
+belong in the same run: the LSTV-biased sampler already in this repo
+(`tools/lstv_biased_dataloader.py`), and reporting accuracy separately for typical and
+transitional anatomy so a 97%-by-prior model cannot look successful.
+
+**Concretely, on this hardware.** The grid carries H200 nodes at 4 GPUs each. The binding
+constraint on a one-shot model here is not depth, it is **patch size**: the receptive field
+must span a vertebra together with what is attached to it, and ideally enough of the column
+to count. ResEnc-XL targets roughly 40 GB and an H200 has far more, so the patch can be
+pushed well past what the planner chooses by default. That is the cheapest real gain
+available, and it should be tried before any architecture swap.
+
+Arms, in the order they are worth running:
+
+1. `--oneshot` with ResEnc-L, default planning — the honest baseline;
+2. the same with ResEnc-XL and a manually enlarged patch size;
+3. the same plus a sacrum-relative coordinate channel;
+4. an attention arm (MedNeXt for large effective receptive field, or Swin-UNETR/UNETR for
+   true global attention) — the architecture the counting argument actually calls for;
+5. the staged count-free pipeline, as the comparator.
+
+The result that makes the talk is not which wins. It is that one-shot should be expected to
+learn the thoracolumbar junction — where the evidence is morphological and local — and to
+remain undecidable at the lumbosacral one, where L5 and L6 are the same bone under two
+counts. Demonstrating exactly that boundary is a sharper claim than either "one shot works"
+or "one shot fails".
