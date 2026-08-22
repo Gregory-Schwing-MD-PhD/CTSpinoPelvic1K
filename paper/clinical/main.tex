@@ -182,10 +182,10 @@ $p = 0.010$.}
 \label{tab:route}
 \begin{tabular}{lcccc}
 \toprule
-Route to four & $n$ & Crest at L4 & Crest cranial (L3) & Crest caudal (L5) \
+Route to four & $n$ & Crest at L4 & Crest cranial (L3) & Crest caudal (L5) \\
 \midrule
-Lumbar rib present & 15 & 7 (46.7\%) & 1 & 7 \
-No lumbar rib      & 13 & 6 (46.2\%) & 6 & 1 \
+Lumbar rib present & 15 & 7 (46.7\%) & 1 & 7 \\
+No lumbar rib      & 13 & 6 (46.2\%) & 6 & 1 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -254,10 +254,20 @@ publicly available [DOI].
 \section*{Conflicts of interest}
 % [VERIFY]
 
+% A thebibliography environment with no \bibitem is a LaTeX error, not an empty list --
+% it halts the build. Stubs keep the document compiling while the references are written.
 \begin{thebibliography}{9}
-% [ADD] Castellvi 1984 (classification); Konin \& Walz 2010 AJNR (LSTV imaging and
-% [ADD] clinical relevance); LSTV prevalence series; wrong-level spine surgery incidence;
-% [ADD] Tuffier's line accuracy studies; the CTSpinoPelvic1K dataset article
+\bibitem{castellvi1984} Castellvi AE, Goldstein LA, Chan DPK. Lumbosacral transitional
+  vertebrae and their relationship with lumbar extradural defects. \emph{Spine} 1984.
+  % [CO-AUTHOR: verify volume/pages]
+\bibitem{konin2010} Konin GP, Walz DM. Lumbosacral transitional vertebrae: classification,
+  imaging findings, and clinical relevance. \emph{AJNR} 2010.
+  % [CO-AUTHOR: verify volume/pages]
+\bibitem{faulkner1993} Faulkner KG, Cummings SR, Black D, et al. Simple measurement of
+  femoral geometry predicts hip fracture: the study of osteoporotic fractures.
+  \emph{J Bone Miner Res} 1993. % [CO-AUTHOR: verify]
+% [ADD] LSTV prevalence series; wrong-level spine surgery incidence; Tuffier's line
+% [ADD] accuracy studies; the CTSpinoPelvic1K dataset article
 \end{thebibliography}
 
 \end{document}

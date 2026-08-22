@@ -102,7 +102,7 @@ fraction of the rib above it, a transverse process span and its gap to the ala.
   box/.style={draw, rounded corners=1pt, align=center, minimum height=7mm, inner sep=3pt},
   src/.style={box, fill=black!4},
   proc/.style={box, fill=blue!6},
-  out/.style={box, fill=green!8},
+  outbox/.style={box, fill=green!8},
   gate/.style={box, fill=orange!12},
   ar/.style={-{Stealth[length=4pt]}, thick, black!60},
 ]
@@ -114,12 +114,12 @@ fraction of the rib above it, a transverse process span and its gap to the ala.
 \node[proc, right=7mm of cross] (place) {place on the series\\with most bone};
 \node[proc, right=7mm of place] (scheme) {VerSe-native\\label scheme};
 
-\node[out, right=7mm of scheme, yshift=7mm]  (v3) {v3 \scriptsize +femora, +thoracic, S1 carve};
-\node[out, right=7mm of scheme, yshift=-2mm] (v4) {v4 \scriptsize +ribs, dual review};
-\node[out, right=7mm of scheme, yshift=-11mm](v5) {v5 \scriptsize +lumbar rib class};
+\node[outbox, right=7mm of scheme, yshift=7mm]  (v3) {v3 \scriptsize +femora, +thoracic, S1 carve};
+\node[outbox, right=7mm of scheme, yshift=-2mm] (v4) {v4 \scriptsize +ribs, dual review};
+\node[outbox, right=7mm of scheme, yshift=-11mm](v5) {v5 \scriptsize +lumbar rib class};
 
 \node[gate, right=7mm of v4] (qc) {release gates\\\scriptsize invariants $\rightarrow$ rib QC\\\scriptsize $\rightarrow$ plausibility};
-\node[out, right=6mm of qc] (rel) {802 records\\\scriptsize + frozen splits};
+\node[outbox, right=6mm of qc] (rel) {802 records\\\scriptsize + frozen splits};
 
 \draw[ar] (tcia.east) -- ++(4mm,0) |- (cross.west);
 \draw[ar] (spine) -- (cross);
