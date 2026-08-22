@@ -130,22 +130,58 @@ def decimate(verts, faces, target):
         return np.asarray(m.vertices, np.float32), np.asarray(m.triangles, np.int64)
     except Exception:                                               # noqa: BLE001
         pass
-    ratio = (target / len(faces)) ** (1 / 3)
-    lo, hi = verts.min(0), verts.max(0)
-    grid = np.maximum(2, (np.ceil((hi - lo) / (verts.ptp(0).max() * ratio / 24 + 1e-6))
-                          ).astype(int))
-    idx = np.clip(((verts - lo) / (hi - lo + 1e-9) * (grid - 1)).round().astype(int),
-                  0, grid - 1)
-    key = (idx[:, 0] * grid[1] + idx[:, 1]) * grid[2] + idx[:, 2]
-    uk, inv = np.unique(key, return_inverse=True)
-    nv = np.zeros((len(uk), 3), np.float64)
-    cnt = np.zeros(len(uk))
-    np.add.at(nv, inv, verts)
-    np.add.at(cnt, inv, 1)
-    nv /= cnt[:, None]
-    nf = inv[faces]
-    nf = nf[(nf[:, 0] != nf[:, 1]) & (nf[:, 1] != nf[:, 2]) & (nf[:, 0] != nf[:, 2])]
-    return nv.astype(np.float32), nf.astype(np.int64)
+    # THE FALLBACK NOW AIMS AT THE TARGET INSTEAD OF GUESSING.
+    #
+    # It used to pick a clustering grid from a closed-form expression containing a bare
+    # /24, and the triangle count that came out bore no reliable relation to `target`.
+    # That made BUDGET inert: halving every budget produced MORE triangles, not fewer,
+    # which is how the knob was discovered to be disconnected. open3d is not installed in
+    # the container -- nor trimesh, vtk, pymeshlab or pyvista -- so the quadric path above
+    # never runs here and this fallback is what everyone actually gets.
+    #
+    # Bisection on the grid spacing converges in a handful of tries because triangle count
+    # falls monotonically as the cells grow. And it stops early if the mesh starts to TEAR:
+    # clustering merges vertices across a thin shell, and a rib two voxels thick opens into
+    # holes long before a vertebral body would. Overshooting the budget is a cosmetic cost;
+    # a torn rib is a visible defect, so the tear check wins ties.
+    def _cluster(cell):
+        lo, hi = verts.min(0), verts.max(0)
+        grid = np.maximum(2, np.ceil((hi - lo) / max(cell, 1e-6)).astype(int))
+        idx = np.clip(((verts - lo) / (hi - lo + 1e-9) * (grid - 1)).round().astype(int),
+                      0, grid - 1)
+        key = (idx[:, 0] * grid[1] + idx[:, 1]) * grid[2] + idx[:, 2]
+        uk, inv = np.unique(key, return_inverse=True)
+        nv = np.zeros((len(uk), 3), np.float64)
+        cnt = np.zeros(len(uk))
+        np.add.at(nv, inv, verts)
+        np.add.at(cnt, inv, 1)
+        nv /= np.maximum(cnt[:, None], 1)
+        nf = inv[faces]
+        nf = nf[(nf[:, 0] != nf[:, 1]) & (nf[:, 1] != nf[:, 2]) & (nf[:, 0] != nf[:, 2])]
+        return nv.astype(np.float32), nf.astype(np.int64)
+
+    diag = float(np.linalg.norm(verts.max(0) - verts.min(0)))
+    baseline = open_edge_fraction(faces)
+    lo_c, hi_c = diag * 1e-4, diag * 0.10
+    best = None
+    for _ in range(12):
+        cell = 0.5 * (lo_c + hi_c)
+        nv, nf = _cluster(cell)
+        if len(nf) < 12:
+            hi_c = cell
+            continue
+        torn = open_edge_fraction(nf) > max(0.04, baseline + 0.03)
+        if torn:
+            hi_c = cell                       # too coarse: it is opening holes
+            continue
+        best = (nv, nf)
+        if len(nf) > target:
+            lo_c = cell                       # still too many: cluster harder
+        else:
+            hi_c = cell                       # under budget: back off toward detail
+        if abs(len(nf) - target) <= 0.05 * target:
+            break
+    return best if best is not None else (verts, faces)
 
 
 def taubin(verts, faces, iters=4, lam=0.5, mu=-0.53):
