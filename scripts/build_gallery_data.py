@@ -483,6 +483,15 @@ def add_pelvic_shape(out, path, extra=None):
 # and the levels to show -- because a measure can be sound at four levels and fail at the
 # fifth, and dropping the level is more honest than dropping the panel.
 LEVEL_GRADIENTS = [
+    ("tp_span", "The transverse processes peak at L3, not L5", 40, 130, "mm",
+     ["L1", "L2", "L3", "L4", "L5"],
+     "tip to tip across the transverse processes",
+     "Measured at 72.7, 80.9, 89.8, 86.6 and 92.5 mm. The dip at L4 is not an error: L3 "
+     "carries the longest transverse processes in a normal lumbar spine, which is "
+     "textbook anatomy and the one place in this figure where the caudal gradient is "
+     "SUPPOSED to break. Reproducing a known exception is a better check than "
+     "reproducing a trend, because a measurement error would smooth it away rather "
+     "than invent it."),
     ("body_height", "Vertebral bodies grow taller under load", 18, 45, "mm",
      ["L1", "L2", "L3", "L4", "L5"],
      "anterior body height, level by level",
@@ -1254,6 +1263,118 @@ def add_ridges(out, surgical_path, bone_path):
             })
 
 
+DISC_LEVELS = ["L1L2", "L2L3", "L3L4", "L4L5", "L5S1"]
+DISC_PRETTY = {"L1L2": "L1-2", "L2L3": "L2-3", "L3L4": "L3-4",
+               "L4L5": "L4-5", "L5S1": "L5-S1"}
+
+
+def add_degenerative(out, path):
+    """Disc height and vacuum phenomenon. DISH is withheld until it validates."""
+    p = Path(path)
+    if not p.exists():
+        print(f"  ! {path} not found; degenerative panels skipped")
+        return
+    rows = list(csv.DictReader(open(p)))
+    if not rows:
+        return
+    sect = "Degeneration, from the same scan"
+    note = ("Disc degeneration is the commonest finding on any abdominal CT of an adult "
+            "and is almost never reported, because the scan was ordered for something "
+            "else. Both measures here follow criteria someone else defined: disc space "
+            "narrowing is the oldest radiographic sign of degeneration, and gas inside a "
+            "disc has no normal variant at all.")
+
+    # --- disc height, level by level ------------------------------------------------
+    series, meds = [], []
+    for lv in DISC_LEVELS:
+        v = [x for x in (num(r, f"disc_height_{lv}_mm") for r in rows)
+             if x is not None and 0 < x < 25]
+        if len(v) < 50:
+            continue
+        d = density(v, 0, 22)
+        if not d["x"]:
+            continue
+        sv = sorted(v)
+        meds.append((DISC_PRETTY[lv], sv[len(sv) // 2]))
+        series.append({"label": DISC_PRETTY[lv], "x": d["x"], "y": d["y"], "n": d["n"],
+                       "ylo": d.get("ylo"), "yhi": d.get("yhi")})
+    if len(series) >= 4:
+        march = ", ".join(f"{n} {m:.1f}" for n, m in meds)
+        out["panels"].append({
+            "key": "disc_height", "section": sect, "section_note": note,
+            "title": "Disc height, level by level", "type": "split", "series": series,
+            "subtitle": "measured at the midline, between the vertebral bodies",
+            "xlabel": "disc height (mm)",
+            "caption": (f"Medians {march} mm, against a published lumbar range of 8 to 12 "
+                        f"and a peak at the lower levels. An earlier version of this "
+                        f"measurement read 4 to 6 mm because it measured RIM TO RIM: "
+                        f"vertebral endplates are concave, so the lowest point of the "
+                        f"upper body across a wide column is its rim projecting down into "
+                        f"the space. Measuring each column separately and taking the "
+                        f"median gives the height a radiologist would read."),
+        })
+
+    # --- vacuum phenomenon -------------------------------------------------------------
+    cats, counts, denom = [], [], []
+    for lv in DISC_LEVELS:
+        v = [x for x in (num(r, f"vacuum_frac_{lv}") for r in rows) if x is not None]
+        if len(v) < 50:
+            continue
+        cats.append(DISC_PRETTY[lv])
+        counts.append(sum(1 for x in v if x > 0.02))
+        denom.append(len(v))
+    if len(cats) >= 4:
+        cis = [wilson(c, n) for c, n in zip(counts, denom)]
+        pct = [100.0 * c / n for c, n in zip(counts, denom)]
+        anylev = sum(1 for r in rows
+                     if any((num(r, f"vacuum_frac_{lv}") or 0) > 0.02 for lv in DISC_LEVELS))
+        out["panels"].append({
+            "key": "vacuum", "section": sect,
+            "title": "Gas inside the disc, which has no normal variant",
+            "subtitle": "vacuum phenomenon by level: voxels below -150 HU in the disc space",
+            "type": "grouped", "categories": cats,
+            "series": [{"label": "with gas", "n": sum(denom), "counts": counts,
+                        "pct": pct, "denom": denom,
+                        "lo": [round(a, 2) for a, _ in cis],
+                        "hi": [round(b, 2) for _, b in cis]}],
+            "xlabel": "disc level",
+            "caption": (f"Gas sits near -1000 HU where a disc is near +50, so this is one "
+                        f"of the least ambiguous measurements in the whole gallery -- and "
+                        f"there is no normal variant that puts air inside a disc. "
+                        f"{anylev} of {len(rows)} cases "
+                        f"({100 * anylev / len(rows):.1f}%) have it at one level or more, "
+                        f"and it climbs steadily from the top of the lumbar spine to the "
+                        f"bottom, which is where the load is."),
+        })
+
+    # --- osteophyte flare --------------------------------------------------------------
+    series2, meds2 = [], []
+    for lv in ("L1", "L2", "L3", "L4", "L5"):
+        v = [x for x in (num(r, f"osteophyte_index_{lv}") for r in rows)
+             if x is not None and 0.7 < x < 1.8]
+        if len(v) < 50:
+            continue
+        d = density(v, 0.85, 1.5)
+        if not d["x"]:
+            continue
+        sv = sorted(v)
+        meds2.append((lv, sv[len(sv) // 2]))
+        series2.append({"label": lv, "x": d["x"], "y": d["y"], "n": d["n"],
+                        "ylo": d.get("ylo"), "yhi": d.get("yhi")})
+    if len(series2) >= 4:
+        out["panels"].append({
+            "key": "osteophyte", "section": sect,
+            "title": "Endplate flare", "type": "split", "series": series2,
+            "subtitle": "endplate width divided by mid-body width",
+            "xlabel": "endplate / mid-body width",
+            "caption": ("A healthy vertebral body is slightly waisted -- narrower in the "
+                        "middle than at its endplates -- so this ratio sits just above "
+                        "1.0. Osteophytes grow at the endplate RIM, which raises it "
+                        "further. The right tail is the geometric form of what a "
+                        "radiologist calls endplate spurring."),
+        })
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", default="morphometrics/transition_morphometrics.csv")
@@ -1261,6 +1382,7 @@ def main() -> int:
     ap.add_argument("--pelvic", default="morphometrics/pelvic_shape.csv")
     ap.add_argument("--levels", default="morphometrics/level_gradients.csv")
     ap.add_argument("--bone", default="morphometrics/opportunistic.csv")
+    ap.add_argument("--degen", default="morphometrics/degenerative.csv")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
@@ -1361,6 +1483,7 @@ def main() -> int:
     add_level_gradients(out, a.levels)
     add_vertebral_size_by_sex(out, a.levels, a.pelvic)
     add_bone_density(out, a.bone)
+    add_degenerative(out, a.degen)
     add_wedge_and_sacrum(out, a.levels, a.pelvic)
 
     p = Path(a.out)
