@@ -180,7 +180,14 @@ permitted provided attribution is given.
 
 **Two things still outstanding, and the first is live right now.**
 
-1. **The two published HuggingFace datasets still declare `cc-by-nc-4.0`** —
+1. **One of the two published HuggingFace datasets is corrected; the other is not.**
+   `gregoryschwingmdphd/CTSpinoPelvic1K` now declares `cc-by-nc-sa-4.0` (one line changed,
+   nothing else touched). `anonymous-mlhc/CTSpinoPelvic1K` still declares `cc-by-nc-4.0`
+   and could not be changed from here: the token on this machine is scoped to the user
+   namespace, and the org refuses even a pull request. **It needs an org member to edit
+   `README.md` on the web UI and change that one line.**
+
+   *Superseded note, kept for the record —* **The two published HuggingFace datasets still declare `cc-by-nc-4.0`** —
    `gregoryschwingmdphd/CTSpinoPelvic1K` (public since 2026-05-25) and
    `anonymous-mlhc/CTSpinoPelvic1K` (public since 2026-06-27). Those cards carry the
    violation described above and it is public. The repository is corrected; the published
