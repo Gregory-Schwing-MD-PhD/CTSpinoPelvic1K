@@ -639,6 +639,28 @@ def add_relative_width(out, pelvic_path, surgical_path, levels_path):
         })
 
 
+def _fisher2x2(a, b, c, d):
+    """Two-sided Fisher exact test on a 2x2 table.
+
+    Exact rather than chi-squared because every cell here is a single digit, where the
+    asymptotic approximation is not defensible. Written out rather than imported so the
+    gallery builder keeps its short dependency list.
+    """
+    from math import comb
+    n, r1, r2, c1 = a + b + c + d, a + b, c + d, a + c
+    if min(r1, r2, c1, n - c1) < 0 or n == 0:
+        return float("nan")
+    obs = comb(r1, a) * comb(r2, c) / comb(n, c1)
+    p = 0.0
+    for i in range(0, min(r1, c1) + 1):
+        j = c1 - i
+        if 0 <= j <= r2:
+            pr = comb(r1, i) * comb(r2, j) / comb(n, c1)
+            if pr <= obs * (1 + 1e-9):
+                p += pr
+    return min(1.0, p)
+
+
 def add_landmark_reliability(out, rows):
     """Where the iliac crest reaches, split by how many rib-free vertebrae there are."""
     def grp(r):
@@ -693,6 +715,62 @@ def add_landmark_reliability(out, rows):
                     "than cancel. Shown as percentages because the groups differ in "
                     "size by more than twenty to one."),
     })
+
+    # --- the same count, reached from opposite ends ------------------------------------
+    # Pooled, the four-rib-free group looks like it scatters the crest in both directions
+    # at random. It does not. Four arises two ways -- a rib on the first lumbar-type
+    # vertebra shortens the count from ABOVE, a lowest lumbar segment absorbed into the
+    # sacrum shortens it from BELOW -- and the crest, which sits at a fixed skeletal
+    # height, then gets named one level low or one level high accordingly. Pooling the
+    # two routes cancels the signal, which is why this looked like noise.
+    routes = [("with a lumbar rib", lambda r: (r.get("has_lumbar_rib") or "") == "1"),
+              ("no lumbar rib", lambda r: (r.get("has_lumbar_rib") or "") == "0")]
+    cats3 = ["L3 (cranial)", "L4", "L5 (caudal)"]
+    key3 = {"L3": 0, "L4": 1, "L5": 2}
+    series3, tallies = [], []
+    for lbl, f in routes:
+        cnt = [0, 0, 0]
+        for r in rows:
+            n = num(r, "n_non_rib_bearing")
+            lv = (r.get("iliac_crest_at") or "").strip()
+            if n is None or int(n) != 4 or lv not in key3 or not f(r):
+                continue
+            cnt[key3[lv]] += 1
+        tot = sum(cnt)
+        if tot < 8:
+            continue
+        cis = [wilson(c, tot) for c in cnt]
+        tallies.append((lbl, cnt, tot))
+        series3.append({"label": f"four rib-free, {lbl}", "n": tot, "counts": cnt,
+                        "pct": [100.0 * c / tot for c in cnt],
+                        "lo": [round(a, 2) for a, _ in cis],
+                        "hi": [round(b, 2) for _, b in cis]})
+    if len(series3) == 2:
+        (_, ca, ta), (_, cb, tb) = tallies
+        pfish = _fisher2x2(ca[2], ca[0], cb[2], cb[0])
+        out["panels"].append({
+            "key": "crest_route", "section": "Where the landmarks stop working",
+            "title": "The same count, reached from opposite ends",
+            "subtitle": ("four rib-free vertebrae, split by whether a lumbar rib "
+                         "produced the count"),
+            "type": "grouped", "categories": cats3, "series": series3,
+            "xlabel": "vertebral level the iliac crest reaches",
+            "caption": (f"Both routes put the crest at L4 in about the same share of "
+                        f"cases ({series3[0]['pct'][1]:.0f}% and "
+                        f"{series3[1]['pct'][1]:.0f}%), so the collapse in reliability is "
+                        f"the same. The direction of the error is not. With a lumbar rib "
+                        f"the crest reads CAUDAL in {ca[2]} of {ca[0] + ca[2]} misplaced "
+                        f"cases; without one it reads CRANIAL in {cb[0]} of "
+                        f"{cb[0] + cb[2]} (Fisher exact p = {pfish:.3f}). The mechanism "
+                        f"gives the sign: a lumbar rib moves the top of the count down, "
+                        f"a sacralised segment moves the bottom up, and the crest -- "
+                        f"which has not moved at all -- is named one level low or one "
+                        f"level high to match. Pooling the two routes cancels this, "
+                        f"which is why it reads as noise until they are separated. "
+                        f"Found in the data rather than predicted, and resting on "
+                        f"{ca[0] + ca[2] + cb[0] + cb[2]} misplaced cases: it needs a "
+                        f"second cohort before it is relied on."),
+        })
 
     # the disc above a transitional segment is described as degenerating earlier than the
     # one below it; a narrower disc above raises this ratio

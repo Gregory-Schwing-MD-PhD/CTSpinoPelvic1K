@@ -55,14 +55,20 @@ not require naming a level.
 reached L4 in 87.1\% of cases (95\% CI 84.4--89.4). With four rib-free vertebrae ($n=28$)
 it reached L4 in 46.4\% (29.5--64.2), reaching L5 in 28.6\% (15.3--47.1) and L3 in 25.0\%
 (12.7--43.4). With six ($n=25$) it reached L4 in 64.0\% (44.5--79.8). The intervals for
-the typical and four-vertebra groups do not overlap.
+the typical and four-vertebra groups do not overlap. Four rib-free vertebrae arises
+either from a lumbar rib or from a sacralised lowest segment; the two routes gave the
+same L4 rate (46.7\% vs 46.2\%) but opposite directions of error, the crest appearing
+caudal in 7 of 8 misplaced cases with a lumbar rib and cranial in 6 of 7 without
+(Fisher exact $p = 0.010$).
 
 \noindent\textbf{Conclusions.} The iliac crest indicates the L4--5 interspace in roughly
 seven of eight patients with typical anatomy and in fewer than half of those with four
 rib-free vertebrae, in whom it is as likely to point at L5 as at L3. The two sources of
 level error do not cancel: the landmark is least trustworthy in precisely the patients in
 whom the count is already uncertain. Intraoperative imaging confirmation should not be
-waived on the basis of a palpable crest when transitional anatomy is suspected.
+waived on the basis of a palpable crest when transitional anatomy is suspected. The
+direction of the error is not random: it depends on which end of the vertebral count
+moved, which is itself visible on preoperative imaging.
 \end{abstract}
 
 \section{Introduction}
@@ -106,6 +112,11 @@ than a level assignment, and it remains valid without deciding whether a given s
 a sacralised L5 or a lumbarised S1 --- a distinction a spine-limited field of view cannot
 make. Five is typical; four and six indicate transitional anatomy.
 
+A count of four can arise at either end of the interval, and the two are recorded
+separately: a rib borne by the first lumbar-type vertebra shortens the interval from
+above, while a lowest lumbar segment incorporated into the sacrum shortens it from below.
+Rib presence is taken from the segmentation directly and requires no level name.
+
 \emph{Quality control.} Every case passed geometric invariants: label geometry agreeing
 with its CT in shape, affine and voxel spacing; no identifier outside the published
 scheme; and left- and right-sided structures on the correct sides of the midline. Rib
@@ -118,10 +129,17 @@ Proportions are reported with Wilson score intervals, which remain within the un
 interval at the small counts present in the transitional subgroups --- a property the
 normal approximation does not have.
 
-% [CO-AUTHOR: choose and justify a test of association between crest level and rib-free
-% count. Unlike the dataset article, this paper MAY test. Report an effect size, not only
-% a p-value; with n = 28 in the smallest group the interval is the more honest statistic
-% and the test is a formality.]
+One test is reported: Fisher's exact test comparing the direction of crest misplacement
+between the two routes to a count of four (Table~\ref{tab:route}). It is exact rather
+than asymptotic because the cell counts are single digits, where the $\chi^2$
+approximation is not defensible. No test is reported for the primary comparison in
+Table~\ref{tab:crest}; the intervals there do not overlap and a $p$-value would add
+nothing to that.
+
+% [CO-AUTHOR: the direction finding is post hoc -- found in the data, mechanism argued
+% afterwards -- and is labelled as such in the Results. Decide whether it belongs in the
+% abstract at n = 15, or whether it should be reported only in the body as
+% hypothesis-generating. I have put it in the abstract; argue with that.]
 
 \section{Results}
 
@@ -145,12 +163,51 @@ Cases in which the crest reached a thoracic level are excluded from
 Table~\ref{tab:crest}: in those examinations the pelvis was barely within the field of
 view, which is a fact about the scan rather than about the patient.
 
-The direction of the shift differs between the two transitional groups. Where there are
-four rib-free vertebrae the crest moves in both directions, appearing at L3 and at L5 in
-roughly equal proportion; where there are six it moves predominantly caudally. Both
-groups are small and neither proportion should be read as a precise estimate --- the
-intervals are wide for that reason. What is robust is the collapse in reliability itself:
-the interval for the typical group does not approach that of the four-vertebra group.
+\subsection{Four rib-free vertebrae is reached by two routes, and they fail in opposite
+directions}
+
+Pooled, the four-vertebra group appears to move the crest in both directions in roughly
+equal proportion. That apparent symmetry is an artefact of pooling. Four rib-free
+vertebrae arises two ways: a rib on the first lumbar-type vertebra moves the \emph{upper}
+boundary of the count caudally, or a lowest lumbar segment incorporated into the sacrum
+moves the \emph{lower} boundary cranially. Separating them (Table~\ref{tab:route}) leaves
+the collapse in reliability unchanged --- 46.7\% versus 46.2\% at L4 --- while the
+direction of the error reverses.
+
+\begin{table}[h]
+\centering
+\caption{Direction of crest misplacement among cases with four rib-free vertebrae, by the
+route that produced the count. Fisher exact test on the 15 misplaced cases,
+$p = 0.010$.}
+\label{tab:route}
+\begin{tabular}{lcccc}
+\toprule
+Route to four & $n$ & Crest at L4 & Crest cranial (L3) & Crest caudal (L5) \
+\midrule
+Lumbar rib present & 15 & 7 (46.7\%) & 1 & 7 \
+No lumbar rib      & 13 & 6 (46.2\%) & 6 & 1 \
+\bottomrule
+\end{tabular}
+\end{table}
+
+Where a lumbar rib is present the crest appears caudal to its expected level in 7 of 8
+misplaced cases; where the count is four without a lumbar rib it appears cranial in 6 of
+7. The mechanism accounts for the sign in both: the crest sits at a fixed skeletal
+height, and moving either end of the count moves the level \emph{name} assigned to that
+height in the corresponding direction.
+
+This is an observation rather than a prespecified hypothesis --- the split was found in
+the data and the mechanistic account constructed afterwards --- and it rests on 15
+misplaced cases. It requires replication before it is relied upon. Its practical content,
+if it replicates, is that the presence of a lumbar rib is visible on the same preoperative
+imaging that establishes the count, and it predicts \emph{which way} the crest is wrong
+rather than merely that it may be.
+
+Where there are six rib-free vertebrae the crest moves predominantly caudally. All three
+transitional groups are small and no proportion should be read as a precise estimate ---
+the intervals are wide for that reason. What is robust is the collapse in reliability
+itself: the interval for the typical group does not approach that of the four-vertebra
+group.
 
 % [FIGURE: grouped bar chart with Wilson intervals, exported from the gallery]
 
@@ -168,6 +225,9 @@ compounding them rather than cross-checking one against the other.
 %  - transitional status here is by rib-free count, not Castellvi grade; the two are
 %    different axes and are not interchangeable
 %  - what follows practically, and how strongly it can be said from n = 28
+%  - the direction finding: is the mechanistic account convincing, or is it a story fitted
+%    to 15 cases? The honest test is whether it predicts correctly in a second cohort, and
+%    we do not have one. Say so plainly or cut the finding.
 
 \subsection{Limitations}
 

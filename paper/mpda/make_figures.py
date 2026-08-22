@@ -163,9 +163,9 @@ def fig_countfree(out):
 
     for ax in fig.axes:
         ax.spines[["top", "right"]].set_visible(False)
-    fig.savefig(out / "fig3_countfree.pdf")
+    fig.savefig(out / "fig_countfree.pdf")
     plt.close(fig)
-    print("  fig3_countfree.pdf")
+    print("  fig_countfree.pdf")
 
 
 # ---------------------------------------------------------------- fig 4
@@ -245,9 +245,9 @@ def fig_validation(out):
 
     for ax in fig.axes:
         ax.spines[["top", "right"]].set_visible(False)
-    fig.savefig(out / "fig4_validation.pdf")
+    fig.savefig(out / "fig_validation.pdf")
     plt.close(fig)
-    print("  fig4_validation.pdf")
+    print("  fig_validation.pdf")
 
 
 # ---------------------------------------------------------------- fig 5
@@ -319,9 +319,9 @@ def fig_opportunistic(out):
 
     for ax in fig.axes:
         ax.spines[["top", "right"]].set_visible(False)
-    fig.savefig(out / "fig5_opportunistic.pdf")
+    fig.savefig(out / "fig_opportunistic.pdf")
     plt.close(fig)
-    print("  fig5_opportunistic.pdf")
+    print("  fig_opportunistic.pdf")
 
 
 def main():

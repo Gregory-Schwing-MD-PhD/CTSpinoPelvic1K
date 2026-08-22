@@ -107,10 +107,16 @@ Scopus indexed, about 15 weeks from submission to publication.
 
 The analysis is done. The findings are already there:
 
-- **The iliac crest reaches L4 in 83% of typical spines but only 46% of those with four
+- **The iliac crest reaches L4 in 87% of typical spines but only 46% of those with four
   rib-free vertebrae.** Surgeons palpate that crest to find L4–5. The landmark fails
   hardest in exactly the patients whose levels are already ambiguous to count, so the two
   errors compound rather than cancel.
+- **And the direction of that error is predictable.** Four rib-free vertebrae happens two
+  ways — a rib on a lumbar vertebra, or a lowest lumbar segment fused into the sacrum —
+  and the two fail in opposite directions: with a lumbar rib the crest reads caudal in 7
+  of 8 misses, without one it reads cranial in 6 of 7 (Fisher exact p = 0.010). Pooling
+  the two routes is what made this look like directionless noise. It rests on 15 misplaced
+  cases and needs someone to attack it.
 - **Bone density crosses over by sex**: women start denser in their fifties and end lower
   by their seventies; 31% of women in the oldest decade fall below the osteoporosis
   threshold against 10% of men — in scans nobody ordered for bone.

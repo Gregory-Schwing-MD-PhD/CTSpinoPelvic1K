@@ -235,22 +235,45 @@ def one(path: str) -> dict:
         r["ll_span_asym_mm"] = round(abs(r["ll_span_left_mm"] - r["ll_span_right_mm"]), 1)
         r["ll_span_total_mm"] = round(r["ll_span_left_mm"] + r["ll_span_right_mm"], 1)
 
-        target = np.isin(lab, [SACRUM, S1, HIP_L, HIP_R])
-        tp = _pts(target, cap=700)
+        # THE SACRUM AND THE ILIUM ARE DIFFERENT TARGETS AND MUST NOT BE POOLED.
+        # This measured the distance to sacrum, S1, AND both hip bones together, and the
+        # iliac crest sits beside the L5 transverse process in everybody -- so the
+        # "gap to the sacrum" was usually the gap to the ilium, and read a median of
+        # 4.7 mm in NORMAL cases. A normal transverse process is 15-25 mm from the ala;
+        # at 4.7 the whole cohort would be Castellvi II.
+        #
+        # Castellvi grades on approach to, articulation with, and fusion to the SACRAL
+        # ALA. Contact with the ilium is a different finding with a different meaning, so
+        # both are measured and neither is allowed to stand in for the other.
+        sac_only = np.isin(lab, [SACRUM, S1])
+        ilium_only = np.isin(lab, [HIP_L, HIP_R])
+        tp_sac = _pts(sac_only, cap=700)
+        tp_ili = _pts(ilium_only, cap=700)
         ax = np.arange(lab.shape[0])
         latL = int(vmid - 0.45 * (vmid - float(mx.min())))
         latR = int(vmid + 0.45 * (float(mx.max()) - vmid))
         for nm, sel in (("left", ax < latL), ("right", ax > latR)):
             mm = m & sel[:, None, None]
-            g = _mindist(_pts(mm), tp, sp) if mm.any() else float("inf")
-            r[f"tp_gap_{nm}_mm"] = round(g, 1) if np.isfinite(g) else None
+            if not mm.any():
+                r[f"tp_gap_{nm}_mm"] = None
+                continue
+            pts_tp = _pts(mm)
+            gs = _mindist(pts_tp, tp_sac, sp) if len(tp_sac) else float("inf")
+            gi = _mindist(pts_tp, tp_ili, sp) if len(tp_ili) else float("inf")
+            # tp_gap_* keeps its name and now means what it always claimed to: the gap
+            # to the sacrum, which is the quantity Castellvi is defined on
+            r[f"tp_gap_{nm}_mm"] = round(gs, 1) if np.isfinite(gs) else None
+            r[f"tp_gap_ilium_{nm}_mm"] = round(gi, 1) if np.isfinite(gi) else None
         gl, gr = r.get("tp_gap_left_mm"), r.get("tp_gap_right_mm")
         if gl is not None and gr is not None:
             r["tp_gap_min_mm"] = min(gl, gr)
             r["tp_gap_asym_mm"] = round(abs(gl - gr), 1)
 
         if (low - 1) in verts:
-            d_low = _mindist(_pts(m), tp, sp)
+            # the same pooled-target contamination reached the disc measurement: the
+            # lowest lumbar vertebra is often nearer the ilium than the sacrum, so this
+            # could silently return a vertebra-to-ilium distance and call it a disc
+            d_low = _mindist(_pts(m), tp_sac, sp)
             d_up = _mindist(_pts(m), _pts(lab == low - 1), sp)
             r["disc_low_mm"] = round(d_low, 1)
             r["disc_above_mm"] = round(d_up, 1)
