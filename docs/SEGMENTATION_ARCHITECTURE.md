@@ -119,7 +119,8 @@ immediately.
 
 **This code already exists and is validated**: `scripts/qc_rib_vertebra_incidence.py`
 and the anchor-and-increment logic in `scripts/anchor_and_increment_ribs.py`. Across
-11,548 ribs in the existing release it leaves 2 unresolved associations, both field-of-view
+5,749 evaluable ribs in the existing release (of 11,548 present; the rest have no anchoring
+vertebra in the field of view) it leaves 2 unresolved associations, both field-of-view
 truncations. Reusing it means the association step arrives pre-validated rather than
 needing its own study.
 

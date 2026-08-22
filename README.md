@@ -143,7 +143,7 @@ Per case: label shape, affine and voxel spacing agree with the CT; no id outside
 published scheme; the label is not empty; left- and right-side ids fall on the correct
 sides of the midline, with the left–right axis read from the affine rather than assumed.
 
-### Rib numbering — 2 offsets in 11,548 ribs evaluated (0.017%)
+### Rib numbering — 2 offsets in 5,749 evaluable ribs (0.035%)
 
 | bucket | ribs |
 |---|---:|
@@ -166,11 +166,11 @@ produces a cleaner number and a less useful one.
 
 | measure | median | IQR | published |
 |---|---:|---|---|
-| pelvic incidence | 51.1° | 44.3–59.5 | ~50 |
-| sacral slope | 36.9° | 30.1–45.9 | ~40 |
-| pelvic tilt | 13.9° | 9.1–18.5 | ~13 |
-| lumbar lordosis (supine) | 52.7° | 43.5–61.5 | ~50 (supine sits ~4.6° below standing) |
-| PI−LL mismatch | −1.4° | −7.4–5.5 | ~0 |
+| pelvic incidence | 54.7° | 47.3–63.3 | 54.7 ± 10.6 (Vialle 2005) |
+| sacral slope | 36.9° | 30.1–45.9 | 41.0 ± 8.4 |
+| pelvic tilt | 17.3° | 12.6–22.8 | 13 ± 6 |
+| lumbar lordosis (supine) | 52.7° | 43.5–61.5 | 43 ± 11.2 (standing) |
+| PI−LL mismatch | 2.6° | −4.1–9.8 | ~0 |
 | iliac crest above the L4–5 disc | 4.4 mm | −3.2–11.6 | — |
 | lowest rib to iliac crest | 62.4 mm | 52.8–72.8 | — |
 | narrowest lumbar pedicle | 7.1 mm | 5.6–9.0 | 7–15 by level |
@@ -180,8 +180,10 @@ one**. That check exists because an earlier version of the geometry returned a s
 slope of 83° and a pelvic incidence of 155° for all 802 cases, printed them in a tidy
 table, and exited zero.
 
-PI−LL centring on zero across an unoperated cohort is the strongest available check on
-the two angles: they are measured from different structures and still agree.
+PI−LL sitting at 2.6° across an unoperated cohort is the strongest available check on
+the two angles: they are measured from entirely different structures — the pelvis for one,
+the vertebral endplates for the other — and still agree to within a few degrees of the
+zero an unoperated spine should show.
 
 Lordosis is computed only where the arc reaches the top of the lumbar segment
 (801 / 801 measured cases), because a field of view that clips the upper lumbar spine

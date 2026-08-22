@@ -109,7 +109,7 @@ sentence in Data Format saying so rather than leaving a reviewer to wonder.
 | Acquisition | patient-level crosswalk of three public sources; placement rule | documented in README |
 | Label scheme | VerSe-native, the classes, the lumbar rib decision | documented |
 | Annotation & review | dual review, server-side gating, adjudication | partly documented |
-| Validation | invariants 802/802; rib QC 2/11,548; morphometric plausibility vs published | **done, this session** |
+| Validation | invariants 802/802; rib QC 2/5,749 evaluable; morphometric plausibility vs published | **done, this session** |
 | Descriptive analysis | count-free transition measures; spinopelvic and corridor measures | **done — 14 panels** |
 | Data format & access | NIfTI, splits, dataset_interface, DOI | needs DOI |
 | Limitations | FOV-limited thoracic GT, supine angles, empty hardware class, multi-source LSTV | drafted in README |

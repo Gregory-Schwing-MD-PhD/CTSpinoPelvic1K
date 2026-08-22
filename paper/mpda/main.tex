@@ -54,7 +54,7 @@ crosswalk of three public collections --- TCIA CT~COLONOGRAPHY imaging, CTSpine1
 vertebral labels, and CTPelvic1K pelvic labels --- with labels placed on the acquisition
 carrying the highest bone coverage and unified under a VerSe-native scheme. Validation is
 threefold: per-case geometric invariants (802/802 pass); rib--vertebra incidence across
-11{,}548 ribs (2 residual offsets, 0.017\%); and agreement of derived spinopelvic
+5{,}749 evaluable ribs (2 residual offsets, 0.035\%); and agreement of derived spinopelvic
 measures with published reference values.
 
 \textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs sharing an
@@ -207,11 +207,14 @@ Geometric invariants (all cases) & 802/802 pass \\
 \quad label shape, affine, spacing match CT & --- \\
 \quad no identifier outside the scheme & --- \\
 \quad left/right structures correctly sided & --- \\
-Ribs evaluated & 11{,}548 \\
+Ribs present & 11{,}548 \\
+\quad not evaluable (expected vertebra outside the FOV) & 5{,}788 \\
+\quad no vertebra within the anchor distance & 11 \\
+\quad \textbf{evaluable} & \textbf{5{,}749} \\
 \quad matching the expected vertebra & 5{,}747 \\
-\quad residual offset & 2 (0.017\%) \\
+\quad residual offset & 2 (0.035\% of evaluable) \\
 \quad misnumbered cases & 0 \\
-Spinopelvic medians within published range & 7/7 \\
+Spinopelvic medians within published range & 6/6 \\
 \end{tabular}
 \end{ruledtabular}
 \end{table}
@@ -227,10 +230,16 @@ because a renumbering pass once wrote a reoriented array under a canonical affin
 transposed one label away from its image --- a failure invisible to every downstream step.
 
 \emph{Rib--vertebra incidence.} Each rib is matched to its nearest vertebra and compared
-against the vertebra its number implies. Two of 11{,}548 remain offset. Both are
-field-of-view truncations on individually characterised cases and are reported rather
-than suppressed: a threshold tuned until the count reaches zero yields a cleaner number
-and a less informative one.
+against the vertebra its number implies. Of 11{,}548 ribs present, 5{,}788 are not
+evaluable at all --- the vertebra their number implies lies outside the field of view and
+nothing else is within the anchor distance --- and a further 11 have no vertebra in reach.
+That leaves 5{,}749 with an anchor to check, of which two remain offset (0.035\%). The
+denominator is stated because quoting two against 11{,}548 halves the rate by counting
+ribs the check never examined, and because more than half of the ribs in a screening
+abdominal CT being unevaluable is itself a fact about the corpus worth reporting. Both
+offsets are field-of-view truncations on individually characterised cases and are
+reported rather than suppressed: a threshold tuned until the count reaches zero yields a
+cleaner number and a less informative one.
 
 \emph{Agreement with published values.} Derived spinopelvic measures are compared against
 Vialle \emph{et al.}~\cite{vialle2005} (Table~\ref{tab:spinopelvic}). Pelvic incidence is
@@ -239,17 +248,23 @@ than a posture, and so is directly comparable to a standing reference cohort.
 
 \begin{table}[t]
 \caption{Derived measures against a published asymptomatic reference
-($n=260$, standing)~\cite{vialle2005}. Sacral slope and pelvic tilt are postural; this
-cohort is supine, and a lower sacral slope is the expected direction rather than a
-discrepancy.}
+($n=260$, standing)~\cite{vialle2005}. Sacral slope and pelvic tilt are postural where
+pelvic incidence is not, and this cohort is supine. The two postural measures depart from
+the standing reference in opposite directions --- sacral slope 4.1\si{\degree} lower,
+pelvic tilt 4.3\si{\degree} higher --- which is not two discrepancies but one, because
+$PI = PT + SS$ holds by construction: with pelvic incidence fixed at its published value,
+any fall in sacral slope must appear as an equal rise in pelvic tilt. That the two
+offsets match in magnitude is evidence the geometry is internally consistent rather than
+evidence of error.}
 \label{tab:spinopelvic}
 \begin{ruledtabular}
 \begin{tabular}{lcc}
 Measure & This dataset (supine) & Reference (standing) \\ \colrule
 Pelvic incidence & 54.7\si{\degree} & 54.7 $\pm$ 10.6 \\
-Pelvic tilt & 13.9\si{\degree} & 13 $\pm$ 6 \\
+Pelvic tilt & 17.3\si{\degree} & 13 $\pm$ 6 \\
 Sacral slope & 36.9\si{\degree} & 41.0 $\pm$ 8.4 \\
-PI $-$ LL mismatch & $-1.4$\si{\degree} & centred near 0 \\
+Lumbar lordosis (supine) & 52.7\si{\degree} & 43 $\pm$ 11.2 (standing) \\
+PI $-$ LL mismatch & 2.6\si{\degree} & centred near 0 \\
 \end{tabular}
 \end{ruledtabular}
 \end{table}
