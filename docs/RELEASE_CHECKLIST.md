@@ -147,8 +147,19 @@ own terms.
 The other two impose no obstacle: CC BY has no ShareAlike, so a downstream NC-SA is
 permitted provided attribution is given.
 
-Still to confirm before minting: institutional sign-off on this reading. It is a reading
-of three licence texts, not legal advice.
+**Two things still outstanding, and the first is live right now.**
+
+1. **The two published HuggingFace datasets still declare `cc-by-nc-4.0`** —
+   `gregoryschwingmdphd/CTSpinoPelvic1K` (public since 2026-05-25) and
+   `anonymous-mlhc/CTSpinoPelvic1K` (public since 2026-06-27). Those cards carry the
+   violation described above and it is public. The repository is corrected; the published
+   cards are not. This was deliberately left for Greg rather than pushed: a licence
+   declaration on someone's own public dataset is his call and his exposure, and the
+   anon-org token needed for the second repo no longer exists on this machine. The edit
+   is one line of card front-matter in each.
+
+2. **Institutional sign-off on this reading**, before the DOI is minted. It is a reading
+   of three licence texts, not legal advice.
 
 ---
 
