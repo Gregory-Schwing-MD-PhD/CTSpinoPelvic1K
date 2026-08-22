@@ -48,8 +48,19 @@ import label_scheme as LS                                          # noqa: E402
 # Triangle budget per structure class. High enough that the fallback decimator is a
 # light touch: vertex clustering tears thin shells when it has to work hard, and a rib
 # is the thinnest shell here.
-BUDGET = {"vertebra": 9000, "rib": 5000, "pelvis": 14000, "hardware": 6000,
-          "other": 5000}
+# BUDGETS HALVED, BECAUSE THEY WERE SIZED FOR A SCREEN NOBODY USES.
+# A vertebra renders about 200 px tall in the gallery. At 9000 triangles each one covers
+# roughly four pixels, which is far past the point where more triangles change what the
+# viewer sees -- a smooth-shaded organic surface stops improving somewhere around ten to
+# fifty pixels per triangle. The old budgets cost download time and frame time for
+# geometry finer than the display can resolve.
+#
+# Halving them takes a case from ~246k triangles to ~120k, which is a smaller file AND a
+# cheaper frame. The floor matters more than the ceiling here: ribs and thin shells keep
+# proportionally more of their budget, because vertex clustering tears them when it has
+# to work hard and a torn rib is visible where a slightly coarser vertebra is not.
+BUDGET = {"vertebra": 4500, "rib": 3000, "pelvis": 7000, "hardware": 4000,
+          "other": 3000}
 MIN_VOX = 150
 # NO MASK DOWNSAMPLING. At a third of resolution a rib is two or three voxels thick in
 # the downsampled grid and the 0.5 isolevel erodes it to nothing -- which is where the
@@ -269,15 +280,32 @@ def main() -> int:
                     blob += b"\x00" * pad
                 return [start, int(arr.nbytes)]
 
+            # NORMALS ARE NOT SHIPPED. They are computed here as face normals averaged
+            # per vertex and normalised -- which is precisely what three.js's
+            # computeVertexNormals() does, from data the viewer already has. Sending them
+            # spends 14% of the payload on something the client can reconstruct exactly.
+            #
+            # The one thing that changes is that the client recomputes from DEQUANTISED
+            # positions rather than the float ones used here. At 16 bits across the case's
+            # own bounding box that error is a fraction of a micron, which no shading
+            # difference survives.
             rec = {"id": int(vid), "name": names.get(vid, str(vid)),
                    "kind": kind(vid), "color": colours.get(vid, [200, 200, 200]),
                    "nverts": int(len(v)), "ntris": int(len(f)),
-                   "pos": _put(q), "nrm": _put(nq), "idx": _put(fi),
+                   "pos": _put(q), "idx": _put(fi),
                    "idx_bytes": int(fi.dtype.itemsize)}
             off = len(blob)
             meta.append(rec)
 
-        (out / f"{stem}.bin").write_bytes(bytes(blob))
+        raw = bytes(blob)
+        (out / f"{stem}.bin").write_bytes(raw)
+        # AND A GZIPPED COPY. The payload is quantised integers, so gzip only returns
+        # about 1.27x -- there is little redundancy left to find. It is still a quarter
+        # off the wire for the cost of one file and DecompressionStream in the browser,
+        # which is native and needs no library. The viewer asks for .bin.gz and falls
+        # back to .bin, so an old client and a new file still work together.
+        import gzip as _gz
+        (out / f"{stem}.bin.gz").write_bytes(_gz.compress(raw, 9))
         # THE AXIS CODES TRAVEL WITH THE MESH. Vertices are in the label array's own
         # axes, and these volumes are ('P','I','R') -- the first mesh axis runs
         # posterior, not right. Without this the viewer has to assume a patient frame,
@@ -285,11 +313,18 @@ def main() -> int:
         # means nothing downstream has to guess.
         head = {"case": stem, "bbox_lo": lo.tolist(), "bbox_hi": hi.tolist(),
                 "quant": 65535, "axcodes": list(nib.aff2axcodes(img.affine)),
-                "mm_per_unit": 1.0, "structures": meta}
+                "mm_per_unit": 1.0,
+                # tells the viewer to reconstruct normals rather than look for a stream
+                # that is no longer there; absent in files written before this change,
+                # which is exactly the right default for them
+                "normals": False,
+                "structures": meta}
         (out / f"{stem}.json").write_text(json.dumps(head))
-        kb = len(blob) / 1024
+        kb = len(raw) / 1024
+        gz_kb = len(_gz.compress(raw, 9)) / 1024
         tris = sum(m["ntris"] for m in meta)
-        print(f"  {stem}: {len(meta)} structures, {tris} tris, {kb:.0f} kB")
+        print(f"  {stem}: {len(meta)} structures, {tris} tris, "
+              f"{kb:.0f} kB raw, {gz_kb:.0f} kB gzipped")
         if holed:
             worst = sorted(holed, key=lambda t: -t[1])[:4]
             print("      holes: " + ", ".join(f"id{v} {o:.1%}" for v, o in worst)
