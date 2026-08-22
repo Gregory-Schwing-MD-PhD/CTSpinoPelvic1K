@@ -1,5 +1,5 @@
 ---
-license: cc-by-nc-4.0
+license: cc-by-nc-sa-4.0
 pretty_name: CTSpinoPelvic1K
 task_categories:
   - image-segmentation

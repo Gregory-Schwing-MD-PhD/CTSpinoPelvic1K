@@ -1,5 +1,5 @@
 ---
-license: cc-by-nc-4.0
+license: cc-by-nc-sa-4.0
 task_categories:
 - image-segmentation
 tags:
@@ -306,6 +306,22 @@ alongside this derivative release. BibTeX entries are provided in `CITATION.cff`
 
 ## License
 
-- Source datasets — CT COLONOGRAPHY (TCIA), CTSpine1K, CTPelvic1K — retain their
-  respective licenses.
-- Derivative fused labels, splits, and code: **CC BY-NC 4.0** (non-commercial).
+- **The CT images** are redistributed unmodified from TCIA CT COLONOGRAPHY under
+  **CC BY 3.0** (DOI 10.7937/K9/TCIA.2015.NWTESAY1), which requires attribution and
+  imposes no further restriction.
+- **The vertebral labels derive from CTSpine1K, which is CC BY-NC-SA 4.0.** ShareAlike
+  is why this release is NC-SA and not NC: an adaptation of ShareAlike material must
+  carry the same terms, and dropping the SA would be a licence violation rather than a
+  choice. This is the most restrictive of the three obligations and therefore governs.
+- **The pelvic labels derive from CTPelvic1K**, Zenodo record 4588403, **CC BY 4.0**.
+- **Derived fused labels, splits and morphometrics: CC BY-NC-SA 4.0.** These are
+  adaptations of the source labels and inherit the terms above.
+- **The code is separate, and is Apache-2.0** (as declared in `CITATION.cff`). It is our
+  own work and derives nothing from the source *data*, so the ShareAlike obligation does
+  not reach it. Running this code on your own images produces output you own.
+
+Attribution for all three sources is required; see `CITATION.cff`. This is a reading of
+the three licences, not legal advice — confirm with your institution before relying on it
+commercially, and note that the NC term makes commercial use of this release impossible
+in any case.
+

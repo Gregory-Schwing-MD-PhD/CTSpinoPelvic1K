@@ -129,10 +129,26 @@ Every one of them must name the same version and the same DOI.
 
 ### Licence and attribution
 
-The release inherits obligations from three sources — TCIA CT COLONOGRAPHY, CTSpine1K
-and CTPelvic1K. The most restrictive term wins, and each source must be named with its
-own licence. Current front-matter declares `cc-by-nc-4.0`; confirm that is compatible
-with all three before the DOI is minted, because a DOI is not retractable.
+**Resolved 2026-08-22, and the answer was that the declaration was wrong.**
+
+| source | licence |
+|---|---|
+| TCIA CT COLONOGRAPHY | CC BY 3.0 |
+| CTPelvic1K (Zenodo 4588403) | CC BY 4.0 |
+| CTSpine1K | **CC BY-NC-SA 4.0** |
+
+CTSpine1K carries **ShareAlike**, and the vertebral labels in this release are an
+adaptation of it. ShareAlike obliges an adaptation to carry the same terms, so the
+release is `cc-by-nc-sa-4.0`. The front-matter said `cc-by-nc-4.0`, which drops the SA —
+that is a violation, not a choice, and it would have been minted into an unretractable
+DOI. Front-matter and both licence sections now say NC-SA and name each source with its
+own terms.
+
+The other two impose no obstacle: CC BY has no ShareAlike, so a downstream NC-SA is
+permitted provided attribution is given.
+
+Still to confirm before minting: institutional sign-off on this reading. It is a reading
+of three licence texts, not legal advice.
 
 ---
 
