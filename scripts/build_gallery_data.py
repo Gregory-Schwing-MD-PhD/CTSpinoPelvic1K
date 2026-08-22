@@ -231,7 +231,12 @@ SURGICAL = [
     ("pelvic_tilt_deg", "Pelvic tilt", -10, 45, 13.0,
      "postural, reported supine",
      "Pelvic incidence less sacral slope; it rises as a pelvis retroverts to compensate "
-     "for lost lordosis. Measured 13.9 against 13 +- 6."),
+     "for lost lordosis. Measured 17.3 against a standing reference of 13 +- 6. That is "
+     "4.3 degrees high where sacral slope is 4.1 degrees low, and the two are the same "
+     "fact rather than two: PI = PT + SS holds by construction, so with pelvic incidence "
+     "landing exactly on its reference, any fall in slope must appear as an equal rise "
+     "in tilt. The offsets matching in size is evidence the geometry is consistent, not "
+     "evidence of a discrepancy."),
     ("ll_supine_deg", "Lumbar lordosis, supine", 10, 95, None,
      "no single published reference -- the number depends on which arc is measured",
      "Measured here from the superior endplate of the topmost lumbar vertebra to the "
