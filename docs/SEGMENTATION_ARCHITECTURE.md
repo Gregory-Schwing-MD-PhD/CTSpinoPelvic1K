@@ -86,6 +86,35 @@ of the network.
 Connected components on `vertebra ∧ ¬space`, ordered by position along the spine axis.
 No learning, no thresholds beyond a minimum volume.
 
+**The separator has to cut three joints, not one, and this is where the design nearly
+failed.** Adjacent vertebrae meet at the disc *and at both facet joints*. A rule that
+fills the intervertebral gap leaves the column connected through the facets, and connected
+components then return the whole lumbar spine as one object — measured, not supposed: on
+case 0001 the first implementation gave **2 components for 10 vertebrae**.
+
+Worse, in these labels the two bodies frequently touch with **no background voxel between
+them at all**, because the tools that produced the source segment bone and do not segment
+joints. Where there is no gap, a gap rule has nothing to fill. The separator therefore has
+to carve a thin sheet out of what the labels call bone, along the surface where two
+vertebrae abut. That is the honest reading — a real joint occupies space the labels give
+to one side or the other — but it means the disc class is *not* purely background, and
+anyone reimplementing this will get 2 components and a plausible-looking render if they
+assume otherwise.
+
+A second attempt is worth recording because it is the kind of idea that looks strictly
+better and is not. Requiring each candidate voxel to lie geometrically *between* its two
+nearest surface points removes a small collar of voxels that wrap around the sides of the
+bodies. On a synthetic phantom it is exactly right. On real anatomy the endplates are
+concave, so the two nearest points are seldom collinear with the voxel between them: it
+rejected almost the whole seam, left **2262 fragments** on one case, and still did not cut
+the column. The phantom passed all three versions. Only the component count on real labels
+distinguished them.
+
+The lesson generalises past this pipeline, and it is the one worth saying out loud in the
+talk: *the test has to be the thing the stage is for.* Dice on the disc class would have
+looked respectable in all three versions. "How many vertebrae came out?" separated them
+immediately.
+
 ### Stage 3 — rib-to-vertebra association
 
 **This code already exists and is validated**: `scripts/qc_rib_vertebra_incidence.py`
@@ -170,9 +199,15 @@ outside the network, and it is auditable.
 **Not launched.** Grid space is currently consumed by the 802-case ablation merge, and
 this needs a fresh preprocessed dataset. What can be done before space frees:
 
-1. Write the label-remapping script — v5 labels to the convention-free scheme above. It
-   is a lookup table plus the disc-space class, which has to be *derived* (the space
-   between adjacent body masks) since no source labels it.
-2. Decide whether the disc-space class is derived geometrically or annotated. Derived is
-   cheaper and probably sufficient; it should be inspected on a handful of cases first.
+1. ~~Write the label-remapping script — v5 labels to the convention-free scheme above.~~
+   **Done**: `--countfree` in `tools/convert_hf_to_nnunet.py`. The lookup table was the
+   easy half; the derived class took three attempts against real anatomy.
+2. ~~Decide whether the disc-space class is derived geometrically or annotated.~~
+   **Done, and the inspection was worth it.** Derived, by a distance rule plus an
+   abutment cut — see Stage 2 above and `_derive_disc_space()` in
+   `tools/convert_hf_to_nnunet.py` in the nnU-Net repo, with synthetic tests in
+   `tests/test_countfree_disc.py` and the functional check in
+   `tools/check_countfree_disc.py`. The functional check is the one that matters: it asks
+   whether the component count equals the number of vertebrae the source labels say are
+   there, which is the only question stage 2 exists to answer.
 3. Keep the existing splits. The comparison is only meaningful on identical folds.
