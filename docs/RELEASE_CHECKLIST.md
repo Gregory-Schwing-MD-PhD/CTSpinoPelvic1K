@@ -28,11 +28,21 @@ runs the invariant check first and exits before computing anything if it fails.
 | Rib numbering offsets | **closed** — 9 of 11,552 ribs resolved across 5 cases | — |
 | Thoracic vertebrae on FOV-limited cases | done | — |
 | Lumbar rib class (74/75) | applied release-wide | — |
-| Hardware classes (76–79) | **defined but unpopulated** | `0068` needs hand annotation |
+| Hardware classes (76–79) | **defined but unpopulated** | `0068` needs hand annotation; see the note below |
 | `pelvic_native` cases never reviewed | 6 outstanding: 0090, 0196, 0236, 0419, 0877, 1037 | reviewer time |
 | — *four of those six are among the worst offenders in the physiological-envelope check (§2.0), so reviewing them is worth more than the count suggests* | | |
 | Stray voxels, 0344 | **closed** — release-wide speckle sweep finds none | — |
 | Vertebra-label speckle, release-wide | **closed** — 1 of 802 carried any (0412, 120 fragments / 160 voxels), stripped | — |
+
+**On populating 76–79 automatically.** `scripts/detect_metal.py` finds every implant in
+the corpus and classifies the construct, and its categories map onto the declared classes
+almost directly — an elongated component spanning vertebrae is 78, a component inside a
+disc space is 77. It would be easy to write those labels straight into the release, and
+that would be a mistake. Metal blooms: the boundary between an implant and the bone it is
+fixed to is not decidable from attenuation, which is exactly why `0068` is listed as
+needing a *hand* annotation rather than a threshold. The census is a worklist for that
+annotation and a stratification for templating; it is not the annotation. Anything written
+from it goes to a separate directory for review, never over `data/v5_final`.
 
 A class that is declared but carries no data must be described that way everywhere it
 appears — in the label table, the dataset card, and any figure. The website gallery says
