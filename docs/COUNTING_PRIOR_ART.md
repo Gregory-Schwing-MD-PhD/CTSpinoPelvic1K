@@ -224,3 +224,65 @@ learn the thoracolumbar junction — where the evidence is morphological and loc
 remain undecidable at the lumbosacral one, where L5 and L6 are the same bone under two
 counts. Demonstrating exactly that boundary is a sharper claim than either "one shot works"
 or "one shot fails".
+
+
+---
+
+## Patch geometry: the cheapest lever, and the one that actually bites
+
+Greg's observation, and the arithmetic backs it: **a tall narrow patch sees the whole
+lumbar spine and costs LESS than the isotropic default.** Measured from this corpus —
+
+| patch (vox) | spacing | covers (mm) | Mvox | |
+|---|---|---|---:|---|
+| 192³ | 1.0 | 192 × 192 × 192 | 7.08 | sees neither |
+| **112 × 112 × 320** | 1.0 | 112 × 112 × **320** | **4.01** | whole column, no pelvis |
+| 128 × 128 × 288 | 1.2/1.2/1.0 | 154 × 154 × 288 | 4.72 | whole column, no pelvis |
+| **160 × 160 × 320** | **2.0/2.0/1.0** | **320 × 320 × 320** | 8.19 | **both** |
+
+T11 to the S1 endplate is about **265 mm** of column (L1–L5 bodies sum to 153 mm, plus five
+discs at 10.4, plus T11–T12). Bi-iliac width is **278 mm** at the median and **309 mm** at
+the 95th percentile — a patch has to fit the big ones.
+
+So 112 × 112 × 320 covers the entire column at 57% of the default's memory. Memory scales
+with voxel count, and a tall thin box has fewer voxels than a fat cube. Nothing is being
+spent to gain the context; it is being *saved*.
+
+**The pelvis is the real obstacle, and Greg named it.** 112 mm of width cannot span a
+309 mm pelvis. There is a single patch that covers both — 160 × 160 × 320 at 2 mm in-plane
+and 1 mm along the spine, 320 mm cubed, for 16% more than the default. But 2 mm in-plane
+blurs the **costotransverse joint space, which is 2–4 mm**, and that joint is precisely the
+feature separating a hypoplastic twelfth rib from a lumbar rib. The one-patch-sees-all
+solution costs exactly the resolution the discrimination needs. That is not a reason to
+reject it; it is a reason to measure it against the alternative rather than assume.
+
+**Two patches, without two models: the nnU-Net cascade.** What Greg described — different
+patches for different anatomy — is already a first-class nnU-Net configuration, and in a
+better form than two independent models. `3d_lowres` runs on a heavily downsampled volume
+and therefore sees *everything*: whole pelvis, whole column, enough to count.
+`3d_cascade_fullres` then runs at native resolution with **the low-res prediction supplied
+as an additional input channel**. So the full-resolution stage keeps the fine detail that
+resolves the costotransverse joint *and* has the global context that resolves the count,
+without either patch having to do both jobs.
+
+That is one pipeline, one training recipe, one inference command. Whether it counts as "a
+single shot" is a framing question for the talk, but it is emphatically not a hand-built
+multi-stage system with deterministic code wedged between the stages — the global
+information reaches the local stage as a learned channel, which is the same thing an
+attention mechanism would accomplish by a different route.
+
+**Order to try, now with a reason attached to each:**
+
+1. `3d_fullres` with the patch forced to something tall and narrow (112 × 112 × 320). Cheap,
+   sees the whole column, and the spine classes are the ones under test. Hips will suffer;
+   note by how much rather than pre-empting it.
+2. `3d_cascade_fullres`. The principled answer to needing both scales, built in.
+3. The single anisotropic patch at 2 mm in-plane, as the control that shows what the lost
+   in-plane resolution costs the rib discrimination specifically.
+4. ResEnc-L or XL on whichever of those wins. On H200s the XL preset's ~40 GB target leaves
+   room to enlarge the patch further.
+
+nnU-Net chooses patch size from a GPU memory budget and will not pick a tall narrow box on
+its own, because its heuristic aims at isotropic context. Overriding it means editing
+`patch_size` in the generated plans file and giving the configuration a new name — a
+documented and supported operation, not a hack.
