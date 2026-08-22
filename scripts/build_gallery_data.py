@@ -1453,6 +1453,81 @@ def add_degenerative(out, path):
         })
 
 
+FEMUR_PANELS = [
+    ("femoral_head_diameter_mm", "Femoral head diameter", 30.0, 65.0,
+     "millimetres", "F 43-45, M 48-52 mm in published series",
+     "One of the more reliable skeletal sex discriminants there is, and it comes free "
+     "with a scan of the abdomen. The overlap is real -- these are distributions, not "
+     "a test -- but the separation is about a standard deviation."),
+    ("hip_axis_length_mm", "Hip axis length", 70.0, 145.0,
+     "millimetres", "F ~100-105, M ~112-118 mm (Faulkner 1993)",
+     "The distance from the pelvic brim through the femoral neck to the outer cortex. "
+     "Faulkner showed it predicts hip fracture INDEPENDENTLY of bone density: a longer "
+     "lever arm concentrates more force at the neck in a sideways fall. It is longer in "
+     "men by 18 mm here, which is the direction that would predict more fractures in "
+     "men -- and men in fact have fewer, because density and cortical thickness run the "
+     "other way and dominate. Both are visible in this dataset, in the same patients."),
+    ("neck_shaft_angle_deg", "Neck-shaft angle", 105.0, 150.0,
+     "degrees", "125-135 degrees",
+     "Coxa vara below about 120 degrees and coxa valga above about 135. The sex "
+     "difference is small and inconsistent in the literature, and it is small here too "
+     "-- shown because a measure that agrees with prior art about what does NOT differ "
+     "is evidence the pipeline is not manufacturing differences."),
+    ("femoral_neck_hu", "Femoral neck attenuation", 40.0, 380.0,
+     "Hounsfield units", "no single accepted CT threshold, unlike L1",
+     "Bone density at the site that actually fractures. The spine has a validated "
+     "opportunistic threshold and the hip does not, which is why this is shown as a "
+     "distribution and no cut-point is drawn on it."),
+]
+
+
+def add_proximal_femur(out, path):
+    """Four proximal-femur measures, each checked against a published range."""
+    p = Path(path)
+    if not p.exists():
+        print(f"  ! {path} not found; femur panels skipped")
+        return
+    rows = list(csv.DictReader(open(p)))
+    if not rows:
+        return
+    sect = "The hip, which the scan also contains"
+    note = ("An abdominal CT for colon screening includes both proximal femora. These "
+            "are the measures orthopaedic and forensic literature takes from them, none "
+            "of which requires a scan of the hip. Each is shown against the published "
+            "range it has to sit inside.")
+
+    for key, title, lo, hi, unit, published, why in FEMUR_PANELS:
+        series, meds = [], {}
+        for sx, lbl in (("F", "women"), ("M", "men")):
+            v = [x for x in (num(r, key) for r in rows
+                             if (r.get("sex") or "").strip().upper()[:1] == sx)
+                 if x is not None and lo < x < hi]
+            if len(v) < 40:
+                continue
+            d = density(v, lo, hi)
+            if not d["x"]:
+                continue
+            sv = sorted(v)
+            meds[lbl] = sv[len(sv) // 2]
+            series.append({"label": lbl, "x": d["x"], "y": d["y"], "n": d["n"],
+                           "ylo": d.get("ylo"), "yhi": d.get("yhi"),
+                           "med": round(sv[len(sv) // 2], 1),
+                           "med_lo": round(median_ci(sv)[0], 1),
+                           "med_hi": round(median_ci(sv)[1], 1)})
+        if len(series) < 2:
+            continue
+        gap = abs(meds["women"] - meds["men"])
+        out["panels"].append({
+            "key": f"femur_{key}", "section": sect, "section_note": note,
+            "title": title, "type": "split", "series": series,
+            "subtitle": f"by sex, with the published range for comparison",
+            "xlabel": unit,
+            "caption": (f"Median {meds['women']:.1f} in women and {meds['men']:.1f} in "
+                        f"men, a difference of {gap:.1f} {unit.split()[0]}. Published: "
+                        f"{published}. {why}"),
+        })
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", default="morphometrics/transition_morphometrics.csv")
@@ -1461,6 +1536,7 @@ def main() -> int:
     ap.add_argument("--levels", default="morphometrics/level_gradients.csv")
     ap.add_argument("--bone", default="morphometrics/opportunistic.csv")
     ap.add_argument("--degen", default="morphometrics/degenerative.csv")
+    ap.add_argument("--femur", default="morphometrics/proximal_femur.csv")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
@@ -1562,6 +1638,7 @@ def main() -> int:
     add_vertebral_size_by_sex(out, a.levels, a.pelvic)
     add_bone_density(out, a.bone)
     add_degenerative(out, a.degen)
+    add_proximal_femur(out, a.femur)
     add_wedge_and_sacrum(out, a.levels, a.pelvic)
 
     p = Path(a.out)
