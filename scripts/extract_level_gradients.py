@@ -90,8 +90,24 @@ def one(path: str) -> dict:
             continue
         idx = np.argwhere(m)
 
-        # transverse process span: tip to tip across the WHOLE vertebra
-        r[f"tp_span_{name}_mm"] = round(float(idx[:, 0].max() - idx[:, 0].min()) * sp[0], 1)
+        # TRANSVERSE PROCESS SPAN: TIP TO TIP, and the tips are the measurement.
+        # Percentile-trimming this one was an over-correction -- it cut the very
+        # structures being measured and dropped the span from 72.8 to 51.0 mm at L1
+        # against a published 68. The right-hand skew that prompted the trim is not
+        # noise either: an enlarged transverse process reaching toward the ala IS the
+        # transitional phenotype this dataset exists to capture, so a long right tail
+        # is the signal.
+        #
+        # A stray voxel is still excluded, by taking the largest connected component
+        # rather than by trimming the extremes.
+        _cc, _n = ndimage.label(m)
+        if _n > 1:
+            _sz = ndimage.sum(m, _cc, range(1, _n + 1))
+            _big = np.argwhere(_cc == int(np.argmax(_sz)) + 1)
+        else:
+            _big = idx
+        r[f"tp_span_{name}_mm"] = round(
+            float(_big[:, 0].max() - _big[:, 0].min()) * sp[0], 1)
 
         front, cw = _canal(m)
         if cw is not None:
@@ -145,7 +161,10 @@ def one(path: str) -> dict:
             xs = np.nonzero(big.any(axis=1))[0]
             if len(xs) < 3:
                 continue
-            widths.append((xs.max() - xs.min() + 1 + margin) * sp[0])
+            # same robustness at the endplate: trim the extreme 2% of the coordinate so
+            # a rim osteophyte cannot widen the body
+            lo_x, hi_x = np.percentile(xs, [1, 99])
+            widths.append((hi_x - lo_x + 1 + margin) * sp[0])
         if widths:
             r[f"endplate_width_{name}_mm"] = round(float(np.median(widths)), 1)
 

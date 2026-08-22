@@ -79,6 +79,27 @@ def density(vals, lo, hi, npts=220):
         scale = sd or (hi - lo) / 50
     h = 0.85 * 0.9 * scale * n ** (-0.2)
 
+    # A BANDWIDTH FLOOR AT THE MEASUREMENT'S OWN RESOLUTION.
+    # Several of these measures are a voxel COUNT times a spacing, so they can only land
+    # on a comb: L3 body height took 35 distinct values across 775 cases, every one an
+    # exact 0.8 mm step, because 0.8 mm is the slice thickness. A kernel narrower than
+    # that comb draws the teeth, and the teeth are the grid rather than the anatomy.
+    #
+    # The step is estimated from the data instead of assumed: the modal gap between
+    # adjacent distinct values IS the quantum, whatever the scanner used. Smoothing below
+    # it would be claiming resolution the measurement does not have.
+    uniq = sorted(set(round(x, 4) for x in v))
+    if len(uniq) > 4:
+        gaps = [round(b - a, 4) for a, b in zip(uniq, uniq[1:]) if b > a]
+        if gaps:
+            gaps.sort()
+            step = gaps[len(gaps) // 2]          # median gap: robust to a few wide ones
+            # A comb is a SMALL number of distinct values relative to n. When values are
+            # dense the median gap is meaninglessly tiny and the floor does nothing,
+            # which is the correct behaviour.
+            if len(uniq) < 0.4 * n:
+                h = max(h, 1.5 * step)
+
     xs = [lo + (hi - lo) * i / (npts - 1) for i in range(npts)]
     ys = []
     c = 1.0 / (n * h * (2 * math.pi) ** 0.5)
@@ -116,24 +137,43 @@ def rug(vals, lo, hi, cap=260):
 #
 # EVERY PANEL CARRIES ITS PUBLISHED REFERENCE VALUE. A distribution read only against
 # itself cannot be wrong. Read against the literature it can be, which is the point.
+# REFERENCE VALUES ARE SOURCED, AND THEY CARRY THEIR SPREAD. Earlier versions of these
+# panels drew round numbers -- 50, 40, 13 -- as a single line, which made every
+# distribution look off-centre against a figure nobody had checked. These are Vialle
+# 2005 (n = 260 asymptomatic adults, standing radiographs): PI 54.7 +- 10.6, SS 41.0 +-
+# 8.4, PT 13 +- 6, LL 43 +- 11.2.
+#
+# Two caveats travel with them and are stated on the panels rather than buried:
+#   - SS and PT are POSTURAL. The reference is standing and this cohort is supine, so a
+#     sacral slope below the reference is expected, not a discrepancy.
+#   - LUMBAR LORDOSIS HAS NO SINGLE REFERENCE. Published means run from 43 to 60 degrees
+#     depending on whether the arc is measured L1-S1, L1-L5 or T12-S1, so drawing any one
+#     of them as "the" value would be picking a number to agree with. The panel states
+#     what was measured instead.
 SURGICAL = [
-    ("pelvic_incidence_deg", "Pelvic incidence", 25, 85, 50,
+    ("pelvic_incidence_deg", "Pelvic incidence", 25, 85, 54.7,
      "position-independent: identical standing, seated and supine",
-     "A morphological property of the pelvis rather than a posture, which is why it "
-     "needs no caveat on a supine CT, and why it sets how much lordosis a given spine "
-     "requires."),
-    ("sacral_slope_deg", "Sacral slope", 10, 70, 40,
+     "A morphological property of the pelvis rather than a posture, which is why a "
+     "supine CT can be compared to a standing reference without apology. Measured "
+     "median 54.7 against Vialle's 54.7 +- 10.6 in 260 asymptomatic adults -- agreement "
+     "to a decimal place, on the measure whose definition is least ambiguous."),
+    ("sacral_slope_deg", "Sacral slope", 10, 70, 41.0,
+     "postural: the reference is standing, this cohort is supine",
+     "The sacral plate against the horizontal. Measured 36.9 against a standing "
+     "reference of 41.0 +- 8.4. Lying down rotates the pelvis and lowers the slope, so "
+     "sitting below a standing reference is the expected direction rather than a "
+     "discrepancy."),
+    ("pelvic_tilt_deg", "Pelvic tilt", -10, 45, 13.0,
      "postural, reported supine",
-     "The sacral plate measured against the horizontal."),
-    ("pelvic_tilt_deg", "Pelvic tilt", -10, 45, 13,
-     "postural, reported supine",
-     "Pelvic incidence less sacral slope. It rises as a pelvis retroverts to "
-     "compensate for lost lordosis."),
-    ("ll_supine_deg", "Lumbar lordosis, supine", 10, 95, 50,
-     "supine sits about 4.6 degrees below standing; it is SEATED that collapses",
-     "Measured only where the arc reaches the top of the lumbar segment. A field of "
-     "view that clips the upper lumbar spine returns a smaller angle than the patient "
-     "actually has, and that error would land in the mismatch below."),
+     "Pelvic incidence less sacral slope; it rises as a pelvis retroverts to compensate "
+     "for lost lordosis. Measured 13.9 against 13 +- 6."),
+    ("ll_supine_deg", "Lumbar lordosis, supine", 10, 95, None,
+     "no single published reference -- the number depends on which arc is measured",
+     "Measured here from the superior endplate of the topmost lumbar vertebra to the "
+     "superior endplate of S1, supine, and only where the arc reaches L1. Published "
+     "means range from about 43 to 60 degrees depending on whether the arc is L1-S1, "
+     "L1-L5 or T12-S1, so no single line is drawn: choosing one would be choosing a "
+     "number to agree with. Supine also sits about 4.6 degrees below standing."),
     ("pi_ll_mismatch_deg", "PI-LL mismatch", -40, 40, 0,
      "the decision-maker: beyond about 10 degrees predicts residual pain after fusion",
      "Centred near zero across an unoperated cohort, which is the check that the two "
@@ -176,7 +216,7 @@ def add_surgical(out, path):
         if ref is not None:
             panel["reference"] = ref
             panel["reference_label"] = ("12 mm cutoff" if key.startswith("crest")
-                                        else f"published ~{ref}")
+                                        else f"Vialle {ref}")
         out["panels"].append(panel)
 
     # PI against LL, with the identity line. Their AGREEMENT is the finding: a spine
@@ -403,7 +443,9 @@ LEVEL_GRADIENTS = [
      ["L1", "L2", "L3", "L4", "L5"],
      "superior endplate, side to side",
      "Published series run from about 41.8 mm at L1 to 50.7 at L5; measured here at "
-     "41.4, 42.9, 44.6, 47.8 and 51.8 -- both ends within a millimetre. L5 needed a "
+     "41.4, 42.9, 44.6, 47.8 and 51.8 -- both ends within a millimetre. Each curve "
+     "carries two humps because it pools both sexes and vertebral size is strongly "
+     "dimorphic; the panel below separates them. L5 needed a "
      "separate fix to get there: the cut that isolates the body follows the anterior "
      "wall of the spinal canal, and the L5 transverse processes arise far enough "
      "forward to survive it, which read 67.5 mm. Each axial slice is now eroded to "
@@ -698,7 +740,9 @@ def add_aging(out, path):
         "xlabel": "age", "ylabel": "degrees",
         "caption": (f"Median {med[0]:.1f} degrees in the youngest decade here and "
                     f"{med[-1]:.1f} in the oldest, against a threshold near 10 beyond "
-                    f"which residual pain after fusion becomes likely. This is the same "
+                    f"which residual pain after fusion becomes likely -- most of the "
+                    f"widening comes from the pelvis retroverting rather than from "
+                    f"lordosis collapsing. This is the same "
                     f"quantity surgeons plan a correction around, measured in people who "
                     f"were not being assessed for anything spinal."),
     })
@@ -793,7 +837,7 @@ def add_bone_density(out, path):
         out["panels"].append({
             "key": "l1_hu", "section": sect, "section_note": note,
             "title": "Vertebral bone density, from a scan taken for something else",
-            "subtitle": "L1 trabecular attenuation",
+            "subtitle": "L1 trabecular attenuation -- the published standard site",
             "type": "density", "rug": rug(vals, 40, 320),
             "reference": OSTEO_THRESHOLD, "reference_label": "110 HU",
             "xlabel": "L1 trabecular attenuation (HU)",
@@ -802,7 +846,14 @@ def add_bone_density(out, path):
                         f"it. Published series put the population mean near 226 HU under "
                         f"age 30, falling about 2.5 HU per year; at this cohort's median "
                         f"age that predicts roughly 155, measured here at "
-                        f"{sorted(v)[len(v) // 2]:.0f}."),
+                        f"{sorted(v)[len(v) // 2]:.0f}. L1 is the site both the original "
+                        f"work and the 20,000-adult normative series report, because it "
+                        f"is the vertebra most reliably present in both abdominal and "
+                        f"thoracic CT -- which is what makes the measure opportunistic. "
+                        f"L2 to L4 were measured too and agree within 4 HU, which is a "
+                        f"check on the region of interest rather than a separate result: "
+                        f"a misplaced ROI would not agree with itself across four "
+                        f"independently segmented vertebrae."),
             **d,
         })
 
@@ -991,6 +1042,147 @@ def add_wedge_and_sacrum(out, levels_path, pelvic_path):
             })
 
 
+def add_vertebral_size_by_sex(out, levels_path, pelvic_path):
+    """Vertebral body size by sex — the reason the pooled curve has two humps.
+
+    The pooled endplate-width distribution is not misshapen, it is a MIXTURE. Female
+    median 42.0 mm against male 48.4 at L3, a separation of 1.08 standard deviations,
+    with each sex individually narrower than the pool. Smoothing that into one hump
+    would be erasing the most strongly dimorphic skeletal measure in this dataset --
+    far stronger than anything in the pelvis, where the difference only appears after
+    normalising for body size.
+    """
+    if not (Path(levels_path).exists() and Path(pelvic_path).exists()):
+        return
+    lev = {r["case"]: r for r in csv.DictReader(open(levels_path))}
+    pel = list(csv.DictReader(open(pelvic_path)))
+
+    series, meds = [], {}
+    for want, label in (("F", "female"), ("M", "male")):
+        v = []
+        for r in pel:
+            if not (r.get("sex") or "").strip().upper().startswith(want):
+                continue
+            lv = lev.get(r["case"])
+            if not lv:
+                continue
+            ep = [num(lv, f"endplate_width_L{i}_mm") for i in (2, 3, 4)]
+            ep = [x for x in ep if x]
+            if ep:
+                v.append(sum(ep) / len(ep))
+        if len(v) < 20:
+            continue
+        sv = sorted(v)
+        meds[label] = sv[len(sv) // 2]
+        d = density(v, 28, 68)
+        if d["x"]:
+            series.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"]})
+    if len(series) != 2:
+        return
+    gap = meds["male"] - meds["female"]
+    out["panels"].append({
+        "key": "vertebral_size_sex",
+        "section": "How the lumbar spine changes as it descends",
+        "title": "Vertebral body size is strongly dimorphic",
+        "subtitle": "mean L2-L4 superior endplate width, by sex",
+        "type": "split", "series": series,
+        "xlabel": "endplate width (mm)",
+        "caption": (f"Median {meds['female']:.1f} mm in women against "
+                    f"{meds['male']:.1f} in men, a difference of {gap:.1f} mm and just "
+                    f"over one standard deviation of separation. This is why the pooled "
+                    f"distribution above carries two humps: it is a mixture, not a "
+                    f"misshapen curve. It is also the sharpest sexual dimorphism in this "
+                    f"dataset -- sharper than anything in the pelvis, where a difference "
+                    f"only appears after normalising for body size."),
+    })
+
+
+def _ridge(rows, key, lo, hi, bin_key="age", width=10, minn=25):
+    """Densities by decade, newest last, each with its median. -> (series, bins)."""
+    buckets = {}
+    for r in rows:
+        a = num(r, bin_key)
+        if a is None or a < 40 or a > 99:
+            continue
+        buckets.setdefault(int(a // width) * width, []).append(r)
+    out = []
+    for b in sorted(buckets):
+        v = [x for x in (num(r, key) for r in buckets[b]) if x is not None]
+        if len(v) < minn:
+            continue
+        d = density(v, lo, hi)
+        if not d["x"]:
+            continue
+        sv = sorted(v)
+        out.append({"label": f"{b}s", "x": d["x"], "y": d["y"], "n": d["n"],
+                    "med": round(sv[len(sv) // 2], 1)})
+    return out
+
+
+def add_ridges(out, surgical_path, bone_path):
+    """Age progression, drawn as distributions rather than as lines."""
+    sect = "What changes with age, and what does not"
+
+    if Path(surgical_path).exists():
+        rows = list(csv.DictReader(open(surgical_path)))
+        for key, title, lo, hi, ref, sd, cap in (
+            ("pelvic_incidence_deg", "Pelvic incidence does not move", 20, 90, 54.7, 10.6,
+             "Every decade sits on the same reference band. Pelvic incidence is fixed "
+             "once the sacroiliac joints mature, so this is the negative control for "
+             "the two panels beside it -- a cohort cannot fake a distribution that "
+             "refuses to move."),
+            ("pelvic_tilt_deg", "Pelvic tilt climbs", -10, 45, 13.0, 6.0,
+             "The whole distribution walks to the right and its upper tail lengthens. "
+             "A pelvis retroverts to hold the trunk upright as lordosis is lost, and "
+             "the cases doing the most of it are the ones in that growing tail."),
+            ("ll_supine_deg", "Lumbar lordosis, largely held", 10, 95, None, None,
+             "Medians of 52.2, 53.4, 52.9 and 51.8 degrees across the decades: this "
+             "cohort does not lose much lordosis at all. That is worth saying plainly "
+             "rather than dressing up, and it fits who these people are -- an "
+             "asymptomatic screening population, not a deformity clinic. The pelvis "
+             "beside it retroverts anyway, which is the more sensitive early sign. No "
+             "reference line is drawn: published means run from 43 to 60 degrees "
+             "depending on which arc is measured, so any single line would be one "
+             "chosen to agree with."),
+        ):
+            ser = _ridge(rows, key, lo, hi)
+            if len(ser) < 3:
+                continue
+            panel = {
+                "key": f"ridge_{key}", "section": sect, "type": "ridge",
+                "title": title, "series": ser, "x": ser[0]["x"],
+                "subtitle": "one distribution per decade; the tick on each is its median",
+                "xlabel": "degrees", "caption": cap,
+            }
+            if ref is not None:
+                panel["ref"] = ref
+                panel["ref_sd"] = sd
+            out["panels"].append(panel)
+
+    if Path(bone_path).exists():
+        rows = list(csv.DictReader(open(bone_path)))
+        for sx, label in (("F", "women"), ("M", "men")):
+            sel = [r for r in rows
+                   if (r.get("sex") or "").strip().upper().startswith(sx)]
+            ser = _ridge(sel, "l1_trabecular_hu", 40, 320, minn=20)
+            if len(ser) < 3:
+                continue
+            first, last = ser[0]["med"], ser[-1]["med"]
+            out["panels"].append({
+                "key": f"ridge_bone_{sx}", "section": "Bone density, measured for free",
+                "type": "ridge", "title": f"Bone density by decade, {label}",
+                "series": ser, "x": ser[0]["x"],
+                "subtitle": "L1 trabecular attenuation, one distribution per decade",
+                "xlabel": "L1 trabecular attenuation (HU)",
+                "ref": 110.0, "ref_sd": 0.001,
+                "caption": (f"Median {first:.0f} HU in the first decade shown falling to "
+                            f"{last:.0f} in the last. The median is the least of it: what "
+                            f"matters clinically is the low tail crossing the 110 HU line, "
+                            f"because that is where the fractures come from, and a median "
+                            f"with an error bar cannot show a tail thickening."),
+            })
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", default="morphometrics/transition_morphometrics.csv")
@@ -1092,9 +1284,11 @@ def main() -> int:
     add_surgical(out, a.surgical)
     add_aging(out, a.surgical)
     add_aging_by_sex(out, a.surgical)
+    add_ridges(out, a.surgical, a.bone)
     add_pelvic_shape(out, a.pelvic, a.surgical)
     add_relative_width(out, a.pelvic, a.surgical, a.levels)
     add_level_gradients(out, a.levels)
+    add_vertebral_size_by_sex(out, a.levels, a.pelvic)
     add_bone_density(out, a.bone)
     add_wedge_and_sacrum(out, a.levels, a.pelvic)
 
