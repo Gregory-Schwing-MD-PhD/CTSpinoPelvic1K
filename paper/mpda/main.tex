@@ -284,10 +284,13 @@ against its gap to the sacral ala; cases carrying a source transitional label ar
 \label{fig:countfree}
 \end{figure*}
 
-The cohort is a colorectal cancer screening population of 802 records. Sex is recorded
-for 738 of them (393 female, 345 male) and age for 709 (median 59, range 50--89); the
-remainder carry no such field in the source and are counted in the totals but excluded
-from any measure stratified by sex or age. The lower age bound is the screening guideline
+The cohort is a colorectal cancer screening population of 802 records. 738 are recorded
+female (393) or male (345); 11 carry DICOM's \emph{other} value for patient sex, which is
+a recorded value and not a missing one, and 53 carry no sex field at all. Age is present
+for 709 (median 59, range 50--89). All 802 are counted in totals, and records outside the
+female/male dichotomy are excluded from measures stratified by sex --- a limitation of
+those measures rather than a property of the cohort, and stated here because folding
+eleven people into ``unrecorded'' would misdescribe what the source says. The lower age bound is the screening guideline
 rather than a selection applied here, and it is why the measures below sit closer to a
 reference range than a surgical series would.
 
