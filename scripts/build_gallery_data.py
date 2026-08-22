@@ -179,8 +179,6 @@ def add_surgical(out, path):
                                         else f"published ~{ref}")
         out["panels"].append(panel)
 
-    add_pelvic_shape(out, rows)
-
     # PI against LL, with the identity line. Their AGREEMENT is the finding: a spine
     # either matches the pelvis it sits on or it does not, and the distance from the
     # diagonal IS the mismatch that drives the decision.
@@ -306,29 +304,43 @@ def add_demographics(out, rows):
 # Pelvic shape, split by sex. Range and a one-line reason for each; the range is the
 # window the density is drawn over, chosen wide enough to show both tails.
 PELVIC_SHAPE = [
-    ("bi_iliac_width_mm", "Pelvic width across the iliac crests", 200, 340,
+    ("bi_iliac_width_mm", "Pelvic width, across the iliac crests", 210, 340,
      "the widest span of the bony pelvis",
-     "The measurement most people mean by pelvic width."),
+     "The measurement most people mean by pelvic width. Men are wider in absolute terms "
+     "because men are larger overall; the female pelvis is wider relative to its size, "
+     "and that shows in shape measures rather than in this one."),
     ("bi_acetabular_mm", "Width across the hip joints", 120, 220,
      "centre to centre between the femoral heads",
-     "Measured from the femoral head found by its contact with the acetabulum, not from "
-     "the centroid of the whole femur -- that sits down the shaft and reads several "
-     "centimetres too wide."),
-    ("pelvic_inlet_ap_mm", "Pelvic inlet, front to back", 80, 160,
-     "sacral promontory to pubic symphysis: the obstetric conjugate",
-     "The depth of the birth canal at its narrowest ring."),
-    ("inlet_index", "Inlet shape", 0.35, 1.05,
-     "inlet depth divided by width across the hips",
-     "A rounder inlet scores higher, a heart-shaped one lower. Roundness is the classic "
-     "obstetric distinction between pelvis types."),
-    ("sacral_width_ratio", "Sacral proportions", 0.6, 2.0,
-     "sacral width divided by sacral height",
-     "A wider, shorter sacrum scores higher. This is the single most reported sexual "
-     "difference in the pelvis."),
+     "Measured from the part of the femur in contact with the acetabulum. The femur "
+     "labels run 61-109 mm from head to shaft, so a whole-label centroid sits down the "
+     "shaft and read 18 mm too wide before this was corrected."),
 ]
 
+# WITHHELD, DELIBERATELY. Pelvic inlet depth and the sacral index are two of the most
+# sexually dimorphic measurements in the skeleton, and both came back with NO separation
+# at all -- inlet 149.8 mm in women against 149.5 in men, sacral index 0.9 against 0.9 --
+# with the inlet also 20 mm above the published range for an obstetric conjugate. A null
+# in a measure that is known to separate is evidence the landmark is wrong, not evidence
+# about the population, so neither is shown until the landmark is fixed.
+WITHHELD = ["pelvic_inlet_ap_mm", "sacral_width_ratio", "inlet_index"]
 
-def add_pelvic_shape(out, rows):
+
+def add_pelvic_shape(out, path, extra=None):
+    """Rows are merged across both CSVs by case: bi-iliac width comes from the fast
+    pass, bi-acetabular from the surgical one, whose femoral-head landmark is exact."""
+    p = Path(path)
+    if not p.exists():
+        print(f"  ! {path} not found; pelvic shape panels skipped")
+        return
+    rows = list(csv.DictReader(open(p)))
+    if not rows:
+        return
+    if extra and Path(extra).exists():
+        by = {r["case"]: r for r in rows}
+        for r2 in csv.DictReader(open(extra)):
+            tgt = by.get(r2.get("case"))
+            if tgt and r2.get("bi_acetabular_mm"):
+                tgt["bi_acetabular_mm"] = r2["bi_acetabular_mm"]
     sect = "Pelvic shape, by sex"
     note = ("Pelvic incidence -- the angle above -- does not separate by sex, and several "
             "published series agree that it does not. Sexual dimorphism in the pelvis is "
@@ -369,10 +381,623 @@ def add_pelvic_shape(out, rows):
         out["panels"].append(panel)
 
 
+# Level-by-level gradients. Each entry: column stem, title, range, published gradient,
+# and the levels to show -- because a measure can be sound at four levels and fail at the
+# fifth, and dropping the level is more honest than dropping the panel.
+LEVEL_GRADIENTS = [
+    ("body_height", "Vertebral bodies grow taller under load", 18, 45, "mm",
+     ["L1", "L2", "L3", "L4", "L5"],
+     "anterior body height, level by level",
+     "Published series run from about 29.9 mm at L1 to 34.5 at L5. Measured at the "
+     "anterior CORTEX -- the wall -- as the tallest column in the anterior half of a "
+     "mid-sagittal slab. Two earlier attempts measured the extreme anterior edge "
+     "instead and read 6 to 12 mm, because the front of a vertebral body is a rounded "
+     "rim that tapers to nothing."),
+    ("canal_width", "The spinal canal widens as it descends", 15, 40, "mm",
+     ["L1", "L2", "L3", "L4", "L5"],
+     "transverse diameter, level by level",
+     "Published series run from about 22 mm at L1 to 26.5 at L5, and that is the "
+     "gradient here. The canal keeps widening below the end of the cord, where it "
+     "carries only the cauda equina."),
+    ("endplate_width", "Vertebral bodies broaden under load", 30, 70, "mm",
+     ["L1", "L2", "L3", "L4", "L5"],
+     "superior endplate, side to side",
+     "Published series run from about 41.8 mm at L1 to 50.7 at L5; measured here at "
+     "41.4, 42.9, 44.6, 47.8 and 51.8 -- both ends within a millimetre. L5 needed a "
+     "separate fix to get there: the cut that isolates the body follows the anterior "
+     "wall of the spinal canal, and the L5 transverse processes arise far enough "
+     "forward to survive it, which read 67.5 mm. Each axial slice is now eroded to "
+     "snap the isthmus joining process to body, and the largest remaining piece is "
+     "measured."),
+]
+
+
+def add_level_gradients(out, path):
+    p = Path(path)
+    if not p.exists():
+        print(f"  ! {path} not found; level gradient panels skipped")
+        return
+    rows = list(csv.DictReader(open(p)))
+    if not rows:
+        return
+    sect = "How the lumbar spine changes as it descends"
+    note = ("Almost every dimension of a lumbar vertebra grows from L1 downward, because "
+            "each level carries everything above it. That makes the gradient a stronger "
+            "check than any single measurement: it either reproduces the published trend "
+            "or it does not. Two of the four measured here reproduce and are shown; "
+            "anterior body height and the wedge ratio do not, and are not.")
+    first = True
+    for stem, title, lo, hi, unit, levels, subtitle, caption in LEVEL_GRADIENTS:
+        series, meds = [], []
+        for lv in levels:
+            key = f"{stem}_{lv}_mm" if unit == "mm" else f"{stem}_{lv}"
+            v = [x for x in (num(r, key) for r in rows) if x is not None]
+            if len(v) < 30:
+                continue
+            sv = sorted(v)
+            meds.append((lv, sv[len(sv) // 2]))
+            d = density(v, lo, hi)
+            if d["x"]:
+                series.append({"label": lv, "x": d["x"], "y": d["y"], "n": d["n"]})
+        if len(series) < 3:
+            continue
+        march = " to ".join(f"{m:.1f}" for _, m in (meds[0], meds[-1]))
+        panel = {
+            "key": f"grad_{stem}", "section": sect, "type": "split", "series": series,
+            "title": title, "subtitle": subtitle,
+            "xlabel": subtitle + (f" ({unit})" if unit else ""),
+            "caption": f"{caption} Median {march}{unit} across {len(series)} levels.",
+        }
+        if first:
+            panel["section_note"] = note
+            first = False
+        out["panels"].append(panel)
+
+
+# Relative pelvic width. Each entry: numerator column, title, range, subtitle, caption.
+# The denominator is always vertebral size, which is the point -- see add_relative_width.
+RELATIVE = [
+    ("bi_iliac_width_mm", "Pelvic width, relative to skeletal size", 4.0, 8.0,
+     "bi-iliac breadth divided by vertebral body width",
+     "In absolute millimetres men are wider, because men are larger. The textbook "
+     "statement is that the female pelvis is relatively broader, and relatively needs a "
+     "denominator -- here the mean superior endplate width of L2 to L4, which is a "
+     "standard skeletal size proxy and is not part of the pelvis."),
+    ("bi_acetabular_mm", "Hip joint separation, relative to skeletal size", 2.2, 4.8,
+     "distance between femoral heads divided by vertebral body width",
+     "The sharper version of the same finding. In absolute terms the hip joints sit "
+     "almost the same distance apart in both sexes -- 165.5 mm against 167.0 -- while "
+     "male vertebrae are meaningfully larger. The female pelvis reaches the same span "
+     "on a smaller frame."),
+]
+
+
+def add_relative_width(out, pelvic_path, surgical_path, levels_path):
+    """Pelvic width against a body-size measure that is not itself pelvic."""
+    for q in (pelvic_path, levels_path):
+        if not Path(q).exists():
+            print(f"  ! {q} not found; relative width panels skipped")
+            return
+    pel = list(csv.DictReader(open(pelvic_path)))
+    lev = {r["case"]: r for r in csv.DictReader(open(levels_path))}
+    srg = ({r["case"]: r for r in csv.DictReader(open(surgical_path))}
+           if Path(surgical_path).exists() else {})
+
+    merged = []
+    for r in pel:
+        lv = lev.get(r["case"])
+        if not lv:
+            continue
+        # vertebral size: the mean of three mid-lumbar endplate widths. Three rather than
+        # one because a single level can fail its body/process separation, and L1 and L5
+        # are excluded as the two most likely to.
+        ep = [num(lv, f"endplate_width_L{i}_mm") for i in (2, 3, 4)]
+        ep = [x for x in ep if x]
+        if not ep:
+            continue
+        size = sum(ep) / len(ep)
+        row = {"sex": r.get("sex", ""), "_size": size,
+               "bi_iliac_width_mm": num(r, "bi_iliac_width_mm")}
+        sr = srg.get(r["case"])
+        row["bi_acetabular_mm"] = (num(sr, "bi_acetabular_mm") if sr
+                                   else num(r, "bi_acetabular_mm"))
+        merged.append(row)
+
+    sect = "Pelvic shape, by sex"
+    for key, title, lo, hi, subtitle, caption in RELATIVE:
+        series, meds = [], {}
+        for want, label in (("F", "female"), ("M", "male")):
+            v = [r[key] / r["_size"] for r in merged
+                 if r.get(key) and (r.get("sex") or "").strip().upper().startswith(want)]
+            if len(v) < 20:
+                continue
+            sv = sorted(v)
+            meds[label] = sv[len(sv) // 2]
+            d = density(v, lo, hi)
+            if d["x"]:
+                series.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"]})
+        if len(series) != 2:
+            continue
+        gap = meds["female"] - meds["male"]
+        out["panels"].append({
+            "key": f"rel_{key}", "section": sect, "type": "split", "series": series,
+            "title": title, "subtitle": subtitle,
+            "xlabel": subtitle,
+            "caption": (f"{caption} Median {meds['female']:.2f} in women against "
+                        f"{meds['male']:.2f} in men, a difference of {gap:+.2f} -- the "
+                        "direction the literature describes, and the opposite of what "
+                        "the absolute widths show."),
+        })
+
+
+def add_landmark_reliability(out, rows):
+    """Where the iliac crest reaches, split by how many rib-free vertebrae there are."""
+    def grp(r):
+        n = num(r, "n_non_rib_bearing")
+        if n is None:
+            return None
+        n = int(n)
+        return "5 rib-free (typical)" if n == 5 else (f"{n} rib-free" if n in (4, 6) else None)
+
+    order = ["5 rib-free (typical)", "4 rib-free", "6 rib-free"]
+    tally = {g: {} for g in order}
+    for r in rows:
+        g, lv = grp(r), (r.get("iliac_crest_at") or "").strip()
+        if not g or not lv or lv == "n/a":
+            continue
+        tally[g][lv] = tally[g].get(lv, 0) + 1
+
+    # only the lumbar levels: a crest reported at a thoracic level means the pelvis was
+    # barely in the field of view, which is a coverage fact rather than an anatomical one
+    cats = [c for c in ("L3", "L4", "L5") if any(tally[g].get(c) for g in order)]
+    series = []
+    for g in order:
+        tot = sum(tally[g].values())
+        if tot < 15:
+            continue
+        counts = [tally[g].get(c, 0) for c in cats]
+        series.append({"label": g, "n": tot, "counts": counts,
+                       "pct": [100.0 * c / tot for c in counts]})
+    if len(series) < 2 or not cats:
+        return
+
+    top = series[0]
+    l4 = top["pct"][cats.index("L4")] if "L4" in cats else 0
+    others = [f'{s["label"]} {s["pct"][cats.index("L4")]:.0f}%' for s in series[1:]
+              if "L4" in cats]
+    out["panels"].append({
+        "key": "crest_landmark", "section": "Where the landmarks stop working",
+        "section_note": ("Surgeons locate the lumbar spine by feel before they see it, "
+                         "and the iliac crest is the landmark they use. These are the "
+                         "measures where that habit meets the anatomy in this cohort."),
+        "title": "The iliac crest does not always reach L4",
+        "subtitle": "the level the crest rises to, by how many rib-free vertebrae there are",
+        "type": "grouped", "categories": cats, "series": series,
+        "xlabel": "vertebral level the iliac crest reaches",
+        "caption": (f"The crest reaches L4 in {l4:.0f}% of people with a typical "
+                    f"rib-free count, and in " + ", ".join(others) + " of those without "
+                    "one. The landmark is least reliable in exactly the patients whose "
+                    "levels are hardest to count, so the two errors compound rather "
+                    "than cancel. Shown as percentages because the groups differ in "
+                    "size by more than twenty to one."),
+    })
+
+    # the disc above a transitional segment is described as degenerating earlier than the
+    # one below it; a narrower disc above raises this ratio
+    series2 = []
+    for g in order:
+        v = [x for x in (num(r, "disc_ratio") for r in rows if grp(r) == g)
+             if x is not None and 0.1 < x < 5]
+        if len(v) < 20:
+            continue
+        d = density(v, 0.2, 4.0)
+        if d["x"]:
+            sv = sorted(v)
+            series2.append({"label": g, "x": d["x"], "y": d["y"], "n": d["n"],
+                            "_med": sv[len(sv) // 2]})
+    if len(series2) >= 2:
+        meds = ", ".join(f'{s["label"]} {s["_med"]:.2f}' for s in series2)
+        for s2 in series2:
+            s2.pop("_med", None)
+        out["panels"].append({
+            "key": "disc_by_group", "section": "Where the landmarks stop working",
+            "title": "The disc above a transitional segment",
+            "subtitle": "lowest disc gap divided by the disc above it",
+            "type": "split", "series": series2,
+            "xlabel": "lowest disc / disc above",
+            "caption": ("A transitional segment moves less, and the level above it is "
+                        "described as taking up that motion and degenerating earlier. A "
+                        "narrower disc above raises this ratio. Medians: " + meds + ". "
+                        "Shown as distributions; nothing here is a test."),
+        })
+
+
+AGING = [
+    ("pelvic_incidence_deg", "pelvic incidence"),
+    ("ll_supine_deg", "lumbar lordosis"),
+    ("sacral_slope_deg", "sacral slope"),
+    ("pelvic_tilt_deg", "pelvic tilt"),
+]
+
+
+def add_aging(out, path):
+    """How the spinopelvic parameters move with age -- and the one that does not."""
+    p = Path(path)
+    if not p.exists():
+        return
+    rows = list(csv.DictReader(open(p)))
+    if not rows:
+        return
+
+    # decade bins. Anything with fewer than 25 cases is dropped rather than drawn thin:
+    # a median over eight people is a number, not a trend.
+    buckets = {}
+    for r in rows:
+        a = num(r, "age")
+        if a is None or a < 40 or a > 99:
+            continue
+        buckets.setdefault(int(a // 10) * 10, []).append(r)
+    decs = [d for d in sorted(buckets) if len(buckets[d]) >= 25]
+    if len(decs) < 3:
+        return
+
+    def q(vals, f):
+        sv = sorted(vals)
+        return sv[min(len(sv) - 1, int(f * len(sv)))]
+
+    series = []
+    for key, label in AGING:
+        med, q1, q3, ns = [], [], [], []
+        ok = True
+        for d in decs:
+            v = [x for x in (num(r, key) for r in buckets[d]) if x is not None]
+            if len(v) < 15:
+                ok = False
+                break
+            med.append(q(v, 0.5)); q1.append(q(v, 0.25)); q3.append(q(v, 0.75))
+            ns.append(len(v))
+        if ok:
+            series.append({"label": label, "med": med, "q1": q1, "q3": q3, "n": ns})
+    if len(series) < 3:
+        return
+
+    pi = next((s for s in series if s["label"] == "pelvic incidence"), None)
+    drift = (pi["med"][-1] - pi["med"][0]) if pi else 0.0
+    out["panels"].append({
+        "key": "aging", "section": "What changes with age, and what does not",
+        "section_note": ("Adult spinal deformity is usually described in patients who "
+                         "already have it. These are people who came in for a colon "
+                         "screening, so what follows is the same mechanism seen before "
+                         "anyone complained of anything."),
+        "title": "Pelvic incidence holds still while the spine compensates around it",
+        "subtitle": "median and interquartile range, by decade",
+        "type": "trend", "bins": [f"{d}s" for d in decs], "series": series,
+        "xlabel": "age", "ylabel": "degrees",
+        "caption": (f"Pelvic incidence is a morphological property of the pelvis, fixed "
+                    f"once the sacroiliac joints mature, and it moves {drift:+.1f} "
+                    f"degrees across these decades. That flatness is a negative control: "
+                    f"a cohort cannot fake it. Everything around it moves -- the pelvis "
+                    f"retroverts, lordosis is lost, and the sacral slope follows because "
+                    f"it is pelvic incidence less tilt. The lordosis a spine NEEDS is "
+                    f"set by a number that never changes; what it HAS declines."),
+    })
+
+    # the mismatch on its own, because it is the number a surgeon acts on
+    med, q1, q3, ns = [], [], [], []
+    for d in decs:
+        v = [x for x in (num(r, "pi_ll_mismatch_deg") for r in buckets[d]) if x is not None]
+        if len(v) < 15:
+            return
+        med.append(q(v, 0.5)); q1.append(q(v, 0.25)); q3.append(q(v, 0.75)); ns.append(len(v))
+    out["panels"].append({
+        "key": "mismatch_age", "section": "What changes with age, and what does not",
+        "title": "The gap between the lordosis a spine needs and the lordosis it has",
+        "subtitle": "PI-LL mismatch, median and interquartile range, by decade",
+        "type": "trend", "bins": [f"{d}s" for d in decs],
+        "series": [{"label": "PI-LL mismatch", "med": med, "q1": q1, "q3": q3, "n": ns}],
+        "xlabel": "age", "ylabel": "degrees",
+        "caption": (f"Median {med[0]:.1f} degrees in the youngest decade here and "
+                    f"{med[-1]:.1f} in the oldest, against a threshold near 10 beyond "
+                    f"which residual pain after fusion becomes likely. This is the same "
+                    f"quantity surgeons plan a correction around, measured in people who "
+                    f"were not being assessed for anything spinal."),
+    })
+
+
+def add_aging_by_sex(out, path):
+    """The age trends again, split by sex. The overlap is the point."""
+    p = Path(path)
+    if not p.exists():
+        return
+    rows = list(csv.DictReader(open(p)))
+    buckets = {}
+    for r in rows:
+        a = num(r, "age")
+        sx = (r.get("sex") or "").strip().upper()[:1]
+        if a is None or a < 40 or a > 99 or sx not in ("F", "M"):
+            continue
+        buckets.setdefault((int(a // 10) * 10, sx), []).append(r)
+    decs = sorted({d for d, _ in buckets
+                   if len(buckets.get((d, "F"), [])) >= 25
+                   and len(buckets.get((d, "M"), [])) >= 25})
+    if len(decs) < 2:
+        return
+
+    def q(v, f):
+        sv = sorted(v)
+        return sv[min(len(sv) - 1, int(f * len(sv)))]
+
+    for key, title, unit in (
+        ("pelvic_tilt_deg", "Pelvic tilt", "degrees"),
+        ("ll_supine_deg", "Lumbar lordosis", "degrees"),
+    ):
+        series, gaps = [], []
+        for sx, label in (("F", "female"), ("M", "male")):
+            med, q1, q3, ns = [], [], [], []
+            ok = True
+            for d in decs:
+                v = [x for x in (num(r, key) for r in buckets.get((d, sx), []))
+                     if x is not None]
+                if len(v) < 15:
+                    ok = False
+                    break
+                med.append(q(v, 0.5)); q1.append(q(v, 0.25)); q3.append(q(v, 0.75))
+                ns.append(len(v))
+            if ok:
+                series.append({"label": label, "med": med, "q1": q1, "q3": q3, "n": ns})
+        if len(series) != 2:
+            continue
+        gaps = [abs(a - b) for a, b in zip(series[0]["med"], series[1]["med"])]
+        out["panels"].append({
+            "key": f"agesex_{key}", "section": "What changes with age, and what does not",
+            "title": f"{title}, by age and sex",
+            "subtitle": "median and interquartile range, women against men",
+            "type": "trend", "bins": [f"{d}s" for d in decs], "series": series,
+            "xlabel": "age", "ylabel": unit,
+            "caption": (f"The two bands sit on top of each other: the median difference "
+                        f"between women and men across these decades is "
+                        f"{sum(gaps) / len(gaps):.1f} degrees, on a measure whose "
+                        f"interquartile range is several times that. Pelvic SHAPE is "
+                        f"strongly dimorphic in this same cohort -- see the relative "
+                        f"width panels -- but how the spine sits on that pelvis is not. "
+                        f"Shape answers to obstetric constraint; alignment answers to "
+                        f"balance, and balance does not care which pelvis it is on."),
+        })
+
+
+OSTEO_THRESHOLD = 110.0     # >90% specific for osteoporosis (Pickhardt 2013)
+
+
+def add_bone_density(out, path):
+    """Opportunistic bone density: distribution, the age-sex crossover, and who is below."""
+    p = Path(path)
+    if not p.exists():
+        print(f"  ! {path} not found; bone density panels skipped")
+        return
+    rows = list(csv.DictReader(open(p)))
+    if not rows:
+        return
+    sect = "Bone density, measured for free"
+    note = ("Every scan here was taken to look for colorectal polyps, and every one of "
+            "them also contains a bone density measurement -- no extra dose, no extra "
+            "table time. Vertebral trabecular attenuation is the most validated of the "
+            "opportunistic CT measures, and the technique was established on CT "
+            "colonography, which is exactly what this cohort is.")
+
+    # --- the distribution, with the threshold drawn on it ---------------------------
+    vals = [num(r, "l1_trabecular_hu") for r in rows]
+    d = density(vals, 40, 320)
+    if d["x"]:
+        v = [x for x in vals if x is not None]
+        low = sum(1 for x in v if x < OSTEO_THRESHOLD)
+        out["panels"].append({
+            "key": "l1_hu", "section": sect, "section_note": note,
+            "title": "Vertebral bone density, from a scan taken for something else",
+            "subtitle": "L1 trabecular attenuation",
+            "type": "density", "rug": rug(vals, 40, 320),
+            "reference": OSTEO_THRESHOLD, "reference_label": "110 HU",
+            "xlabel": "L1 trabecular attenuation (HU)",
+            "caption": (f"The dashed line is 110 HU, over 90% specific for osteoporosis. "
+                        f"{low} of {len(v)} cases ({100 * low / len(v):.1f}%) fall below "
+                        f"it. Published series put the population mean near 226 HU under "
+                        f"age 30, falling about 2.5 HU per year; at this cohort's median "
+                        f"age that predicts roughly 155, measured here at "
+                        f"{sorted(v)[len(v) // 2]:.0f}."),
+            **d,
+        })
+
+    # --- the crossover ---------------------------------------------------------------
+    buckets = {}
+    for r in rows:
+        a, sx = num(r, "age"), (r.get("sex") or "").strip().upper()[:1]
+        if a is None or sx not in ("F", "M"):
+            continue
+        buckets.setdefault((int(a // 10) * 10, sx), []).append(r)
+    decs = sorted({d0 for d0, _ in buckets
+                   if len(buckets.get((d0, "F"), [])) >= 20
+                   and len(buckets.get((d0, "M"), [])) >= 20})
+    if len(decs) < 2:
+        return
+
+    def q(v, f):
+        sv = sorted(v)
+        return sv[min(len(sv) - 1, int(f * len(sv)))]
+
+    series, ends = [], {}
+    for sx, label in (("F", "women"), ("M", "men")):
+        med, q1, q3, ns = [], [], [], []
+        ok = True
+        for d0 in decs:
+            v = [x for x in (num(r, "l1_trabecular_hu") for r in buckets.get((d0, sx), []))
+                 if x is not None]
+            if len(v) < 15:
+                ok = False
+                break
+            med.append(q(v, 0.5)); q1.append(q(v, 0.25)); q3.append(q(v, 0.75)); ns.append(len(v))
+        if ok:
+            series.append({"label": label, "med": med, "q1": q1, "q3": q3, "n": ns})
+            ends[label] = (med[0], med[-1])
+    if len(series) == 2:
+        f0, f1 = ends["women"]
+        m0, m1 = ends["men"]
+        out["panels"].append({
+            "key": "bone_crossover", "section": sect,
+            "title": "Women start with denser vertebrae and end with less",
+            "subtitle": "L1 trabecular attenuation, median and interquartile range, by decade",
+            "type": "trend", "bins": [f"{d0}s" for d0 in decs], "series": series,
+            "xlabel": "age", "ylabel": "L1 attenuation (HU)",
+            "caption": (f"The lines cross. Women begin at {f0:.0f} HU against {m0:.0f} "
+                        f"for men and end at {f1:.0f} against {m1:.0f} -- a swing of "
+                        f"{(f1 - m1) - (f0 - m0):+.0f} HU in the difference between the "
+                        f"sexes across these decades. That is postmenopausal bone loss, "
+                        f"drawn as a crossover, in people who were not being assessed "
+                        f"for bone."),
+        })
+
+    # --- who is below the threshold ---------------------------------------------------
+    cats = [f"{d0}s" for d0 in decs]
+    gser = []
+    for sx, label in (("F", "women"), ("M", "men")):
+        counts, pct, tot = [], [], 0
+        for d0 in decs:
+            v = [x for x in (num(r, "l1_trabecular_hu") for r in buckets.get((d0, sx), []))
+                 if x is not None]
+            lo = sum(1 for x in v if x < OSTEO_THRESHOLD)
+            counts.append(lo)
+            pct.append(100.0 * lo / len(v) if v else 0.0)
+            tot += len(v)
+        gser.append({"label": label, "n": tot, "counts": counts, "pct": pct})
+    if len(gser) == 2 and max(gser[0]["pct"]) > 0:
+        out["panels"].append({
+            "key": "osteo_share", "section": sect,
+            "title": "How many fall below the osteoporosis threshold",
+            "subtitle": "share of each group with L1 attenuation under 110 HU",
+            "type": "grouped", "categories": cats, "series": gser,
+            "xlabel": "age",
+            "caption": (f"By the oldest decade shown, {gser[0]['pct'][-1]:.0f}% of women "
+                        f"are below a threshold over 90% specific for osteoporosis, "
+                        f"against {gser[1]['pct'][-1]:.0f}% of men. None of these people "
+                        f"were referred for bone assessment; the measurement was already "
+                        f"in an image taken for the colon."),
+        })
+
+
+GENANT_WEDGE = 0.80    # a 20% height reduction is a mild wedge deformity (Genant)
+
+
+def add_wedge_and_sacrum(out, levels_path, pelvic_path):
+    """Vertebral wedging, and the sacral base — the two measures that came back."""
+    sect_bone = "Bone density, measured for free"
+
+    # --- wedging, alongside the bone density it belongs with ------------------------
+    if Path(levels_path).exists():
+        rows = list(csv.DictReader(open(levels_path)))
+        worst = []
+        for r in rows:
+            v = [x for x in (num(r, f"wedge_ratio_{lv}") for lv in
+                             ("L1", "L2", "L3", "L4", "L5")) if x is not None and 0.2 < x < 2.0]
+            if v:
+                worst.append(min(v))
+        d = density(worst, 0.4, 1.6)
+        if d["x"] and len(worst) > 100:
+            low = sum(1 for x in worst if x < GENANT_WEDGE)
+            out["panels"].append({
+                "key": "wedge", "section": sect_bone,
+                "title": "Vertebral wedging, from the same scan",
+                "subtitle": "lowest lumbar wedge ratio per case: anterior wall height over posterior",
+                "type": "density", "rug": rug(worst, 0.4, 1.6),
+                "reference": GENANT_WEDGE, "reference_label": "0.80",
+                "xlabel": "anterior / posterior body height",
+                "caption": (f"An unfractured body sits near 1.0, and the distribution "
+                            f"does. The dashed line is 0.80 -- a 20% height reduction, "
+                            f"which Genant's grading calls a mild wedge deformity. "
+                            f"{low} of {len(worst)} cases ({100 * low / len(worst):.1f}%) "
+                            f"have at least one lumbar body below it. A falling anterior "
+                            f"wall is what a compression fracture looks like, and low "
+                            f"trabecular attenuation is what precedes one -- both are in "
+                            f"this image, which was ordered for the colon."),
+                **d,
+            })
+
+    # --- sacral base breadth, absolute and relative ----------------------------------
+    if not Path(pelvic_path).exists():
+        return
+    pel = list(csv.DictReader(open(pelvic_path)))
+    lev = ({r["case"]: r for r in csv.DictReader(open(levels_path))}
+           if Path(levels_path).exists() else {})
+
+    series, meds = [], {}
+    for want, label in (("F", "female"), ("M", "male")):
+        v = [x for x in (num(r, "sacral_base_width_mm") for r in pel
+                         if (r.get("sex") or "").strip().upper().startswith(want))
+             if x is not None]
+        if len(v) < 20:
+            continue
+        sv = sorted(v)
+        meds[label] = sv[len(sv) // 2]
+        d = density(v, 80, 160)
+        if d["x"]:
+            series.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"]})
+    if len(series) == 2:
+        out["panels"].append({
+            "key": "sacral_base", "section": "Pelvic shape, by sex",
+            "title": "Sacral base breadth", "type": "split", "series": series,
+            "subtitle": "across both alae at the S1 level",
+            "xlabel": "sacral base breadth (mm)",
+            "caption": (f"Median {meds['female']:.0f} mm in women against "
+                        f"{meds['male']:.0f} in men. This measurement had to be rebuilt: "
+                        f"the label named 'sacrum' in the scheme is documented as the "
+                        f"sacrum BELOW S1, with S1 carved out as its own class, so the "
+                        f"first version measured S2 to S5 and produced an index of 0.9 "
+                        f"in both sexes."),
+        })
+
+    # relative, against a body-size measure outside the pelvis
+    if lev:
+        series2, meds2 = [], {}
+        for want, label in (("F", "female"), ("M", "male")):
+            vals = []
+            for r in pel:
+                if not (r.get("sex") or "").strip().upper().startswith(want):
+                    continue
+                w = num(r, "sacral_base_width_mm")
+                lv = lev.get(r["case"])
+                if not w or not lv:
+                    continue
+                ep = [num(lv, f"endplate_width_L{i}_mm") for i in (2, 3, 4)]
+                ep = [x for x in ep if x]
+                if ep:
+                    vals.append(w / (sum(ep) / len(ep)))
+            if len(vals) < 20:
+                continue
+            sv = sorted(vals)
+            meds2[label] = sv[len(sv) // 2]
+            d = density(vals, 1.4, 3.6)
+            if d["x"]:
+                series2.append({"label": label, "x": d["x"], "y": d["y"], "n": d["n"]})
+        if len(series2) == 2:
+            gap = meds2["female"] - meds2["male"]
+            out["panels"].append({
+                "key": "sacral_base_rel", "section": "Pelvic shape, by sex",
+                "title": "Sacral base breadth, relative to skeletal size",
+                "type": "split", "series": series2,
+                "subtitle": "sacral base divided by vertebral body width",
+                "xlabel": "sacral base / vertebral body width",
+                "caption": (f"Median {meds2['female']:.2f} in women against "
+                            f"{meds2['male']:.2f} in men, a difference of {gap:+.2f}. "
+                            f"The same normalisation that flips pelvic width: measured "
+                            f"against a body-size proxy that is not itself pelvic, the "
+                            f"female sacrum is relatively broader."),
+            })
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", default="morphometrics/transition_morphometrics.csv")
     ap.add_argument("--surgical", default="morphometrics/surgical_morphometrics.csv")
+    ap.add_argument("--pelvic", default="morphometrics/pelvic_shape.csv")
+    ap.add_argument("--levels", default="morphometrics/level_gradients.csv")
+    ap.add_argument("--bone", default="morphometrics/opportunistic.csv")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
@@ -392,6 +1017,7 @@ def main() -> int:
     }
 
     add_demographics(out, rows)
+    add_landmark_reliability(out, rows)
 
     # --- interval count -------------------------------------------------------------
     c = Counter(int(v) for v in (num(r, "n_non_rib_bearing") for r in rows) if v is not None)
@@ -464,6 +1090,13 @@ def main() -> int:
     })
 
     add_surgical(out, a.surgical)
+    add_aging(out, a.surgical)
+    add_aging_by_sex(out, a.surgical)
+    add_pelvic_shape(out, a.pelvic, a.surgical)
+    add_relative_width(out, a.pelvic, a.surgical, a.levels)
+    add_level_gradients(out, a.levels)
+    add_bone_density(out, a.bone)
+    add_wedge_and_sacrum(out, a.levels, a.pelvic)
 
     p = Path(a.out)
     p.parent.mkdir(parents=True, exist_ok=True)

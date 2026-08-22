@@ -127,8 +127,18 @@ def one(args) -> dict:
     stem = Path(lab_p).name.replace("_label.nii.gz", "")
     r = {"case": stem}
     try:
-        li = nib.load(lab_p)
-        ci = nib.load(ct_p)
+        # CANONICAL, AND FOR A REASON. Everything below reasons about anterior and
+        # superior -- where the canal is, which half is the body, the middle of the body
+        # by height. These volumes are ('P','I','R'), so axis 1 runs INFERIOR and axis 2
+        # runs RIGHT, and the first version of this cut the "body" along the wrong axis
+        # entirely. The ROI it produced was an arbitrary slab carrying cortex and
+        # endplate, which read 264 HU at L1 where a cohort this age should sit near 155.
+        #
+        # This is a READ path deriving numbers, not a write-back of labels, so
+        # canonicalising is safe here -- unlike the renumbering pass, where it corrupted
+        # a file. Both volumes go through it so they stay registered to each other.
+        li = nib.as_closest_canonical(nib.load(lab_p))
+        ci = nib.as_closest_canonical(nib.load(ct_p))
         if li.shape != ci.shape:
             return {"case": stem, "error": "shape mismatch"}
         lab = np.asanyarray(li.dataobj)
@@ -155,7 +165,10 @@ def one(args) -> dict:
         r[f"{name}_trabecular_hu"] = round(float(v.mean()), 1)
         r[f"{name}_roi_voxels"] = int(core.sum())
 
-    # ---- psoas at mid-L3: sarcopenia and fat infiltration -------------------------
+    # ---- psoas at mid-L3, and the aorta ------------------------------------------
+    # NOTE: v5 carries bone only. The soft-tissue classes (58-73) are declared in the
+    # scheme but no case populates them, so these two blocks find nothing and are kept
+    # for when they do rather than deleted.
     l3 = lab == L3
     if l3.sum() >= MIN_VOX and ((lab == PSOAS_L).any() or (lab == PSOAS_R).any()):
         zc = int(np.median(np.argwhere(l3)[:, 2]))
