@@ -182,19 +182,27 @@ def one(args) -> dict:
         zc = np.percentile(idx[:, 2], 70)
         head_pts = pts[idx[:, 2] >= zc]
 
-        c, rad, inlier, rms = _fit_sphere_robust(head_pts)
-        # A fit is only accepted if it converged onto something actually spherical.
-        # A femoral head is smooth; an rms above ~2 mm means the cloud still contains
-        # trochanter or neck, and the radius from it is not a head radius.
-        if (rad is not None and 15.0 < rad < 35.0
-                and rms is not None and rms < 2.0 and inlier > 0.35):
+        # PLAIN ALGEBRAIC FIT. Two attempts to improve this both made it worse and the
+        # numbers are recorded so nobody tries a third time without reading them.
+        #
+        #   acetabular seeding    selects only the CAP of the head in contact with the
+        #                         socket; a fit to a cap follows the cap's curvature.
+        #                         Median diameter 47.1 -> 42.1 mm.
+        #   least-trimmed-squares trimming to the closest fraction keeps the densest
+        #                         region, which is again the central cap, and shrinks the
+        #                         sphere the same way. Median 47.1 -> 40.0, and the
+        #                         residual gate rejected 150 cases outright.
+        #
+        # Both were principled and both were wrong, because the failure they were built
+        # to fix -- contamination by the greater trochanter -- affects a minority of cases
+        # while the cure moved the median for everyone. The plain fit validates against
+        # published values (F 45.2, M 50.6 against F 43-45, M 48-52); the clever ones do
+        # not. The known defect that remains is a small left tail from trochanter
+        # contamination, which is visible in the distribution and named in the caption
+        # rather than traded for a worse median.
+        c, rad = _fit_sphere(head_pts)
+        if rad is not None and 15.0 < rad < 35.0:
             r[f"femoral_head_diameter_{side}_mm"] = round(2 * rad, 2)
-            r[f"head_fit_rms_{side}_mm"] = round(rms, 2)
-            r[f"head_fit_inlier_{side}"] = round(inlier, 3)
-        elif rad is not None and 15.0 < rad < 35.0:
-            # kept out of the diameter column but recorded, so the rejection rate is
-            # visible rather than showing up as silently missing data
-            r[f"head_fit_rejected_{side}"] = 1
 
         # --- neck-shaft angle -------------------------------------------------------
         # neck: between the head centre and the trochanteric mass; shaft: the inferior

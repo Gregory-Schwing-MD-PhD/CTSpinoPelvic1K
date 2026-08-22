@@ -39,6 +39,31 @@ category -- an implant nobody can name is still an implant worth having on the l
 
     python scripts/detect_metal.py --labels data/v5_final --ct data/hf_export/ct \\
         --workers 12 --out morphometrics
+
+WHAT THIS CENSUS CANNOT SEE, AND WHY THE RESULT IS SMALL.
+
+It misses the one case with known ground truth. 0068 carries an interbody cage and comes
+back as "too_small_for_an_implant" with zero implant volume. The reason is not a threshold
+that needs tuning: **an interbody cage is usually PEEK, which is radiolucent.** It sits
+around 50-100 HU, indistinguishable from soft tissue by attenuation, and only its tantalum
+marker beads are opaque -- a few voxels each, below any size floor that also excludes
+surgical clips. An attenuation detector cannot find the commonest spinal implant there is,
+and no amount of adjustment changes that.
+
+Finding a PEEK cage needs a different question entirely: not "what is bright" but "what
+occupies the disc space and is not disc" -- a shape-and-position argument against the
+segmentation, not a Hounsfield one. That is a separate tool and it is not this one.
+
+AND THE COHORT IS THE WRONG PLACE TO LOOK. These are asymptomatic adults scanned for colon
+polyps. Spinal instrumentation is rare in such a population by construction, and the census
+bears that out: after excluding tagged stool, roughly nine cases carry anything
+bone-adjacent that could be hardware, and most of those sit against ribs rather than the
+spine -- surgical clips, sternal wires, the kind of thing an abdominal CT collects
+incidentally.
+
+So this is useful as a WORKLIST -- nine cases worth eyeballing, in a corpus of 802 -- and
+it is not a basis for a templating series. A templating or post-operative dataset needs a
+surgical cohort. Saying so here is more use than a number that implies otherwise.
 """
 from __future__ import annotations
 
@@ -64,6 +89,25 @@ AIR_HU = -800.0
 
 MIN_VOX = 20                 # below this it is reconstruction noise, not an object
 CLIP_VOX = 60                # below this it is a surgical clip or a staple, not an implant
+
+# AN ORTHOPAEDIC IMPLANT IS FIXED TO BONE. The first run of this script reported 69.2% of
+# an asymptomatic colon-screening cohort as carrying an implant, which is impossible, and
+# the diagnostic was in the output all along: 547 of the 555 "implants" had host = 0,
+# meaning no labelled bone anywhere near them. Median volume 67 mm3.
+#
+# What they are is TAGGED STOOL. This is CT COLONOGRAPHY -- stool is deliberately tagged
+# with oral contrast and the colon is deliberately insufflated with gas. Dense tagged
+# material sitting against a gas margin reproduces the streak signature the detector was
+# built to trust, because partial volume at the gas boundary puts voxels in exactly the
+# window between fat and air that a beam-hardening streak occupies. In this cohort that
+# arrangement is not an artefact, it is the examination working as designed.
+#
+# So proximity to bone is required, not merely recorded. Both uses this census exists for
+# -- implant templating and checking synthetic post-operative spines -- concern hardware
+# anchored to the skeleton. Something radiodense floating in the bowel is not that,
+# whatever its attenuation.
+BONE_REACH_MM = 12.0         # an implant is fixed to bone, not merely in the abdomen
+IMPLANT_MM3 = 300.0          # a pedicle screw is ~500-1500 mm3; 67 is a fleck of contrast
 
 VERT = {**{i: f"T{i - 7}" for i in range(8, 20)},
         **{i: f"L{i - 19}" for i in range(20, 26)}}
@@ -116,9 +160,11 @@ def one(args) -> dict:
         dark = float(np.mean((sv < STREAK_HU) & (sv > AIR_HU))) if sv.size else 0.0
         ext = (idx.max(0) - idx.min(0) + 1) * sp
         elong = float(ext.max() / max(ext.min(), 1e-6))
-        # which labelled structure is it in or beside
-        near = lab[ndimage.binary_dilation(m, iterations=4)]
-        near = near[near > 0]
+        # which labelled structure is it in or beside, in millimetres so slice thickness
+        # cannot decide the answer
+        it = max(1, int(round(BONE_REACH_MM / float(min(sp)))))
+        near = lab[ndimage.binary_dilation(m, iterations=it)]
+        near = near[(near > 0) & (near != 255)]
         host = int(Counter(near.tolist()).most_common(1)[0][0]) if near.size else 0
         comps.append({"vox": v, "mm3": round(v * vox_mm3, 1), "dark": round(dark, 3),
                       "elong": round(elong, 2), "host": host,
@@ -133,8 +179,11 @@ def one(args) -> dict:
     # An implant casts a streak. Without one, a bright blob is dense contrast, a calcified
     # plaque, or a very dense cortical rim -- all of which belong in the count of what was
     # found, and none of which belong in a templating series.
-    implants = [c for c in comps if c["dark"] >= 0.15 and c["vox"] >= CLIP_VOX]
+    implants = [c for c in comps
+                if c["dark"] >= 0.15 and c["vox"] >= CLIP_VOX
+                and c["host"] > 0 and c["mm3"] >= IMPLANT_MM3]
     small = [c for c in comps if c not in implants]
+    r["n_dense_away_from_bone"] = sum(1 for c in comps if c["host"] == 0)
 
     r["has_metal"] = 1 if implants else 0
     r["n_metal_components"] = len(comps)
@@ -146,7 +195,13 @@ def one(args) -> dict:
     r["components"] = json.dumps(comps[:12])
 
     if not implants:
-        r["construct"] = "dense_no_streak"
+        # named by WHY it was rejected, so the census can be audited rather than trusted
+        if all(c["host"] == 0 for c in comps):
+            r["construct"] = "dense_away_from_bone"      # tagged stool, contrast, clips
+        elif max(c["dark"] for c in comps) < 0.15:
+            r["construct"] = "dense_no_streak"           # calcification, dense cortex
+        else:
+            r["construct"] = "too_small_for_an_implant"
         return r
 
     hosts = [c["host"] for c in implants]
