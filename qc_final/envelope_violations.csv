@@ -1,0 +1,414 @@
+file,case,measure,value,low,high,what
+degenerative.csv,0068,disc_height_L4L5_mm,0.8,1.0,20.0,disc height
+degenerative.csv,0005,disc_height_L5S1_mm,42.4,1.0,20.0,disc height
+degenerative.csv,0033,disc_height_L5S1_mm,44.8,1.0,20.0,disc height
+degenerative.csv,0174,disc_height_L5S1_mm,0.8,1.0,20.0,disc height
+degenerative.csv,0208,disc_height_L5S1_mm,38.4,1.0,20.0,disc height
+degenerative.csv,0234,disc_height_L5S1_mm,44.0,1.0,20.0,disc height
+degenerative.csv,0268,disc_height_L5S1_mm,39.2,1.0,20.0,disc height
+degenerative.csv,0302,disc_height_L5S1_mm,44.8,1.0,20.0,disc height
+degenerative.csv,0366,disc_height_L5S1_mm,35.2,1.0,20.0,disc height
+degenerative.csv,0376,disc_height_L5S1_mm,36.8,1.0,20.0,disc height
+degenerative.csv,0486,disc_height_L5S1_mm,41.6,1.0,20.0,disc height
+degenerative.csv,0831,disc_height_L5S1_mm,45.6,1.0,20.0,disc height
+degenerative.csv,0899,disc_height_L5S1_mm,22.4,1.0,20.0,disc height
+degenerative.csv,0950,disc_height_L5S1_mm,40.8,1.0,20.0,disc height
+degenerative.csv,0960,disc_height_L5S1_mm,43.2,1.0,20.0,disc height
+degenerative.csv,0999,disc_height_L5S1_mm,40.8,1.0,20.0,disc height
+degenerative.csv,1053,disc_height_L5S1_mm,41.6,1.0,20.0,disc height
+level_gradients.csv,0068,body_height_L1_mm,68.8,12.0,45.0,vertebral body height
+level_gradients.csv,0090,body_height_L1_mm,60.0,12.0,45.0,vertebral body height
+level_gradients.csv,0236,body_height_L1_mm,58.4,12.0,45.0,vertebral body height
+level_gradients.csv,0487,body_height_L1_mm,5.6,12.0,45.0,vertebral body height
+level_gradients.csv,0068,body_height_L2_mm,74.4,12.0,45.0,vertebral body height
+level_gradients.csv,0090,body_height_L2_mm,58.4,12.0,45.0,vertebral body height
+level_gradients.csv,0419,body_height_L2_mm,80.0,12.0,45.0,vertebral body height
+level_gradients.csv,0068,body_height_L3_mm,76.0,12.0,45.0,vertebral body height
+level_gradients.csv,0090,body_height_L3_mm,70.4,12.0,45.0,vertebral body height
+level_gradients.csv,0150,body_height_L3_mm,64.8,12.0,45.0,vertebral body height
+level_gradients.csv,0419,body_height_L3_mm,78.4,12.0,45.0,vertebral body height
+level_gradients.csv,0568,body_height_L3_mm,8.8,12.0,45.0,vertebral body height
+level_gradients.csv,0913,body_height_L3_mm,11.2,12.0,45.0,vertebral body height
+level_gradients.csv,0972,body_height_L3_mm,8.8,12.0,45.0,vertebral body height
+level_gradients.csv,0150,body_height_L4_mm,66.4,12.0,45.0,vertebral body height
+level_gradients.csv,0196,body_height_L4_mm,69.6,12.0,45.0,vertebral body height
+level_gradients.csv,0468,body_height_L4_mm,9.6,12.0,45.0,vertebral body height
+level_gradients.csv,0196,body_height_L5_mm,59.2,12.0,45.0,vertebral body height
+level_gradients.csv,0419,body_height_L5_mm,47.2,12.0,45.0,vertebral body height
+level_gradients.csv,0068,body_height_post_L1_mm,68.0,12.0,45.0,vertebral body height
+level_gradients.csv,0090,body_height_post_L1_mm,60.0,12.0,45.0,vertebral body height
+level_gradients.csv,0236,body_height_post_L1_mm,60.8,12.0,45.0,vertebral body height
+level_gradients.csv,0487,body_height_post_L1_mm,7.2,12.0,45.0,vertebral body height
+level_gradients.csv,0068,body_height_post_L2_mm,72.0,12.0,45.0,vertebral body height
+level_gradients.csv,0090,body_height_post_L2_mm,63.2,12.0,45.0,vertebral body height
+level_gradients.csv,0419,body_height_post_L2_mm,80.8,12.0,45.0,vertebral body height
+level_gradients.csv,0068,body_height_post_L3_mm,73.6,12.0,45.0,vertebral body height
+level_gradients.csv,0090,body_height_post_L3_mm,68.0,12.0,45.0,vertebral body height
+level_gradients.csv,0150,body_height_post_L3_mm,62.4,12.0,45.0,vertebral body height
+level_gradients.csv,0419,body_height_post_L3_mm,78.4,12.0,45.0,vertebral body height
+level_gradients.csv,0150,body_height_post_L4_mm,60.8,12.0,45.0,vertebral body height
+level_gradients.csv,0196,body_height_post_L4_mm,71.2,12.0,45.0,vertebral body height
+level_gradients.csv,0419,body_height_post_L4_mm,60.8,12.0,45.0,vertebral body height
+level_gradients.csv,0196,body_height_post_L5_mm,73.6,12.0,45.0,vertebral body height
+level_gradients.csv,0419,body_height_post_L5_mm,46.4,12.0,45.0,vertebral body height
+level_gradients.csv,0839,body_height_post_L5_mm,45.6,12.0,45.0,vertebral body height
+level_gradients.csv,0114,canal_width_L1_mm,5.1,12.0,40.0,canal transverse diameter
+level_gradients.csv,0487,canal_width_L1_mm,4.7,12.0,40.0,canal transverse diameter
+level_gradients.csv,0789,canal_width_L1_mm,8.6,12.0,40.0,canal transverse diameter
+level_gradients.csv,0927,canal_width_L1_mm,4.6,12.0,40.0,canal transverse diameter
+level_gradients.csv,0114,canal_width_L2_mm,7.3,12.0,40.0,canal transverse diameter
+level_gradients.csv,0213,canal_width_L2_mm,8.4,12.0,40.0,canal transverse diameter
+level_gradients.csv,0419,canal_width_L2_mm,6.3,12.0,40.0,canal transverse diameter
+level_gradients.csv,0789,canal_width_L2_mm,4.7,12.0,40.0,canal transverse diameter
+level_gradients.csv,0819,canal_width_L2_mm,5.6,12.0,40.0,canal transverse diameter
+level_gradients.csv,0851,canal_width_L2_mm,8.6,12.0,40.0,canal transverse diameter
+level_gradients.csv,0196,canal_width_L3_mm,7.7,12.0,40.0,canal transverse diameter
+level_gradients.csv,0419,canal_width_L3_mm,7.2,12.0,40.0,canal transverse diameter
+level_gradients.csv,0913,canal_width_L3_mm,7.0,12.0,40.0,canal transverse diameter
+level_gradients.csv,0972,canal_width_L3_mm,7.9,12.0,40.0,canal transverse diameter
+level_gradients.csv,0007,canal_width_L4_mm,6.1,12.0,40.0,canal transverse diameter
+level_gradients.csv,0284,canal_width_L4_mm,9.1,12.0,40.0,canal transverse diameter
+level_gradients.csv,0468,canal_width_L4_mm,10.2,12.0,40.0,canal transverse diameter
+level_gradients.csv,0690,canal_width_L4_mm,45.5,12.0,40.0,canal transverse diameter
+level_gradients.csv,0738,canal_width_L4_mm,5.2,12.0,40.0,canal transverse diameter
+level_gradients.csv,0137,canal_width_L5_mm,43.1,12.0,40.0,canal transverse diameter
+level_gradients.csv,0203,canal_width_L5_mm,41.4,12.0,40.0,canal transverse diameter
+level_gradients.csv,0226,canal_width_L5_mm,7.8,12.0,40.0,canal transverse diameter
+level_gradients.csv,0260,canal_width_L5_mm,43.0,12.0,40.0,canal transverse diameter
+level_gradients.csv,0313,canal_width_L5_mm,6.2,12.0,40.0,canal transverse diameter
+level_gradients.csv,0342,canal_width_L5_mm,41.4,12.0,40.0,canal transverse diameter
+level_gradients.csv,0416,canal_width_L5_mm,40.8,12.0,40.0,canal transverse diameter
+level_gradients.csv,0484,canal_width_L5_mm,41.0,12.0,40.0,canal transverse diameter
+level_gradients.csv,0492,canal_width_L5_mm,41.8,12.0,40.0,canal transverse diameter
+level_gradients.csv,0604,canal_width_L5_mm,7.0,12.0,40.0,canal transverse diameter
+level_gradients.csv,0819,canal_width_L5_mm,4.9,12.0,40.0,canal transverse diameter
+level_gradients.csv,0822,canal_width_L5_mm,8.5,12.0,40.0,canal transverse diameter
+level_gradients.csv,1005,canal_width_L5_mm,42.2,12.0,40.0,canal transverse diameter
+level_gradients.csv,1085,canal_width_L5_mm,40.7,12.0,40.0,canal transverse diameter
+level_gradients.csv,1092,canal_width_L5_mm,40.1,12.0,40.0,canal transverse diameter
+level_gradients.csv,1131,canal_width_L5_mm,9.4,12.0,40.0,canal transverse diameter
+level_gradients.csv,0167,endplate_width_L1_mm,23.1,25.0,70.0,endplate width
+level_gradients.csv,0326,endplate_width_L1_mm,18.8,25.0,70.0,endplate width
+level_gradients.csv,0472,endplate_width_L1_mm,23.4,25.0,70.0,endplate width
+level_gradients.csv,0487,endplate_width_L1_mm,9.2,25.0,70.0,endplate width
+level_gradients.csv,0699,endplate_width_L1_mm,16.9,25.0,70.0,endplate width
+level_gradients.csv,0213,endplate_width_L2_mm,21.2,25.0,70.0,endplate width
+level_gradients.csv,0393,endplate_width_L2_mm,19.8,25.0,70.0,endplate width
+level_gradients.csv,0571,endplate_width_L2_mm,21.5,25.0,70.0,endplate width
+level_gradients.csv,0851,endplate_width_L2_mm,19.9,25.0,70.0,endplate width
+level_gradients.csv,0090,endplate_width_L3_mm,19.5,25.0,70.0,endplate width
+level_gradients.csv,0568,endplate_width_L3_mm,18.8,25.0,70.0,endplate width
+level_gradients.csv,0571,endplate_width_L3_mm,17.6,25.0,70.0,endplate width
+level_gradients.csv,0636,endplate_width_L3_mm,21.0,25.0,70.0,endplate width
+level_gradients.csv,0718,endplate_width_L3_mm,17.8,25.0,70.0,endplate width
+level_gradients.csv,0720,endplate_width_L3_mm,24.4,25.0,70.0,endplate width
+level_gradients.csv,0877,endplate_width_L3_mm,19.5,25.0,70.0,endplate width
+level_gradients.csv,0913,endplate_width_L3_mm,18.1,25.0,70.0,endplate width
+level_gradients.csv,0972,endplate_width_L3_mm,23.4,25.0,70.0,endplate width
+level_gradients.csv,0133,endplate_width_L4_mm,24.6,25.0,70.0,endplate width
+level_gradients.csv,0176,endplate_width_L4_mm,22.8,25.0,70.0,endplate width
+level_gradients.csv,0257,endplate_width_L4_mm,19.4,25.0,70.0,endplate width
+level_gradients.csv,0419,endplate_width_L4_mm,13.2,25.0,70.0,endplate width
+level_gradients.csv,0468,endplate_width_L4_mm,20.3,25.0,70.0,endplate width
+level_gradients.csv,0571,endplate_width_L4_mm,22.2,25.0,70.0,endplate width
+level_gradients.csv,0636,endplate_width_L4_mm,15.8,25.0,70.0,endplate width
+level_gradients.csv,0738,endplate_width_L4_mm,21.1,25.0,70.0,endplate width
+level_gradients.csv,0807,endplate_width_L4_mm,13.2,25.0,70.0,endplate width
+level_gradients.csv,0853,endplate_width_L4_mm,22.5,25.0,70.0,endplate width
+level_gradients.csv,0877,endplate_width_L4_mm,13.3,25.0,70.0,endplate width
+level_gradients.csv,0090,endplate_width_L5_mm,14.2,25.0,70.0,endplate width
+level_gradients.csv,0142,endplate_width_L5_mm,23.0,25.0,70.0,endplate width
+level_gradients.csv,0179,endplate_width_L5_mm,72.8,25.0,70.0,endplate width
+level_gradients.csv,0214,endplate_width_L5_mm,13.8,25.0,70.0,endplate width
+level_gradients.csv,0277,endplate_width_L5_mm,21.0,25.0,70.0,endplate width
+level_gradients.csv,0282,endplate_width_L5_mm,14.0,25.0,70.0,endplate width
+level_gradients.csv,0427,endplate_width_L5_mm,80.8,25.0,70.0,endplate width
+level_gradients.csv,0550,endplate_width_L5_mm,70.1,25.0,70.0,endplate width
+level_gradients.csv,0552,endplate_width_L5_mm,78.9,25.0,70.0,endplate width
+level_gradients.csv,0601,endplate_width_L5_mm,72.4,25.0,70.0,endplate width
+level_gradients.csv,0604,endplate_width_L5_mm,16.1,25.0,70.0,endplate width
+level_gradients.csv,0651,endplate_width_L5_mm,19.9,25.0,70.0,endplate width
+level_gradients.csv,0655,endplate_width_L5_mm,73.8,25.0,70.0,endplate width
+level_gradients.csv,0668,endplate_width_L5_mm,12.7,25.0,70.0,endplate width
+level_gradients.csv,0672,endplate_width_L5_mm,21.1,25.0,70.0,endplate width
+level_gradients.csv,0674,endplate_width_L5_mm,73.3,25.0,70.0,endplate width
+level_gradients.csv,0794,endplate_width_L5_mm,17.7,25.0,70.0,endplate width
+level_gradients.csv,0799,endplate_width_L5_mm,74.3,25.0,70.0,endplate width
+level_gradients.csv,0812,endplate_width_L5_mm,17.4,25.0,70.0,endplate width
+level_gradients.csv,0865,endplate_width_L5_mm,19.3,25.0,70.0,endplate width
+level_gradients.csv,0868,endplate_width_L5_mm,71.0,25.0,70.0,endplate width
+level_gradients.csv,0895,endplate_width_L5_mm,17.6,25.0,70.0,endplate width
+level_gradients.csv,0928,endplate_width_L5_mm,80.7,25.0,70.0,endplate width
+level_gradients.csv,0933,endplate_width_L5_mm,75.0,25.0,70.0,endplate width
+level_gradients.csv,0954,endplate_width_L5_mm,23.5,25.0,70.0,endplate width
+level_gradients.csv,0981,endplate_width_L5_mm,22.6,25.0,70.0,endplate width
+level_gradients.csv,0982,endplate_width_L5_mm,71.3,25.0,70.0,endplate width
+level_gradients.csv,0995,endplate_width_L5_mm,76.5,25.0,70.0,endplate width
+level_gradients.csv,1052,endplate_width_L5_mm,19.9,25.0,70.0,endplate width
+level_gradients.csv,1129,endplate_width_L5_mm,81.7,25.0,70.0,endplate width
+level_gradients.csv,1141,endplate_width_L5_mm,78.2,25.0,70.0,endplate width
+opportunistic.csv,0699,l1_trabecular_hu,521.7,-20.0,450.0,trabecular attenuation
+opportunistic.csv,0284,l4_trabecular_hu,467.1,-20.0,450.0,trabecular attenuation
+proximal_femur.csv,0094,femoral_neck_hu,1202.8,-20.0,450.0,femoral neck attenuation
+proximal_femur.csv,0188,femoral_neck_hu,700.5,-20.0,450.0,femoral neck attenuation
+proximal_femur.csv,0443,femoral_neck_hu,1249.0,-20.0,450.0,femoral neck attenuation
+proximal_femur.csv,0485,femoral_neck_hu,724.0,-20.0,450.0,femoral neck attenuation
+proximal_femur.csv,0515,femoral_neck_hu,1268.1,-20.0,450.0,femoral neck attenuation
+proximal_femur.csv,0671,femoral_neck_hu,1368.4,-20.0,450.0,femoral neck attenuation
+proximal_femur.csv,0755,femoral_neck_hu,1027.0,-20.0,450.0,femoral neck attenuation
+proximal_femur.csv,0842,femoral_neck_hu,691.0,-20.0,450.0,femoral neck attenuation
+proximal_femur.csv,0974,femoral_neck_hu,1050.5,-20.0,450.0,femoral neck attenuation
+proximal_femur.csv,1003,femoral_neck_hu,941.1,-20.0,450.0,femoral neck attenuation
+proximal_femur.csv,1043,femoral_neck_hu,915.8,-20.0,450.0,femoral neck attenuation
+proximal_femur.csv,1101,femoral_neck_hu,717.0,-20.0,450.0,femoral neck attenuation
+proximal_femur.csv,1128,femoral_neck_hu,829.1,-20.0,450.0,femoral neck attenuation
+proximal_femur.csv,0058,neck_shaft_angle_deg,158.3,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0059,neck_shaft_angle_deg,165.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0174,neck_shaft_angle_deg,155.6,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0185,neck_shaft_angle_deg,166.1,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0253,neck_shaft_angle_deg,95.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0277,neck_shaft_angle_deg,98.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0331,neck_shaft_angle_deg,97.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0424,neck_shaft_angle_deg,168.8,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0482,neck_shaft_angle_deg,158.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0516,neck_shaft_angle_deg,156.2,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0517,neck_shaft_angle_deg,160.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0542,neck_shaft_angle_deg,157.1,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0545,neck_shaft_angle_deg,160.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0561,neck_shaft_angle_deg,161.9,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0577,neck_shaft_angle_deg,168.6,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0601,neck_shaft_angle_deg,92.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0606,neck_shaft_angle_deg,156.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0677,neck_shaft_angle_deg,161.2,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0805,neck_shaft_angle_deg,94.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0822,neck_shaft_angle_deg,169.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0877,neck_shaft_angle_deg,94.8,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0913,neck_shaft_angle_deg,160.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0919,neck_shaft_angle_deg,163.1,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0978,neck_shaft_angle_deg,158.6,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1055,neck_shaft_angle_deg,162.6,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1098,neck_shaft_angle_deg,159.2,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1108,neck_shaft_angle_deg,155.1,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0018,neck_shaft_angle_left_deg,161.9,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0019,neck_shaft_angle_left_deg,169.1,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0058,neck_shaft_angle_left_deg,166.3,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0059,neck_shaft_angle_left_deg,165.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0099,neck_shaft_angle_left_deg,158.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0137,neck_shaft_angle_left_deg,161.6,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0196,neck_shaft_angle_left_deg,167.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0197,neck_shaft_angle_left_deg,161.1,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0276,neck_shaft_angle_left_deg,158.9,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0277,neck_shaft_angle_left_deg,95.8,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0311,neck_shaft_angle_left_deg,166.6,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0347,neck_shaft_angle_left_deg,92.8,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0353,neck_shaft_angle_left_deg,97.7,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0418,neck_shaft_angle_left_deg,164.8,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0424,neck_shaft_angle_left_deg,169.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0447,neck_shaft_angle_left_deg,158.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0482,neck_shaft_angle_left_deg,158.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0516,neck_shaft_angle_left_deg,156.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0545,neck_shaft_angle_left_deg,167.2,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0561,neck_shaft_angle_left_deg,165.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0652,neck_shaft_angle_left_deg,161.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0677,neck_shaft_angle_left_deg,160.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0681,neck_shaft_angle_left_deg,158.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0770,neck_shaft_angle_left_deg,169.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0805,neck_shaft_angle_left_deg,91.8,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0830,neck_shaft_angle_left_deg,164.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0833,neck_shaft_angle_left_deg,97.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0877,neck_shaft_angle_left_deg,90.6,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0899,neck_shaft_angle_left_deg,165.2,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0905,neck_shaft_angle_left_deg,96.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0907,neck_shaft_angle_left_deg,98.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0911,neck_shaft_angle_left_deg,164.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0913,neck_shaft_angle_left_deg,160.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0919,neck_shaft_angle_left_deg,163.1,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0931,neck_shaft_angle_left_deg,97.7,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0941,neck_shaft_angle_left_deg,99.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0954,neck_shaft_angle_left_deg,95.3,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0978,neck_shaft_angle_left_deg,160.1,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1022,neck_shaft_angle_left_deg,167.2,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1039,neck_shaft_angle_left_deg,160.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1055,neck_shaft_angle_left_deg,165.7,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1061,neck_shaft_angle_left_deg,160.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1084,neck_shaft_angle_left_deg,98.7,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1090,neck_shaft_angle_left_deg,92.7,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1098,neck_shaft_angle_left_deg,165.3,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1101,neck_shaft_angle_left_deg,99.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1108,neck_shaft_angle_left_deg,155.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1110,neck_shaft_angle_left_deg,169.6,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1132,neck_shaft_angle_left_deg,95.3,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1140,neck_shaft_angle_left_deg,99.2,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0161,neck_shaft_angle_right_deg,99.9,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0174,neck_shaft_angle_right_deg,166.6,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0185,neck_shaft_angle_right_deg,166.1,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0208,neck_shaft_angle_right_deg,158.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0215,neck_shaft_angle_right_deg,161.9,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0253,neck_shaft_angle_right_deg,95.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0275,neck_shaft_angle_right_deg,165.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0311,neck_shaft_angle_right_deg,91.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0331,neck_shaft_angle_right_deg,97.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0407,neck_shaft_angle_right_deg,99.7,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0424,neck_shaft_angle_right_deg,168.2,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0453,neck_shaft_angle_right_deg,163.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0465,neck_shaft_angle_right_deg,158.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0516,neck_shaft_angle_right_deg,156.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0517,neck_shaft_angle_right_deg,160.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0542,neck_shaft_angle_right_deg,165.7,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0552,neck_shaft_angle_right_deg,95.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0561,neck_shaft_angle_right_deg,158.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0567,neck_shaft_angle_right_deg,158.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0577,neck_shaft_angle_right_deg,168.6,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0601,neck_shaft_angle_right_deg,92.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0606,neck_shaft_angle_right_deg,165.7,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0638,neck_shaft_angle_right_deg,167.1,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0664,neck_shaft_angle_right_deg,159.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0677,neck_shaft_angle_right_deg,162.3,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0713,neck_shaft_angle_right_deg,155.2,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0715,neck_shaft_angle_right_deg,168.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0805,neck_shaft_angle_right_deg,97.2,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0822,neck_shaft_angle_right_deg,169.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0877,neck_shaft_angle_right_deg,99.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0883,neck_shaft_angle_right_deg,163.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0978,neck_shaft_angle_right_deg,157.1,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0998,neck_shaft_angle_right_deg,159.4,100.0,155.0,neck-shaft angle
+proximal_femur.csv,0999,neck_shaft_angle_right_deg,168.1,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1003,neck_shaft_angle_right_deg,156.7,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1012,neck_shaft_angle_right_deg,164.0,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1023,neck_shaft_angle_right_deg,168.7,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1024,neck_shaft_angle_right_deg,157.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1043,neck_shaft_angle_right_deg,90.8,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1055,neck_shaft_angle_right_deg,159.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1078,neck_shaft_angle_right_deg,97.6,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1111,neck_shaft_angle_right_deg,95.5,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1121,neck_shaft_angle_right_deg,162.1,100.0,155.0,neck-shaft angle
+proximal_femur.csv,1134,neck_shaft_angle_right_deg,91.7,100.0,155.0,neck-shaft angle
+surgical_morphometrics.csv,0215,canal_ap_mm_L1,1.9,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0285,canal_ap_mm_L1,2.8,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0431,canal_ap_mm_L1,1.9,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0588,canal_ap_mm_L1,0.9,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0660,canal_ap_mm_L1,1.7,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0669,canal_ap_mm_L1,2.3,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0910,canal_ap_mm_L1,0.8,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0344,canal_ap_mm_L2,1.7,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0419,canal_ap_mm_L2,0.9,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0387,canal_ap_mm_L3,0.7,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0409,canal_ap_mm_L3,1.0,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0587,canal_ap_mm_L3,1.6,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0910,canal_ap_mm_L3,3.9,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0188,canal_ap_mm_L4,1.6,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0284,canal_ap_mm_L4,2.1,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0329,canal_ap_mm_L4,6.4,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0409,canal_ap_mm_L4,1.0,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0726,canal_ap_mm_L4,32.8,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0783,canal_ap_mm_L4,0.6,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,1052,canal_ap_mm_L4,1.6,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,1085,canal_ap_mm_L4,2.1,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0115,canal_ap_mm_L5,3.1,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0313,canal_ap_mm_L5,0.8,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0346,canal_ap_mm_L5,31.9,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0349,canal_ap_mm_L5,1.4,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0488,canal_ap_mm_L5,2.6,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0522,canal_ap_mm_L5,1.5,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0549,canal_ap_mm_L5,3.3,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0601,canal_ap_mm_L5,2.2,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0636,canal_ap_mm_L5,3.8,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0651,canal_ap_mm_L5,5.5,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0726,canal_ap_mm_L5,32.0,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0742,canal_ap_mm_L5,0.8,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0811,canal_ap_mm_L5,0.7,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0822,canal_ap_mm_L5,3.0,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0854,canal_ap_mm_L5,3.9,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0943,canal_ap_mm_L5,1.6,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,1059,canal_ap_mm_L5,6.2,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0268,canal_ap_mm_L6,0.7,8.0,30.0,canal AP diameter
+surgical_morphometrics.csv,0268,ll_supine_deg,106.6,5.0,100.0,lumbar lordosis
+surgical_morphometrics.csv,0313,ll_supine_deg,114.3,5.0,100.0,lumbar lordosis
+surgical_morphometrics.csv,0349,ll_supine_deg,120.9,5.0,100.0,lumbar lordosis
+surgical_morphometrics.csv,0539,ll_supine_deg,104.3,5.0,100.0,lumbar lordosis
+surgical_morphometrics.csv,0651,ll_supine_deg,102.9,5.0,100.0,lumbar lordosis
+surgical_morphometrics.csv,1131,ll_supine_deg,103.6,5.0,100.0,lumbar lordosis
+surgical_morphometrics.csv,1134,ll_supine_deg,114.3,5.0,100.0,lumbar lordosis
+surgical_morphometrics.csv,0055,pedicle_min_mm,27.3,3.0,20.0,lumbar pedicle width
+surgical_morphometrics.csv,0297,pedicle_min_mm,2.8,3.0,20.0,lumbar pedicle width
+surgical_morphometrics.csv,0341,pedicle_min_mm,1.8,3.0,20.0,lumbar pedicle width
+surgical_morphometrics.csv,0419,pedicle_min_mm,1.8,3.0,20.0,lumbar pedicle width
+surgical_morphometrics.csv,0498,pedicle_min_mm,2.8,3.0,20.0,lumbar pedicle width
+surgical_morphometrics.csv,0508,pedicle_min_mm,22.3,3.0,20.0,lumbar pedicle width
+surgical_morphometrics.csv,0598,pedicle_min_mm,21.2,3.0,20.0,lumbar pedicle width
+surgical_morphometrics.csv,0697,pedicle_min_mm,25.8,3.0,20.0,lumbar pedicle width
+surgical_morphometrics.csv,0766,pedicle_min_mm,20.5,3.0,20.0,lumbar pedicle width
+surgical_morphometrics.csv,0818,pedicle_min_mm,20.5,3.0,20.0,lumbar pedicle width
+surgical_morphometrics.csv,0853,pedicle_min_mm,22.9,3.0,20.0,lumbar pedicle width
+surgical_morphometrics.csv,1001,pedicle_min_mm,1.8,3.0,20.0,lumbar pedicle width
+surgical_morphometrics.csv,1022,pedicle_min_mm,24.6,3.0,20.0,lumbar pedicle width
+surgical_morphometrics.csv,1026,pedicle_min_mm,25.8,3.0,20.0,lumbar pedicle width
+surgical_morphometrics.csv,0012,pelvic_incidence_deg,7.6,15.0,100.0,pelvic incidence
+surgical_morphometrics.csv,0268,pelvic_incidence_deg,106.2,15.0,100.0,pelvic incidence
+surgical_morphometrics.csv,0313,pelvic_incidence_deg,108.0,15.0,100.0,pelvic incidence
+surgical_morphometrics.csv,0349,pelvic_incidence_deg,113.7,15.0,100.0,pelvic incidence
+surgical_morphometrics.csv,0539,pelvic_incidence_deg,113.7,15.0,100.0,pelvic incidence
+surgical_morphometrics.csv,0561,pelvic_incidence_deg,9.9,15.0,100.0,pelvic incidence
+surgical_morphometrics.csv,0651,pelvic_incidence_deg,101.5,15.0,100.0,pelvic incidence
+surgical_morphometrics.csv,0683,pelvic_incidence_deg,5.1,15.0,100.0,pelvic incidence
+surgical_morphometrics.csv,0814,pelvic_incidence_deg,9.4,15.0,100.0,pelvic incidence
+surgical_morphometrics.csv,0871,pelvic_incidence_deg,6.1,15.0,100.0,pelvic incidence
+surgical_morphometrics.csv,1131,pelvic_incidence_deg,103.5,15.0,100.0,pelvic incidence
+surgical_morphometrics.csv,1134,pelvic_incidence_deg,120.9,15.0,100.0,pelvic incidence
+surgical_morphometrics.csv,0012,pelvic_tilt_deg,-27.4,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,0284,pelvic_tilt_deg,-36.1,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,0306,pelvic_tilt_deg,-22.8,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,0443,pelvic_tilt_deg,-35.0,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,0561,pelvic_tilt_deg,-18.8,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,0604,pelvic_tilt_deg,-29.8,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,0677,pelvic_tilt_deg,-18.4,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,0683,pelvic_tilt_deg,-28.9,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,0703,pelvic_tilt_deg,-16.4,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,0871,pelvic_tilt_deg,-28.6,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,0878,pelvic_tilt_deg,-21.4,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,0938,pelvic_tilt_deg,-25.0,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,0959,pelvic_tilt_deg,-17.9,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,1001,pelvic_tilt_deg,-26.2,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,1054,pelvic_tilt_deg,-31.2,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,1110,pelvic_tilt_deg,-30.5,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,1118,pelvic_tilt_deg,-19.7,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,1136,pelvic_tilt_deg,57.5,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,1137,pelvic_tilt_deg,-22.6,-15.0,55.0,pelvic tilt
+surgical_morphometrics.csv,0268,sacral_slope_deg,86.0,5.0,80.0,sacral slope
+surgical_morphometrics.csv,0313,sacral_slope_deg,85.2,5.0,80.0,sacral slope
+surgical_morphometrics.csv,0349,sacral_slope_deg,89.7,5.0,80.0,sacral slope
+surgical_morphometrics.csv,0539,sacral_slope_deg,81.6,5.0,80.0,sacral slope
+surgical_morphometrics.csv,1001,sacral_slope_deg,81.3,5.0,80.0,sacral slope
+surgical_morphometrics.csv,1110,sacral_slope_deg,80.8,5.0,80.0,sacral slope
+surgical_morphometrics.csv,1118,sacral_slope_deg,84.0,5.0,80.0,sacral slope
+surgical_morphometrics.csv,1131,sacral_slope_deg,85.6,5.0,80.0,sacral slope
+surgical_morphometrics.csv,1134,sacral_slope_deg,88.2,5.0,80.0,sacral slope
+transition_morphometrics.csv,0068,disc_above_mm,0.8,1.0,20.0,disc height
+transition_morphometrics.csv,0273,disc_above_mm,23.8,1.0,20.0,disc height
+transition_morphometrics.csv,0352,disc_above_mm,0.8,1.0,20.0,disc height
+transition_morphometrics.csv,0783,disc_above_mm,21.6,1.0,20.0,disc height
+transition_morphometrics.csv,0094,disc_low_mm,34.4,1.0,20.0,disc height
+transition_morphometrics.csv,0169,disc_low_mm,43.2,1.0,20.0,disc height
+transition_morphometrics.csv,0174,disc_low_mm,0.8,1.0,20.0,disc height
+transition_morphometrics.csv,0260,disc_low_mm,36.8,1.0,20.0,disc height
+transition_morphometrics.csv,0264,disc_low_mm,20.8,1.0,20.0,disc height
+transition_morphometrics.csv,0265,disc_low_mm,21.6,1.0,20.0,disc height
+transition_morphometrics.csv,0268,disc_low_mm,0.8,1.0,20.0,disc height
+transition_morphometrics.csv,0385,disc_low_mm,24.8,1.0,20.0,disc height
+transition_morphometrics.csv,0393,disc_low_mm,20.8,1.0,20.0,disc height
+transition_morphometrics.csv,0468,disc_low_mm,31.2,1.0,20.0,disc height
+transition_morphometrics.csv,0487,disc_low_mm,21.6,1.0,20.0,disc height
+transition_morphometrics.csv,0508,disc_low_mm,32.0,1.0,20.0,disc height
+transition_morphometrics.csv,0591,disc_low_mm,31.2,1.0,20.0,disc height
+transition_morphometrics.csv,0768,disc_low_mm,20.8,1.0,20.0,disc height
+transition_morphometrics.csv,0853,disc_low_mm,45.6,1.0,20.0,disc height
+transition_morphometrics.csv,0899,disc_low_mm,24.0,1.0,20.0,disc height
+transition_morphometrics.csv,1085,disc_low_mm,37.6,1.0,20.0,disc height
+transition_morphometrics.csv,1100,disc_low_mm,37.6,1.0,20.0,disc height
+transition_morphometrics.csv,0008,sacrum_height_mm,182.0,30.0,180.0,sacral dimension
+transition_morphometrics.csv,0344,sacrum_height_mm,188.8,30.0,180.0,sacral dimension
+transition_morphometrics.csv,0432,sacrum_height_mm,181.8,30.0,180.0,sacral dimension
+transition_morphometrics.csv,0871,sacrum_height_mm,187.2,30.0,180.0,sacral dimension
+transition_morphometrics.csv,1024,sacrum_height_mm,222.4,30.0,180.0,sacral dimension
+transition_morphometrics.csv,1039,sacrum_height_mm,181.6,30.0,180.0,sacral dimension
+transition_morphometrics.csv,0344,tp_height_right_mm,0.8,5.0,60.0,transverse process height

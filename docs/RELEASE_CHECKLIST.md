@@ -47,6 +47,21 @@ excluded from derived measurements until resolved, not silently included.**
 
 Run by `slurm/finalize_release.sh`, in this order.
 
+### 2.0 Physiological envelope — `scripts/qc_physiological_envelope.py`
+
+Every extractor already checks its **median** against a published value. That catches a
+measurement wrong for everyone and cannot catch one right for 799 cases and absurd for
+three, because three cases do not move a median — yet those three are what a reader sees
+in the tail of a histogram and what a downstream model trains on without comment.
+
+So this asks whether any individual value is outside what the anatomy permits: a pedicle
+27 mm wide, a canal 0.7 mm across, a sacrum 22 cm tall. Bounds are deliberately generous,
+so a hit is a case to open rather than a distribution to argue about.
+
+Values are **not deleted**. The extractors record what they measured; this names what
+should not be believed, so a user can exclude it knowingly. A value silently dropped is a
+value nobody can audit.
+
 ### 2.1 Release invariants — `scripts/check_release_invariants.py`
 
 Every case, four questions with exactly one right answer:
