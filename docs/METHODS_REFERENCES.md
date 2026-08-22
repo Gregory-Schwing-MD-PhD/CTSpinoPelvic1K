@@ -66,12 +66,37 @@ is 20–25% height loss, grade 2 is 25–40%, grade 3 is over 40%. A ratio below
 grade 1 or worse.
 
 *On comparing prevalence.* Published vertebral-fracture prevalence of 5–10% in this age
-band is a **whole-spine** figure, and most osteoporotic fractures sit at the
-thoracolumbar junction. A prevalence computed over L1–L5 alone is therefore not comparable
-to it and will read low, which it did. T12 is labelled in 767 of 802 cases and T11 in most,
-so the junction is measured too rather than the comparison being explained away. The other
-per-level measures here are validated against *lumbar* norms, which do not transfer to
-thoracic levels; their T11 and T12 columns are written but are not meant to be used.
+band is a **whole-spine** figure, and most osteoporotic fractures sit at the thoracolumbar
+junction. A prevalence computed over L1–L5 alone is therefore not comparable to it, and it
+read low: 1.0%. T12 is labelled in 767 of 802 cases and T11 in most, so the junction is
+measured rather than the gap explained away, and the data then say plainly where the
+wedging is:
+
+| level | n | median ratio | below 0.80 |
+|---|---:|---:|---:|
+| T11 | 732 | 0.943 | **11** |
+| T12 | 743 | 0.944 | **5** |
+| L1 | 739 | 0.971 | 3 |
+| L2 | 722 | 1.000 | 0 |
+| L3 | 758 | 1.026 | 0 |
+| L4 | 771 | 1.054 | 2 |
+| L5 | 744 | 1.056 | 2 |
+
+Sixteen of the 23 affected vertebrae are at T11–T12 and the mid-lumbar spine has none at
+all, which is the distribution the fracture literature describes. Per-person Genant grade
+1+ rises from 1.0% to **2.9%**. It remains under the published band, and the two reasons
+are visible rather than assumed: published series usually include T7–T10, which these
+fields of view do not reach, and this is an asymptomatic screening cohort rather than an
+osteoporosis series.
+
+Note also that the median ratio at T11 and T12 sits *below* 1.0 by construction — thoracic
+vertebrae are wedged anteriorly, which is what makes a kyphosis. Genant's criterion is a
+within-vertebra height loss and so is unaffected, but a reader comparing level medians
+should not read 0.943 at T11 as pathology.
+
+The other per-level measures here are validated against *lumbar* norms, which do not
+transfer to thoracic levels; their T11 and T12 columns are written but are not meant to be
+used.
 
 *A guard, and it took three attempts and a picture to get right.* Everything here rests on
 the anterior wall of the canal correctly dividing body from posterior elements. That wall
