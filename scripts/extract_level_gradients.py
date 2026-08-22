@@ -122,6 +122,32 @@ def one(path: str) -> dict:
             continue
         bidx = np.argwhere(body)
 
+        # IS WHAT SURVIVED THE CUT ACTUALLY A VERTEBRAL BODY?
+        #
+        # Everything below -- endplate width, both body heights, the wedge ratio -- is
+        # computed on this mask, and all of it is meaningless if the cut landed in the
+        # wrong place. It does, occasionally: `front` comes from the largest filled hole
+        # in an axial slice, and when that hole is a trabecular void near the front of
+        # the body rather than the spinal canal, `front` is placed almost at the
+        # anterior margin and the mask reduces to a thin anterior SLIVER.
+        #
+        # The sliver is what produced the wedge ratios of 0.27 to 0.54 that looked like
+        # severe compression fractures. It tapers, so its tallest column at the back is
+        # taller than at the front, and the ratio of the two comes out low -- the exact
+        # signature of a wedge, on a vertebra with nothing wrong with it. Rendering the
+        # mask is what settled it; two rounds of reasoning from the numbers alone got it
+        # wrong, first blaming posterior-element contamination and then a fracture.
+        #
+        # A vertebral body is a substantial part of a vertebra's front-to-back extent,
+        # not a rind on it. Anything much thinner is the cut having failed.
+        vy = idx[:, 1]
+        by = bidx[:, 1]
+        depth_mm = (by.max() - by.min() + 1) * sp[1]
+        frac = (by.max() - by.min() + 1) / max(1, (vy.max() - vy.min() + 1))
+        if depth_mm < 12.0 or frac < 0.30:
+            r[f"body_cut_failed_{name}"] = 1
+            continue
+
         # SUPERIOR ENDPLATE WIDTH, ISOLATED FROM THE TRANSVERSE PROCESSES.
         # Cutting at the anterior wall of the canal separates body from posterior
         # elements at L1-L4, but not at L5: the L5 transverse processes arise so far

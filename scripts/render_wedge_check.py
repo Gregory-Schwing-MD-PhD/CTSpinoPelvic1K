@@ -31,11 +31,36 @@ from pathlib import Path
 
 import numpy as np
 import nibabel as nib
+from scipy import ndimage
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 LUMBAR = {"L1": 20, "L2": 21, "L3": 22, "L4": 23, "L5": 24, "L6": 25}
+
+
+def _canal_front(mask):
+    """Anterior wall of the canal, exactly as extract_level_gradients.py finds it."""
+    zs = np.nonzero(mask.any(axis=(0, 1)))[0]
+    if len(zs) < 5:
+        return None
+    fronts = []
+    for z in range(int(np.percentile(zs, 30)), int(np.percentile(zs, 70)) + 1):
+        sl = mask[:, :, z]
+        if sl.sum() < 60:
+            continue
+        hole = ndimage.binary_fill_holes(sl) & ~sl
+        if not hole.any():
+            continue
+        cc, n = ndimage.label(hole)
+        if n == 0:
+            continue
+        sizes = ndimage.sum(hole, cc, range(1, n + 1))
+        big = cc == (int(np.argmax(sizes)) + 1)
+        if big.sum() < 20:
+            continue
+        fronts.append(int(np.nonzero(big.any(axis=0))[0].max()))
+    return float(np.median(fronts)) if fronts else None
 
 
 def main() -> int:
@@ -83,6 +108,18 @@ def main() -> int:
 
         vid = LUMBAR.get(lv)
         m = lab == vid
+
+        # THE MASK THE MEASUREMENT ACTUALLY USES, not the whole vertebra. In a
+        # mid-sagittal cut the body and the spinous process are naturally disconnected --
+        # the pedicle joining them is lateral -- so outlining the whole label shows two
+        # blobs on every normal vertebra and proves nothing. What matters is whether the
+        # cut at the anterior wall of the canal removed the posterior elements, so the
+        # cut is replicated here exactly as extract_level_gradients.py performs it.
+        front = _canal_front(m)
+        body = np.zeros_like(m)
+        if front is not None:
+            f = int(np.ceil(front))
+            body[:, f:, :] = m[:, f:, :]
         if not m.any():
             ax.set_axis_off()
             ax.set_title(f"{case} {lv}\nlabel absent", fontsize=8)
@@ -97,16 +134,21 @@ def main() -> int:
 
         sl_ct = ct[xm, y0:y1, z0:z1].T[::-1]
         sl_lb = m[xm, y0:y1, z0:z1].T[::-1]
+        sl_bd = body[xm, y0:y1, z0:z1].T[::-1]
         ax.imshow(np.clip(sl_ct, -150, 900), cmap="gray",
                   aspect=sp[2] / sp[1], interpolation="bilinear")
-        ax.contour(sl_lb, levels=[0.5], colors=["#ff3b3b"], linewidths=0.9)
+        ax.contour(sl_lb, levels=[0.5], colors=["#ff3b3b"], linewidths=0.6)
+        if sl_bd.any():
+            ax.contour(sl_bd, levels=[0.5], colors=["#39ff88"], linewidths=1.3)
 
         # where the code measured: tallest column of each half of the slab
-        ys = np.nonzero(sl_lb.any(axis=0))[0]
+        # heights are taken from the BODY mask, which is what the code measures
+        src = sl_bd if sl_bd.any() else sl_lb
+        ys = np.nonzero(src.any(axis=0))[0]
         if len(ys):
             heights = {}
             for y in ys:
-                zz = np.nonzero(sl_lb[:, y])[0]
+                zz = np.nonzero(src[:, y])[0]
                 if len(zz):
                     heights[y] = (zz.min(), zz.max())
             if heights:
