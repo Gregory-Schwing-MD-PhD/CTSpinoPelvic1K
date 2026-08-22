@@ -34,6 +34,59 @@ def num(r, k):
         return None
 
 
+# --- uncertainty -----------------------------------------------------------------
+RK_GAUSS = 1.0 / (2.0 * math.sqrt(math.pi))     # roughness of the Gaussian kernel
+
+
+def density_band(d):
+    """Pointwise 95% band for a kernel density estimate, added in place.
+
+    Var[f(x)] ~ f(x) * R(K) / (n h). Closed form, so no resampling: the band widens
+    where the density is low, which is where a curve is least supported by data.
+    """
+    n, h, ys = d.get("n"), d.get("bandwidth"), d.get("y")
+    if not n or not h or not ys:
+        return d
+    lo, hi = [], []
+    for f in ys:
+        se = math.sqrt(max(f, 0.0) * RK_GAUSS / (n * h))
+        lo.append(round(max(0.0, f - 1.96 * se), 5))
+        hi.append(round(f + 1.96 * se, 5))
+    d["ylo"], d["yhi"] = lo, hi
+    return d
+
+
+def wilson(k, n, z=1.96):
+    """Wilson score interval for a proportion, as a percentage.
+
+    Not the normal approximation: with single-digit counts -- which several categories
+    here have -- the normal interval can put a bound below zero.
+    """
+    if n <= 0:
+        return 0.0, 0.0
+    ph = k / n
+    den = 1 + z * z / n
+    centre = (ph + z * z / (2 * n)) / den
+    half = z * math.sqrt(ph * (1 - ph) / n + z * z / (4 * n * n)) / den
+    return 100.0 * max(0.0, centre - half), 100.0 * min(1.0, centre + half)
+
+
+def median_ci(v):
+    """Distribution-free 95% interval for a median: +-1.58 IQR / sqrt(n).
+
+    The notched-boxplot interval. It assumes nothing about shape, which matters here
+    because several of these distributions are skewed or frankly bimodal.
+    """
+    v = sorted(x for x in v if x is not None)
+    n = len(v)
+    if n < 8:
+        return None, None
+    med = v[n // 2]
+    q1, q3 = v[int(0.25 * (n - 1))], v[int(0.75 * (n - 1))]
+    half = 1.58 * (q3 - q1) / math.sqrt(n)
+    return round(med - half, 3), round(med + half, 3)
+
+
 def hist(vals, lo, hi, nbins):
     edges = [lo + (hi - lo) * i / nbins for i in range(nbins + 1)]
     counts = [0] * nbins
@@ -111,8 +164,9 @@ def density(vals, lo, hi, npts=220):
                 if -5.0 < z < 5.0:
                     acc += math.exp(-0.5 * z * z)
         ys.append(acc * c)
-    return {"x": [round(t, 4) for t in xs], "y": [round(t, 5) for t in ys],
-            "n": n, "bandwidth": round(h, 4)}
+    return density_band({"x": [round(t, 4) for t in xs],
+                         "y": [round(t, 5) for t in ys],
+                         "n": n, "bandwidth": round(h, 4)})
 
 
 def rug(vals, lo, hi, cap=260):
@@ -333,10 +387,14 @@ def add_demographics(out, rows):
         if len(c) < 2:
             continue
         items = c.most_common()
+        tot = sum(v for _, v in items)
+        cis = [wilson(v, tot) for _, v in items]
         out["panels"].append({
             "key": f"demo_{key}", "section": sect, "title": title, "subtitle": subtitle,
             "type": "categorical",
             "categories": [k for k, _ in items], "counts": [v for _, v in items],
+            "ci_lo": [round(a, 2) for a, _ in cis], "ci_hi": [round(b, 2) for _, b in cis],
+            "total": tot,
             "xlabel": title, "caption": caption,
         })
 
@@ -598,8 +656,11 @@ def add_landmark_reliability(out, rows):
         if tot < 15:
             continue
         counts = [tally[g].get(c, 0) for c in cats]
+        cis = [wilson(c, tot) for c in counts]
         series.append({"label": g, "n": tot, "counts": counts,
-                       "pct": [100.0 * c / tot for c in counts]})
+                       "pct": [100.0 * c / tot for c in counts],
+                       "lo": [round(a, 2) for a, _ in cis],
+                       "hi": [round(b, 2) for _, b in cis]})
     if len(series) < 2 or not cats:
         return
 
@@ -909,15 +970,22 @@ def add_bone_density(out, path):
     cats = [f"{d0}s" for d0 in decs]
     gser = []
     for sx, label in (("F", "women"), ("M", "men")):
-        counts, pct, tot = [], [], 0
+        counts, pct, denom, tot = [], [], [], 0
         for d0 in decs:
             v = [x for x in (num(r, "l1_trabecular_hu") for r in buckets.get((d0, sx), []))
                  if x is not None]
             lo = sum(1 for x in v if x < OSTEO_THRESHOLD)
             counts.append(lo)
+            denom.append(len(v))
             pct.append(100.0 * lo / len(v) if v else 0.0)
             tot += len(v)
-        gser.append({"label": label, "n": tot, "counts": counts, "pct": pct})
+        # the denominator is the DECADE, not the whole group: a Wilson interval on a
+        # proportion needs the n that proportion was taken over
+        cis = [wilson(c, dn) for c, dn in zip(counts, denom)]
+        gser.append({"label": label, "n": tot, "counts": counts, "pct": pct,
+                     "denom": denom,
+                     "lo": [round(a, 2) for a, _ in cis],
+                     "hi": [round(b, 2) for _, b in cis]})
     if len(gser) == 2 and max(gser[0]["pct"]) > 0:
         out["panels"].append({
             "key": "osteo_share", "section": sect,
@@ -1114,8 +1182,11 @@ def _ridge(rows, key, lo, hi, bin_key="age", width=10, minn=25):
         if not d["x"]:
             continue
         sv = sorted(v)
+        mlo, mhi = median_ci(v)
         out.append({"label": f"{b}s", "x": d["x"], "y": d["y"], "n": d["n"],
-                    "med": round(sv[len(sv) // 2], 1)})
+                    "ylo": d.get("ylo"), "yhi": d.get("yhi"),
+                    "med": round(sv[len(sv) // 2], 1),
+                    "med_lo": mlo, "med_hi": mhi})
     return out
 
 
