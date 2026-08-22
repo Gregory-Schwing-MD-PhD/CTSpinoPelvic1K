@@ -197,43 +197,53 @@ def one(path: str) -> dict:
                 if ant and post:
                     ha, hp = max(ant), max(post)
 
-                    # DID THE CUT ACTUALLY SEPARATE THE BODY? Everything here rests on
-                    # `front` -- the anterior wall of the canal -- correctly dividing
-                    # body from posterior elements. When that detection fails the
-                    # pedicles and articular processes stay in the mask, and they do two
-                    # things at once: they are taller than the body, so the posterior
-                    # maximum inflates, and they push the halfway point backwards, so
-                    # the "anterior" half lands on the biconcave middle of the body,
-                    # which is its shortest part. Both errors drive the wedge ratio down
-                    # together, and the result looks exactly like a severe compression
-                    # fracture. Six vertebrae came out below 0.55, one at 0.273 -- an
-                    # anterior height of 9.6 mm against a posterior 35.2 -- which is
-                    # vertebra plana, a finding that does not occur at that rate in an
-                    # asymptomatic screening cohort.
-                    #
-                    # The tell is WHERE the two maxima sit. The anterior cortex is the
-                    # tallest column of its half and lies at the front of the mask; the
-                    # posterior wall likewise at the back. If the tallest column of a
-                    # half is nowhere near that half's outer wall, the mask is not a
-                    # vertebral body and the ratio means nothing.
-                    ya = max((y for y, v in col_h.items() if y > ymid and v == ha),
-                             default=None)
-                    yp = min((y for y, v in col_h.items() if y <= ymid and v == hp),
-                             default=None)
-                    y0, y1 = min(col_h), max(col_h)
-                    reach = 0.35 * (y1 - y0)
-                    ok = (ya is not None and yp is not None
-                          and (y1 - ya) <= reach and (yp - y0) <= reach
-                          and 12.0 <= hp <= 42.0 and 8.0 <= ha <= 42.0)
-
                     r[f"body_height_{name}_mm"] = round(float(ha), 1)
                     r[f"body_height_post_{name}_mm"] = round(float(hp), 1)
-                    if hp > 1 and ok:
+                    if hp > 1:
                         r[f"wedge_ratio_{name}"] = round(float(ha / hp), 3)
-                    elif hp > 1:
-                        # withheld, and counted, so the rejection rate is visible rather
-                        # than arriving as unexplained missing data
-                        r[f"wedge_rejected_{name}"] = 1
+    _guard_wedge(r, list(LUMBAR.values()))
+    return r
+
+
+def _guard_wedge(r, levels):
+    """Withhold a wedge ratio where the body mask was not a body.
+
+    THE FAILURE. Everything upstream rests on the anterior wall of the canal correctly
+    dividing body from posterior elements. When that detection fails, pedicles and
+    articular processes stay in the mask and do two things at once: they are taller than
+    the body, so the POSTERIOR maximum inflates, and they push the halfway point
+    backwards so the "anterior" half lands on the biconcave middle of the body, which is
+    its shortest part. Both errors drive the ratio down together and the result is
+    indistinguishable from a severe compression fracture -- six vertebrae came out below
+    0.55 and one at 0.273, an anterior height of 9.6 mm against a posterior 35.2.
+
+    WHY THE OBVIOUS GUARD IS WORSE THAN NONE. The first attempt asked whether each half's
+    tallest column sat near that half's outer wall, on the reasoning that the anterior
+    cortex is the tallest part of its half. In a vertebra that is genuinely wedged the
+    anterior wall is COLLAPSED and its tallest column is not at the wall -- so the guard
+    rejected 29% of all levels and dropped Genant grade 1+ prevalence from 3.2% to 0.3%
+    against a published 5-10%. It was anti-correlated with the finding it was protecting.
+
+    WHAT ACTUALLY SEPARATES THEM. A compression fracture takes the ANTERIOR height; the
+    posterior wall is what it is measured against precisely because it is spared. A
+    contaminated mask inflates the POSTERIOR height instead. So the discriminator is the
+    posterior height compared against the same patient's other levels -- a within-subject
+    control, which needs no population range and survives whatever that patient's build
+    happens to be. A level whose posterior height stands more than 25% above the median
+    of its neighbours did not measure a vertebral body.
+    """
+    hp = {lv: r.get(f"body_height_post_{lv}_mm") for lv in levels}
+    have = [v for v in hp.values() if v]
+    if len(have) < 3:
+        return r
+    med = float(np.median(have))
+    if med <= 0:
+        return r
+    for lv in levels:
+        v = hp.get(lv)
+        if v and v > 1.25 * med and f"wedge_ratio_{lv}" in r:
+            r.pop(f"wedge_ratio_{lv}", None)
+            r[f"wedge_rejected_{lv}"] = 1
     return r
 
 
