@@ -30,7 +30,9 @@ runs the invariant check first and exits before computing anything if it fails.
 | Lumbar rib class (74/75) | applied release-wide | — |
 | Hardware classes (76–79) | **defined but unpopulated** | `0068` needs hand annotation |
 | `pelvic_native` cases never reviewed | 6 outstanding: 0090, 0196, 0236, 0419, 0877, 1037 | reviewer time |
-| Stray voxels, 0344 | outstanding | reviewer time |
+| — *four of those six are among the worst offenders in the physiological-envelope check (§2.0), so reviewing them is worth more than the count suggests* | | |
+| Stray voxels, 0344 | **closed** — release-wide speckle sweep finds none | — |
+| Vertebra-label speckle, release-wide | **closed** — 1 of 802 carried any (0412, 120 fragments / 160 voxels), stripped | — |
 
 A class that is declared but carries no data must be described that way everywhere it
 appears — in the label table, the dataset card, and any figure. The website gallery says
@@ -63,6 +65,10 @@ should not be believed, so a user can exclude it knowingly. A value silently dro
 value nobody can audit.
 
 ### 2.1 Release invariants — `scripts/check_release_invariants.py`
+
+**Re-run 2026-08-22 after the speckle strip modified `0412`: 802/802 pass.** Any edit to a
+released label re-opens this gate; that is the point of having it run first.
+
 
 Every case, four questions with exactly one right answer:
 
