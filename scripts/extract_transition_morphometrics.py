@@ -202,8 +202,20 @@ def _disc_height_mm(lab, upper_mask, lower_mask, sp, half_mm=8.0):
     il = np.argwhere(lower_mask)
     if len(iu) < 40 or len(il) < 40:
         return None
-    cx = float(np.median(np.concatenate([iu[:, 0], il[:, 0]])))
-    cy = float(np.median(np.concatenate([iu[:, 1], il[:, 1]])))
+    # CENTRE THE COLUMNS ON THE JOINT, NOT ON THE TWO BONES POOLED. Two adjacent
+    # vertebrae are nearly coaxial, so their pooled centroid sits over the disc and the
+    # pooled version works. A lumbar vertebra and the SACRUM are not: the sacrum is a
+    # long wedge running down and back, and pooling drags the column bundle off the
+    # lumbosacral disc entirely -- disc_low came back at a median of 25.6 mm, which is
+    # not a disc but the distance down to wherever those displaced columns happened to
+    # strike. The interface is under the inferior surface of the UPPER bone, so that is
+    # what the bundle is centred on.
+    zlo = np.percentile(iu[:, 2], 20)
+    iface = iu[iu[:, 2] <= zlo]
+    if len(iface) < 20:
+        iface = iu
+    cx = float(np.median(iface[:, 0]))
+    cy = float(np.median(iface[:, 1]))
     rx = max(2, int(round(half_mm / sp[0])))
     ry = max(2, int(round(half_mm / sp[1])))
     sel_u = iu[(np.abs(iu[:, 0] - cx) <= rx) & (np.abs(iu[:, 1] - cy) <= ry)]

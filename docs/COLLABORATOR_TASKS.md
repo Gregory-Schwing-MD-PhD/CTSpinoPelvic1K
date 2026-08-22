@@ -153,6 +153,9 @@ that is already finished.
 ## Getting started
 
 1. Read `README.md` (the dataset card) and `docs/RELEASE_CHECKLIST.md`.
+1b. Read `docs/METHODS_REFERENCES.md` — every measurement, the method behind it, the
+   prior art it follows, and the published value it is checked against. It also lists what
+   each measure returned when it was *wrong*, which is the faster way to learn the rule.
 2. For annotation work: ITK-SNAP plus the label descriptor at
    `data/itksnap_v5_labels.txt` — colours are chosen so adjacent levels never look alike.
 3. For analysis work: copy `scripts/extract_level_gradients.py`. It is the cleanest

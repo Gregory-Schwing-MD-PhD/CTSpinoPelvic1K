@@ -196,10 +196,44 @@ def one(path: str) -> dict:
                 post = [v for y, v in col_h.items() if y <= ymid]
                 if ant and post:
                     ha, hp = max(ant), max(post)
+
+                    # DID THE CUT ACTUALLY SEPARATE THE BODY? Everything here rests on
+                    # `front` -- the anterior wall of the canal -- correctly dividing
+                    # body from posterior elements. When that detection fails the
+                    # pedicles and articular processes stay in the mask, and they do two
+                    # things at once: they are taller than the body, so the posterior
+                    # maximum inflates, and they push the halfway point backwards, so
+                    # the "anterior" half lands on the biconcave middle of the body,
+                    # which is its shortest part. Both errors drive the wedge ratio down
+                    # together, and the result looks exactly like a severe compression
+                    # fracture. Six vertebrae came out below 0.55, one at 0.273 -- an
+                    # anterior height of 9.6 mm against a posterior 35.2 -- which is
+                    # vertebra plana, a finding that does not occur at that rate in an
+                    # asymptomatic screening cohort.
+                    #
+                    # The tell is WHERE the two maxima sit. The anterior cortex is the
+                    # tallest column of its half and lies at the front of the mask; the
+                    # posterior wall likewise at the back. If the tallest column of a
+                    # half is nowhere near that half's outer wall, the mask is not a
+                    # vertebral body and the ratio means nothing.
+                    ya = max((y for y, v in col_h.items() if y > ymid and v == ha),
+                             default=None)
+                    yp = min((y for y, v in col_h.items() if y <= ymid and v == hp),
+                             default=None)
+                    y0, y1 = min(col_h), max(col_h)
+                    reach = 0.35 * (y1 - y0)
+                    ok = (ya is not None and yp is not None
+                          and (y1 - ya) <= reach and (yp - y0) <= reach
+                          and 12.0 <= hp <= 42.0 and 8.0 <= ha <= 42.0)
+
                     r[f"body_height_{name}_mm"] = round(float(ha), 1)
                     r[f"body_height_post_{name}_mm"] = round(float(hp), 1)
-                    if hp > 1:
+                    if hp > 1 and ok:
                         r[f"wedge_ratio_{name}"] = round(float(ha / hp), 3)
+                    elif hp > 1:
+                        # withheld, and counted, so the rejection rate is visible rather
+                        # than arriving as unexplained missing data
+                        r[f"wedge_rejected_{name}"] = 1
     return r
 
 
