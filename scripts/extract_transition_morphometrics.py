@@ -235,16 +235,29 @@ def one(path: str) -> dict:
         r["ll_span_asym_mm"] = round(abs(r["ll_span_left_mm"] - r["ll_span_right_mm"]), 1)
         r["ll_span_total_mm"] = round(r["ll_span_left_mm"] + r["ll_span_right_mm"], 1)
 
-        # THE SACRUM AND THE ILIUM ARE DIFFERENT TARGETS AND MUST NOT BE POOLED.
-        # This measured the distance to sacrum, S1, AND both hip bones together, and the
-        # iliac crest sits beside the L5 transverse process in everybody -- so the
-        # "gap to the sacrum" was usually the gap to the ilium, and read a median of
-        # 4.7 mm in NORMAL cases. A normal transverse process is 15-25 mm from the ala;
-        # at 4.7 the whole cohort would be Castellvi II.
+        # WHAT THIS MEASURES, AND THE TWO WAYS IT HAS BEEN WRONG.
         #
-        # Castellvi grades on approach to, articulation with, and fusion to the SACRAL
-        # ALA. Contact with the ilium is a different finding with a different meaning, so
-        # both are measured and neither is allowed to stand in for the other.
+        # Castellvi grades the lowest lumbar TRANSVERSE PROCESS on how it relates to the
+        # sacral ala: enlarged (I), articulating (II), fused (III). So the quantity is a
+        # distance from the transverse process TIP to the ala, plus the craniocaudal
+        # HEIGHT of the process, which is Castellvi's actual Type I criterion (>=19 mm).
+        #
+        # First error: the target pooled sacrum, S1 and BOTH HIP BONES, so a "gap to the
+        # ala" could return a gap to the ilium. Sacrum and ilium are now separate targets
+        # and neither stands in for the other. That mattered but was not the main fault.
+        #
+        # Second error, and the one that actually broke it: the SOURCE was the whole
+        # lateral third of the vertebra, which contains the inferior articular process.
+        # The L5-S1 facet is a synovial joint with a 2-4 mm cleft, so the nearest point of
+        # that lateral third to the sacrum is the facet, in everybody. The measurement
+        # read 3.4 mm in normal cases and was reporting the facet joint under the name of
+        # the transverse process -- which is why a Castellvi screen built on it recovered
+        # 0% of known positives.
+        #
+        # The transverse process is the most LATERAL bony projection of a lumbar
+        # vertebra, so the tip is found as the lateral extreme and the source restricted
+        # to voxels within TIP_MM of it. That excludes the articular processes, which sit
+        # well medial to the tip.
         sac_only = np.isin(lab, [SACRUM, S1])
         ilium_only = np.isin(lab, [HIP_L, HIP_R])
         tp_sac = _pts(sac_only, cap=700)
@@ -252,18 +265,33 @@ def one(path: str) -> dict:
         ax = np.arange(lab.shape[0])
         latL = int(vmid - 0.45 * (vmid - float(mx.min())))
         latR = int(vmid + 0.45 * (float(mx.max()) - vmid))
-        for nm, sel in (("left", ax < latL), ("right", ax > latR)):
+        TIP_MM = 12.0
+        for nm, sel, outward in (("left", ax < latL, -1), ("right", ax > latR, +1)):
             mm = m & sel[:, None, None]
             if not mm.any():
                 r[f"tp_gap_{nm}_mm"] = None
                 continue
-            pts_tp = _pts(mm)
+            cols = np.nonzero(mm.any(axis=(1, 2)))[0]
+            edge = int(cols.max()) if outward > 0 else int(cols.min())
+            depth = max(1, int(round(TIP_MM / max(sp[0], 1e-6))))
+            keep = ((ax <= edge) & (ax >= edge - depth) if outward > 0
+                    else (ax >= edge) & (ax <= edge + depth))
+            tip = mm & keep[:, None, None]
+            if not tip.any():
+                tip = mm
+            pts_tp = _pts(tip)
             gs = _mindist(pts_tp, tp_sac, sp) if len(tp_sac) else float("inf")
             gi = _mindist(pts_tp, tp_ili, sp) if len(tp_ili) else float("inf")
-            # tp_gap_* keeps its name and now means what it always claimed to: the gap
-            # to the sacrum, which is the quantity Castellvi is defined on
             r[f"tp_gap_{nm}_mm"] = round(gs, 1) if np.isfinite(gs) else None
             r[f"tp_gap_ilium_{nm}_mm"] = round(gi, 1) if np.isfinite(gi) else None
+            # Castellvi Type I is defined on the craniocaudal height of the process,
+            # not on any gap, so it is measured here rather than inferred from one
+            zt = np.nonzero(tip.any(axis=(0, 1)))[0]
+            r[f"tp_height_{nm}_mm"] = round(float(zt.max() - zt.min() + 1) * sp[2], 1)
+        hl, hr = r.get("tp_height_left_mm"), r.get("tp_height_right_mm")
+        if hl is not None and hr is not None:
+            r["tp_height_max_mm"] = max(hl, hr)
+            r["tp_height_asym_mm"] = round(abs(hl - hr), 1)
         gl, gr = r.get("tp_gap_left_mm"), r.get("tp_gap_right_mm")
         if gl is not None and gr is not None:
             r["tp_gap_min_mm"] = min(gl, gr)

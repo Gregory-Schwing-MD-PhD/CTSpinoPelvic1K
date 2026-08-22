@@ -13,15 +13,32 @@ already contain.
 
 ## A. Clinical / anatomical — no coding required
 
-### A1. Castellvi grading of the transitional cases
+### A1. Castellvi grading of the transitional cases — **this one blocks other work**
 **What:** 33 cases carry a transitional-vertebra label; each needs a Castellvi grade
-(I–IV, a/b) read from the images. Only 5 currently have a second independent read.
+(I–IV, a/b) read from the images.
+
+**Why it blocks things:** the dataset currently contains **no Castellvi grades at all** —
+the `castellvi_type` column is empty in all 802 records. The LSTV labels it does carry
+(SACRALIZATION, LUMBARIZATION) describe a vertebral *count* and its fusion; Castellvi
+describes the *morphology* of a transverse process. They are different axes. So
+`scripts/screen_missed_castellvi.py` cannot be validated as a Castellvi screen until
+these grades exist — it is presently scored against LSTV labels and says so in its own
+header. Grading these 33 turns it into the thing its filename claims.
 **You need:** to be comfortable with the Castellvi scheme (one afternoon to learn — it is
 four types about how far a transverse process reaches and whether it articulates or
 fuses). ITK-SNAP, which we will set up for you.
 **Time:** ~4 hours for a full pass.
 **Why it matters:** inter-rater agreement on a rare phenotype is publishable in its own
 right, and every derived measure that touches transitional status depends on these.
+
+**Then, the interesting part.** `docs/castellvi_reread_queue.csv` ranks 25 *unlabelled*
+cases by morphological resemblance to the labelled ones, deliberately without using the
+rib-free count — so every case on it has a perfectly normal five-vertebra count and
+transitional-looking anatomy, which is the only kind nobody would already have flagged.
+Leave-one-out puts 15% of labelled cases in the top 25 against 3.3% expected by chance:
+enriched, not decisive. Case `0038` heads it with a transverse process 50.4 mm tall
+against a cohort median of 18.4. Cases that come back normal are as useful as the ones
+that do not.
 
 ### A2. Second read on the deferred and disputed cases
 **What:** a short list of cases where the automated checks and the source labels disagree,
