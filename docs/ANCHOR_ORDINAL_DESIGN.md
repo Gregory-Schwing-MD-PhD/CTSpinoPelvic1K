@@ -68,6 +68,97 @@ flag**, not a softmax probability over a class that barely exists.
 
 ---
 
+## The objection that breaks the naive version: the anchors move too
+
+Two anchors are not enough, and the reason is the whole point of this dataset. **Every
+anchor named so far is perturbed by exactly the variants it is meant to detect.**
+
+- A **lumbar rib** moves the "lowest rib-bearing vertebra" down one.
+- An **aplastic twelfth rib** moves it up one.
+- A **sacralised** lowest lumbar segment moves the top of the sacrum up one.
+- A **lumbarised** first sacral segment moves it down one.
+
+And the failure is worse than it first appears: a lumbar rib and a sacralisation both reduce
+`n_up + n_down` by one. **The sum cannot distinguish them.** A design resting on the sum
+would flag both correctly and name both wrongly, half the time.
+
+### The fix: choose anchors that fail to DIFFERENT variants
+
+Anchors defined by *morphology* do not move when the *feature* moves. Four are available,
+and what matters is that each variant family perturbs a different subset:
+
+| anchor | how it is found | normal |
+|---|---|---|
+| **A. lowest costal-facet vertebra** | costal facets on the vertebral BODY — thoracic morphology | T12 |
+| **B. lowest rib-bearing vertebra** | a rib articulates | T12 |
+| **C. superior extent of the sacroiliac articulation** | the ilium's auricular surface | S1 |
+| **D. sacral promontory / S1 endplate** | the sacral base | S1 |
+
+Which move, under which variant:
+
+| variant | A facets | B rib | C SI joint | D promontory |
+|---|---|---|---|---|
+| typical | T12 | T12 | S1 | S1 |
+| **lumbar rib** | **T12** | **L1 ↓** | S1 | S1 |
+| **aplastic/hypoplastic T12 rib** | **T12** | **T11 ↑** | S1 | S1 |
+| **sacralisation** (Castellvi II) | T12 | T12 | **S1** | **↑ one** |
+| **sacralisation** (Castellvi III–IV) | T12 | T12 | **↑ may move** | **↑ one** |
+| **lumbarisation** | T12 | T12 | **↓ may move** | **↓ one** |
+
+Three things fall out, and they are the design:
+
+1. **A is the control for B.** A rib variant perturbs B and leaves A fixed, because an
+   aplastic twelfth rib *leaves its costal facet behind* and a lumbar rib grows on a
+   vertebra that never had one. So `A − B` is zero in typical anatomy, +1 for a lumbar rib,
+   −1 for an aplastic twelfth. **The sign names the rib variant.**
+
+2. **C is the control for D.** A Castellvi II sacralisation moves the promontory without
+   moving the true sacroiliac articulation, because the auricular surface belongs to the
+   *ilium* and is not relinquished when a lumbar segment fuses above it. So `C − D` is zero
+   typically and non-zero at a sacral transition. In Castellvi III–IV the neo-articulation
+   can drag C as well, which is itself informative: **C and D moving together is a marker of
+   a higher Castellvi grade than D moving alone.**
+
+3. **The two families are orthogonal.** Rib variants perturb {A, B} and leave {C, D}; sacral
+   variants perturb {C, D} and leave {A, B}. So a case carrying *both* — a lumbar rib and a
+   sacralisation, which this corpus contains — is decomposable, where a single-anchor design
+   would see one net shift and be unable to say what caused it.
+
+This is what makes the design robust to the variants rather than defeated by them: **no
+anchor is individually reliable, and that is fine, because the pattern of which anchors
+disagree is a signature and the signature is what identifies the variant.**
+
+### A fifth anchor that does not survive contact with the data
+
+Sacral foramina are the textbook sacrum-intrinsic anchor: four pairs is a normal sacrum,
+five means it absorbed a lumbar segment. It would be an ideal anchor C, because it is a
+property of the sacrum itself and needs no reference to the ilium.
+
+It does not work here, and the corpus says so plainly. Counting foramina per side across
+802 records gives, for cases labelled **normal**: 2 in 211 cases, 3 in 324, 4 in 163, 5 in
+49, and a scatter from 1 to 10. The mode is three, not four, and the distribution overlaps
+the labelled sacralisations (mode 3) and lumbarisations (mode 2) completely.
+
+The measurement is dominated by field of view — many sacra are truncated inferiorly in an
+abdominal CT, so the lower foramina are simply absent — and the automated count inherits
+that. **An anchor whose distribution in normal anatomy overlaps the variants it should
+detect is not an anchor**, and it is listed here so the next person does not spend a week
+rediscovering it. Anchors C and D as defined above avoid this because both are read from the
+sacral base and the iliac articulation, which sit at the top of the sacrum and are in the
+field of view whenever the lumbar spine is.
+
+### What it costs
+
+C requires the sacroiliac articulation to be locatable, which needs the ilium in the
+receptive field — reinforcing the patch problem below rather than easing it. And A requires
+the network to see a costal facet, a feature a few millimetres across, which is the
+argument against the coarse in-plane spacing that would let one patch cover the pelvis.
+
+Both constraints point the same way: **the cascade**, where the low-resolution stage locates
+C and D against the whole pelvis and the full-resolution stage resolves A at native detail.
+
+---
+
 ## What each head can actually see, and why the anchors have to be in the patch
 
 An ordinal count is not local. `n_up` at L1 requires the sacrum to be in the receptive
