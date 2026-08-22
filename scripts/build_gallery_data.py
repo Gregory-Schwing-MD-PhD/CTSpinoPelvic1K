@@ -1159,8 +1159,12 @@ def add_wedge_and_sacrum(out, levels_path, pelvic_path):
         rows = list(csv.DictReader(open(levels_path)))
         worst = []
         for r in rows:
+            # T11 and T12 included because that is where the fractures are. A
+            # prevalence over L1-L5 alone is not comparable to a published whole-spine
+            # figure and reads low against it -- 1.0% against 5-10%.
             v = [x for x in (num(r, f"wedge_ratio_{lv}") for lv in
-                             ("L1", "L2", "L3", "L4", "L5")) if x is not None and 0.2 < x < 2.0]
+                             ("T11", "T12", "L1", "L2", "L3", "L4", "L5"))
+                 if x is not None and 0.2 < x < 2.0]
             if v:
                 worst.append(min(v))
         d = density(worst, 0.4, 1.6)
@@ -1169,7 +1173,7 @@ def add_wedge_and_sacrum(out, levels_path, pelvic_path):
             out["panels"].append({
                 "key": "wedge", "section": sect_bone,
                 "title": "Vertebral wedging, from the same scan",
-                "subtitle": "lowest lumbar wedge ratio per case: anterior wall height over posterior",
+                "subtitle": "worst wedge ratio per case, T11 to L5: anterior wall height over posterior",
                 "type": "density", "rug": rug(worst, 0.4, 1.6),
                 "reference": GENANT_WEDGE, "reference_label": "0.80",
                 "xlabel": "anterior / posterior body height",
@@ -1177,7 +1181,7 @@ def add_wedge_and_sacrum(out, levels_path, pelvic_path):
                             f"does. The dashed line is 0.80 -- a 20% height reduction, "
                             f"which Genant's grading calls a mild wedge deformity. "
                             f"{low} of {len(worst)} cases ({100 * low / len(worst):.1f}%) "
-                            f"have at least one lumbar body below it. A falling anterior "
+                            f"have at least one body from T11 to L5 below it. A falling anterior "
                             f"wall is what a compression fracture looks like, and low "
                             f"trabecular attenuation is what precedes one -- both are in "
                             f"this image, which was ordered for the colon."),
