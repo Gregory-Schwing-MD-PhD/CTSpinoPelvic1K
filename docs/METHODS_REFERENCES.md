@@ -65,15 +65,41 @@ Graded against **Genant's semiquantitative method** (Genant et al., *JBMR* 1993)
 is 20–25% height loss, grade 2 is 25–40%, grade 3 is over 40%. A ratio below 0.80 is
 grade 1 or worse.
 
-*A guard, added because the measure failed loudly enough to notice.* Everything here rests
-on the anterior wall of the canal correctly dividing body from posterior elements. When
-that detection fails, pedicles and articular processes stay in the mask and do two things
-at once — they are taller than the body, inflating the posterior height, and they push the
-halfway point backwards so the "anterior" half lands on the biconcave middle, deflating
-it. Both errors drive the ratio down together and the result is indistinguishable from a
-severe compression fracture. The tell is *where* each maximum sits: the anterior cortex is
-at the front of the mask and the posterior wall at the back, so a maximum far from its own
-outer wall means the mask is not a vertebral body. Those levels are withheld and counted.
+*On comparing prevalence.* Published vertebral-fracture prevalence of 5–10% in this age
+band is a **whole-spine** figure, and most osteoporotic fractures sit at the
+thoracolumbar junction. A prevalence computed over L1–L5 alone is therefore not comparable
+to it and will read low, which it did. T12 is labelled in 767 of 802 cases and T11 in most,
+so the junction is measured too rather than the comparison being explained away. The other
+per-level measures here are validated against *lumbar* norms, which do not transfer to
+thoracic levels; their T11 and T12 columns are written but are not meant to be used.
+
+*A guard, and it took three attempts and a picture to get right.* Everything here rests on
+the anterior wall of the canal correctly dividing body from posterior elements. That wall
+is found as the largest filled hole in an axial slice, and when the largest hole is a
+trabecular void near the front of the body rather than the spinal canal, the wall lands
+almost at the anterior margin — and what survives the cut is a thin anterior **sliver** of
+the vertebra. A sliver tapers, so its tallest column at the back exceeds its tallest column
+at the front, and the ratio of the two reads 0.27 to 0.54: the exact signature of a severe
+wedge, on a vertebra with nothing wrong with it.
+
+Two wrong diagnoses preceded the right one, both reasoned from the numbers alone. First
+that posterior elements were inflating the posterior height — false; those cases' posterior
+heights sit right on their neighbours'. Then that these were genuine grade 3 fractures,
+which do occur at about a percent in this age band. Rendering the mask against the CT
+settled it in one image.
+
+Worse, the first *guard* was actively harmful: it asked whether each half's tallest column
+sat near that half's outer wall, which in a genuinely wedged vertebra it does not. It
+rejected 29% of all levels and took Genant grade 1+ prevalence from 3.2% to 0.3%. **A guard
+that correlates with the finding is worse than no guard.**
+
+What ships tests the mask itself rather than any number derived from it: a vertebral body
+is a substantial part of a vertebra's front-to-back extent, not a rind on it. Anything
+under 12 mm deep, or under 30% of the vertebra's depth, is the cut having failed. That
+withholds 1.2% of levels, takes the minimum ratio from 0.273 to 0.592, and takes the
+distribution's skew from −2.68 to +0.46 and its excess kurtosis from 13.0 to 4.4. It also
+halved the endplate widths falling below a physiological floor, which were the same failure
+seen through a different measurement.
 
 ---
 

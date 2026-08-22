@@ -41,7 +41,20 @@ import numpy as np
 import nibabel as nib
 from scipy import ndimage
 
-LUMBAR = {20: "L1", 21: "L2", 22: "L3", 23: "L4", 24: "L5"}
+# T11 and T12 are included for one reason: the wedge ratio. Most osteoporotic vertebral
+# fractures occur at the THORACOLUMBAR JUNCTION, so a fracture prevalence computed over
+# L1-L5 alone is not comparable to a published whole-spine figure and will read low --
+# it did, at 1.0% against 5-10%. T12 is labelled in 767 of 802 cases and T11 in most, so
+# the junction is available and there is no reason to measure without it.
+#
+# The other measures here (endplate width, canal width, transverse-process span) are
+# validated against LUMBAR norms and those comparisons do not transfer to thoracic
+# levels. The columns are written for T11 and T12 as well, because withholding a
+# measurement the code performed would be its own kind of dishonesty, but only the
+# height and wedge columns are meant to be used there.
+LEVELS = {18: "T11", 19: "T12", 20: "L1", 21: "L2", 22: "L3", 23: "L4", 24: "L5"}
+LUMBAR_ONLY = ("L1", "L2", "L3", "L4", "L5")
+LUMBAR = LEVELS                                    # name kept: referenced below
 MIN_VOX = 3000
 
 
