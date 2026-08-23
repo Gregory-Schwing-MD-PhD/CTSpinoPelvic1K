@@ -12,3 +12,6 @@ Makefile text eol=lf
 # Linguist
 *.def   linguist-language=Shell
 slurm/*.sh linguist-language=Shell
+paper/mpda/build.sh text eol=lf
+slurm/*.sh text eol=lf
+scripts/*.sh text eol=lf
