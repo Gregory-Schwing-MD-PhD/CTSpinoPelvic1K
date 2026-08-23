@@ -214,8 +214,7 @@ fraction of the rib above it, a transverse process span and its gap to the ala.
 \foreach \n/\y in {v3/-158, v4/-182, v5/-206} \draw[ln, black!35] (-38,\y) -- (-32,\y);
 \node[det] at (-30,-158) {femora, the lower thoracic levels, and \textbf{S1 carved} from the
   sacrum --- the caudal anchor the count needs};
-\node[det] at (-30,-182) {\textbf{ribs}: TotalSegmentator numbering unioned with a binary
-  detector, then $n{=}152$ cases sent to human rib review};
+\node[det] at (-30,-182) {\textbf{ribs}: TotalSegmentator numbering unioned with a \mbox{binary} detector, then $n{=}152$ cases sent to human rib review};
 \node[det] at (-30,-206) {the \textbf{lumbar rib} given its own class rather than being
   forced to be a twelfth rib ($n{=}16$ records); speckle cleanup only \emph{after} correction};
 
@@ -489,9 +488,18 @@ That leaves 5{,}749 with an anchor to check, of which two remain offset (0.035\%
 denominator is stated because quoting two against 11{,}548 halves the rate by counting
 ribs the check never examined, and because more than half of the ribs in a screening
 abdominal CT being unevaluable is itself a fact about the corpus worth reporting. Both
-offsets are field-of-view truncations on individually characterised cases and are
-reported rather than suppressed: a threshold tuned until the count reaches zero yields a
-cleaner number and a less informative one.
+offsets are field-of-view truncations on individually characterised cases --- one at
+$+1$ level and one at $-1$ --- and are reported rather than suppressed: a threshold tuned
+until the count reaches zero yields a cleaner number and a less informative one.
+
+The same check carries an invariant that is easy to overlook because it reads as a null
+result. Of the 5{,}749 evaluable ribs, \emph{zero} are assigned to a lumbar vertebra. That
+is not a claim that no lumbar ribs exist --- 16 records carry one --- but a confirmation
+that the scheme is applied consistently: a rib articulating with a lumbar body is given
+class 74 or 75 and is therefore never among the numbered ribs the incidence test examines.
+Had any numbered rib landed on a lumbar vertebra, it would mean either a rib numbered as
+thoracic sitting on a lumbar body or a vertebra numbered as lumbar bearing a thoracic rib,
+and either would be a counting error of exactly the kind this dataset exists to expose.
 
 \emph{Agreement with published values.} Derived spinopelvic measures are compared against
 Vialle \emph{et al.}~\cite{vialle2005} (Table~\ref{tab:spinopelvic}). Pelvic incidence is
