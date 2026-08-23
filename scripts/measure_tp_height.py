@@ -24,10 +24,10 @@ So this file does three things differently:
     raw while assuming axis 0 is lateral reports a 51 mm process on the left and 9 mm on
     the right in nearly every case, so the axes are resolved from the affine and asserted,
     never assumed.
-  * ONE np.unique REPLACES SIX EQUALITY SCANS to find which lumbar labels are present, and
-    the same call yields the label census for free -- which is the other question that
-    needed a pass over every volume, so the two are answered together rather than by two
-    jobs competing for the same memory bus.
+  * ONE np.bincount REPLACES SIX EQUALITY SCANS and np.unique alike. unique SORTS 160
+    million values at 23 s a volume; bincount is one linear pass at 6 s and returns the
+    voxel count per label as a side effect. The label census falls out of the same call,
+    so the two questions that each needed a pass over all 802 volumes now share one.
   * THE MASK IS CROPPED BEFORE ANY WORK. Once the lowest lumbar label is known, everything
     after that happens inside its bounding box, which is a few million voxels rather than
     160 million.
@@ -82,9 +82,14 @@ def one(path: Path):
         lat, cc = axes_from(img.affine)
         other = ({0, 1, 2} - {lat, cc}).pop()
 
-        present = [int(v) for v in np.unique(lab)]            # the only full-array pass
+        # np.unique SORTS 160 million values and costs 23 s a volume. bincount is one
+        # linear pass over the same data at 6 s, and hands back the voxel count per label
+        # as a side effect, which is worth having anyway. Labels are 0..255 by scheme.
+        counts = np.bincount(lab.reshape(-1))
+        present = [int(v) for v in np.nonzero(counts)[0]]
         out = {"case": case, "error": "", "axcodes": "".join(nib.aff2axcodes(img.affine)),
-               "labels_present": " ".join(str(v) for v in present)}
+               "labels_present": " ".join(str(v) for v in present),
+               "n_voxels_fg": int(counts[1:].sum())}
 
         lum = [v for v in present if L1 <= v <= L6]
         if not lum:
@@ -156,7 +161,7 @@ FIELDS = ["case", "lowest_lumbar_label", "axcodes",
           "tp_height_left_mm", "tp_height_right_mm",
           "tp_height_slab_left_mm", "tp_height_slab_right_mm",
           "tp_tip_components_left", "tp_tip_components_right",
-          "labels_present", "error"]
+          "labels_present", "n_voxels_fg", "error"]
 
 
 def main() -> int:
