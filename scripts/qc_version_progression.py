@@ -152,6 +152,28 @@ def one(path: str) -> dict:
     return r
 
 
+def _coerce(row):
+    """Restore the types csv threw away, leaving genuinely empty fields as ''.
+
+    An empty string is meaningful here and must not become 0: `count_coherent` is blank when
+    the anchors are missing, and summarise() filters those out before taking a percentage.
+    Turning them into zeros would quietly report every anchorless case as incoherent.
+    """
+    out = {}
+    for k, v in row.items():
+        if v == "" or v is None:
+            out[k] = ""
+            continue
+        try:
+            out[k] = int(v)
+        except ValueError:
+            try:
+                out[k] = float(v)
+            except ValueError:
+                out[k] = v
+    return out
+
+
 def summarise(name, rows):
     ok = [r for r in rows if "error" not in r]
     n = len(ok)
@@ -192,11 +214,31 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0, help="0 = all cases")
     ap.add_argument("--out", default="qc_final/version_progression.csv")
     ap.add_argument("--per-case-out", default="qc_final/version_progression_percase.csv")
+    ap.add_argument("--force", action="store_true",
+                    help="recompute a version even if its part file already exists")
     a = ap.parse_args()
 
-    summaries, percase = [], []
+    # WRITE EACH VERSION AS IT FINISHES, AND SKIP ONE ALREADY DONE.
+    #
+    # The first version of this held every result in memory and wrote only after all four
+    # versions completed. Job 40011919 got through v2, v3 and v5pre, died at 600/802 of v5
+    # on an eight-hour wall clock, and produced NOTHING -- three complete versions of work
+    # discarded because the fourth did not finish. A long job that writes once at the end
+    # converts any timeout into total loss.
+    #
+    # Each version now lands in its own file the moment it is done, and a version whose file
+    # already exists is skipped, so resubmitting resumes instead of restarting. The combined
+    # outputs are assembled at the end from whatever per-version files exist, so they are
+    # correct after a partial run too.
+    part_dir = Path(a.out).parent / "version_parts"
+    part_dir.mkdir(parents=True, exist_ok=True)
+
     for spec in a.versions:
         name, _, path = spec.partition("=")
+        part = part_dir / f"{name}_percase.csv"
+        if part.exists() and not a.force:
+            print(f"  {name}: already done ({part}), skipping", flush=True)
+            continue
         files = sorted(str(p) for p in Path(path).glob("*.nii.gz"))
         if a.limit:
             files = files[: a.limit]
@@ -211,6 +253,31 @@ def main() -> int:
                 rows.append(x)
                 if i % 100 == 0:
                     print(f"    {i}/{len(files)}", flush=True)
+        cols = []
+        for r in rows:
+            for k in r:
+                if k not in cols:
+                    cols.append(k)
+        tmp = part.with_suffix(".csv.tmp")
+        with open(tmp, "w", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=cols)
+            w.writeheader(); w.writerows(rows)
+        tmp.replace(part)                      # atomic: a killed job leaves no half file
+        print(f"    wrote {part}", flush=True)
+
+    # --- assemble from the parts, in the order the versions were named ------------------
+    summaries, percase = [], []
+    for spec in a.versions:
+        name = spec.partition("=")[0]
+        part = part_dir / f"{name}_percase.csv"
+        if not part.exists():
+            print(f"  ! {name}: no results, omitted from the summary")
+            continue
+        # csv gives back strings. summarise() was written against in-memory dicts and does
+        # arithmetic on these fields, so reading a part file straight into it raises
+        # "unsupported operand type(s) for +: 'int' and 'str'" -- which is the whole resume
+        # path failing, and would only have surfaced on the grid.
+        rows = [_coerce(r) for r in csv.DictReader(open(part))]
         percase.extend(rows)
         summaries.append(summarise(name, rows))
 
