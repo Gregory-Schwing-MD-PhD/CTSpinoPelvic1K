@@ -31,6 +31,7 @@ import argparse
 import json
 import shutil
 import sys
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -75,59 +76,84 @@ def clean(lab, min_keep):
     return out, dropped
 
 
+def _one(args):
+    """One case, in a worker.
+
+    Connected components over ~26 label ids on a full volume is seconds per case, so 802 of
+    them on one core is hours -- which is exactly what happened: the first run reached case
+    0349 of 802 in under three hours, on the DRY RUN alone, and would have timed the job out
+    before the QC ever started. Pooled like every other pass in the pipeline.
+    """
+    stem, fp, min_keep, apply_it, backup_dir = args
+    try:
+        img = nib.load(fp)
+        lab = np.asanyarray(img.dataobj).astype(np.int16)
+    except Exception as exc:                                        # noqa: BLE001
+        return {"case": stem, "error": f"{type(exc).__name__}"}
+    new_lab, dropped = clean(lab, min_keep)
+    if not dropped:
+        return {"case": stem, "n_fragments": 0, "voxels": 0}
+    v = sum(d["voxels"] for d in dropped)
+    if apply_it:
+        diff = {int(x) for x in np.unique(lab[lab != new_lab])}
+        if not diff <= set(NAMES):
+            return {"case": stem, "error": f"non-vertebra ids changed: {sorted(diff)}"}
+        bd = Path(backup_dir)
+        bd.mkdir(parents=True, exist_ok=True)
+        if not (bd / Path(fp).name).exists():
+            shutil.copy2(fp, bd / Path(fp).name)
+        nib.save(nib.Nifti1Image(new_lab.astype(img.get_data_dtype()), img.affine,
+                                 img.header), fp)
+    return {"case": stem, "n_fragments": len(dropped), "voxels": v, "dropped": dropped}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--labels", default="data/v5_final")
     ap.add_argument("--cases", default="")
     ap.add_argument("--min-keep", type=int, default=MIN_KEEP_VOX)
     ap.add_argument("--apply", action="store_true")
+    ap.add_argument("--workers", type=int, default=12)
     ap.add_argument("--out", default="qc_speckle")
     a = ap.parse_args()
 
     labdir = Path(a.labels)
     stems = ([c.strip() for c in a.cases.split(",") if c.strip()]
-             or sorted(p.name.replace("_label.nii.gz", "")
-                       for p in labdir.glob("*_label.nii.gz")))
-    out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
+             or sorted(q.name.replace("_label.nii.gz", "")
+                       for q in labdir.glob("*_label.nii.gz")))
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
     backup = out / "pre_speckle"
+    jobs = [(s, str(labdir / f"{s}_label.nii.gz"), a.min_keep, a.apply, str(backup))
+            for s in stems if (labdir / f"{s}_label.nii.gz").exists()]
+    print(f"{len(jobs)} case(s), {a.workers} workers, "
+          f"{'APPLY' if a.apply else 'dry run'}\n", flush=True)
 
-    report, n_changed, n_vox = [], 0, 0
-    for stem in stems:
-        fp = labdir / f"{stem}_label.nii.gz"
-        if not fp.exists():
-            continue
-        img = nib.load(str(fp))
-        lab = np.asanyarray(img.dataobj).astype(np.int16)
-        new, dropped = clean(lab, a.min_keep)
-        if not dropped:
-            continue
-        n_changed += 1
-        v = sum(d["voxels"] for d in dropped)
-        n_vox += v
-        by = {}
-        for d in dropped:
-            by.setdefault(d["label"], []).append(d["voxels"])
-        pretty = "  ".join(f"{k}x{len(vv)}({sum(vv)}vox)" for k, vv in sorted(by.items()))
-        print(f"  {stem}: {len(dropped)} fragment(s), {v} vox   {pretty[:90]}")
-        report.append({"case": stem, "n_fragments": len(dropped), "voxels": v,
-                       "dropped": dropped})
-        if a.apply:
-            # only the vertebra ids may change, and only downward (fragments -> background)
-            diff = {int(x) for x in np.unique(lab[lab != new])}
-            assert diff <= set(NAMES), f"{stem}: non-vertebra ids changed: {sorted(diff)}"
-            assert (new > 0).sum() < (lab > 0).sum(), f"{stem}: nothing removed"
-            backup.mkdir(parents=True, exist_ok=True)
-            if not (backup / fp.name).exists():
-                shutil.copy2(fp, backup / fp.name)
-            nib.save(nib.Nifti1Image(new.astype(img.get_data_dtype()), img.affine,
-                                     img.header), str(fp))
+    report, n_changed, n_vox, errs = [], 0, 0, []
+    with ProcessPoolExecutor(max_workers=a.workers) as ex:
+        for i, r in enumerate(ex.map(_one, jobs, chunksize=2), 1):
+            if r.get("error"):
+                errs.append(r)
+            elif r["n_fragments"]:
+                n_changed += 1
+                n_vox += r["voxels"]
+                report.append(r)
+            if i % 100 == 0:
+                print(f"  {i}/{len(jobs)}  ({n_changed} with speckle so far)", flush=True)
 
+    report.sort(key=lambda r: -r["voxels"])
     p = out / "speckle_report.json"
     p.write_text(json.dumps({"labels": str(labdir), "applied": a.apply,
-                             "min_keep_vox": a.min_keep,
-                             "cases_changed": n_changed, "voxels_removed": n_vox,
+                             "min_keep_vox": a.min_keep, "cases_changed": n_changed,
+                             "voxels_removed": n_vox, "errors": errs,
                              "cases": report}, indent=1))
-    print(f"\n  {n_changed} case(s) with speckle, {n_vox} voxel(s) total")
+    print(f"\n  {n_changed} of {len(jobs)} case(s) carried speckle, "
+          f"{n_vox} voxel(s) removed in total")
+    print("  worst offenders:")
+    for r in report[:8]:
+        print(f"    {r['case']}: {r['n_fragments']:5d} fragment(s), {r['voxels']:6d} vox")
+    if errs:
+        print(f"  ERRORS: {[e['case'] for e in errs][:6]}")
     print("  " + ("APPLIED" if a.apply else "DRY RUN -- pass --apply to write"))
     print(f"  wrote {p}")
     return 0

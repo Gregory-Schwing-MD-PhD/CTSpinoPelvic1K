@@ -375,9 +375,31 @@ def one(path: str) -> dict:
             r[f"tp_gap_{nm}_mm"] = round(gs, 1) if np.isfinite(gs) else None
             r[f"tp_gap_ilium_{nm}_mm"] = round(gi, 1) if np.isfinite(gi) else None
             # Castellvi Type I is defined on the craniocaudal height of the process,
-            # not on any gap, so it is measured here rather than inferred from one
+            # not on any gap, so it is measured here rather than inferred from one.
+            #
+            # THE HEIGHT IS THAT OF THE LARGEST CONNECTED COMPONENT, NOT OF THE SLAB.
+            # zt.max() - zt.min() over the whole tip slab is set by its two extreme
+            # voxels, so one detached speckle anywhere in the slab becomes the height. It
+            # is not a rare accident: case 0512 measured 43.2 mm against a true process of
+            # 16.0 mm, three components, and it entered the re-read queue at rank 3 on the
+            # strength of the speckle. 0018 measured 34.4 mm against 15.2 mm. Both look
+            # like enlarged transverse processes and neither is one.
+            #
+            # A transverse process is one bone. Taking the largest component asserts
+            # exactly that and nothing more. The whole-slab extent is kept alongside as
+            # tp_height_slab_*, because the ratio between them says how speckled the
+            # segmentation is at the tip and that is worth being able to filter on.
+            lab_tip, n_tip = ndimage.label(tip)
+            if n_tip > 1:
+                sizes = ndimage.sum(tip, lab_tip, range(1, n_tip + 1))
+                core = lab_tip == (int(np.argmax(sizes)) + 1)
+            else:
+                core = tip
+            zc = np.nonzero(core.any(axis=(0, 1)))[0]
             zt = np.nonzero(tip.any(axis=(0, 1)))[0]
-            r[f"tp_height_{nm}_mm"] = round(float(zt.max() - zt.min() + 1) * sp[2], 1)
+            r[f"tp_height_{nm}_mm"] = round(float(zc.max() - zc.min() + 1) * sp[2], 1)
+            r[f"tp_height_slab_{nm}_mm"] = round(float(zt.max() - zt.min() + 1) * sp[2], 1)
+            r[f"tp_tip_components_{nm}"] = int(n_tip)
         hl, hr = r.get("tp_height_left_mm"), r.get("tp_height_right_mm")
         if hl is not None and hr is not None:
             r["tp_height_max_mm"] = max(hl, hr)

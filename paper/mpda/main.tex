@@ -104,6 +104,127 @@ quantities: an interval count between the lowest rib and the sacrum, a rib lengt
 fraction of the rib above it, a transverse process span and its gap to the ala.
 
 % ---------------------------------------------------------------------------
+\begin{figure*}[p]
+\centering
+% SINGLE DOWNWARD FLOW ON A FIXED GRID, DESIGNED WIDE SO \maxwidth SHRINKS IT.
+%
+% Defects fixed, each of which only showed up once the page was rendered and looked at:
+%   * v3|v4|v5 used to run ACROSS, so the arrow into v3 came up from below-left while v4
+%     and v5 were fed sideways. A version history is a sequence; it now reads as one.
+%   * minimum height is a FLOOR, not a height. Boxes whose text wrapped to three lines
+%     grew past the row spacing and printed through the row beneath -- the record-type row
+%     sat on top of the corrections box, gates sat on top of the release box. Every row gap
+%     is now at least the tallest box in it plus 8mm of clearance, and the tallest box is
+%     stated in the comment beside its row so the next edit can check it.
+%   * the stub joining v5 to its description was drawn THROUGH the description. Stubs stop
+%     6mm short and the text is anchored west of that.
+%   * designing at ~200mm wide means \maxwidth scales the whole thing by ~0.82 to reach
+%     \linewidth, which buys back the same fraction of height. Designing narrow wastes it.
+%     \maxwidth only ever shrinks, so this cannot inflate the fonts the way \resizebox did.
+%   * "out" is a reserved TikZ key: naming a node (out) silently drops its shape and
+%     surfaces much later as "missing \item". The final node is (rel).
+\maxwidth{%
+\begin{tikzpicture}[
+  x=1mm, y=1mm,
+  font=\footnotesize,
+  every node/.style={inner sep=0pt},
+  bx/.style={draw, rounded corners=1.5pt, align=center, text width=#1,
+             minimum height=10mm, inner sep=3pt},
+  src/.style={bx=54mm, fill=black!5},
+  proc/.style={bx=150mm, fill=blue!7},
+  rec/.style={bx=44mm, fill=black!3},
+  ver/.style={bx=40mm, fill=green!12, minimum height=9mm},
+  det/.style={align=left, text width=104mm, font=\scriptsize, anchor=west},
+  note/.style={align=center, text width=150mm, font=\scriptsize},
+  gate/.style={bx=150mm, fill=orange!14},
+  fin/.style={bx=150mm, fill=green!20},
+  ar/.style={-{Stealth[length=4.5pt]}, semithick, black!65},
+  ln/.style={semithick, black!65},
+]
+
+% --- row 1: sources ------------------------------------- tallest box ~14mm, half 7
+\node[src] (tcia)   at (-70, 0) {\textbf{TCIA CT Colonography}\\[1pt]\scriptsize imaging;
+  every patient scanned prone \emph{and} supine};
+\node[src] (spine)  at (  0, 0) {\textbf{CTSpine1K}\\[1pt]\scriptsize vertebral labels,
+  radiologist-supervised};
+\node[src] (pelvic) at ( 70, 0) {\textbf{CTPelvic1K}\\[1pt]\scriptsize sacrum + hips,
+  radiologist-supervised};
+
+% --- row 2: crosswalk ----------------------------------- centre -34, half 8
+\node[proc] (cross) at (0, -34) {patient-level crosswalk, then bone-attenuation overlap
+  \emph{within} that patient\\[1pt]\scriptsize neither source published which series its
+  labels were drawn on, and every patient was scanned twice};
+\draw[ln] (tcia.south)   -- (-70,-19) -- (0,-19);
+\draw[ln] (pelvic.south) -- ( 70,-19) -- (0,-19);
+\draw[ln] (spine.south)  -- (0,-19);
+\draw[ar] (0,-19) -- (cross.north);
+
+% --- row 3: record types -------------------------------- centre -72, half 9
+\node[rec] (fused) at (-75,-72) {\textbf{fused}\\[1pt]\scriptsize spine + pelvis on one
+  volume\\[1pt]$n{=}342$};
+\node[rec] (sep)   at (-25,-72) {\textbf{separate}\\[1pt]\scriptsize pelvis on the
+  \emph{other} acquisition\\[1pt]$n{=}351$};
+\node[rec] (sonly) at ( 25,-72) {\textbf{spine\_only}\\[1pt]\scriptsize no pelvic label for
+  this patient\\[1pt]$n{=}89$};
+\node[rec] (ponly) at ( 75,-72) {\textbf{pelvic\_native}\\[1pt]\scriptsize pelvis only,
+  held out\\[1pt]$n{=}20$};
+\draw[ln] (cross.south) -- (0,-53);
+\draw[ln] (-75,-53) -- (75,-53);
+\foreach \x in {-75,-25,25,75} \draw[ar] (\x,-53) -- (\x,-62.5);
+
+% --- row 4: corrections, as a note rather than a box ---- centre -100
+\node[note] (fix) at (0,-100) {\textbf{corrections to the \emph{source} ground truth} ---
+  split vertebrae, skipped levels, and levels left unlabelled inside the field of view:\\
+  $n{=}112$ spine fixes across 103 cases, $n{=}13$ pelvic fixes across 12 cases};
+\foreach \x in {-75,-25,25,75} \draw[ln] (\x,-81.5) -- (\x,-90);
+\draw[ln] (-75,-90) -- (75,-90);
+\draw[ar] (0,-90) -- (0,-94);
+
+% --- row 5: densification ------------------------------- centre -126, half 9
+\node[proc] (dense) at (0,-126) {densification, asymmetric by design\\[1pt]
+  \scriptsize a pelvis has no enumeration to get wrong, so it is pseudolabelled onto
+  spine-bearing records; the 20 \textsf{pelvic\_native} spines were corrected \emph{by hand}};
+\draw[ar] (0,-107) -- (dense.north);
+
+% --- rows 6-8: the version chain, vertical, every arrow down ---------------
+\node[ver] (v3) at (-58,-158) {\textbf{v3}};
+\node[ver] (v4) at (-58,-182) {\textbf{v4}};
+\node[ver] (v5) at (-58,-206) {\textbf{v5}};
+\draw[ar] (dense.south) -- (0,-142) -- (-58,-142) -- (v3.north);
+\draw[ar] (v3.south) -- (v4.north);
+\draw[ar] (v4.south) -- (v5.north);
+
+% stubs stop 6mm short of the text; the text is anchored west of that
+\foreach \n/\y in {v3/-158, v4/-182, v5/-206} \draw[ln, black!35] (-38,\y) -- (-32,\y);
+\node[det] at (-30,-158) {femora, the lower thoracic levels, and \textbf{S1 carved} from the
+  sacrum --- the caudal anchor the count needs};
+\node[det] at (-30,-182) {\textbf{ribs}: TotalSegmentator numbering unioned with a binary
+  detector, then $n{=}152$ cases sent to human rib review};
+\node[det] at (-30,-206) {the \textbf{lumbar rib} given its own class rather than being
+  forced to be a twelfth rib ($n{=}16$ records); speckle cleanup only \emph{after} correction};
+
+% --- row 9: gates --------------------------------------- centre -236, half 9
+\node[gate] (qc) at (0,-236) {release gates, run in order --- a failure stops the chain\\[1pt]
+  \scriptsize geometric invariants (802/802) $\rightarrow$ rib--vertebra incidence
+  (5{,}749 evaluable, 2 residual offsets) $\rightarrow$ physiological plausibility};
+\draw[ar] (v5.south) -- (-58,-220) -- (0,-220) -- (qc.north);
+
+% --- row 10: release ------------------------------------ centre -264
+\node[fin] (rel) at (0,-264) {\textbf{802 released records}\\[1pt]\scriptsize spine, pelvis,
+  ribs and femora in one coordinate frame; 33 carry a radiologist Castellvi grade};
+\draw[ar] (qc.south) -- (rel.north);
+\end{tikzpicture}}%
+\caption{Construction. Three public collections are joined at the patient level, and each
+annotation is then placed on the acquisition whose bone it actually agrees with --- neither
+source published which series its labels were drawn on, and every patient in the
+colonography cohort was scanned twice. The four record types measure that problem rather
+than describing bookkeeping: in 351 patients the two collections annotated \emph{different
+volumes of the same person}. Quantities marked $n$ are records, or corrections, at that
+step. The version chain reads downward, one release per row, with what each added beside
+it.}
+\label{fig:pipeline}
+\end{figure*}
+
 \section{Acquisition and Validation Methods}
 
 \subsection{Sources, and why a crosswalk was necessary}
@@ -132,12 +253,21 @@ everywhere except in where the skeleton sits.
 \subsection{Fused and split records}
 
 The two annotation sets were placed independently, so they do not always land on the same
-series. Of 802 records, 342 (42.6\%) carry spine and pelvic annotations on one volume and
-are exported as \emph{fused}; 440 (54.9\%) carry the spine annotation only
-(\emph{spine\_only}); and 20 (2.5\%) carry the pelvic annotation only
-(\emph{pelvic\_native}). A patient whose two annotations landed on different acquisitions
-contributes a record of each kind rather than being discarded, which is why the record
-count exceeds the patient count.
+series, and the four resulting record types are distinguished because the distinction is
+the crosswalk's main finding rather than bookkeeping. Of 802 records, 342 (42.6\%) carry
+spine and pelvic annotations on the same volume and are exported as \emph{fused}. A
+further 351 (43.8\%) are \emph{separate}: a pelvic annotation exists for the patient, but
+it was placed on the other acquisition of the prone/supine pair, so it cannot be combined
+with the spine annotation without resampling across a change of posture. Only 89 (11.1\%)
+are \emph{spine\_only}, meaning no pelvic annotation exists for that patient at all, and 20
+(2.5\%) are \emph{pelvic\_native}, carrying the pelvic annotation alone.
+
+The 351 separate records are the direct measurement of the problem described above: in
+nearly half of all patients the two public collections annotated \emph{different volumes of
+the same person}, and neither collection recorded which. They are retained rather than
+discarded, and held out of the postural analyses, because a prone and a supine acquisition
+of one patient differ in spinal alignment and are a resource for a mobility study rather
+than a defect.
 
 \subsection{Densification, and why it is asymmetric}
 
@@ -278,6 +408,58 @@ cleaner number and a less informative one.
 Vialle \emph{et al.}~\cite{vialle2005} (Table~\ref{tab:spinopelvic}). Pelvic incidence is
 the strongest of these checks because it is a morphological property of the pelvis rather
 than a posture, and so is directly comparable to a standing reference cohort.
+
+\subsection{Castellvi typing, and the reading it still requires}
+
+Every record whose vertebral count departs from five carries a Castellvi
+grade~\cite{castellvi1984} in the released manifest: 33 cases, typed I--IV with the $a$/$b$
+unilateral--bilateral qualifier (Table~\ref{tab:castellvi}). This is released as an
+annotation layer because the grade and the count are \emph{different axes} and the dataset
+is built to show that they are: grade IIIb occurs here at rib-free counts of four, five and
+six alike, and seven of the 33 graded cases carry a perfectly normal count of five. A
+corpus that recorded only the count would describe those seven as unremarkable.
+
+The grading is a single reader's, with five cases independently read a second time. Three
+of those five agreed exactly. Of the two that did not, one is Ib against IIb --- adjacent
+subtypes, the ordinary kind of disagreement --- and the other is IIIb against IIb, which
+crosses the boundary between bony fusion and articulation without it. That is the
+distinction the classification is built on and the one carrying clinical
+weight~\cite{koninwalz2010}, so it is reported rather than folded into a single agreement
+rate. Five second reads establish that the grading was checked; they are far too few to
+support an inter-rater statistic, and none is quoted.
+
+
+
+\begin{table}[b]
+\caption{Radiologist Castellvi grade against the rib-free vertebral count, for the 33
+graded records. The two are different axes and the table shows how far apart they run:
+grade IIIb occurs at counts of four, five \emph{and} six, and seven graded records carry
+the normal count of five, where nothing about the count would draw attention.}
+\label{tab:castellvi}
+\begin{ruledtabular}
+\begin{tabular}{lcccc}
+ & & \multicolumn{3}{c}{rib-free vertebrae} \\
+Castellvi grade & records & 4 & 5 & 6 \\ \colrule
+Ib   &  2 & 0 & 0 & 2 \\
+IIa  &  2 & 0 & 1 & 1 \\
+IIb  &  4 & 0 & 0 & 4 \\
+IIIa &  3 & 0 & 1 & 2 \\
+IIIb & 18 & 7 & 4 & 7 \\
+IV   &  4 & 1 & 1 & 2 \\ \colrule
+all  & 33 & 8 & 7 & 18 \\
+\end{tabular}
+\end{ruledtabular}
+\end{table}
+
+The typing is therefore submitted for confirmation by a board-certified neuroradiologist,
+blinded to the existing grades and to the vertebral counts, reading all 33 cases. Where the
+confirming read and the original agree the grade stands; where they disagree the case is
+adjudicated in a joint reading and the adjudicated grade released, with both original reads
+retained in the manifest so that no disagreement is silently resolved. Full agreement
+statistics will be reported for the complete set of 33 rather than for the current subset
+of five. \emph{This confirmation is in progress and the release is not final until it
+completes}; the grades described here are the single-reader grades, and the manifest
+records which reads each grade rests on.
 
 \begin{table*}[t]
 \caption{Derived measures against a published asymptomatic reference
@@ -431,7 +613,7 @@ pelvic bones: large-scale CT datasets and baseline models,''
 COLONOGRAPHY,'' The Cancer Imaging Archive (2015),
 \url{https://doi.org/10.7937/K9/TCIA.2015.NWTESAY1}.
 
-\bibitem{pickhardt2013} P.~J.~Pickhardt~\cite{pickhardt2013}, B.~D.~Pooler, T.~Lauder, \emph{et al.},
+\bibitem{pickhardt2013} P.~J.~Pickhardt, B.~D.~Pooler, T.~Lauder, \emph{et al.},
 ``Opportunistic screening for osteoporosis using abdominal computed tomography scans
 obtained for other indications,'' \emph{Ann.~Intern.~Med.} \textbf{158}, 588--595 (2013).
 
@@ -439,15 +621,15 @@ obtained for other indications,'' \emph{Ann.~Intern.~Med.} \textbf{158}, 588--59
 fracture assessment using a semiquantitative technique,''
 \emph{J.~Bone Miner.~Res.} \textbf{8}, 1137--1148 (1993).
 
-\bibitem{castellvi1984} A.~E.~Castellvi~\cite{castellvi1984}, L.~A.~Goldstein, and D.~P.~K.~Chan, ``Lumbosacral
+\bibitem{castellvi1984} A.~E.~Castellvi, L.~A.~Goldstein, and D.~P.~K.~Chan, ``Lumbosacral
 transitional vertebrae and their relationship with lumbar extradural defects,''
 \emph{Spine} \textbf{9}, 493--495 (1984).
 
-\bibitem{resnick1976} D.~Resnick~\cite{resnick1976} and G.~Niwayama, ``Radiographic and pathologic features
+\bibitem{resnick1976} D.~Resnick and G.~Niwayama, ``Radiographic and pathologic features
 of spinal involvement in diffuse idiopathic skeletal hyperostosis (DISH),''
 \emph{Radiology} \textbf{119}, 559--568 (1976).
 
-\bibitem{faulkner1993} K.~G.~Faulkner~\cite{faulkner1993}, S.~R.~Cummings, D.~Black, L.~Palermo,
+\bibitem{faulkner1993} K.~G.~Faulkner, S.~R.~Cummings, D.~Black, L.~Palermo,
 C.~C.~Gl\"uer, and H.~K.~Genant, ``Simple measurement of femoral geometry predicts hip
 fracture: the study of osteoporotic fractures,''
 \emph{J.~Bone Miner.~Res.} \textbf{8}, 1211--1217 (1993).
