@@ -52,16 +52,19 @@ SACRUM, S1 = 26, 29
 L1, L6 = 20, 25
 MID_FRAC = 0.18      # half-width of the midline band, as a fraction of sacral half-width
 LAT_FRAC = 0.55      # the lateral third starts here, as a fraction of sacral half-width
+ANT_FRAC = 0.50      # keep only the anterior half in depth: see top_of()
 
 
 def axes_from(affine):
-    """-> (lateral axis, craniocaudal axis, +1 if index increases cranially else -1)."""
+    """-> (lateral, craniocaudal, cranial sign, left-is-low, anterior-is-low)."""
     codes = nib.aff2axcodes(affine)
     lat = next(i for i, c in enumerate(codes) if c in ("L", "R"))
     cc = next(i for i, c in enumerate(codes) if c in ("S", "I"))
     up = +1 if codes[cc] == "S" else -1
     left_is_low = codes[lat] == "R"       # index increases toward the right => low = left
-    return lat, cc, up, left_is_low
+    ap = ({0, 1, 2} - {lat, cc}).pop()
+    ant_is_low = codes[ap] == "P"         # increases toward posterior => low = anterior
+    return lat, cc, up, left_is_low, ant_is_low
 
 
 def one(path: Path):
@@ -70,7 +73,7 @@ def one(path: Path):
         img = nib.load(str(path))
         lab = np.asanyarray(img.dataobj)
         zooms = [float(z) for z in img.header.get_zooms()[:3]]
-        lat, cc, up, left_is_low = axes_from(img.affine)
+        lat, cc, up, left_is_low, ant_is_low = axes_from(img.affine)
 
         # one bincount instead of a sacrum test plus six lumbar equality scans; np.unique
         # and repeated `lab == v` each walk 160 million voxels, and that was the whole cost
@@ -97,12 +100,31 @@ def one(path: Path):
         mid = float((prof * np.arange(n_lat)).sum() / max(prof.sum(), 1))
         half = max(mid, n_lat - 1 - mid)
 
-        def top_of(lo, hi):
+        # THE TOP OF THE LATERAL SACRUM IS NOT THE ALA. It is the S1 SUPERIOR ARTICULAR
+        # PROCESS, which projects cranially and posteriorly in everybody, so measuring the
+        # topmost lateral voxel returns that process in every case and separates nothing:
+        # over the full cohort it gave AUC 0.450 for Castellvi III/IV against ungraded,
+        # which is below chance. Same family as the original tp_gap error, where the
+        # nearest point of the lateral vertebra to the sacrum was the L5-S1 facet joint.
+        #
+        # The ala proper is ANTERIOR to those processes. Restricting each band to the
+        # anterior fraction of the sacrum's own depth excludes them. `ant` is a boolean
+        # over the anteroposterior axis, built from the affine rather than assumed.
+        n_ap = a.shape[2]
+        ap_rows = np.nonzero(a.any(axis=(0, 1)))[0]
+        ap_lo, ap_hi = int(ap_rows.min()), int(ap_rows.max())
+        depth_ap = ap_hi - ap_lo + 1
+        if ant_is_low:
+            ap_slice = slice(ap_lo, ap_lo + max(1, int(round(ANT_FRAC * depth_ap))))
+        else:
+            ap_slice = slice(ap_hi + 1 - max(1, int(round(ANT_FRAC * depth_ap))), ap_hi + 1)
+
+        def top_of(lo, hi, anterior_only=True):
             """most cranial sacral index within a lateral band, or None."""
             lo, hi = max(0, int(lo)), min(n_lat, int(hi))
             if hi <= lo:
                 return None
-            band = a[lo:hi]
+            band = a[lo:hi, :, ap_slice] if anterior_only else a[lo:hi]
             rows = np.nonzero(band.any(axis=(0, 2)))[0]
             if not len(rows):
                 return None
@@ -111,6 +133,10 @@ def one(path: Path):
         t_mid = top_of(mid - MID_FRAC * half, mid + MID_FRAC * half + 1)
         t_lowside = top_of(0, mid - LAT_FRAC * half)                 # low index side
         t_highside = top_of(mid + LAT_FRAC * half, n_lat)            # high index side
+        # the whole-depth version, kept so the articular-process failure remains visible
+        w_mid = top_of(mid - MID_FRAC * half, mid + MID_FRAC * half + 1, False)
+        w_low = top_of(0, mid - LAT_FRAC * half, False)
+        w_high = top_of(mid + LAT_FRAC * half, n_lat, False)
 
         out = {"case": case, "error": "",
                "axcodes": "".join(nib.aff2axcodes(img.affine)),
@@ -129,6 +155,16 @@ def one(path: Path):
         else:
             out["ala_rise_left_mm"], out["ala_rise_right_mm"] = r_high, r_low
 
+        def wrise(t):
+            if t is None or w_mid is None:
+                return None
+            d = (t - w_mid) if up > 0 else (w_mid - t)
+            return round(float(d) * zooms[cc], 1)
+
+        wl, wh = wrise(w_low), wrise(w_high)
+        wv = [v for v in (wl, wh) if v is not None]
+        out["ala_rise_wholedepth_max_mm"] = max(wv) if wv else None
+
         vals = [v for v in (out["ala_rise_left_mm"], out["ala_rise_right_mm"])
                 if v is not None]
         out["ala_rise_max_mm"] = max(vals) if vals else None
@@ -145,7 +181,7 @@ def one(path: Path):
 
 FIELDS = ["case", "lowest_lumbar_label", "axcodes", "sacrum_voxels",
           "ala_rise_left_mm", "ala_rise_right_mm",
-          "ala_rise_max_mm", "ala_rise_asym_mm", "error"]
+          "ala_rise_max_mm", "ala_rise_asym_mm", "ala_rise_wholedepth_max_mm", "error"]
 
 
 def main() -> int:

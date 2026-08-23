@@ -143,3 +143,39 @@ everywhere else here: nothing is fitted, because 25 grade III/IV records can che
 measurement points the right way and cannot train anything; and a raised lateral sacrum is
 also what a large osteophyte, an ossified iliolumbar ligament, or a mis-assigned voxel at
 the sacroiliac joint looks like. Every case it ranks is a request for a radiologist.
+
+### The first version of that measurement failed, and the twelve-case check is why I believed it
+
+Run over all 802 volumes, `ala_rise` does not separate anything:
+
+| group | n | median ala_rise_max |
+|-------|---|---------------------|
+| I/II | 8 | 5.2 mm |
+| III/IV | 25 | 7.2 mm |
+| ungraded | 768 | **8.0 mm** |
+
+III/IV is *lower* than the ungraded cohort. As a ranking it is slightly worse than useless:
+**AUC 0.450** for III/IV against ungraded, and 0.437 for I/II — both below chance.
+
+The twelve-case smoke test looked convincing and was not evidence. Five of those twelve were
+graded cases and the seven ungraded ones happened to sit low, which is exactly what a
+twelve-case sample of a distribution with median 8.0 and p90 13.6 will do a fair fraction of
+the time. Reading the IIIa/IIIb laterality out of it was reading a pattern into noise.
+
+**Why it fails, and it is the same error twice.** The topmost bone in the lateral sacrum is
+not the ala. It is the **S1 superior articular process**, which projects cranially and
+posteriorly in every normal sacrum. So `ala_rise` measured that process in all 802 cases,
+which is why the ungraded median is a healthy 8 mm rather than the near-zero the reasoning
+predicted.
+
+This is the same mistake as the original `tp_gap`, which measured the minimum distance from
+the lateral vertebra to the sacrum and returned the width of the L5–S1 facet joint in
+everybody. Both times the number was computed correctly and described a different structure.
+The general form is now stated in the extractor's header and deserves restating: *the
+extreme point of a region is almost never the landmark you wanted, because some other
+structure is usually more extreme.*
+
+**The refinement being tested.** The sacral ala proper is *anterior* to the superior
+articular processes, so restricting each lateral band to the anterior half of the sacrum's
+own depth should exclude them. `ala_rise_wholedepth_max_mm` is retained alongside so the
+failure stays visible in the released measurements rather than being quietly replaced.
