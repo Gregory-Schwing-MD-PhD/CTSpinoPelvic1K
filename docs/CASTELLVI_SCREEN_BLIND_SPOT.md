@@ -179,3 +179,34 @@ structure is usually more extreme.*
 articular processes, so restricting each lateral band to the anterior half of the sacrum's
 own depth should exclude them. `ala_rise_wholedepth_max_mm` is retained alongside so the
 failure stays visible in the released measurements rather than being quietly replaced.
+
+### Three mechanisms, all falsified, and the reason is structural
+
+| what was measured | III/IV vs ungraded | verdict |
+|---|---|---|
+| topmost lateral sacrum (`ala_rise`, whole depth) | AUC **0.450** | below chance; measures the S1 superior articular process |
+| sacral bulk, raw and normalised by width × height | AUC **0.551** | chance |
+| topmost lateral sacrum, restricted to the anterior half | AUC **0.415** | below chance |
+| left–right asymmetry of the anterior rise | AUC 0.599 | weak, n = 25, not usable |
+
+The anterior restriction was the considered fix for the first failure and it made the number
+worse. At that point the pattern is not a series of measurement bugs.
+
+**Why no label-map measurement can do this.** Castellvi III is a transverse process fused to
+the sacral ala. Once an annotator has assigned those voxels to `sacrum`, the label map
+contains no record that a fusion occurred: a sacrum that absorbed a process and a naturally
+large sacrum are *the same object* in a label map. The evidence that distinguishes them —
+the cortical bridge, the fusion line, the obliterated joint space — lives in the CT
+attenuation, and the segmentation has already thrown it away.
+
+That is why the vertebra-side screen recovers exactly the grades where an unfused process
+survives (IIb 4, IIIa 25, IIa 58, Ib 82) and fails where none does (IV 378, IIIb 442). The
+information is not hiding on the other side of the label boundary. It was discarded when the
+boundary was drawn.
+
+**What follows.** Detecting bilateral fusion needs the CT, not the labels — which is an
+argument for the release rather than against it, since it ships both. The natural next
+attempt is attenuation sampled across the candidate fusion site: a preserved joint shows a
+low-attenuation cleft between two cortices, a fusion does not. That is a different piece of
+work from anything here, and it is worth stating that nothing in this document currently
+screens for Castellvi III or IV, so no such queue should be generated or acted on.
