@@ -112,3 +112,42 @@ Found while checking the above, and the same failure mode as the null `castellvi
 Neither is used by anything in this repo, which is why they survived. Both need either
 populating from the label volumes or removing from the schema; a declared field that is
 wrong is worse than an absent one, which is the lesson `castellvi_type` already taught.
+
+---
+
+## Closing the blind spot: measure the sacrum, not the vertebra
+
+The finding above says where the evidence went. If a transverse process fuses to the ala
+and the fused mass is labelled sacrum, then no vertebra-side measurement can see it, and
+the sacrum-side one should.
+
+`measure_sacral_ala.py` computes, per side:
+
+    ala_rise = (most cranial sacral voxel in the lateral third)
+             - (most cranial sacral voxel in the midline band)
+
+A normal sacrum is highest at the midline promontory and its alae slope away and downward,
+so this sits at or below zero. Bone fused into an ala from a process above it raises the
+lateral side above the midline.
+
+On the twelve cases inspected by hand the laterality falls out of the measurement rather
+than being imposed on it:
+
+| case | grade | left | right | asymmetry |
+|------|-------|------|-------|-----------|
+| 0208 | IIIa (unilateral) | 14.4 | 7.2 | **7.2** |
+| 0234 | IIIb (bilateral)  | 11.2 | 11.2 | **0.0** |
+| 0005 | IV                | 10.4 | 10.4 | 0.0 |
+| 0244 | Ib                | 14.4 | 12.8 | 1.6 |
+| 0268 | IIIb              | 0.8  | −1.6 | 2.4 |
+| ungraded (7 cases) | — | −8.0 to 7.2 | | |
+
+IIIa is unilateral and reads asymmetric; IIIb is bilateral and reads symmetric with both
+sides raised. That is the $a$/$b$ distinction appearing in a quantity that was not built
+from it. 0268, also IIIb, is a miss.
+
+Twelve cases is a direction, not a validation, and the honest caveats are the same as
+everywhere else here: nothing is fitted, because 25 grade III/IV records can check that a
+measurement points the right way and cannot train anything; and a raised lateral sacrum is
+also what a large osteophyte, an ossified iliolumbar ligament, or a mis-assigned voxel at
+the sacroiliac joint looks like. Every case it ranks is a request for a radiologist.
