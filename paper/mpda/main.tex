@@ -181,40 +181,40 @@ positional one.
 ]
 
 % --- row 1: sources ------------------------------------------- 2 lines, half 7
-\node[src] (tcia)   at (-58, 0) {\textbf{TCIA CT Colonography}\\[2pt]the scans};
-\node[src] (spine)  at (  0, 0) {\textbf{CTSpine1K}\\[2pt]vertebra outlines};
-\node[src] (pelvic) at ( 58, 0) {\textbf{CTPelvic1K}\\[2pt]sacrum + hip outlines};
+\node[src] (tcia)   at (-58, 0) {\textbf{TCIA CT Colonography}\\[2pt]CT volumes};
+\node[src] (spine)  at (  0, 0) {\textbf{CTSpine1K}\\[2pt]vertebral labels};
+\node[src] (pelvic) at ( 58, 0) {\textbf{CTPelvic1K}\\[2pt]sacrum + hip labels};
 \draw[ln] (tcia.south) -- (-58,-15) -- (0,-15);
 \draw[ln] (pelvic.south) -- (58,-15) -- (0,-15);
 \draw[ln] (spine.south) -- (0,-15);
 \draw[ar] (0,-15) -- (0,-22);
 
 % --- row 2: the crosswalk ------------------------------------- centre -30, half 8
-\node[proc] (cross) at (0,-30) {\textbf{match each set of outlines to the scan it was drawn
-  on}\\[2pt]every patient was scanned twice and neither source recorded which scan it used};
+\node[proc] (cross) at (0,-30) {\textbf{match each label set to the series it was drawn
+  on}\\[2pt]every patient was scanned prone \emph{and} supine; neither source published the
+  series it used};
 
 % --- row 3: the four kinds of record -------------------------- centre -56, half 9
-\node[rec] (fused) at (-60,-56) {\textbf{fused}\\[2pt]both, one scan\\[1pt]$n{=}342$};
-\node[rec] (sep)   at (-20,-56) {\textbf{separate}\\[2pt]pelvis: other scan\\[1pt]$n{=}351$};
-\node[rec] (sonly) at ( 20,-56) {\textbf{spine only}\\[2pt]no pelvis
-  outline\\[1pt]$n{=}89$};
+\node[rec] (fused) at (-60,-56) {\textbf{fused}\\[2pt]both on one series\\[1pt]$n{=}342$};
+\node[rec] (sep)   at (-20,-56) {\textbf{separate}\\[2pt]pelvis: other series\\[1pt]$n{=}351$};
+\node[rec] (sonly) at ( 20,-56) {\textbf{spine only}\\[2pt]no pelvic label\\[1pt]$n{=}89$};
 \node[rec] (ponly) at ( 60,-56) {\textbf{pelvis only}\\[2pt]held back\\[1pt]$n{=}20$};
 \draw[ln] (cross.south) -- (0,-44);
 \draw[ln] (-60,-44) -- (60,-44);
 \foreach \x in {-60,-20,20,60} \draw[ar] (\x,-44) -- (\x,-47);
 
 % --- row 4: corrections --------------------------------------- centre -82, half 8
-\node[proc] (fix) at (0,-82) {\textbf{fix mistakes in the original
-  outlines}\\[2pt]one vertebra split in two, a level skipped, a level left unlabelled:
-  $n{=}112$ spine fixes over 103 patients, $n{=}13$ pelvis fixes over 12};
+\node[proc] (fix) at (0,-82) {\textbf{correct errors in the source ground
+  truth}\\[2pt]split vertebrae, skipped levels, levels unlabelled inside the FOV:
+  $n{=}112$ spine fixes / 103 cases, $n{=}13$ pelvic fixes / 12 cases};
 \foreach \x in {-60,-20,20,60} \draw[ln] (\x,-65) -- (\x,-70);
 \draw[ln] (-60,-70) -- (60,-70);
 \draw[ar] (0,-70) -- (0,-74);
 
 % --- row 5: filling in the missing half ----------------------- centre -108, half 8
-\node[proc] (dense) at (0,-108) {\textbf{fill in whichever half is
-  missing}\\[2pt]a pelvis has nothing to count so a model can fill it in; the 20
-  pelvis-only spines were filled in and then corrected \emph{by hand}};
+\node[proc] (dense) at (0,-108) {\textbf{pseudolabel the missing half --- asymmetrically,
+  by design}\\[2pt]a pelvis has no enumeration to get wrong; a spine does, so the 20
+  pelvic-only spines were corrected \emph{by hand}};
 \draw[ar] (cross.south -| 0,0) ++(0,0) -- (0,-90) -- (0,-100);
 
 % --- rows 6-8: the releases, in order -------------------------- 20mm apart
@@ -226,29 +226,31 @@ positional one.
 \draw[ar] (v4.south) -- (v5.north);
 
 \foreach \y in {-132,-152,-172} \draw[ln, black!35] (-60,\y) -- (-54,\y);
-\node[det] at (-52,-132) {added the thigh bones and the lower chest vertebrae, and split
-  the top block of the sacrum (S1) off as its own label};
-\node[det] at (-52,-152) {added the \textbf{ribs}, merged from two automatic tools, then
-  sent $n{=}152$ scans to a person to check and correct};
-\node[det] at (-52,-172) {gave a \textbf{rib growing from a lumbar vertebra} its own label
-  instead of calling it the twelfth rib ($n{=}15$ scans)};
+\node[det] at (-52,-132) {added \textbf{femurs} and the lower thoracic levels, and carved
+  \textbf{S1} out of the sacrum as its own class --- the caudal anchor};
+\node[det] at (-52,-152) {added \textbf{ribs}: M\"oller's binary rib net unioned with
+  TotalSegmentator, numbered from TotalSegmentator, then $n{=}152$ cases to human review};
+\node[det] at (-52,-172) {\textbf{relabelled lumbar ribs} to their own class rather than
+  forcing them to be rib~12 ($n{=}15$ cases)};
 
 % --- row 9: the checks ----------------------------------------- centre -196, half 8
-\node[gate] (qc) at (0,-196) {\textbf{checks every scan must pass, in order}\\[2pt]outlines
-  sit on the bone and left is on the left $\rightarrow$ each rib touches the vertebra its
-  number says $\rightarrow$ measurements fall in human ranges};
+\node[gate] (qc) at (0,-196) {\textbf{release gates, in order --- a failure stops the
+  chain}\\[2pt]label shares its CT's affine and structures are correctly sided
+  $\rightarrow$ each rib articulates with the vertebra its number implies $\rightarrow$
+  measures fall in physiological range};
 \draw[ar] (v5.south) -- (-72,-186) -- (0,-186) -- (qc.north);
 
 % --- row 10: release ------------------------------------------- centre -220
-\node[fin] (rel) at (0,-220) {\textbf{802 released scans}\\[2pt]spine, pelvis, ribs and
-  thigh bones on one image; 33 carry a radiologist's Castellvi grade};
+\node[fin] (rel) at (0,-220) {\textbf{802 released records}\\[2pt]spine, pelvis, per-level
+  ribs and femurs in one frame; 33 carry a radiologist Castellvi grade};
 \draw[ar] (qc.south) -- (rel.north);
 \end{tikzpicture}}%
 \caption{How the dataset was built. Three public collections are combined patient by
-patient. Neither annotation source recorded which scan its outlines were drawn on, and every
-patient in this cohort was scanned twice, so each set of outlines has to be matched to the
-scan whose bone it actually lands on --- an outline placed on the wrong scan of the right
-patient is a correct segmentation that simply does not line up with the image beneath it.
+patient. Neither annotation source published the CT series its labels were drawn on, and
+every patient in this cohort was scanned prone and supine, so each label set has to be
+matched to the series whose bone it agrees with --- a label placed on the wrong series of the
+right patient is a correct segmentation of that patient that does not register to the image
+beneath it.
 The four kinds of record are the result of that matching and are the main finding of it: in
 351 patients the two collections had drawn their outlines on \emph{different scans of the
 same person}. Numbers marked $n$ are scans, or corrections, at that step.}
