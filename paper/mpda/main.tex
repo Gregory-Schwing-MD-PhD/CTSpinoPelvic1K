@@ -26,6 +26,19 @@
 % record is still private. Deleting that draft destroys the DOI and its files.
 \newcommand{\datasetdoi}{10.5281/zenodo.XXXXXXX}
 
+% Fit content to the text block WITHOUT enlarging it. \resizebox{\linewidth}{!}
+% forces the width to match exactly, which scales small things UP -- inflating
+% their fonts relative to the body text. This only ever shrinks.
+\newsavebox{\fitbox}
+\newcommand{\maxwidth}[1]{%
+  \sbox{\fitbox}{#1}%
+  \ifdim\wd\fitbox>\linewidth
+    \resizebox{\linewidth}{!}{\usebox{\fitbox}}%
+  \else
+    \usebox{\fitbox}%
+  \fi
+}
+
 \begin{document}
 
 \title{CTSpinoPelvic1K: a fused spine and pelvis CT segmentation dataset
@@ -97,43 +110,78 @@ fraction of the rib above it, a transverse process span and its gap to the ala.
 
 \begin{figure*}[t]
 \centering
+% FIXED GRID, EQUAL BOXES, BUS LINES IN THEIR OWN LANES.
+% Three defects fixed from earlier attempts, each of which only showed up on the page:
+%   * relative placement let a box that grew push itself over the row beneath, so the
+%     TCIA label ended up printed through the crosswalk box. Every row now has a fixed y.
+%   * the horizontal fan-out line was drawn at a y that the tallest box in the next row
+%     reached up into, so the line crossed straight through v3. The lanes at -62 and -82
+%     sit clear of the box edges at -63.5 and -76.5.
+%   * text widths were set too narrow and LaTeX hyphenated inside labels -- COLONOG-RAPHY,
+%     then +tho-racic. Line breaks are now explicit and the boxes are wide enough.
+% minimum height is a floor, not a height, so equal-looking rows need labels that wrap to
+% the same number of lines. They do.
+\maxwidth{%
 \begin{tikzpicture}[
+  x=1mm, y=1mm,
   font=\footnotesize,
-  box/.style={draw, rounded corners=1pt, align=center, minimum height=7mm, inner sep=3pt},
-  src/.style={box, fill=black!4},
-  proc/.style={box, fill=blue!6},
-  outbox/.style={box, fill=green!8},
-  gate/.style={box, fill=orange!12},
-  ar/.style={-{Stealth[length=4pt]}, thick, black!60},
+  every node/.style={inner sep=0pt},
+  bx/.style={draw, rounded corners=1.5pt, align=center, text width=#1,
+             minimum height=13mm, inner sep=3pt},
+  src/.style={bx=36mm, fill=black!5},
+  proc/.style={bx=78mm, fill=blue!7},
+  rel/.style={bx=38mm, fill=green!10},
+  gate/.style={bx=78mm, fill=orange!14},
+  fin/.style={bx=78mm, fill=green!18},
+  ar/.style={-{Stealth[length=4.5pt]}, semithick, black!65},
+  ln/.style={semithick, black!65},
 ]
-\node[src] (tcia)  {TCIA CT COLONOGRAPHY\\\scriptsize DICOM, prone + supine};
-\node[src, below=3mm of tcia] (spine) {CTSpine1K (COLONOG)\\\scriptsize vertebral labels, VerSe};
-\node[src, below=3mm of spine] (pelvic) {CTPelvic1K dataset2\\\scriptsize sacrum + hips};
+% --- row 1: sources -------------------------------------------------------
+\node[src] (tcia)   at (-42, 0) {TCIA CT Colonography\\[1pt]\scriptsize DICOM, prone + supine};
+\node[src] (spine)  at (  0, 0) {CTSpine1K\\[1pt]\scriptsize vertebral labels};
+\node[src] (pelvic) at ( 42, 0) {CTPelvic1K\\[1pt]\scriptsize sacrum + hips};
 
-\node[proc, right=9mm of spine] (cross) {patient-level\\crosswalk};
-\node[proc, right=7mm of cross] (place) {place on the series\\with most bone};
-\node[proc, right=7mm of place] (scheme) {VerSe-native\\label scheme};
+% --- rows 2-4: joining ----------------------------------------------------
+\node[proc] (cross)  at (0, -26) {patient-level crosswalk};
+\node[proc] (place)  at (0, -43) {place each label set on the acquisition\\carrying the most bone};
+\node[proc] (scheme) at (0, -60) {VerSe-native label scheme};
 
-\node[outbox, right=7mm of scheme, yshift=7mm]  (v3) {v3 \scriptsize +femora, +thoracic, S1 carve};
-\node[outbox, right=7mm of scheme, yshift=-2mm] (v4) {v4 \scriptsize +ribs, dual review};
-\node[outbox, right=7mm of scheme, yshift=-11mm](v5) {v5 \scriptsize +lumbar rib class};
+% --- row 5: releases ------------------------------------------------------
+\node[rel] (v3) at (-42, -82) {\textbf{v3}\\[1pt]\scriptsize +femora, +thoracic,\\S1 carve};
+\node[rel] (v4) at (  0, -82) {\textbf{v4}\\[1pt]\scriptsize +ribs,\\dual review};
+\node[rel] (v5) at ( 42, -82) {\textbf{v5}\\[1pt]\scriptsize +lumbar\\rib class};
 
-\node[gate, right=7mm of v4] (qc) {release gates\\\scriptsize invariants $\rightarrow$ rib QC\\\scriptsize $\rightarrow$ plausibility};
-\node[outbox, right=6mm of qc] (rel) {802 records\\\scriptsize + frozen splits};
+% --- rows 6-7: gates then release -----------------------------------------
+\node[gate] (qc)  at (0, -104) {release gates\\[1pt]\scriptsize invariants $\rightarrow$ rib QC $\rightarrow$ plausibility};
+\node[fin]  (out) at (0,-121) {\textbf{802 records}\\[1pt]\scriptsize + frozen splits};
 
-\draw[ar] (tcia.east) -- ++(4mm,0) |- (cross.west);
-\draw[ar] (spine) -- (cross);
-\draw[ar] (pelvic.east) -- ++(4mm,0) |- (cross.west);
-\draw[ar] (cross) -- (place);
-\draw[ar] (place) -- (scheme);
-\draw[ar] (scheme.east) -- ++(3mm,0) |- (v3.west);
-\draw[ar] (scheme.east) -- ++(3mm,0) |- (v4.west);
-\draw[ar] (scheme.east) -- ++(3mm,0) |- (v5.west);
-\draw[ar] (v3.east) -- ++(3mm,0) |- (qc.west);
-\draw[ar] (v4) -- (qc);
-\draw[ar] (v5.east) -- ++(3mm,0) |- (qc.west);
-\draw[ar] (qc) -- (rel);
-\end{tikzpicture}
+% --- edges. Lane 1 at -15 collects the sources; box bottoms sit at -6.5.
+\draw[ln] (tcia.south)   -- (-42,-14);
+\draw[ln] (spine.south)  -- (  0,-14);
+\draw[ln] (pelvic.south) -- ( 42,-14);
+\draw[ln] (-42,-14) -- (42,-14);
+\draw[ar] (0,-14) -- (cross.north);
+
+\draw[ar] (cross)  -- (place);
+\draw[ar] (place)  -- (scheme);
+
+% Lane 2 at -68 fans out to the releases; their tops are at -69.5, so it clears them.
+\draw[ln] (scheme.south) -- (0,-70);
+\draw[ln] (-42,-70) -- (42,-70);
+\draw[ar] (-42,-70) -- (v3.north);
+\draw[ar] (  0,-70) -- (v4.north);
+\draw[ar] ( 42,-70) -- (v5.north);
+
+% Lane 3 at -86 collects them; their bottoms are at -82.5.
+\draw[ln] (v3.south) -- (-42,-92);
+\draw[ln] (v4.south) -- (  0,-92);
+\draw[ln] (v5.south) -- ( 42,-92);
+\draw[ln] (-42,-92) -- (42,-92);
+\draw[ar] (0,-92) -- (qc.north);
+
+\draw[ar] (qc) -- (out);
+\end{tikzpicture}%
+}
 \caption{Construction. Three public collections are joined at the patient level; each
 label set is placed on the acquisition carrying the most bone, so spine and pelvic labels
 sometimes land on different acquisitions of the same patient and are exported as separate
@@ -172,7 +220,7 @@ twelfth rib. A lumbar rib and a hypoplastic twelfth rib are the same object unde
 counts; assigning it a number would bake one reading into the label. 16 records carry one.
 
 \begin{figure*}[t]
-\includegraphics[width=\textwidth]{figures/fig_phenotypes.pdf}
+\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_phenotypes.pdf}
 \caption{The configurations the corpus exists to represent, rendered from the released
 labels at one shared posterior viewing angle. Columns are captioned by the number of
 rib-free vertebrae between the lowest rib-bearing vertebra and the sacrum, not by a level
@@ -197,10 +245,11 @@ here only because rib presence is itself labelled.
 
 \subsection{Validation}
 
-\begin{table}[b]
+\begin{table*}[b]
 \caption{Release validation. Gates run in order and a failure stops the chain.}
 \label{tab:qc}
 \begin{ruledtabular}
+\maxwidth{%
 \begin{tabular}{lr}
 Check & Result \\ \colrule
 Geometric invariants (all cases) & 802/802 pass \\
@@ -216,8 +265,9 @@ Ribs present & 11{,}548 \\
 \quad misnumbered cases & 0 \\
 Spinopelvic medians within published range & 6/6 \\
 \end{tabular}
+}
 \end{ruledtabular}
-\end{table}
+\end{table*}
 
 Validation is layered, and the ordering matters: measurements computed on a corpus that
 has not established internal consistency do not look broken, they look finished.
@@ -246,7 +296,7 @@ Vialle \emph{et al.}~\cite{vialle2005} (Table~\ref{tab:spinopelvic}). Pelvic inc
 the strongest of these checks because it is a morphological property of the pelvis rather
 than a posture, and so is directly comparable to a standing reference cohort.
 
-\begin{table}[t]
+\begin{table*}[t]
 \caption{Derived measures against a published asymptomatic reference
 ($n=260$, standing)~\cite{vialle2005}. Sacral slope and pelvic tilt are postural where
 pelvic incidence is not, and this cohort is supine. The two postural measures depart from
@@ -258,6 +308,7 @@ offsets match in magnitude is evidence the geometry is internally consistent rat
 evidence of error.}
 \label{tab:spinopelvic}
 \begin{ruledtabular}
+\maxwidth{%
 \begin{tabular}{lcc}
 Measure & This dataset (supine) & Reference (standing) \\ \colrule
 Pelvic incidence & 54.7\si{\degree} & 54.7 $\pm$ 10.6 \\
@@ -266,8 +317,9 @@ Sacral slope & 36.9\si{\degree} & 41.0 $\pm$ 8.4 \\
 Lumbar lordosis (supine) & 52.7\si{\degree} & 43 $\pm$ 11.2 (standing) \\
 PI $-$ LL mismatch & 2.6\si{\degree} & centred near 0 \\
 \end{tabular}
+}
 \end{ruledtabular}
-\end{table}
+\end{table*}
 
 % ---------------------------------------------------------------------------
 \section{Data Format and Usage Notes}
@@ -290,7 +342,7 @@ the tagged release commit; any model-hub copy is a convenience mirror, not the a
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=\textwidth]{figures/fig_countfree.pdf}
+\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_countfree.pdf}
 \caption{Count-free measures, valid without knowing which vertebra is which.
 (a) Vertebrae between the lowest rib and the sacrum: an interval, not a level assignment.
 (b) Lowest rib length as a fraction of the rib above, showing two populations near 0.33
@@ -321,7 +373,7 @@ pelvis retroverting as a spine ages.
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=\textwidth]{figures/fig_validation.pdf}
+\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_validation.pdf}
 \caption{(a--c) Spinopelvic measures against published reference bands (mean $\pm$ SD).
 (d) Superior endplate width by level. (e) Median and interquartile range by decade;
 pelvic incidence is flat by construction of the anatomy, which makes it a negative
@@ -335,7 +387,7 @@ reported at the published standard site.
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=\textwidth]{figures/fig_opportunistic.pdf}
+\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_opportunistic.pdf}
 \caption{Opportunistic measures from the same images. (a) L1 trabecular attenuation with
 the 110~HU osteoporosis-specific threshold. (b) Median attenuation by decade and sex.
 (c) Lowest lumbar wedge ratio with Genant~\cite{genant1993}'s 0.80 threshold for mild wedge deformity.}
