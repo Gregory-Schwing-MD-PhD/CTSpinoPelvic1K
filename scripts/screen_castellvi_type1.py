@@ -66,13 +66,25 @@ def num(r, k):
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--csv", default="morphometrics/transition_morphometrics.csv")
+    ap.add_argument("--csv", default="morphometrics/tp_height.csv",
+                    help="measure_tp_height.py output, or transition_morphometrics.csv")
+    ap.add_argument("--counts", default="morphometrics/transition_morphometrics.csv",
+                    help="optional, only to report the rib-free count beside a call")
     ap.add_argument("--grades", default="morphometrics/castellvi_grades.csv")
     ap.add_argument("--out", default="docs/castellvi_type1_queue.csv")
     ap.add_argument("--threshold", type=float, default=TYPE1_MM)
     a = ap.parse_args()
 
     rows = list(csv.DictReader(open(a.csv)))
+    rows = [r for r in rows if not (r.get("error") or "").strip()]
+
+    # the rib-free count is context for a reviewer, not part of the criterion: Castellvi
+    # Type I is defined on the process alone and occurs perfectly happily on a normal count
+    counts = {}
+    cp = Path(a.counts)
+    if cp.exists():
+        counts = {r["case"]: r.get("n_non_rib_bearing", "")
+                  for r in csv.DictReader(open(cp))}
     if "tp_height_slab_left_mm" not in rows[0]:
         print("  ! this CSV predates the largest-component fix: it has no "
               "tp_height_slab_left_mm.")
@@ -106,7 +118,7 @@ def main() -> int:
             "slab_left_mm": sl, "slab_right_mm": sr,
             "tip_speckled": int(speckled),
             "known_grade": graded.get(r["case"], ""),
-            "n_non_rib_bearing": r.get("n_non_rib_bearing", ""),
+            "n_non_rib_bearing": counts.get(r["case"], r.get("n_non_rib_bearing", "")),
         })
 
     clean = [x for x in recs if not x["tip_speckled"]]
