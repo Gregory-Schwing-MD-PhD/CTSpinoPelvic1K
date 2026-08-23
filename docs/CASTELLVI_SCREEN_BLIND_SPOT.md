@@ -73,3 +73,42 @@ That is a narrower claim than the filename implies and a more useful one than th
 delivers, because I/II is exactly the grade a vertebra count cannot reach — seven of the 33
 graded cases have a perfectly normal count of five, and grade IIIb occurs at counts of
 four, five and six alike.
+
+---
+
+## A correction, and the footgun behind it
+
+An earlier version of this note said the join had been confirmed because "802 tokens map to
+802 records, so the zero-padded guess happened to be right." That is false. **Zero-padding
+the token reproduces the record id for one record in 802** — token 149 is record 0208. A
+padded join is not a rough version of the right answer; it is 32 of the 33 grades landing
+on the wrong 32 patients, in a file of exactly the right shape and length.
+
+The join is correct because it goes through the manifest's own `token` field. It was never
+correct for the reason I gave.
+
+The mechanism that made this hard to see is worth recording, because it nearly destroyed
+the result. `join_castellvi_grades.py` used to fall back to padding when the manifest was
+absent, print a warning, and **write the file anyway**. Re-running it on a machine without
+the manifest therefore replaced a correct `castellvi_grades.csv` with a corrupt one, and
+nothing downstream could tell. The per-grade numbers above survived only because they were
+computed before that overwrite and re-verified after the manifest was fetched — both runs
+agree exactly, which is what confirms them.
+
+The fallback is now removed. Without a manifest the script exits non-zero and writes
+nothing, and it also refuses to write if any graded token has no record.
+
+## Two other manifest fields that are declared and wrong
+
+Found while checking the above, and the same failure mode as the null `castellvi_type`:
+
+- **`has_l6`** is true for exactly one record — token 500, labelled `normal` — while all 14
+  `LUMBARIZATION` cases have it false. Lumbarization is the phenotype that produces an L6,
+  so this field is inverted, stale, or was never populated. L6 support is a headline claim
+  and cannot rest on it.
+- **`n_lumbar_labels`** is 0 for 795 of 802 records, including every LSTV case. It is not a
+  count of lumbar labels.
+
+Neither is used by anything in this repo, which is why they survived. Both need either
+populating from the label volumes or removing from the schema; a declared field that is
+wrong is worse than an absent one, which is the lesson `castellvi_type` already taught.

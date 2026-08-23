@@ -12,12 +12,17 @@ It also blocks work. `screen_missed_castellvi.py` cannot be validated as a Caste
 without Castellvi grades, and has been scored against LSTV labels -- which describe a COUNT
 where Castellvi describes a MORPHOLOGY -- with a header saying so.
 
-THE JOIN IS BY TOKEN, NOT BY CASE ID. The phenotype file is keyed by patient token; the
-morphometrics and label files are keyed by record id, and one patient can contribute more
-than one record when the spine and pelvic annotations landed on different acquisitions.
-Zero-padding the token matches 23 of 33 by luck; the manifest's own token field matches the
-rest, and a grade must reach EVERY record of a graded patient, since it is a property of
-the anatomy rather than of the acquisition.
+THE JOIN IS BY TOKEN, NOT BY CASE ID, AND THERE IS NO FALLBACK. The phenotype file is
+keyed by patient token; the morphometrics and label files are keyed by record id, and the
+two are unrelated -- token 149 is record 0208. Zero-padding the token reproduces the record
+id for exactly ONE record in 802, so a padded join is not an approximation of the right
+answer, it is 32 grades landing on the wrong 32 patients.
+
+An earlier version fell back to padding when the manifest was absent, printed a warning,
+and wrote the file anyway. That is worse than failing: the output is the right shape, the
+right length and silently wrong, and re-running it without the manifest present quietly
+replaced a correct file with a corrupt one. The fallback is gone. Without a manifest this
+script exits non-zero and writes nothing.
 
     python scripts/join_castellvi_grades.py --phenotypes _lstv_phenotypes.csv \\
         --manifest data/hf_export_v5/manifest.json --out morphometrics/castellvi_grades.csv
@@ -69,24 +74,22 @@ def main() -> int:
           f"{sum(1 for r in graded if (r.get('castellvi_second_read') or '').strip())} "
           f"carry a second read")
 
-    tok2rec = {}
-    if Path(a.manifest).exists():
-        tok2rec = load_manifest(a.manifest)
-        print(f"  manifest maps {len(tok2rec)} token(s) to records")
-    else:
-        print(f"  ! {a.manifest} not found; falling back to zero-padded tokens, which is "
-              f"a guess and will miss the patients that contributed two records")
+    if not Path(a.manifest).exists():
+        print(f"  ! {a.manifest} not found, and there is no fallback.")
+        print("  Zero-padding the token is right for 1 record in 802 -- it would put 32 of")
+        print("  the 33 grades on the wrong patients, in a file of the correct shape.")
+        print("  Fetch the manifest from the release and re-run.")
+        return 1
+    tok2rec = load_manifest(a.manifest)
+    print(f"  manifest maps {len(tok2rec)} token(s) to records")
 
     out, unmatched = [], []
     for r in rows:
         tok = str(r.get("token", "")).strip()
         recs = tok2rec.get(tok) or tok2rec.get(tok.lstrip("0")) or []
         if not recs:
-            recs = [tok.zfill(4)]
-            if not tok2rec:
-                pass
-            else:
-                unmatched.append(tok)
+            unmatched.append(tok)
+            continue
         first = (r.get("castellvi_type") or "").strip()
         second = (r.get("castellvi_second_read") or "").strip()
         for rec in recs:
@@ -106,6 +109,8 @@ def main() -> int:
 
     if unmatched:
         print(f"  ! {len(unmatched)} token(s) not in the manifest: {sorted(unmatched)}")
+        print("  A grade with no record is a grade that cannot be released. Refusing.")
+        return 1
 
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     with open(a.out, "w", newline="") as fh:
