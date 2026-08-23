@@ -72,9 +72,16 @@ def one(path: Path):
         zooms = [float(z) for z in img.header.get_zooms()[:3]]
         lat, cc, up, left_is_low = axes_from(img.affine)
 
-        sac = (lab == SACRUM) | (lab == S1)
-        if sac.sum() < 5000:
+        # one bincount instead of a sacrum test plus six lumbar equality scans; np.unique
+        # and repeated `lab == v` each walk 160 million voxels, and that was the whole cost
+        # of the earlier version of this pass
+        counts = np.bincount(lab.reshape(-1))
+        present = set(int(v) for v in np.nonzero(counts)[0])
+        n_sac = (int(counts[SACRUM]) if SACRUM < len(counts) else 0)
+        n_s1 = (int(counts[S1]) if S1 < len(counts) else 0)
+        if n_sac + n_s1 < 5000:
             return {"case": case, "error": "no sacrum"}
+        sac = (lab == SACRUM) | (lab == S1)
 
         # crop once; everything after is small
         idx = np.nonzero(sac)
@@ -129,7 +136,7 @@ def one(path: Path):
                                    if len(vals) == 2 else None)
 
         # context, not criterion
-        lum = [v for v in range(L1, L6 + 1) if (lab == v).any()]
+        lum = [v for v in range(L1, L6 + 1) if v in present]
         out["lowest_lumbar_label"] = max(lum) if lum else ""
         return out
     except Exception as e:                                            # noqa: BLE001
