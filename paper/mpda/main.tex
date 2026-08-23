@@ -74,13 +74,16 @@ measures with published reference values.
 
 \textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs sharing an
 identical affine, canonicalised to PIR, with frozen patient-grouped LSTV-stratified
-five-fold splits and a reference loader. Archived at \datasetdoi.
+five-fold cross-validation splits and a reference loader. Archived at \datasetdoi.
 
 \textbf{Potential Applications:} Segmentation and level-numbering benchmarks, anatomical
 variant studies, surgical planning, and opportunistic screening research.
 \emph{Limitations:} thoracic ground truth is field-of-view limited; postural angles are
-supine; soft-tissue and hardware classes are declared but unpopulated; transitional
-labels derive from more than one source and are not uniformly adjudicated.
+supine; soft-tissue and hardware identifiers are declared but unpopulated; the splits are
+cross-validation folds and include no held-out test set; the rib layer is a reviewed
+pseudolabel whose review was triaged by an automated rule rather than exhaustive; and the
+Castellvi grades are one reader's, with confirmation by a board-certified neuroradiologist
+in progress.
 \end{abstract}
 
 \maketitle
@@ -351,10 +354,19 @@ assigns a rib to its level has nothing to test.
 
 The two were therefore unioned: TotalSegmentator supplies numbering and the medial-clipped
 cases, Möller supplies detection where its output is more complete, and the union is
-carried forward with TotalSegmentator's per-level identities. The result is a
-pseudolabel, and it was reviewed. Every rib-bearing record was inspected by a trained
-reviewer and corrected where numbering, level assignment or continuity to the vertebra was
-wrong.
+carried forward with TotalSegmentator's per-level identities.
+
+The result is a pseudolabel, and the review it received was triaged rather than
+exhaustive --- which is worth stating plainly, because a rib layer described only as
+``human-corrected'' invites the reader to assume every bone was looked at. A label-based
+rule flagged every record in which one rib bone carried more than one identifier, or in
+which a rib failed to reach the vertebra it articulates with; a single bone with two
+numbers is a numbering error by construction, whatever the anatomy. That rule selected 152
+records. 148 were reviewed and corrected by a trained reviewer; 4 were not, and are
+identified in the release. The remaining records passed the rule and were not individually
+inspected, so the guarantee the rib layer carries is that it is free of the failure modes
+the rule detects, and no stronger. The residual rib--vertebra offsets reported in
+Sec.~\ref{sec:validation} are the independent check on what the rule missed.
 
 \subsection{Label scheme and counting anchors}
 
@@ -370,9 +382,21 @@ distinct class, giving the bottom bracket and the sacral endplate landmark requi
 sacral slope and pelvic incidence. With both brackets present, L5 and L6 are
 distinguishable where a spine-limited view alone would not be.
 
+Neither anchor is novel on its own. TotalSegmentator~\cite{totalsegmentator} also
+carries a separate S1 class alongside the sacrum and labels ribs per level, and
+VerSe~\cite{verse2021} carries L6. What no published scheme carries is the pair of
+classes below.
+
 \textbf{A rib on a lumbar body receives its own class} rather than being forced to be a
 twelfth rib. A lumbar rib and a hypoplastic twelfth rib are the same object under two
 counts; assigning it a number would bake one reading into the label. 16 records carry one.
+This is the class whose absence is decisive elsewhere: a scheme that numbers every rib
+1--12 has nowhere to put a thirteenth, so the annotator must either call it rib~12 --- which
+asserts the vertebra beneath it is thoracic, the very question at issue --- or discard it.
+
+\textbf{L6 is a class, not an exception.} A scheme without one cannot record a six-lumbar
+spine at all, and must renumber the column or drop a level to fit. The largest whole-body
+collection stops at L5.
 
 \begin{figure*}[t]
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_phenotypes.pdf}
@@ -399,6 +423,7 @@ and 14 without one; the two are indistinguishable by the count alone and are dis
 here only because rib presence is itself labelled.
 
 \subsection{Validation}
+\label{sec:validation}
 
 \begin{table*}[b]
 \caption{Release validation. Gates run in order and a failure stops the chain.}
@@ -618,13 +643,32 @@ The dataset supports segmentation and level-numbering benchmarks, anatomical var
 studies, surgical planning research, and opportunistic screening work of the kind
 Fig.~\ref{fig:opportunistic} illustrates.
 
-Its limitations are part of it. Thoracic ground truth is field-of-view limited and does
-not extend to T1. Postural angles are supine; pelvic incidence is not postural and needs
-no such caveat. Soft-tissue (58--73) and hardware (76--79) identifiers are declared in
-the scheme and populated by no case in this release. Transitional labels derive from two
-independent sources and are not uniformly adjudicated, which is precisely why the
-measures reported here are count-free. Finally, the cohort is a screening population, so
-its distributions should not be read as representative of a surgical one.
+Its limitations are part of it, and they are stated at the level of detail a reader would
+need to catch them independently.
+
+\emph{Coverage.} Thoracic ground truth is field-of-view limited and does not extend to T1.
+Postural angles are supine; pelvic incidence is not postural and needs no such caveat. The
+cohort is a colorectal screening population aged 50 and over, so its distributions should
+not be read as representative of a surgical one.
+
+\emph{Declared but empty.} Soft-tissue (58--73) and hardware (76--79) identifiers are
+declared in the scheme and populated by no case in this release. They are retained so that
+a downstream annotation can use them without renumbering, and a user should treat their
+absence as absence of annotation rather than absence of the structure.
+
+\emph{Strength of the labels varies by structure, and the release does not average over
+that.} Vertebral labels derive from radiologist-supervised source annotations, corrected
+where those sources were wrong. Pelvic labels on records that lacked one are
+pseudolabelled. The rib layer is a pseudolabel whose human review was triaged by an
+automated rule rather than exhaustive, so its guarantee is the absence of the failure modes
+that rule detects. Transitional labels derive from two independent sources and are not
+uniformly adjudicated --- which is precisely why the measures reported here are count-free
+--- and the Castellvi grades are a single reader's pending the confirmation described in
+Sec.~\ref{sec:validation}.
+
+\emph{Splits.} The shipped folds are cross-validation folds covering the whole cohort.
+There is no held-out test set, and with 15 lumbarisation and 15 sacralisation records a
+per-fold metric on the rare classes is estimated from three cases.
 
 \section*{Data Availability}
 The dataset is permanently archived at \url{https://doi.org/\datasetdoi}. Code is at
