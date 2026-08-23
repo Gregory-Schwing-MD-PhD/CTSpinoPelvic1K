@@ -99,7 +99,7 @@ junction cannot decide between them. LSTV is common --- reported between 4\% and
 depending on definition --- and wrong-level surgery is its most serious consequence.
 
 Existing public collections do not make the problem tractable, and the reason is not
-that they are small (Table~\ref{tab:prior}). Spine collections annotate vertebrae
+that they are small (Fig.~\ref{fig:priorart}, Table~\ref{tab:prior}). Spine collections annotate vertebrae
 without the pelvis, so the caudal anchor is missing; pelvic collections annotate the sacrum
 and ilia with the lumbar spine as a single undifferentiated class, so there is no count at
 all. The whole-body collections do annotate vertebrae, sacrum and ribs together, but their
@@ -239,6 +239,22 @@ volumes of the same person}. Quantities marked $n$ are records, or corrections, 
 step. The version chain reads downward, one release per row, with what each added beside
 it.}
 \label{fig:pipeline}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_priorart.pdf}
+\caption{Public CT collections at the lumbosacral junction. (a) Size, stated first
+because it is the claim this dataset does \emph{not} make: three of the five comparators
+carry more scans, and RibSeg~v2 labels more ribs than are labelled here. (b) What each
+published label scheme can represent, which is a property of its class list rather than of
+its segmentation quality --- a scheme with no L6 class cannot record a six-lumbar spine,
+and a scheme that numbers ribs 1--12 has nowhere to put a thirteenth except on top of the
+twelfth. VerSe is marked as graded-but-excluding because it does apply the Castellvi
+classification and uses it to decide what to leave out: vertebrae partially fused to the
+sacrum, grades III and IV, are not segmented, and the sacrum is not segmented at all.
+Those grades are 25 of the 33 graded records here.}
+\label{fig:priorart}
 \end{figure*}
 
 \begin{table*}[t]
