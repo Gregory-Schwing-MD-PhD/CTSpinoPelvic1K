@@ -1,0 +1,34 @@
+case,token,phenotype_category,n_non_rib_bearing_read,castellvi_type,castellvi_second_read,castellvi_agreement,notes
+0005,4,ambiguous,6,IV,,,IIa on right and IIIa on left
+0097,67,ambiguous,6,IIb,,,
+1053,737,lumbarization,6,IIb,,,
+0999,699,lumbarization,6,IIIb,,,complete lumbarization of L6
+0960,672,lumbarization,6,IIIb,,,complete lumbarization of L6
+0950,666,lumbarization,6,IIIb,,,complete lumbarization of L6
+0831,587,lumbarization,6,IIIb,,,complete lumbarization of L6
+0565,401,lumbarization,6,IIa,,,"Ia on the left, IIa on the right"
+0486,344,lumbarization,6,IIb,,,
+0376,267,lumbarization,6,IV,IV,agree,IIa on right and IIIa on left
+0366,261,lumbarization,6,IIb,IIb,agree,
+0302,215,lumbarization,6,Ib,IIb,disagree,
+0268,189,lumbarization,6,IIIb,IIb,disagree,complete fusion of transverse processes with disc space between L5/L6
+0244,175,lumbarization,6,Ib,Ib,agree,complete lumbarization of L6
+0234,167,lumbarization,6,IIIb,,,complete lumbarization of L6
+0208,149,lumbarization,6,IIIa,,,complete fusion of the left transverse process with disc space between L5/L6; right side normal lumbar
+0094,64,sacralization_count,4,IIIb,,,
+0151,104,sacralization_count,4,IIIb,,,
+0156,107,sacralization_count,4,IIIb,,,
+0158,110,sacralization_count,4,IIIb,,,
+0760,537,sacralization_count,4,IIIb,,,
+0785,554,sacralization_count,4,IIIb,,,possible unilateral right rudimentary rib at L1
+0787,555,sacralization_count,4,IIIb,,,possible bilateral rudimentary ribs at L1 or hypoplastic
+0875,615,sacralization_count,4,IIIb,,,possible bilateral rudimentary ribs at L1 or hypoplastic
+1031,721,sacralization_count,4,IIIb,,,possible bilateral rudimentary ribs at L1 or hypoplastic
+0008,6,sacralization,6,IV,,,
+0021,15,sacralization,6,IV,,,
+0049,32,sacralization,6,IIIb,,,
+0176,123,sacralization,6,IIIb,,,dgd of the right side
+0179,125,sacralization,6,IIIb,,,
+0196,140,sacralization,6,IIIa,,,
+0033,22,semi_sacralization,6,IIIa,,,
+0170,120,semi_sacralization,5,IIa,,,

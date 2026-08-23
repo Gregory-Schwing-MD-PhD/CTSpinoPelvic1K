@@ -1,17 +1,35 @@
 """scripts/screen_missed_castellvi.py — find transitional cases the labels may have missed.
 
-READ THIS BEFORE READING THE OUTPUT: THIS IS NOT VALIDATED AS A CASTELLVI SCREEN, AND IT
-CANNOT BE, BECAUSE THE DATASET CONTAINS NO CASTELLVI GRADES. The castellvi_type column is
-empty in all 802 records. What the 33 labelled cases carry is an LSTV label --
-SACRALIZATION, LUMBARIZATION, SEMI_SACRALIZATION -- and those describe a vertebral COUNT
-and its fusion, where Castellvi describes the MORPHOLOGY of a transverse process. The two
-are different axes and are not interchangeable; the clinical paper's limitations section
-says so and this script is bound by the same statement.
+WHAT THE POSITIVES ARE. All 33 LSTV cases carry a radiologist Castellvi grade (I-IV,
+a/b), five of them with a second independent read. Those grades live in
+`_lstv_phenotypes.csv` and are joined to record ids by `join_castellvi_grades.py`; when
+that join is present this screen is validated on Castellvi grades, which is what its name
+claims. Without it, it falls back to LSTV labels and says so, and that is a WEAKER
+validation because an LSTV label describes a vertebral COUNT where Castellvi describes the
+MORPHOLOGY of a transverse process.
 
-Every recovery figure printed below is therefore recovery of LSTV-LABELLED cases, not of
-Castellvi grades, and the name of this file is aspirational. Grading the 33 labelled cases
-(task A1 in docs/COLLABORATOR_TASKS.md) is the blocking prerequisite for the screen this
-is supposed to be.
+How far apart those two axes are is visible in this corpus. Grade IIIb occurs at rib-free
+counts of four (7 cases), five (4) and six (7) -- the same morphology across every count.
+Seven of the 33 graded cases have a perfectly normal count of five, and no count-based
+method can reach them at all.
+
+A caveat that belongs next to the grades rather than in a footnote: five second reads is
+enough to say the grading was checked and nowhere near enough to quote an inter-rater
+statistic. Two of those five disagree.
+
+
+WHAT THIS ACTUALLY SCREENS FOR, WHICH IS NARROWER THAN THE FILENAME. Scored against the
+grades, recovery splits hard by grade: Castellvi I/II reach median leave-one-out rank 32,
+III/IV rank 305, and IIb -- the subtlest grade -- ranks 7. That is the reverse of the
+obvious expectation, and the cause is a measurement artifact, not biology: when a
+transverse process is FUSED to the ala the fused mass is labelled sacrum, so this script
+measures the free vertebra left over and sees a short process beside a wide gap. A
+Castellvi III therefore measures like an ordinary case. See
+docs/CASTELLVI_SCREEN_BLIND_SPOT.md, including the sacral-width test that came back
+negative and is not being claimed.
+
+Treat the queue as a screen for Castellvi I and II. That is also the grade a vertebra count
+cannot reach, which is the case worth a radiologist's time.
 
 
 THIS IS A POSITIVE-UNLABELLED PROBLEM, not a classification problem, and the distinction
@@ -154,6 +172,10 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", default="morphometrics/transition_morphometrics.csv")
     ap.add_argument("--top", type=int, default=25)
+    ap.add_argument("--grades", default="morphometrics/castellvi_grades.csv",
+                    help="record-level Castellvi grades. When present these become the "
+                         "positives, and the screen is validated on the thing it is named "
+                         "after instead of on LSTV labels, which describe a count.")
     ap.add_argument("--use-count", action="store_true",
                     help="include n_non_rib_bearing as a feature. Off by default: see "
                          "the note on MORPHOLOGY above.")
@@ -165,6 +187,30 @@ def main() -> int:
         print("  including rib-free count as a feature (--use-count)")
 
     rows = list(csv.DictReader(open(a.csv)))
+
+    # THE POSITIVES ARE CASTELLVI GRADES WHERE THEY EXIST. Scoring against LSTV labels was
+    # a stopgap and the header says so: an LSTV label describes a vertebral COUNT and a
+    # Castellvi grade describes the MORPHOLOGY of a transverse process. This corpus shows
+    # how far apart those are -- grade IIIb occurs at rib-free counts of four, five AND
+    # six, and seven of the 33 graded cases have a perfectly normal count.
+    gp = Path(a.grades)
+    grade_of = {}
+    if gp.exists():
+        for r in csv.DictReader(open(gp)):
+            t = (r.get("castellvi_type") or "").strip()
+            if t:
+                grade_of[r["case"]] = t
+        graded = set(grade_of)
+        n_before = sum(1 for r in rows
+                       if (r.get("lstv_label") or "normal").strip().lower() != "normal")
+        for r in rows:
+            r["lstv_label"] = "CASTELLVI" if r["case"] in graded else "normal"
+        print("  positives are RADIOLOGIST CASTELLVI GRADES: "
+              f"{len(graded)} case(s), was {n_before} by LSTV label\n")
+    else:
+        print(f"  ! {gp} not found; falling back to LSTV labels, which are a different "
+              "axis -- see the header")
+
     X, y, cases = build(rows)
     npos = int(y.sum())
     print(f"  {len(X)} cases with complete features, {npos} labelled transitional\n")
@@ -190,6 +236,32 @@ def main() -> int:
         print(f"    in the top {k:3d}: {int((ranks <= k).sum())}/{len(ranks)} "
               f"({100 * (ranks <= k).mean():.0f}%)")
     hit25 = (ranks <= 25).mean()
+
+    # RECOVERY BY GRADE IS THE QUESTION THE GRADES UNLOCK, and it is the one that decides
+    # whether this screen is worth a radiologist's time. Castellvi I and II are an enlarged
+    # or articulating transverse process -- morphology and nothing else, invisible to any
+    # count. III and IV are bony fusion, which is gross and which a count usually catches
+    # anyway. A screen that only recovers III/IV is redundant with the count it deliberately
+    # excludes; one that recovers I/II is finding what nothing else can.
+    if grade_of:
+        pos_cases = [cases[i] for i in np.flatnonzero(y == 1)]
+        by = {}
+        for c, rk in zip(pos_cases, ranks):
+            by.setdefault(grade_of.get(c, "?"), []).append(rk)
+        print()
+        print("  recovery by Castellvi grade (median rank, and top-100 hits)")
+        for g in sorted(by, key=lambda t: (len(t.rstrip("ab")), t)):
+            v = np.asarray(by[g])
+            print(f"    {g:<5} n={len(v):<3} median {np.median(v):5.0f}   "
+                  f"top100 {int((v <= 100).sum())}/{len(v)}")
+        subtle = np.asarray([r for c, r in zip(pos_cases, ranks)
+                             if grade_of.get(c, "").startswith(("I", "II"))
+                             and not grade_of.get(c, "").startswith(("III", "IV"))])
+        gross = np.asarray([r for c, r in zip(pos_cases, ranks)
+                            if grade_of.get(c, "").startswith(("III", "IV"))])
+        if len(subtle) and len(gross):
+            print(f"    I/II  (morphology only, n={len(subtle)}): median {np.median(subtle):.0f}")
+            print(f"    III/IV (bony fusion,   n={len(gross)}): median {np.median(gross):.0f}")
 
     # --- rank the unlabelled -----------------------------------------------------------
     sc = fit_score(X, y)
@@ -246,8 +318,12 @@ def main() -> int:
         print("  nobody would already have flagged, and the only kind worth a")
         print("  radiologist's time. It is also why the recovery rate is the lower one.")
     print()
-    print("  AND IT IS NOT A CASTELLVI SCREEN until someone grades the 33 labelled")
-    print("  cases. See the header, and task A1 in docs/COLLABORATOR_TASKS.md.")
+    print("  THE POSITIVES ARE NOW THE RADIOLOGIST GRADES, but note what that did NOT")
+    print("  change: every graded case is an LSTV-labelled case, so the positive set is")
+    print("  the same 33 and every recovery number above is unmoved. The join makes the")
+    print("  name honest and buys no accuracy. What it does buy is the per-grade")
+    print("  breakdown, which is the only figure here that says whether the screen")
+    print("  reaches the cases a count cannot.")
 
     return 0
 
