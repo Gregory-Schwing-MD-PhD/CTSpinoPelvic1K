@@ -14,45 +14,37 @@ the name honest. It does not make the screen better.
 
 ## Recovery by grade, which is the figure that matters
 
+Recomputed after the transverse-process measurement was corrected. The first version of
+this table was built on heights contaminated by segmentation speckle -- 169 values across
+the cohort were overstated by more than 5 mm, several by more than 25 mm -- so the numbers
+below replace it rather than supplementing it.
+
 | grade | n | median LOO rank | in top 100 |
 |-------|---|-----------------|------------|
-| Ib    | 2 | 157 | 1/2 |
-| IIa   | 2 | 40  | 2/2 |
-| IIb   | 4 | **7**   | 4/4 |
-| IIIa  | 3 | 38  | 2/3 |
-| IIIb  | 18| **401** | 4/18 |
-| IV    | 4 | 293 | 2/4 |
+| IIb   | 4 | **4**   | 4/4 |
+| IIIa  | 3 | **25**  | 3/3 |
+| IIa   | 2 | 58      | 2/2 |
+| Ib    | 2 | 82      | 1/2 |
+| IV    | 4 | 378     | 2/4 |
+| IIIb  | 18| **442** | 3/18 |
 
-Grouped: **I/II median rank 32, III/IV median rank 305.**
+Fixing the measurement nearly doubled the screen's recovery overall: 11 of 33 in the top 25
+against 6 of 33 before.
 
-I predicted the reverse. Castellvi I and II are an enlarged or articulating transverse
-process — morphology and nothing else, invisible to any count — and III/IV is gross bony
-fusion, so I assumed fusion would be the easy case. It is the blind spot.
+## The dividing line is not the grade number
 
-## Why, and it is a measurement artifact rather than biology
+The first reading of this table was "I/II is recovered, III/IV is not". The corrected
+numbers say something more specific, and it is the mechanism rather than the ordinal:
 
-The feature medians say it plainly:
+**IIIa is recovered at rank 25. IIIb sits at 442.** Both are grade III -- both are bony
+fusion -- and they differ only in that IIIa is unilateral and IIIb bilateral. In a IIIa one
+transverse process is fused into the ala and labelled sacrum, and the other is still a free
+process on the vertebra, so there remains something to measure. In a IIIb both are gone.
 
-| group | n | tp_height_max | tp_gap L / R | ll_span |
-|-------|---|---------------|--------------|---------|
-| I/II  | 8 | **32.0 mm** | 5.2 / 3.6 | 99.2 |
-| III/IV| 25| 20.8 mm | 7.9 / 8.2 | 95.7 |
-| unlabelled | 769 | 18.4 mm | 8.5 / 8.8 | 92.5 |
-
-A Castellvi III measures almost exactly like an ordinary case. I/II separates hugely.
-
-The per-case rows make the mechanism visible: the IIIb cases with a rib-free count of four
-(0094, 0151, 0156, 0158, 0760, 0787, 1031) carry *small* transverse processes — 13.6 to
-18.4 mm — and *large* gaps, 8 to 19 mm. That is backwards for a fused vertebra, and it is
-backwards for a reason. **When the transverse process is fused to the ala, the fused mass
-is labelled sacrum.** The script then measures whatever free vertebra is left over: a short
-process, and a wide gap to a sacrum that has already absorbed the bone which bridged it.
-The screen is not failing on III/IV; it is measuring the wrong object, on the wrong side of
-a label boundary.
-
-This is the same class of error as the original `tp_gap` bug, where measuring from the
-whole lateral third returned the width of the L5–S1 facet joint in everybody. In both cases
-the number was computed correctly and described something else.
+That is the actual boundary: not II against III, but whether any unfused process survives
+on the vertebra to be measured. It predicts the rest of the table -- I, IIa, IIb and IIIa
+all retain at least one free process and all sit in the top 100; IIIb and IV, where fusion
+is bilateral or mixed, do not.
 
 ## What was tested and came back negative
 
