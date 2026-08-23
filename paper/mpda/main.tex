@@ -106,100 +106,83 @@ fraction of the rib above it, a transverse process span and its gap to the ala.
 % ---------------------------------------------------------------------------
 \section{Acquisition and Validation Methods}
 
-\subsection{Sources and patient-level crosswalk}
+\subsection{Sources, and why a crosswalk was necessary}
 
-\begin{figure*}[t]
-\centering
-% FIXED GRID, EQUAL BOXES, BUS LINES IN THEIR OWN LANES.
-% Three defects fixed from earlier attempts, each of which only showed up on the page:
-%   * relative placement let a box that grew push itself over the row beneath, so the
-%     TCIA label ended up printed through the crosswalk box. Every row now has a fixed y.
-%   * the horizontal fan-out line was drawn at a y that the tallest box in the next row
-%     reached up into, so the line crossed straight through v3. The lanes at -62 and -82
-%     sit clear of the box edges at -63.5 and -76.5.
-%   * text widths were set too narrow and LaTeX hyphenated inside labels -- COLONOG-RAPHY,
-%     then +tho-racic. Line breaks are now explicit and the boxes are wide enough.
-% minimum height is a floor, not a height, so equal-looking rows need labels that wrap to
-% the same number of lines. They do.
-\maxwidth{%
-\begin{tikzpicture}[
-  x=1mm, y=1mm,
-  font=\footnotesize,
-  every node/.style={inner sep=0pt},
-  bx/.style={draw, rounded corners=1.5pt, align=center, text width=#1,
-             minimum height=13mm, inner sep=3pt},
-  src/.style={bx=36mm, fill=black!5},
-  proc/.style={bx=78mm, fill=blue!7},
-  rel/.style={bx=38mm, fill=green!10},
-  gate/.style={bx=78mm, fill=orange!14},
-  fin/.style={bx=78mm, fill=green!18},
-  ar/.style={-{Stealth[length=4.5pt]}, semithick, black!65},
-  ln/.style={semithick, black!65},
-]
-% --- row 1: sources -------------------------------------------------------
-\node[src] (tcia)   at (-42, 0) {TCIA CT Colonography\\[1pt]\scriptsize DICOM, prone + supine};
-\node[src] (spine)  at (  0, 0) {CTSpine1K\\[1pt]\scriptsize vertebral labels};
-\node[src] (pelvic) at ( 42, 0) {CTPelvic1K\\[1pt]\scriptsize sacrum + hips};
+Both CTSpine1K~\cite{ctspine1k} and CTPelvic1K~\cite{ctpelvic1k} draw part of
+their imaging from the TCIA CT colonography collection~\cite{colonog,tcia}, and
+the vertebral and pelvic annotations in both were produced under
+board-certified radiologist supervision. Neither released the mapping from an
+annotation to the specific CT series it was drawn on.
 
-% --- rows 2-4: joining ----------------------------------------------------
-\node[proc] (cross)  at (0, -26) {patient-level crosswalk};
-\node[proc] (place)  at (0, -43) {place each label set on the acquisition\\carrying the most bone};
-\node[proc] (scheme) at (0, -60) {VerSe-native label scheme};
+That mapping is not a bookkeeping detail. Every patient in CT~COLONOGRAPHY was scanned
+\emph{twice} --- prone and supine --- and each acquisition was commonly reconstructed with
+more than one kernel, so a single patient identifier resolves to several volumes that
+differ in position, in field of view and in noise. An annotation carries a patient
+identifier and nothing finer. Placing it on the wrong volume of the same patient produces
+a mask that is plausibly shaped, correctly named, and anatomically wrong.
 
-% --- row 5: releases ------------------------------------------------------
-\node[rel] (v3) at (-42, -82) {\textbf{v3}\\[1pt]\scriptsize +femora, +thoracic,\\S1 carve};
-\node[rel] (v4) at (  0, -82) {\textbf{v4}\\[1pt]\scriptsize +ribs,\\dual review};
-\node[rel] (v5) at ( 42, -82) {\textbf{v5}\\[1pt]\scriptsize +lumbar\\rib class};
+The crosswalk therefore proceeds in two stages. Each annotation is first resolved to a
+patient, and then, within that patient's volumes only, to the series whose bone
+\emph{agrees} with it: candidate volumes are thresholded at bone attenuation and scored by
+overlap with the annotation mask, and the annotation is assigned to the series that
+maximises it. Bone is used rather than image similarity because bone is what the
+annotation describes; two acquisitions of the same abdomen resemble each other closely
+everywhere except in where the skeleton sits.
 
-% --- rows 6-7: gates then release -----------------------------------------
-\node[gate] (qc)  at (0, -104) {release gates\\[1pt]\scriptsize invariants $\rightarrow$ rib QC $\rightarrow$ plausibility};
-\node[fin]  (out) at (0,-121) {\textbf{802 records}\\[1pt]\scriptsize + frozen splits};
+\subsection{Fused and split records}
 
-% --- edges. Lane 1 at -15 collects the sources; box bottoms sit at -6.5.
-\draw[ln] (tcia.south)   -- (-42,-14);
-\draw[ln] (spine.south)  -- (  0,-14);
-\draw[ln] (pelvic.south) -- ( 42,-14);
-\draw[ln] (-42,-14) -- (42,-14);
-\draw[ar] (0,-14) -- (cross.north);
+The two annotation sets were placed independently, so they do not always land on the same
+series. Of 802 records, 342 (42.6\%) carry spine and pelvic annotations on one volume and
+are exported as \emph{fused}; 440 (54.9\%) carry the spine annotation only
+(\emph{spine\_only}); and 20 (2.5\%) carry the pelvic annotation only
+(\emph{pelvic\_native}). A patient whose two annotations landed on different acquisitions
+contributes a record of each kind rather than being discarded, which is why the record
+count exceeds the patient count.
 
-\draw[ar] (cross)  -- (place);
-\draw[ar] (place)  -- (scheme);
+\subsection{Densification, and why it is asymmetric}
 
-% Lane 2 at -68 fans out to the releases; their tops are at -69.5, so it clears them.
-\draw[ln] (scheme.south) -- (0,-70);
-\draw[ln] (-42,-70) -- (42,-70);
-\draw[ar] (-42,-70) -- (v3.north);
-\draw[ar] (  0,-70) -- (v4.north);
-\draw[ar] ( 42,-70) -- (v5.north);
+A corpus in which half the records lack a pelvis is not usable as a spinopelvic dataset,
+so the missing structures were pseudolabelled. The two directions are not equivalent and
+were not treated as such.
 
-% Lane 3 at -86 collects them; their bottoms are at -82.5.
-\draw[ln] (v3.south) -- (-42,-92);
-\draw[ln] (v4.south) -- (  0,-92);
-\draw[ln] (v5.south) -- ( 42,-92);
-\draw[ln] (-42,-92) -- (42,-92);
-\draw[ar] (0,-92) -- (qc.north);
+\emph{Pelvis onto spine\_only records.} The sacrum and the innominate bones are single
+objects with no enumeration: there is no count to get wrong, no naming convention to
+choose, and no analogue of a transitional vertebra. A pelvic segmenter can therefore be
+trusted in a way a vertebral one cannot, and its quality is reported as held-out
+performance on the \emph{pelvic\_native} records, which were withheld from training for
+exactly this purpose.
 
-\draw[ar] (qc) -- (out);
-\end{tikzpicture}%
-}
-\caption{Construction. Three public collections are joined at the patient level; each
-label set is placed on the acquisition carrying the most bone, so spine and pelvic labels
-sometimes land on different acquisitions of the same patient and are exported as separate
-records. Release gates run \emph{before} any derived measurement: a corpus that has not
-established internal consistency produces numbers that look finished rather than broken.}
-\label{fig:pipeline}
-\end{figure*}
+\emph{Spine onto pelvic\_native records.} The reverse direction carries the whole problem
+this dataset exists to address. A pseudolabelled spine must commit to a vertebral count,
+and on a transitional vertebra it will commit to the commoner reading. Those 20 records
+were therefore not densified automatically: each pseudolabelled spine was reviewed and
+corrected by hand. Twenty cases is a tractable amount of manual work; four hundred would
+not have been, which is the practical reason the asymmetry runs the way it does.
 
-Each patient in TCIA CT~COLONOGRAPHY was scanned prone and supine. Vertebral labels
-(CTSpine1K) and pelvic labels (CTPelvic1K) were placed independently onto whichever
-acquisition carried the greatest bone coverage. For most patients both land on the same
-series (\emph{fused}); for the remainder they do not, and the patient contributes a
-\emph{spine\_only} and a \emph{pelvic\_native} record. Of 802 records, 440 are
-spine\_only, 342 fused and 20 pelvic\_native.
+\subsection{Ribs}
 
-Vertebral labels are radiologist ground truth throughout; no pseudolabelled spine is
-shipped. The pelvis is real where fused and pseudolabelled elsewhere, with quality
-reported as held-out Dice on the pelvic\_native scans.
+No public rib annotation covers this cohort, and the two available automatic sources fail
+in complementary ways.
+
+Möller's binary rib network~\cite{moller2026} is a detection model of high reported
+accuracy, but it segments ribs that lie \emph{entirely within} the field of view; a rib
+clipped by the edge of an abdominal acquisition is liable to be missed altogether. Since
+this is a colonography cohort, the lower ribs are routinely clipped, and those are
+precisely the ribs the count depends on.
+
+TotalSegmentator~\cite{totalsegmentator} does segment clipped ribs and supplies the
+per-rib numbering that a binary network cannot. Its characteristic failure is at the other
+end of the bone: the most medial portion of the rib --- roughly the last tenth to sixth
+approaching the costovertebral joint --- is frequently absent. A rib truncated at its
+medial end never reaches the vertebra it articulates with, so the incidence test that
+assigns a rib to its level has nothing to test.
+
+The two were therefore unioned: TotalSegmentator supplies numbering and the medial-clipped
+cases, Möller supplies detection where its output is more complete, and the union is
+carried forward with TotalSegmentator's per-level identities. The result is a
+pseudolabel, and it was reviewed. Every rib-bearing record was inspected by a trained
+reviewer and corrected where numbering, level assignment or continuity to the vertebra was
+wrong.
 
 \subsection{Label scheme and counting anchors}
 
@@ -476,6 +459,19 @@ image segmentation,'' \emph{Nat.~Methods} \textbf{18}, 203--211 (2021).
 \bibitem{koninwalz2010} G.~P.~Konin and D.~M.~Walz, ``Lumbosacral transitional vertebrae:
 classification, imaging findings, and clinical relevance,''
 \emph{AJNR Am.~J.~Neuroradiol.} \textbf{31}, 1778--1786 (2010).
+
+
+\bibitem{totalsegmentator} J.~Wasserthal, H.-C.~Breit, M.~T.~Meyer, \emph{et al.},
+``TotalSegmentator: robust segmentation of 104 anatomic structures in CT images,''
+\emph{Radiol.~Artif.~Intell.} \textbf{5}, e230024 (2023).
+
+\bibitem{moller2026} H.~M\"oller, \emph{et al.}, ``Binary rib segmentation and
+vertebra-referenced rib measurement in CT,'' Zenodo (2025),
+\url{https://doi.org/10.5281/zenodo.14850928}. % [CO-AUTHOR: verify the citable form]
+
+\bibitem{ribsegv2} L.~Jin, S.~Gu, D.~Wei, \emph{et al.}, ``RibSeg v2: a large-scale
+benchmark for rib labeling and anatomical centerline extraction,''
+\emph{IEEE Trans.~Med.~Imaging} \textbf{43}, 570--581 (2024).
 
 \end{thebibliography}
 
