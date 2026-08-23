@@ -404,7 +404,8 @@ classes below.
 
 \textbf{A rib on a lumbar body receives its own class} rather than being forced to be a
 twelfth rib. A lumbar rib and a hypoplastic twelfth rib are the same object under two
-counts; assigning it a number would bake one reading into the label. 16 records carry one.
+counts; assigning it a number would bake one reading into the label. 15 released records
+carry one, and 17 carry an L6.
 This is the class whose absence is decisive elsewhere: a scheme that numbers every rib
 1--12 has nowhere to put a thirteenth, so the annotator must either call it rib~12 --- which
 asserts the vertebra beneath it is thoracic, the very question at issue --- or discard it.
@@ -437,11 +438,21 @@ Of the 29 records with four rib-free vertebrae, 15 reach that count through a lu
 and 14 without one; the two are indistinguishable by the count alone and are distinguished
 here only because rib presence is itself labelled.
 
-Sixteen records carry a lumbar rib in total --- the 15 above and one on a spine with the
-normal five rib-free vertebrae, which is the configuration a count-based method has no way
-to notice at all. Thirteen are bilateral and three unilateral, all three on the right.
-That laterality is reported because it is what the release contains and not as a finding:
-sixteen records cannot support a statement about side preference, and none is made.
+Fifteen records carry a lumbar rib in the released volumes: twelve bilateral and three
+unilateral, all three on the right. That laterality is reported because it is what the
+release contains and not as a finding --- fifteen records cannot support a statement about
+side preference, and none is made.
+
+Seventeen records carry an L6. Fourteen are labelled lumbarisation, two sacralisation and
+one semi-sacralisation, which is worth stating because it shows the two annotation axes
+disagreeing in the open: a record can carry six lumbar-type vertebrae and still be read as
+a sacralisation, depending on where the reader started the count.
+
+Both counts come from the released label volumes rather than from the manifest, and the
+distinction is not pedantic. The manifest carries a \texttt{has\_l6} flag which is true
+for exactly one record, and that record contains no L6, while all seventeen that do are
+flagged false. The flag is wrong in both directions and nothing in the release depends on
+it; users should read the label volumes, and it is noted here so that nobody trusts it.
 
 \subsection{Validation}
 \label{sec:validation}
@@ -681,8 +692,9 @@ Postural angles are supine; pelvic incidence is not postural and needs no such c
 cohort is a colorectal screening population aged 50 and over, so its distributions should
 not be read as representative of a surgical one.
 
-\emph{Declared but empty.} Soft-tissue (58--73) and hardware (76--79) identifiers are
-declared in the scheme and populated by no case in this release. They are retained so that
+\emph{Declared but empty, and confirmed so.} Soft-tissue (58--73) and hardware (76--79)
+identifiers are declared in the scheme and occur in no record --- checked by counting
+identifiers in all 802 released volumes rather than by assertion. They are retained so that
 a downstream annotation can use them without renumbering, and a user should treat their
 absence as absence of annotation rather than absence of the structure.
 
@@ -695,6 +707,13 @@ that rule detects. Transitional labels derive from two independent sources and a
 uniformly adjudicated --- which is precisely why the measures reported here are count-free
 --- and the Castellvi grades are a single reader's pending the confirmation described in
 Sec.~\ref{sec:validation}.
+
+\emph{Structures are not universally present.} The same census shows the release is not
+uniformly complete: one record carries no sacrum, hips or femora, and two carry no S1. Two
+lack T12 and nine lack an L5 identifier, in every case because the structure lies outside
+the field of view or, for L5, because the lowest lumbar segment is labelled L6 or
+incorporated into the sacrum. A user filtering on the presence of the caudal anchor should
+filter explicitly rather than assume it.
 
 \emph{Splits.} The shipped folds are cross-validation folds covering the whole cohort.
 There is no held-out test set, and with 15 lumbarisation and 15 sacralisation records a
