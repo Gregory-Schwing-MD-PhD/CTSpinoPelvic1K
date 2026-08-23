@@ -94,9 +94,11 @@ in progress.
 Naming a lumbar vertebra requires counting, and counting requires two fixed ends. In the
 presence of a lumbosacral transitional vertebra neither end is where it is assumed to be:
 the same bone is a sacralised L5 or a lumbarised S1 depending only on where the count
-starts, and a field of view that shows the lumbar spine without the thoracolumbar
-junction cannot decide between them. LSTV is common --- reported between 4\% and 30\%
-depending on definition --- and wrong-level surgery is its most serious consequence.
+starts. Deciding between them needs both ends of the lumbar column in the picture, and a
+scan that starts below the thoracolumbar junction has only one --- a situation this cohort
+contains: two of 802 records (0068 and 1106) are labelled L1--L5 and sacrum with no thoracic
+vertebra at all. LSTV is common, reported between 4\% and 30\% depending on definition, and
+wrong-level surgery is its most serious consequence.
 
 Existing public collections do not make the problem tractable, and the reason is not
 that they are small (Fig.~\ref{fig:priorart}, Table~\ref{tab:prior}). Spine collections annotate vertebrae
@@ -106,138 +108,150 @@ all. The whole-body collections do annotate vertebrae, sacrum and ribs together,
 label schemes contain no L6 class, no class for a rib borne by a lumbar vertebra, and no
 transitional label --- so a six-lumbar spine cannot be written down in them at any
 segmentation quality. VerSe~\cite{verse2021} deliberately enriched for anatomical
-variants and does grade transitional vertebrae by Castellvi; its dataset
-descriptor~\cite{versedata2021} states that, owing to that classification, vertebrae
-showing partial fusion with the sacrum --- Castellvi grades III and IV --- were
-\emph{not segmented}, and the sacrum is not segmented either. Those fused grades are 25
-of the 33 graded records here.
+variants and does grade transitional vertebrae by Castellvi. Its dataset
+descriptor~\cite{versedata2021} states: ``Owing to the Castellvi classification we did
+not segment vertebrae that showed partial fusion with the sacrum (Castellvi grades III and
+IV) and did not include them for further analysis.'' The sacrum is not segmented either.
+Those fused grades are 25 of the 33 graded records here.
 
-CTSpinoPelvic1K exists to put all of it in one coordinate frame, in a scheme that can
-represent the variants rather than round them to the nearest normal.
+CTSpinoPelvic1K puts the spine, the pelvis, the ribs and the femora on one image, and
+gives a name to each thing that can vary: a sixth lumbar vertebra, a rib growing from a
+lumbar body. A label scheme without those names has to write the anatomy down as something
+it is not.
 
-The design commitment is that \emph{the dataset never asserts a level name it cannot
-support}. Where the field of view cannot decide, the release reports count-free
-quantities: an interval count between the lowest rib and the sacrum, a rib length as a
-fraction of the rib above it, a transverse process span and its gap to the ala.
+\subsection{How levels are named when the scan cannot settle the count}
+
+Where the field of view does not reach the thoracolumbar junction, no level name can be
+assigned with certainty, and the release does not assign one. Instead every quantity is
+expressed against the two landmarks that are in the picture in essentially every abdominal
+scan: the sacrum below and the lowest rib-bearing vertebra above.
+
+The convention is therefore positional rather than nominal. A vertebra is identified by how
+many rib-free vertebrae separate it from the sacrum, not by a name; a lowest rib is
+described by its length as a fraction of the rib above it; a transverse process by its span
+and its distance from the sacral ala. Each of these is unchanged by whether the reader would
+have called the segment L5 or S1, which is the point: they can be compared across cases that
+disagree about the name.
+
+Where the junction \emph{is} in view, the count is determined and the conventional name
+follows from it, so the two descriptions agree and nothing is lost by reporting the
+positional one.
 
 % ---------------------------------------------------------------------------
 \begin{figure*}[p]
 \centering
-% SINGLE DOWNWARD FLOW ON A FIXED GRID, DESIGNED WIDE SO \maxwidth SHRINKS IT.
+% SINGLE DOWNWARD FLOW ON A FIXED GRID.
 %
-% Defects fixed, each of which only showed up once the page was rendered and looked at:
-%   * v3|v4|v5 used to run ACROSS, so the arrow into v3 came up from below-left while v4
-%     and v5 were fed sideways. A version history is a sequence; it now reads as one.
-%   * minimum height is a FLOOR, not a height. Boxes whose text wrapped to three lines
-%     grew past the row spacing and printed through the row beneath -- the record-type row
-%     sat on top of the corrections box, gates sat on top of the release box. Every row gap
-%     is now at least the tallest box in it plus 8mm of clearance, and the tallest box is
-%     stated in the comment beside its row so the next edit can check it.
-%   * the stub joining v5 to its description was drawn THROUGH the description. Stubs stop
-%     6mm short and the text is anchored west of that.
-%   * designing at ~200mm wide means \maxwidth scales the whole thing by ~0.82 to reach
-%     \linewidth, which buys back the same fraction of height. Designing narrow wastes it.
-%     \maxwidth only ever shrinks, so this cannot inflate the fonts the way \resizebox did.
+% THE RECURRING FAILURE HERE, THREE TIMES NOW: minimum height is a FLOOR, not a height.
+% A box whose text wraps to one more line than expected grows downward into the row beneath
+% and prints through it, and this is invisible in the source. The rule that finally works:
+% EVERY BOX IS AT MOST TWO LINES. Text is kept short enough to guarantee that at the box
+% width given, anything longer goes in the caption, and rows are then spaced at twice the
+% two-line height. Detail hangs to the RIGHT of the version boxes where there is free width,
+% not inside them where it would add lines.
+%
+% Also fixed:
+%   * v3|v4|v5 ran ACROSS, so the arrow into v3 came up from below-left. A version history
+%     is a sequence and now reads as one.
+%   * the previous attempt was drawn ~200mm wide and shrunk by \maxwidth to fit, which is
+%     why the type came out at 6pt in a field of white space. The design width is ~175mm
+%     against a ~165mm \linewidth, so \maxwidth scales by about 0.94 and the type stays
+%     essentially the size it was set in.
+%   * the stub joining v5 to its description was drawn THROUGH the description.
+%   * jargon: "geometric invariants" told the reader nothing. The gates now say what is
+%     checked, in words a surgeon would use.
 %   * "out" is a reserved TikZ key: naming a node (out) silently drops its shape and
 %     surfaces much later as "missing \item". The final node is (rel).
 \maxwidth{%
 \begin{tikzpicture}[
   x=1mm, y=1mm,
-  font=\footnotesize,
+  font=\small,
   every node/.style={inner sep=0pt},
   bx/.style={draw, rounded corners=1.5pt, align=center, text width=#1,
-             minimum height=10mm, inner sep=3pt},
-  src/.style={bx=54mm, fill=black!5},
-  proc/.style={bx=150mm, fill=blue!7},
-  rec/.style={bx=44mm, fill=black!3},
-  ver/.style={bx=40mm, fill=green!12, minimum height=9mm},
-  det/.style={align=left, text width=104mm, font=\scriptsize, anchor=west},
-  note/.style={align=center, text width=150mm, font=\scriptsize},
-  gate/.style={bx=150mm, fill=orange!14},
-  fin/.style={bx=150mm, fill=green!20},
-  ar/.style={-{Stealth[length=4.5pt]}, semithick, black!65},
-  ln/.style={semithick, black!65},
+             minimum height=11mm, inner sep=2.5pt},
+  src/.style={bx=52mm, fill=black!5},
+  proc/.style={bx=168mm, fill=blue!7},
+  rec/.style={bx=38mm, fill=black!3},
+  ver/.style={bx=24mm, fill=green!14, minimum height=9mm},
+  det/.style={align=left, text width=124mm, font=\small, anchor=west},
+  gate/.style={bx=168mm, fill=orange!14},
+  fin/.style={bx=168mm, fill=green!22},
+  ar/.style={-{Stealth[length=5pt]}, semithick, black!70},
+  ln/.style={semithick, black!70},
 ]
 
-% --- row 1: sources ------------------------------------- tallest box ~14mm, half 7
-\node[src] (tcia)   at (-70, 0) {\textbf{TCIA CT Colonography}\\[1pt]\scriptsize imaging;
-  every patient scanned prone \emph{and} supine};
-\node[src] (spine)  at (  0, 0) {\textbf{CTSpine1K}\\[1pt]\scriptsize vertebral labels,
-  radiologist-supervised};
-\node[src] (pelvic) at ( 70, 0) {\textbf{CTPelvic1K}\\[1pt]\scriptsize sacrum + hips,
-  radiologist-supervised};
+% --- row 1: sources ------------------------------------------- 2 lines, half 7
+\node[src] (tcia)   at (-58, 0) {\textbf{TCIA CT Colonography}\\[2pt]the scans};
+\node[src] (spine)  at (  0, 0) {\textbf{CTSpine1K}\\[2pt]vertebra outlines};
+\node[src] (pelvic) at ( 58, 0) {\textbf{CTPelvic1K}\\[2pt]sacrum + hip outlines};
+\draw[ln] (tcia.south) -- (-58,-15) -- (0,-15);
+\draw[ln] (pelvic.south) -- (58,-15) -- (0,-15);
+\draw[ln] (spine.south) -- (0,-15);
+\draw[ar] (0,-15) -- (0,-22);
 
-% --- row 2: crosswalk ----------------------------------- centre -34, half 8
-\node[proc] (cross) at (0, -34) {patient-level crosswalk, then bone-attenuation overlap
-  \emph{within} that patient\\[1pt]\scriptsize neither source published which series its
-  labels were drawn on, and every patient was scanned twice};
-\draw[ln] (tcia.south)   -- (-70,-19) -- (0,-19);
-\draw[ln] (pelvic.south) -- ( 70,-19) -- (0,-19);
-\draw[ln] (spine.south)  -- (0,-19);
-\draw[ar] (0,-19) -- (cross.north);
+% --- row 2: the crosswalk ------------------------------------- centre -30, half 8
+\node[proc] (cross) at (0,-30) {\textbf{match each set of outlines to the scan it was drawn
+  on}\\[2pt]every patient was scanned twice and neither source recorded which scan it used};
 
-% --- row 3: record types -------------------------------- centre -72, half 9
-\node[rec] (fused) at (-75,-72) {\textbf{fused}\\[1pt]\scriptsize spine + pelvis on one
-  volume\\[1pt]$n{=}342$};
-\node[rec] (sep)   at (-25,-72) {\textbf{separate}\\[1pt]\scriptsize pelvis on the
-  \emph{other} acquisition\\[1pt]$n{=}351$};
-\node[rec] (sonly) at ( 25,-72) {\textbf{spine\_only}\\[1pt]\scriptsize no pelvic label for
-  this patient\\[1pt]$n{=}89$};
-\node[rec] (ponly) at ( 75,-72) {\textbf{pelvic\_native}\\[1pt]\scriptsize pelvis only,
-  held out\\[1pt]$n{=}20$};
-\draw[ln] (cross.south) -- (0,-53);
-\draw[ln] (-75,-53) -- (75,-53);
-\foreach \x in {-75,-25,25,75} \draw[ar] (\x,-53) -- (\x,-62.5);
+% --- row 3: the four kinds of record -------------------------- centre -56, half 9
+\node[rec] (fused) at (-60,-56) {\textbf{fused}\\[2pt]both, one scan\\[1pt]$n{=}342$};
+\node[rec] (sep)   at (-20,-56) {\textbf{separate}\\[2pt]pelvis: other scan\\[1pt]$n{=}351$};
+\node[rec] (sonly) at ( 20,-56) {\textbf{spine only}\\[2pt]no pelvis
+  outline\\[1pt]$n{=}89$};
+\node[rec] (ponly) at ( 60,-56) {\textbf{pelvis only}\\[2pt]held back\\[1pt]$n{=}20$};
+\draw[ln] (cross.south) -- (0,-44);
+\draw[ln] (-60,-44) -- (60,-44);
+\foreach \x in {-60,-20,20,60} \draw[ar] (\x,-44) -- (\x,-47);
 
-% --- row 4: corrections, as a note rather than a box ---- centre -100
-\node[note] (fix) at (0,-100) {\textbf{corrections to the \emph{source} ground truth} ---
-  split vertebrae, skipped levels, and levels left unlabelled inside the field of view:\\
-  $n{=}112$ spine fixes across 103 cases, $n{=}13$ pelvic fixes across 12 cases};
-\foreach \x in {-75,-25,25,75} \draw[ln] (\x,-81.5) -- (\x,-90);
-\draw[ln] (-75,-90) -- (75,-90);
-\draw[ar] (0,-90) -- (0,-94);
+% --- row 4: corrections --------------------------------------- centre -82, half 8
+\node[proc] (fix) at (0,-82) {\textbf{fix mistakes in the original
+  outlines}\\[2pt]one vertebra split in two, a level skipped, a level left unlabelled:
+  $n{=}112$ spine fixes over 103 patients, $n{=}13$ pelvis fixes over 12};
+\foreach \x in {-60,-20,20,60} \draw[ln] (\x,-65) -- (\x,-70);
+\draw[ln] (-60,-70) -- (60,-70);
+\draw[ar] (0,-70) -- (0,-74);
 
-% --- row 5: densification ------------------------------- centre -126, half 9
-\node[proc] (dense) at (0,-126) {densification, asymmetric by design\\[1pt]
-  \scriptsize a pelvis has no enumeration to get wrong, so it is pseudolabelled onto
-  spine-bearing records; the 20 \textsf{pelvic\_native} spines were corrected \emph{by hand}};
-\draw[ar] (0,-107) -- (dense.north);
+% --- row 5: filling in the missing half ----------------------- centre -108, half 8
+\node[proc] (dense) at (0,-108) {\textbf{fill in whichever half is
+  missing}\\[2pt]a pelvis has nothing to count so a model can fill it in; the 20
+  pelvis-only spines were filled in and then corrected \emph{by hand}};
+\draw[ar] (cross.south -| 0,0) ++(0,0) -- (0,-90) -- (0,-100);
 
-% --- rows 6-8: the version chain, vertical, every arrow down ---------------
-\node[ver] (v3) at (-58,-158) {\textbf{v3}};
-\node[ver] (v4) at (-58,-182) {\textbf{v4}};
-\node[ver] (v5) at (-58,-206) {\textbf{v5}};
-\draw[ar] (dense.south) -- (0,-142) -- (-58,-142) -- (v3.north);
+% --- rows 6-8: the releases, in order -------------------------- 20mm apart
+\node[ver] (v3) at (-72,-132) {\textbf{v3}};
+\node[ver] (v4) at (-72,-152) {\textbf{v4}};
+\node[ver] (v5) at (-72,-172) {\textbf{v5}};
+\draw[ar] (0,-116) -- (0,-122) -- (-72,-122) -- (v3.north);
 \draw[ar] (v3.south) -- (v4.north);
 \draw[ar] (v4.south) -- (v5.north);
 
-% stubs stop 6mm short of the text; the text is anchored west of that
-\foreach \n/\y in {v3/-158, v4/-182, v5/-206} \draw[ln, black!35] (-38,\y) -- (-32,\y);
-\node[det] at (-30,-158) {femora, the lower thoracic levels, and \textbf{S1 carved} from the
-  sacrum --- the caudal anchor the count needs};
-\node[det] at (-30,-182) {\textbf{ribs}: TotalSegmentator numbering unioned with a \mbox{binary} detector, then $n{=}152$ cases sent to human rib review};
-\node[det] at (-30,-206) {the \textbf{lumbar rib} given its own class rather than being
-  forced to be a twelfth rib ($n{=}16$ records); speckle cleanup only \emph{after} correction};
+\foreach \y in {-132,-152,-172} \draw[ln, black!35] (-60,\y) -- (-54,\y);
+\node[det] at (-52,-132) {added the thigh bones and the lower chest vertebrae, and split
+  the top block of the sacrum (S1) off as its own label};
+\node[det] at (-52,-152) {added the \textbf{ribs}, merged from two automatic tools, then
+  sent $n{=}152$ scans to a person to check and correct};
+\node[det] at (-52,-172) {gave a \textbf{rib growing from a lumbar vertebra} its own label
+  instead of calling it the twelfth rib ($n{=}15$ scans)};
 
-% --- row 9: gates --------------------------------------- centre -236, half 9
-\node[gate] (qc) at (0,-236) {release gates, run in order --- a failure stops the chain\\[1pt]
-  \scriptsize geometric invariants (802/802) $\rightarrow$ rib--vertebra incidence
-  (5{,}749 evaluable, 2 residual offsets) $\rightarrow$ physiological plausibility};
-\draw[ar] (v5.south) -- (-58,-220) -- (0,-220) -- (qc.north);
+% --- row 9: the checks ----------------------------------------- centre -196, half 8
+\node[gate] (qc) at (0,-196) {\textbf{checks every scan must pass, in order}\\[2pt]outlines
+  sit on the bone and left is on the left $\rightarrow$ each rib touches the vertebra its
+  number says $\rightarrow$ measurements fall in human ranges};
+\draw[ar] (v5.south) -- (-72,-186) -- (0,-186) -- (qc.north);
 
-% --- row 10: release ------------------------------------ centre -264
-\node[fin] (rel) at (0,-264) {\textbf{802 released records}\\[1pt]\scriptsize spine, pelvis,
-  ribs and femora in one coordinate frame; 33 carry a radiologist Castellvi grade};
+% --- row 10: release ------------------------------------------- centre -220
+\node[fin] (rel) at (0,-220) {\textbf{802 released scans}\\[2pt]spine, pelvis, ribs and
+  thigh bones on one image; 33 carry a radiologist's Castellvi grade};
 \draw[ar] (qc.south) -- (rel.north);
 \end{tikzpicture}}%
-\caption{Construction. Three public collections are joined at the patient level, and each
-annotation is then placed on the acquisition whose bone it actually agrees with --- neither
-source published which series its labels were drawn on, and every patient in the
-colonography cohort was scanned twice. The four record types measure that problem rather
-than describing bookkeeping: in 351 patients the two collections annotated \emph{different
-volumes of the same person}. Quantities marked $n$ are records, or corrections, at that
-step. The version chain reads downward, one release per row, with what each added beside
-it.}
+\caption{How the dataset was built. Three public collections are combined patient by
+patient. Neither annotation source recorded which scan its outlines were drawn on, and every
+patient in this cohort was scanned twice, so each set of outlines has to be matched to the
+scan whose bone it actually lands on --- an outline placed on the wrong scan of the right
+patient is a correct segmentation that simply does not line up with the image beneath it.
+The four kinds of record are the result of that matching and are the main finding of it: in
+351 patients the two collections had drawn their outlines on \emph{different scans of the
+same person}. Numbers marked $n$ are scans, or corrections, at that step.}
 \label{fig:pipeline}
 \end{figure*}
 
@@ -302,8 +316,11 @@ That mapping is not a bookkeeping detail. Every patient in CT~COLONOGRAPHY was s
 \emph{twice} --- prone and supine --- and each acquisition was commonly reconstructed with
 more than one kernel, so a single patient identifier resolves to several volumes that
 differ in position, in field of view and in noise. An annotation carries a patient
-identifier and nothing finer. Placing it on the wrong volume of the same patient produces
-a mask that is plausibly shaped, correctly named, and anatomically wrong.
+identifier and nothing finer. Placing it on the wrong volume of the same patient produces a
+mask that is correctly shaped and correctly named --- it is a faithful segmentation of that
+patient's spine --- but that does not sit on the bone in the volume it has been attached to.
+The failure is one of registration, not of anatomy, which is what makes it hard to see: the
+mask looks right in isolation and only reveals itself when overlaid on the image.
 
 The crosswalk therefore proceeds in two stages. Each annotation is first resolved to a
 patient, and then, within that patient's volumes only, to the series whose bone
