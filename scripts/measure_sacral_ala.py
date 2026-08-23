@@ -1,15 +1,24 @@
 """scripts/measure_sacral_ala.py — look for the fused process on the sacrum's side of the label.
 
 THE PROBLEM THIS EXISTS FOR. Scored against the radiologist grades, the transverse-process
-screen recovers Castellvi I and II at median leave-one-out rank 32 and III/IV at rank 305.
-That is backwards from the obvious expectation, since III and IV are gross bony fusion, and
-the cause is not biology. When a transverse process fuses to the sacral ala, the fused mass
-is labelled SACRUM. The vertebra-side measurement then describes whatever free vertebra is
-left over -- a short process beside a wide gap -- so a Castellvi III measures like an
-ordinary case: tp_height 20.8 mm against 18.4 unlabelled, gap 7.9/8.2 against 8.5/8.8.
+screen recovers by whether an unfused process survives on the vertebra, not by grade
+number: IIb at median leave-one-out rank 4, IIIa at 25, IIa at 58, Ib at 82 -- and IIIb at
+442, IV at 378. IIIa and IIIb are both bony fusion and differ only in laterality; in a IIIa
+one process is fused into the ala and labelled SACRUM while the other is still free on the
+vertebra, and in a IIIb both are gone.
+
+So where fusion is bilateral there is nothing left on the vertebra to measure, and the
+vertebra-side numbers say so: a Castellvi III reads like an ordinary case, tp_height 20.8 mm
+against 18.4 unlabelled, gap 7.9/8.2 against 8.5/8.8.
 
 If the bone moved across the label boundary, the evidence is on the other side of it. That
 is what this measures.
+
+AND THE FIRST VERSION OF IT DID NOT WORK. Over all 802 volumes it gave AUC 0.450 for III/IV
+against ungraded -- below chance -- because the topmost bone in the lateral sacrum is the S1
+superior articular process, not the ala, and that process projects cranially in everybody.
+A twelve-case smoke test had looked convincing and was noise. The anterior restriction in
+top_of() is the response; see docs/CASTELLVI_SCREEN_BLIND_SPOT.md for both results.
 
 WHAT IT MEASURES, AND WHY THIS QUANTITY. A normal sacrum's highest point is at the midline:
 the promontory, the anterosuperior lip of S1. The alae slope down and away from it. A
