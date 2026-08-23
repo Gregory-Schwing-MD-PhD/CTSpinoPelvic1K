@@ -229,3 +229,31 @@ pelvic incidence must separate by sex. Measured, the difference was 0.8° — th
 wrong, not the measurement, because pelvic dimorphism is strong in shape rather than in
 incidence. A null stated with its effect size is a result; an unexamined adjective is
 not.
+
+## Found 2026-08-23, by checking the released volumes rather than the working copy
+
+Everything below was established by counting identifiers in all 802 released label volumes
+(`scripts/label_census.py`, now folded into `measure_tp_height.py`) or by reading the
+released manifest and splits. None of it is visible from the working copy on the grid.
+
+| item | state | what to do |
+|---|---|---|
+| **`0787` lumbar rib** | working copy says bilateral lumbar rib, 35.2 mm; released volume has no class 74 or 75 | one of the two is wrong. Decide which, then either re-export the case or correct the morphometrics. The paper now says 15 records, matching the release |
+| **`has_l6` in the manifest** | wrong in both directions: true for one record that has no L6; false for all 17 that do | repopulate from the label volumes, or drop the field. A declared field that is wrong is worse than an absent one — the same failure `castellvi_type` had |
+| **`n_lumbar_labels`** | 0 in 795 of 802 records including every LSTV case | not a count of lumbar labels. Repopulate or drop |
+| **no held-out test set** | `splits_5fold.json` is five disjoint folds whose union is the cohort | either ship a test split or keep the release as-is and let the paper say so, which it now does |
+| **`castellvi_type`** | **done** — populated on `v5` and `main`, 33 grades, 5 second reads | — |
+| **structures not universally present** | 1 record without sacrum/hips/femora, 2 without S1, 2 without T12, 9 without L5 | expected (field of view, or the lowest segment labelled L6/absorbed). Documented in the paper's limitations; no action unless a case is genuinely defective |
+| **soft tissue 58–73, hardware 76–79** | confirmed empty in all 802 | none. The paper's claim is now verified rather than asserted |
+| **`tp_height` in the morphometrics** | was the tip-slab extent, so speckle set it; 169 values overstated by >5 mm, several by >25 mm | **fixed** — largest connected component, spliced in by `merge_tp_height.py`, old values kept as `*_prefix_mm`. Any analysis run before 2026-08-23 that used `tp_height_*` needs re-running |
+
+### Still blocking
+
+- Zenodo DOI is a placeholder (`10.5281/zenodo.XXXXXXX`). Reserve before the final draft.
+- IRB determination letter does not exist; the paper's Ethics section says PENDING in the
+  text and must not be submitted as written.
+- Co-author conflict-of-interest statements: the paper asserts none for all authors and
+  only Greg has been asked.
+- Twelve of sixteen references still have unverified volume/page fields; the three checked
+  are named in `main.tex`.
+- The `anonymous-mlhc` dataset card licence still needs the CC BY-NC-SA 4.0 sign-off.
