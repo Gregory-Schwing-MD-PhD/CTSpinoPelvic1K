@@ -91,8 +91,13 @@ in progress.
 % ---------------------------------------------------------------------------
 \section{Purpose}
 
-Naming a lumbar vertebra requires counting, and counting requires two fixed ends. In the
-presence of a lumbosacral transitional vertebra neither end is where it is assumed to be:
+Labelling a lumbar vertebra requires counting, and counting requires two fixed ends. The
+spine commonly carries seven cervical, twelve thoracic and five lumbar vertebrae, but
+\emph{enumeration anomalies} --- eleven or thirteen thoracic, four or six lumbar --- are
+common, and the transitional phenotypes that produce them sit at the two ends of the lumbar
+column: the lumbosacral transitional vertebra (LSTV) below and the thoracolumbar
+transitional vertebra (TLTV) above. In the presence of an LSTV neither fixed end is where it
+is assumed to be:
 the same bone is a sacralised L5 or a lumbarised S1 depending only on where the count
 starts. Deciding between them needs both ends of the lumbar column in the picture, and a
 scan that starts below the thoracolumbar junction has only one --- a situation this cohort
@@ -114,23 +119,24 @@ not segment vertebrae that showed partial fusion with the sacrum (Castellvi grad
 IV) and did not include them for further analysis.'' The sacrum is not segmented either.
 Those fused grades are 25 of the 33 graded records here.
 
-CTSpinoPelvic1K puts the spine, the pelvis, the ribs and the femora on one image, and
-gives a name to each thing that can vary: a sixth lumbar vertebra, a rib growing from a
-lumbar body. A label scheme without those names has to write the anatomy down as something
-it is not.
+CTSpinoPelvic1K places the spine, pelvis, ribs and femora in one coordinate frame and gives
+a class to each structure an enumeration anomaly produces: a sixth lumbar vertebra, and a
+rib borne by a lumbar vertebra. A scheme without those classes must record such anatomy as
+something it is not.
 
-\subsection{How levels are named when the scan cannot settle the count}
+\subsection{Vertebra labelling when the scan cannot settle the count}
 
-\emph{The limitation, stated plainly.} Vertebral numbering is conventionally established by
+\emph{The limitation, stated plainly.} Vertebra labelling is conventionally established by
 counting down from C2. No scan in this corpus contains C2, and none contains the whole
 cervical spine, so that count cannot be performed. This is not a shortcoming of the
 annotation: it is a property of abdominal imaging, and it means a variant at the
 thoracolumbar junction cannot be \emph{resolved by counting} here at all. A thirteenth
-thoracic vertebra, a rib borne by a lumbar vertebra, and a hypoplastic or aplastic twelfth
-rib produce overlapping appearances, and which name is correct depends on a count the field
-of view does not support.
+thoracic vertebra, a lumbar rib, and a \emph{stump rib} --- a hypoplastic twelfth rib, one
+of the cardinal indicators of a thoracolumbar transitional vertebra --- produce overlapping
+appearances, and which label is correct depends on a count the field of view does not
+support.
 
-\emph{What the release does instead.} No level name is asserted where it cannot be
+\emph{What the release does instead.} No vertebral label is asserted where it cannot be
 supported. Every quantity is expressed against the two landmarks present in essentially
 every abdominal scan --- the sacrum below and the lowest rib-bearing vertebra above --- so
 the description is positional rather than nominal: a vertebra by how many rib-free vertebrae
@@ -443,8 +449,8 @@ VerSe~\cite{verse2021} carries L6. What no published scheme carries is the pair 
 classes below.
 
 \textbf{A rib on a lumbar body receives its own class} rather than being forced to be a
-twelfth rib. A lumbar rib and a hypoplastic twelfth rib are the same object under two
-counts; assigning it a number would bake one reading into the label. 15 released records
+twelfth rib. A lumbar rib and a stump rib are the same object under two counts; assigning
+it a number would commit the label to one reading of an enumeration anomaly. 15 released records
 carry one, and 17 carry an L6.
 This is the class whose absence is decisive elsewhere: a scheme that numbers every rib
 1--12 has nowhere to put a thirteenth, so the annotator must either call it rib~12 --- which
@@ -455,25 +461,25 @@ spine at all, and must renumber the column or drop a level to fit. The largest w
 collection stops at L5.
 
 \begin{figure*}[t]
-\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_phenotypes.pdf}
-\caption{The configurations the corpus exists to represent, rendered from the released
-labels at one shared posterior viewing angle. Columns are captioned by the number of
-rib-free vertebrae between the lowest rib-bearing vertebra and the sacrum, not by a level
-name: a spine-limited field of view cannot settle whether (b) is a sacralised L5 or (d) a
-lumbarised S1, and the count can be checked against the picture where a name cannot.
-Panels (b) and (c) carry the same count, reached from opposite ends --- in (b) a rib on
-the first lumbar-type vertebra shortens the interval from above, in (c) the lowest lumbar
-segment is incorporated into the sacrum and shortens it from below. Surfaces and colours
-are those of the released label descriptor, so the claims are checkable against the
-image: the lumbar rib in (b) carries its own class and renders magenta, and the sixth
-lumbar vertebra in (d) renders red directly above the sacrum. Each column is cropped to a
-fixed height above the top of the sacrum rather than to a fraction of the labelled spine,
-so the columns are framed on the same anatomy and a taller patient shows fewer levels
-rather than a rescaled skeleton.}
-\label{fig:phenotypes}
+\centering
+\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_anchors.pdf}
+\caption{The two anchors, and the interval counted between them, rendered from the
+released labels in a posterior view. The rostral anchor is the lowest rib-bearing vertebra
+together with the rib that makes it one; the caudal anchor is S1, carved from the sacrum.
+Both are found from the labels rather than assumed, so in (b) the rostral anchor is a lumbar
+vertebra bearing a rib rather than T12 --- colouring by role rather than by identifier is
+what keeps the panels comparable, since colouring T12 specifically would assert the count
+the figure is deriving. Panels (b) and (c) carry the same interval of four reached from
+opposite ends: in (b) a rib on the first lumbar-type vertebra shortens it from above, in (c)
+the lowest lumbar segment is incorporated into the sacrum and shortens it from below. They
+are indistinguishable by the interval alone, and are separable here only because rib
+presence is itself labelled. All four panels are resampled to one millimetre scale and
+aligned at the sacral base, so the interval lengths can be compared directly rather than
+reflecting differences in voxel size.}
+\label{fig:anchors}
 \end{figure*}
 
-Figure~\ref{fig:phenotypes} shows why the count is the primitive and the name is derived.
+Figure~\ref{fig:anchors} shows why the interval is the primitive and the label is derived.
 Of the 29 records with four rib-free vertebrae, 15 reach that count through a lumbar rib
 and 14 without one; the two are indistinguishable by the count alone and are distinguished
 here only because rib presence is itself labelled.
@@ -545,7 +551,7 @@ until the count reaches zero yields a cleaner number and a less informative one.
 
 The same check carries an invariant that is easy to overlook because it reads as a null
 result. Of the 5{,}749 evaluable ribs, \emph{zero} are assigned to a lumbar vertebra. That
-is not a claim that no lumbar ribs exist --- 16 records carry one --- but a confirmation
+is not a claim that no lumbar ribs exist --- 15 records carry one --- but a confirmation
 that the scheme is applied consistently: a rib articulating with a lumbar body is given
 class 74 or 75 and is therefore never among the numbered ribs the incidence test examines.
 Had any numbered rib landed on a lumbar vertebra, it would mean either a rib numbered as
