@@ -105,11 +105,12 @@ and ilia with the lumbar spine as a single undifferentiated class, so there is n
 all. The whole-body collections do annotate vertebrae, sacrum and ribs together, but their
 label schemes contain no L6 class, no class for a rib borne by a lumbar vertebra, and no
 transitional label --- so a six-lumbar spine cannot be written down in them at any
-segmentation quality. VerSe~\cite{verse2021}, which deliberately enriched for
-anatomical variants and did grade transitional vertebrae by Castellvi, states that it
-\emph{did not segment} vertebrae showing partial fusion with the sacrum, Castellvi
-grades III and IV, and does not segment the sacrum. Those fused grades are 25 of the 33
-graded records here.
+segmentation quality. VerSe~\cite{verse2021} deliberately enriched for anatomical
+variants and does grade transitional vertebrae by Castellvi; its dataset
+descriptor~\cite{versedata2021} states that, owing to that classification, vertebrae
+showing partial fusion with the sacrum --- Castellvi grades III and IV --- were
+\emph{not segmented}, and the sacrum is not segmented either. Those fused grades are 25
+of the 33 graded records here.
 
 CTSpinoPelvic1K exists to put all of it in one coordinate frame, in a scheme that can
 represent the variants rather than round them to the nearest normal.
@@ -251,7 +252,8 @@ its segmentation quality --- a scheme with no L6 class cannot record a six-lumba
 and a scheme that numbers ribs 1--12 has nowhere to put a thirteenth except on top of the
 twelfth. VerSe is marked as graded-but-excluding because it does apply the Castellvi
 classification and uses it to decide what to leave out: vertebrae partially fused to the
-sacrum, grades III and IV, are not segmented, and the sacrum is not segmented at all.
+sacrum, grades III and IV, are not segmented, and the sacrum is not segmented at
+all~\cite{versedata2021}.
 Those grades are 25 of the 33 graded records here.}
 \label{fig:priorart}
 \end{figure*}
@@ -265,7 +267,8 @@ largest of these and does not claim to be --- TotalSegmentator and CTPelvic1K ca
 scans, and RibSeg~v2 labels more ribs. It is the only one in which the lumbosacral variants
 are expressible and graded. $^{a}$VerSe grades transitional vertebrae by Castellvi but
 uses the grade as an \emph{exclusion} criterion: vertebrae partially fused to the
-sacrum (grades III--IV) are not segmented, and the sacrum is not segmented at all.
+sacrum (grades III--IV) are not segmented, and the sacrum is not segmented at
+all~\cite{versedata2021}.
 $^{b}$The lumbar spine is a single undifferentiated class, so no vertebral count is
 recoverable. $^{c}$Labels produced by iterative pseudolabelling with manual refinement,
 rather than drawn under radiologist supervision.}
@@ -746,6 +749,9 @@ determination was obtained [PENDING].
 %   ctpelvic1k       Int J CARS 16(5), 749-756 (2021), doi 10.1007/s11548-021-02363-8
 %   ribsegv2         IEEE Trans Med Imaging 43(1), 570-581 (2024)
 %   totalsegmentator Radiol Artif Intell 5(5), e230024 (2023)
+%   versedata2021    Sci Data 8, 284 (2021) -- and it is THIS paper, not the Med Image
+%                    Anal benchmark, that contains the Castellvi III/IV exclusion sentence
+%                    the prior-art argument quotes. Both are called "VerSe".
 %
 % STILL TO CHECK -- all are long-established papers whose fields are very likely right,
 % but "very likely" is not the standard for a reference list:
@@ -762,6 +768,10 @@ asymptomatic subjects,'' \emph{J.~Bone Joint Surg.~Am.} \textbf{87}, 260--267 (2
 \bibitem{verse2021} A.~Sekuboyina, M.~E.~Husseini, A.~Bayat, \emph{et al.}, ``VerSe: A
 vertebrae labelling and segmentation benchmark for multi-detector CT images,''
 \emph{Med.~Image Anal.} \textbf{73}, 102166 (2021).
+
+\bibitem{versedata2021} H.~Liebl, D.~Schinz, A.~Sekuboyina, \emph{et al.}, ``A
+computed tomography vertebral segmentation dataset with anatomical variations and
+multi-vendor scanner data,'' \emph{Sci.~Data} \textbf{8}, 284 (2021).
 
 \bibitem{ctspine1k} Y.~Deng, C.~Wang, Y.~Hui, \emph{et al.}, ``CTSpine1K: A large-scale
 dataset for spinal vertebrae segmentation in computed tomography,''
