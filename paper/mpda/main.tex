@@ -121,21 +121,39 @@ it is not.
 
 \subsection{How levels are named when the scan cannot settle the count}
 
-Where the field of view does not reach the thoracolumbar junction, no level name can be
-assigned with certainty, and the release does not assign one. Instead every quantity is
-expressed against the two landmarks that are in the picture in essentially every abdominal
-scan: the sacrum below and the lowest rib-bearing vertebra above.
+\emph{The limitation, stated plainly.} Vertebral numbering is conventionally established by
+counting down from C2. No scan in this corpus contains C2, and none contains the whole
+cervical spine, so that count cannot be performed. This is not a shortcoming of the
+annotation: it is a property of abdominal imaging, and it means a variant at the
+thoracolumbar junction cannot be \emph{resolved by counting} here at all. A thirteenth
+thoracic vertebra, a rib borne by a lumbar vertebra, and a hypoplastic or aplastic twelfth
+rib produce overlapping appearances, and which name is correct depends on a count the field
+of view does not support.
 
-The convention is therefore positional rather than nominal. A vertebra is identified by how
-many rib-free vertebrae separate it from the sacrum, not by a name; a lowest rib is
-described by its length as a fraction of the rib above it; a transverse process by its span
-and its distance from the sacral ala. Each of these is unchanged by whether the reader would
-have called the segment L5 or S1, which is the point: they can be compared across cases that
-disagree about the name.
+\emph{What the release does instead.} No level name is asserted where it cannot be
+supported. Every quantity is expressed against the two landmarks present in essentially
+every abdominal scan --- the sacrum below and the lowest rib-bearing vertebra above --- so
+the description is positional rather than nominal: a vertebra by how many rib-free vertebrae
+separate it from the sacrum, a lowest rib by its length as a fraction of the rib above it, a
+transverse process by its span and its distance from the ala. None of these changes according
+to whether a reader would have said L5 or S1, so cases that disagree about the name remain
+comparable. Where the junction is in view the count is determined and the conventional name
+follows, and the two descriptions agree.
 
-Where the junction \emph{is} in view, the count is determined and the conventional name
-follows from it, so the two descriptions agree and nothing is lost by reporting the
-positional one.
+\emph{And the morphology may be local rather than global.} Counting is not the only route to
+an identity. A thoracic vertebra differs in shape from a lumbar one --- in the span of its
+transverse processes relative to its body, in the proportions of its endplates and canal ---
+and if that difference holds at the boundary itself, the phenotype is decidable from the
+vertebra in front of the reader without any global count. On this corpus it does hold:
+separating T12 from L1 on shape alone, with each patient's own size divided out and
+cross-validation grouped by case, gives an area under the curve of 0.990 and 97.3\%
+accuracy over 1485 vertebrae. Size is deliberately removed, because a classifier given raw
+millimetres separates thoracic from lumbar immediately and has learned nothing that helps at
+the junction, where the two are nearly the same size.
+
+That result is reported as a property of the released measurements, not as a method: it says
+the information needed to settle these variants is present locally, which is what makes the
+corpus usable for models that must assign a level without being able to count.
 
 % ---------------------------------------------------------------------------
 \begin{figure*}[p]
