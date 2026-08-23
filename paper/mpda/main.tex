@@ -536,10 +536,20 @@ canonicalised to PIR, requiring no resampling. Masks are NIfTI rather than DICOM
 policy prefers DICOM where applicable, and for volumetric segmentation masks NIfTI is
 what the downstream tooling expects.
 
-Splits are patient-grouped and LSTV-stratified five-fold with a held-out test set, frozen
-and shipped with the data. Stratification enforces a minimum number of lumbarisation
-cases in every validation fold, so no fold is evaluated on a cohort missing the rare
-class the dataset exists for.
+Splits are patient-grouped and LSTV-stratified five-fold, frozen and shipped with the data
+as \texttt{splits\_5fold.json}. The five validation folds partition all 802 records ---
+they are disjoint and their union is the cohort --- so the release provides
+cross-validation and \emph{not} a held-out test set. Anyone reporting a single held-out
+number should carve one out and say which records it holds, because the folds shipped here
+will not do that job.
+
+Stratification is on the transitional subtype rather than on a binary LSTV flag, and it
+enforces a minimum of each rare subtype in every validation fold: each fold's validation
+set carries three sacralisation and three lumbarisation records, so no fold is evaluated on
+a cohort missing the class the dataset exists for. With 15 lumbarisation and 15
+sacralisation records across 802, that is the practical limit of what stratification can
+guarantee, and it is the reason a fold-level metric on the rare classes has an error bar
+far wider than its own decimal places.
 
 The archive of record is Zenodo (\datasetdoi). Code and documentation are on GitHub at
 the tagged release commit; any model-hub copy is a convenience mirror, not the archive.
