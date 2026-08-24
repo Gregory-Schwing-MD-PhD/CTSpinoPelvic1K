@@ -299,19 +299,13 @@ Those grades are 25 of the 33 graded records here.}
 \end{figure*}
 
 \begin{table*}[t]
-\caption{Public CT collections covering the lumbosacral junction. Counts are scans as
-reported by each source. The columns after the first three are about what a label scheme
-can \emph{represent}, not about segmentation quality: a collection with no L6 class
-cannot record a six-lumbar spine however well it segments. CTSpinoPelvic1K is not the
-largest of these and does not claim to be --- TotalSegmentator and CTPelvic1K carry more
-scans, and RibSeg~v2 labels more ribs. It is the only one in which the lumbosacral variants
-are expressible and graded. $^{a}$VerSe grades transitional vertebrae by Castellvi but
-uses the grade as an \emph{exclusion} criterion: vertebrae partially fused to the
-sacrum (grades III--IV) are not segmented, and the sacrum is not segmented at
-all~\cite{versedata2021}.
-$^{b}$The lumbar spine is a single undifferentiated class, so no vertebral count is
-recoverable. $^{c}$Labels produced by iterative pseudolabelling with manual refinement,
-rather than drawn under radiologist supervision.}
+\caption{Public CT collections covering the lumbosacral junction, tabulating
+Fig.~\ref{fig:priorart}. Counts are scans as reported by each source; the remaining columns
+are about what a label scheme can \emph{represent}. $^{a}$VerSe uses the Castellvi grade as
+an \emph{exclusion} criterion --- vertebrae partially fused to the sacrum are not segmented,
+nor is the sacrum~\cite{versedata2021}. $^{b}$The lumbar spine is a single undifferentiated
+class, so no vertebral count is recoverable. $^{c}$Labels produced by iterative
+pseudolabelling with manual refinement rather than drawn under radiologist supervision.}
 \label{tab:prior}
 \begin{ruledtabular}
 \maxwidth{%
@@ -536,6 +530,14 @@ non-empty label; and for left- and right-sided structures falling on the correct
 with the left--right axis read from the affine rather than assumed. This check exists
 because a renumbering pass once wrote a reoriented array under a canonical affine and
 transposed one label away from its image --- a failure invisible to every downstream step.
+
+The sidedness test compares \emph{each sided pair separately}, and the version that did not
+cost this release three records: testing ribs alone passed all 802 while three cases carried
+\texttt{left\_hip} on the patient's right, their ribs and femora correctly sided. Pooling
+the pairs is worse, not better --- hips and femora outweigh the ribs by voxel count, so a
+large correct structure masks a smaller transposed one. The three were corrected and the
+release re-verified. A gate that passes everything is not evidence of a clean corpus until
+it has been shown capable of failing.
 
 \emph{Rib--vertebra incidence.} Each rib is matched to its nearest vertebra and compared
 against the vertebra its number implies. Of 11{,}548 ribs present, 5{,}788 are not
