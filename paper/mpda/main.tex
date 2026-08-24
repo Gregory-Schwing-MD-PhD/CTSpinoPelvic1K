@@ -46,7 +46,24 @@
 
 \author{Gregory Schwing}
  \affiliation{Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA}
-\author{[co-authors]}
+\author{Ashley Schehr}
+\author{Annika Tekumulla}
+\author{Margret Khoushi}
+\author{Ryan Christian}
+\author{Dane Hubers}
+\author{Faris Mahjoub}
+\author{Hassan Saad}
+\author{Mia Sooch}
+\author{Sathya Siddapureddy}
+\author{Michael McLellan}
+\author{Jerick Kim}
+ \affiliation{Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA}
+% [CO-AUTHOR] every author must confirm their own affiliation and supply their
+% own conflict-of-interest statement; the declaration below covers all of them
+% and only the first author has been asked.
+\author{Miraziz Ismoilov}
+\author{Nizar Alnabahneh}
+ \affiliation{Department of Radiology, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA}
 
 \date{\today}
 
@@ -108,19 +125,17 @@ contains: two of 802 records (0068 and 1106) are labelled L1--L5 and sacrum with
 vertebra at all. LSTV is common, reported between 4\% and 30\% depending on definition, and
 wrong-level surgery is its most serious consequence.
 
-Existing public collections do not make the problem tractable, and the reason is not
-that they are small (Fig.~\ref{fig:priorart}). Spine collections annotate vertebrae
-without the pelvis, so the caudal anchor is missing; pelvic collections annotate the sacrum
-and ilia with the lumbar spine as a single undifferentiated class, so there is no count at
-all. The whole-body collections do annotate vertebrae, sacrum and ribs together, but their
-label schemes contain no L6 class, no class for a rib borne by a lumbar vertebra, and no
-transitional label --- so a six-lumbar spine cannot be written down in them at any
-segmentation quality. VerSe~\cite{verse2021} deliberately enriched for anatomical
-variants and does grade transitional vertebrae by Castellvi. Its dataset
-descriptor~\cite{versedata2021} states: ``Owing to the Castellvi classification we did
-not segment vertebrae that showed partial fusion with the sacrum (Castellvi grades III and
-IV) and did not include them for further analysis.'' The sacrum is not segmented either.
-Those fused grades are 25 of the 33 graded records here.
+Existing public collections do not make this tractable, and not because they are small
+(Fig.~\ref{fig:priorart}): the spine collections omit the pelvis, the pelvic ones carry no
+vertebral count, and the whole-body schemes have neither an L6 class nor a class for a rib
+borne by a lumbar vertebra, so a six-lumbar spine cannot be written down in them at any
+segmentation quality. VerSe~\cite{verse2021} is the instructive case, because it enriched
+for anatomical variants deliberately and does grade transitional vertebrae by Castellvi ---
+then uses the grade to decide what to leave out. Its dataset
+descriptor~\cite{versedata2021} states: ``Owing to the Castellvi classification we did not
+segment vertebrae that showed partial fusion with the sacrum (Castellvi grades III and
+IV).'' Nor is the sacrum segmented. Those fused grades are 25 of the 33 graded records
+here.
 
 CTSpinoPelvic1K places the spine, pelvis, ribs and femora in one coordinate frame and gives
 a class to each structure an enumeration anomaly produces: a sixth lumbar vertebra, and a
