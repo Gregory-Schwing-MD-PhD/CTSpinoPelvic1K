@@ -257,3 +257,33 @@ released manifest and splits. None of it is visible from the working copy on the
 - Twelve of sixteen references still have unverified volume/page fields; the three checked
   are named in `main.tex`.
 - The `anonymous-mlhc` dataset card licence still needs the CC BY-NC-SA 4.0 sign-off.
+
+## Closed 2026-08-23 (overnight)
+
+| item | what happened |
+|---|---|
+| **`castellvi_type` null in the release** | **closed** — 33 grades populated on `v5` and `main`, 5 with a second read |
+| **`has_l6` wrong in both directions** | **closed** — recomputed from the label volumes; 17 true, was 1 (and that one had no L6) |
+| **`n_lumbar_labels` vestigial** | **closed** — recomputed; 776 with five, 17 with six, 9 with four |
+| **`has_lumbar_rib` absent** | **closed** — added; 15 records |
+| **`patient_size`, `postwrite_hip_bone_pct`** | **closed** — declared in all 802, populated in none, removed |
+| **three records with transposed hips** | **closed** — 0027, 0107, 0935 corrected and re-uploaded. The release invariant check tested ribs only, which is why it never saw them; it now compares each sided pair separately |
+| **version-progression QC** | v2, v5pre, v5 complete. v3 running with a 24 h wall clock after the 6 h one proved far too tight — it is the slowest version because it has ribs that have not yet had speckle removed |
+| **paper builds locally** | `paper/mpda/build.sh`, TinyTeX in WSL; 10 published pages, no errors, no overfull boxes |
+| **Zenodo deposit** | assembled at `data/zenodo_deposit`, 1.83 GB, all readiness checks pass. `zenodo/upload.py` creates the draft and reserves a DOI but does **not** publish |
+
+### Still open, and all of them need Greg
+
+- **Reserve the Zenodo DOI** and replace `\datasetdoi` in `main.tex`. Run
+  `python zenodo/upload.py --dir data/zenodo_deposit --reserve-doi` with `ZENODO_TOKEN` set.
+  Reserving is reversible; publishing is not, and the script deliberately stops short of it.
+- **Co-author list.** `\author{[co-authors]}` is still a placeholder, and the conflict-of-
+  interest statement asserts none for *all* authors while only Greg has been asked.
+- **IRB determination.** The Ethics section says PENDING in the text and must not be
+  submitted as written.
+- **Repository URL** in Data Availability.
+- **Twelve of seventeen references** still have unverified volume/page fields; the five
+  checked are named in `main.tex`.
+- **`0787`** — the working copy calls its rib a lumbar rib, the released volume numbers it
+  rib 12. One is wrong. The paper follows the release and says 15 records.
+- **Neuroradiologist confirmation** of the 33 Castellvi grades.
