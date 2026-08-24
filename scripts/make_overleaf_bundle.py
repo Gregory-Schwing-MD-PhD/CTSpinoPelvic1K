@@ -33,6 +33,15 @@ README = """# CTSpinoPelvic1K — Medical Physics dataset article
 
 Upload this whole folder to Overleaf (New Project -> Upload Project, or drag the zip in).
 
+## First: set the main document
+
+Overleaf does not always pick it automatically, and when it does not you get
+`Emergency stop / job aborted, file error in nonstop mode` with a log that used almost no
+memory — which looks alarming and means only that it tried to compile the wrong file.
+
+**Menu -> Main document -> `main.tex`**, then recompile. Or open `main.tex` in the editor
+and click *Recompile* from there.
+
 ## Compiling
 
 - Main document: `main.tex`
