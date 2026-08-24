@@ -25,9 +25,27 @@ make that decidable where it can be, and to say so plainly where it cannot.
 | `fetch_from_tcia.py` | rebuilds the image half end to end: download, convert, resample |
 | `reconstruct_ct.py` | the resampling step alone, for an existing conversion |
 
-**Not included** — the CT images. They are 193 GB against 1.8 GB of labels, they are already
-public in [The Cancer Imaging Archive](https://www.cancerimagingarchive.net/), and
-re-hosting them would duplicate a primary archive for no benefit.
+**Not included** — the CT images, which are 193 GB against 1.8 GB of labels. There are two
+ways to get them, and they answer different needs.
+
+**The quick way — a HuggingFace mirror.** One volume per record, named to match the labels,
+so a case id means the same acquisition in both:
+
+```python
+from huggingface_hub import snapshot_download
+snapshot_download("gregoryschwingmdphd/CTSpinoPelvic1K", repo_type="dataset",
+                  revision="v5", allow_patterns=["ct/*"], local_dir="ct")
+```
+
+> **Status: pending.** That repository currently holds an earlier export in which only 529
+> of these 802 records appear, under different filenames. Until the `v5` branch is
+> published, use the TCIA route below. `mirror_ct_to_hf.py` in this repository's source
+> refuses to publish a mirror that is missing records, because a partial mirror is worse
+> than none: the case ids still resolve and quietly return the wrong volume.
+
+**The durable way — rebuild from TCIA.** The images are already public in
+[The Cancer Imaging Archive](https://www.cancerimagingarchive.net/), which is the archive of
+record and will outlive any mirror.
 
 What the source collections never published — and what this deposit does — is **the mapping
 from each annotation to the CT series it belongs on.** `manifest.json` carries a
