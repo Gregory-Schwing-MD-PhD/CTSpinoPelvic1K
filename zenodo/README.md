@@ -22,7 +22,8 @@ make that decidable where it can be, and to say so plainly where it cannot.
 | `manifest.json` | one record per case: TCIA series identifiers, demographics, scanner, LSTV label, Castellvi grade |
 | `splits_5fold.json` | frozen patient-grouped, LSTV-stratified five-fold cross-validation splits |
 | `dataset_labels.json` | the label scheme — identifier to structure name |
-| `reconstruct_ct.py` | rebuilds the image half from TCIA (see below) |
+| `fetch_from_tcia.py` | rebuilds the image half end to end: download, convert, resample |
+| `reconstruct_ct.py` | the resampling step alone, for an existing conversion |
 
 **Not included** — the CT images. They are 193 GB against 1.8 GB of labels, they are already
 public in [The Cancer Imaging Archive](https://www.cancerimagingarchive.net/), and
