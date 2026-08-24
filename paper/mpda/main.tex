@@ -531,11 +531,11 @@ with the left--right axis read from the affine rather than assumed. This check e
 because a renumbering pass once wrote a reoriented array under a canonical affine and
 transposed one label away from its image --- a failure invisible to every downstream step.
 
-The sidedness test compares \emph{each sided pair separately}, and the version that did not
-cost this release three records: testing ribs alone passed all 802 while three cases carried
-\texttt{left\_hip} on the patient's right, their ribs and femora correctly sided. Pooling
-the pairs is worse, not better --- hips and femora outweigh the ribs by voxel count, so a
-large correct structure masks a smaller transposed one. The three were corrected and the
+The test compares \emph{each sided pair separately}, and neither alternative finds what it
+finds. Ribs alone passed all 802 while four records carried \texttt{left\_hip} on the
+patient's right. Pooling the pairs --- the obvious repair --- recovered three of the four
+and missed one, because hips and femora outweigh the ribs by voxel count and a large
+correctly-sided structure masks a smaller transposed one. All four were corrected and the
 release re-verified. A gate that passes everything is not evidence of a clean corpus until
 it has been shown capable of failing.
 

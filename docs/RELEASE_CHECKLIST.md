@@ -267,7 +267,7 @@ released manifest and splits. None of it is visible from the working copy on the
 | **`n_lumbar_labels` vestigial** | **closed** — recomputed; 776 with five, 17 with six, 9 with four |
 | **`has_lumbar_rib` absent** | **closed** — added; 15 records |
 | **`patient_size`, `postwrite_hip_bone_pct`** | **closed** — declared in all 802, populated in none, removed |
-| **three records with transposed hips** | **closed** — 0027, 0107, 0935 corrected and re-uploaded. The release invariant check tested ribs only, which is why it never saw them; it now compares each sided pair separately |
+| **four records with transposed hips** | **closed** — 0027, 0107, 0935 and 0790 corrected and re-uploaded. The pooled check found only three; 0790 needed the per-pair check. The release invariant check tested ribs only, which is why it never saw them; it now compares each sided pair separately |
 | **version-progression QC** | v2, v5pre, v5 complete. v3 running with a 24 h wall clock after the 6 h one proved far too tight — it is the slowest version because it has ribs that have not yet had speckle removed |
 | **paper builds locally** | `paper/mpda/build.sh`, TinyTeX in WSL; 10 published pages, no errors, no overfull boxes |
 | **Zenodo deposit** | assembled at `data/zenodo_deposit`, 1.83 GB, all readiness checks pass. `zenodo/upload.py` creates the draft and reserves a DOI but does **not** publish |
