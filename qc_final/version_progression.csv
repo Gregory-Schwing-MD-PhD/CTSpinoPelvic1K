@@ -1,0 +1,5 @@
+version,cases,read_errors,stray_ids_cases,sidedness_fail,fragmented_labels_total,cases_with_fragment,pct_with_ribs,pct_with_femora,pct_with_s1,pct_with_ignore,lumbar_rib_cases,median_vertebrae,ribs_checked,ribs_offset,rib_offset_pct,count_coherent_pct
+v2,802,0,0,4,366,328,0.0,0.0,0.0,0.1,0,10,0,0,,
+v3,802,0,0,3,1146,463,99.9,99.9,99.8,0.1,0,10,6254,677,10.825,100.0
+v5pre,802,0,0,3,378,330,99.9,99.9,99.8,0.1,15,10,6375,506,7.937,100.0
+v5,802,0,0,3,377,329,99.9,99.9,99.8,0.1,16,10,6372,490,7.69,100.0

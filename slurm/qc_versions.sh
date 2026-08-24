@@ -41,6 +41,10 @@
 #SBATCH --error=logs/qcver_%A_%a.out
 set -euo pipefail
 cd "${SLURM_SUBMIT_DIR:-$PWD}"
+# default.env reads SLURM_JOB_ID, which does not exist when --assemble is run on the login
+# node, and set -u turns that into a hard failure. Give it a value before sourcing.
+: "${SLURM_JOB_ID:=assemble}"
+export SLURM_JOB_ID
 source configs/default.env
 SIF="${SIF_PATH:-containers/ctspinopelvic1k.sif}"
 
