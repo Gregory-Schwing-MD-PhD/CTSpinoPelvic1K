@@ -60,9 +60,12 @@ morphology under two counts and a spine-limited field of view cannot distinguish
 Public collections either omit the pelvis, or omit the classes a transitional vertebra
 requires: the largest whole-body collection has no L6 and no lumbar-rib class, and the
 reference spine benchmark excludes vertebrae fused to the sacrum by design.
-CTSpinoPelvic1K provides 802 CT records with spine, pelvis, per-level ribs and femora in
-one frame, in a scheme that can represent the variants, anchored at both ends of the
-lumbar column.
+CTSpinoPelvic1K provides 802 CT records carrying radiologist-sourced spine \emph{and}
+pelvic annotation on one coordinate frame, with per-level ribs and femora, in a scheme that
+can represent the variants. The primary use is the lumbosacral interface --- sacral
+morphology measured against the lumbar spine, for pelvic fixation and lumbar surgical
+planning --- and the transitional labelling is what makes that interface trustworthy, since
+a trajectory cannot be planned across a junction whose segments cannot be named.
 
 \textbf{Acquisition and Validation Methods:} Records were built by patient-level
 crosswalk of three public collections --- TCIA CT~COLONOGRAPHY imaging, CTSpine1K~\cite{ctspine1k}
@@ -106,7 +109,7 @@ vertebra at all. LSTV is common, reported between 4\% and 30\% depending on defi
 wrong-level surgery is its most serious consequence.
 
 Existing public collections do not make the problem tractable, and the reason is not
-that they are small (Fig.~\ref{fig:priorart}, Table~\ref{tab:prior}). Spine collections annotate vertebrae
+that they are small (Fig.~\ref{fig:priorart}). Spine collections annotate vertebrae
 without the pelvis, so the caudal anchor is missing; pelvic collections annotate the sacrum
 and ilia with the lumbar spine as a single undifferentiated class, so there is no count at
 all. The whole-body collections do annotate vertebrae, sacrum and ribs together, but their
@@ -294,33 +297,12 @@ twelfth. VerSe is marked as graded-but-excluding because it does apply the Caste
 classification and uses it to decide what to leave out: vertebrae partially fused to the
 sacrum, grades III and IV, are not segmented, and the sacrum is not segmented at
 all~\cite{versedata2021}.
-Those grades are 25 of the 33 graded records here.}
+Those grades are 25 of the 33 graded records here. CTPelvic1K's lumbar spine is a single
+undifferentiated class, so no vertebral count is recoverable from it; TotalSegmentator's
+labels are produced by iterative pseudolabelling with manual refinement rather than drawn
+under radiologist supervision.}
 \label{fig:priorart}
 \end{figure*}
-
-\begin{table*}[t]
-\caption{Public CT collections covering the lumbosacral junction, tabulating
-Fig.~\ref{fig:priorart}. Counts are scans as reported by each source; the remaining columns
-are about what a label scheme can \emph{represent}. $^{a}$VerSe uses the Castellvi grade as
-an \emph{exclusion} criterion --- vertebrae partially fused to the sacrum are not segmented,
-nor is the sacrum~\cite{versedata2021}. $^{b}$The lumbar spine is a single undifferentiated
-class, so no vertebral count is recoverable. $^{c}$Labels produced by iterative
-pseudolabelling with manual refinement rather than drawn under radiologist supervision.}
-\label{tab:prior}
-\begin{ruledtabular}
-\maxwidth{%
-\begin{tabular}{lrlcccccc}
- & & & \multicolumn{6}{c}{can the scheme represent \ldots} \\
-Collection & scans & modality & vertebrae & L6 & sacrum & pelvis & per-level ribs & lumbar rib \\ \colrule
-CTSpine1K~\cite{ctspine1k}        & 1005 & CT  & C1--L6 & yes & no  & no  & no  & no \\
-CTPelvic1K~\cite{ctpelvic1k}      & 1184 & CT  & no$^{b}$ & no & yes & yes & no & no \\
-VerSe~\cite{verse2021}            &  374 & CT  & C1--L6 & yes & no$^{a}$ & no & no & no \\
-RibSeg~v2~\cite{ribsegv2}         &  660 & CT  & no  & no  & no  & no  & yes & no \\
-TotalSegmentator~\cite{totalsegmentator} & 1204 & CT & C1--L5$^{c}$ & no & yes & yes & yes & no \\ \colrule
-\textbf{CTSpinoPelvic1K}          &  802 & CT  & C1--L6 & yes & yes (+S1) & yes & yes & yes \\
-\end{tabular}}
-\end{ruledtabular}
-\end{table*}
 
 \section{Acquisition and Validation Methods}
 
@@ -418,7 +400,12 @@ rule flagged every record in which one rib bone carried more than one identifier
 which a rib failed to reach the vertebra it articulates with; a single bone with two
 numbers is a numbering error by construction, whatever the anatomy. That rule selected 152
 records. 148 were reviewed and corrected by a trained reviewer; 4 were not, and are
-identified in the release. The remaining records passed the rule and were not individually
+identified in the release. Reviewers were medical students working through
+OpenSpineConsortium~\cite{osc2026}, an open-source framework for engaging medical
+students in computational spine imaging research: annotators are trained against a written
+labelling protocol, work case-by-case in a shared review tool, and every correction is
+recorded against the annotator who made it, so the review is auditable rather than
+anonymous. The remaining records passed the rule and were not individually
 inspected, so the guarantee the rib layer carries is that it is free of the failure modes
 the rule detects, and no stronger. The residual rib--vertebra offsets reported in
 Sec.~\ref{sec:validation} are the independent check on what the rule missed.
@@ -728,9 +715,20 @@ the 110~HU osteoporosis-specific threshold. (b) Median attenuation by decade and
 % ---------------------------------------------------------------------------
 \section{Potential Applications and Limitations}
 
-The dataset supports segmentation and level-numbering benchmarks, anatomical variant
-studies, surgical planning research, and opportunistic screening work of the kind
-Fig.~\ref{fig:opportunistic} illustrates.
+The principal use is the \emph{spinopelvic interface}: spine and pelvis carry
+radiologist-sourced annotation on one coordinate frame in 802 records, which makes sacral
+morphology measurable against the lumbar column rather than in isolation --- the sacral
+endplate and its slope, the alar corridors constraining S2-alar-iliac and iliac screw
+trajectories, and the L5--S1 geometry a lumbosacral fusion must cross. Pelvic incidence is
+derived from the segmented sacrum and femoral heads rather than from landmarks placed on a
+radiograph, so it is reproducible from the labels themselves.
+
+The transitional layer serves that use rather than competing with it. A corpus assembled
+purely for enumeration anomalies would want whole-spine coverage this cohort lacks; what
+these records support is planning \emph{across} a junction, and no trajectory can be planned
+across a junction whose segments cannot be named. Level-numbering benchmarks, variant
+studies and opportunistic screening (Fig.~\ref{fig:opportunistic}) follow from the same
+annotation.
 
 Its limitations are part of it, and they are stated at the level of detail a reader would
 need to catch them independently.
@@ -805,6 +803,12 @@ determination was obtained [PENDING].
 %
 % moller2026 needs its citable form settled by the co-author; it is cited as a Zenodo
 % record and that may not be what they want cited.
+
+\bibitem{osc2026} G.~Schwing, \emph{et al.}, ``OpenSpineConsortium: an open-source
+framework for medical student engagement in computational spine imaging research,''
+\emph{Cureus} (2026).
+\url{https://www.cureus.com/articles/512519}
+% [CO-AUTHOR: add the volume, article number and 10.7759 DOI once assigned]
 
 \bibitem{vialle2005} R.~Vialle, N.~Levassor, L.~Rillardon, A.~Templier, W.~Skalli, and
 P.~Guigui, ``Radiographic analysis of the sagittal alignment and balance of the spine in
