@@ -72,17 +72,26 @@
 % ---------------------------------------------------------------------------
 \begin{abstract}
 \textbf{Purpose:} Lumbar levels cannot be numbered reliably when a lumbosacral
-transitional vertebra (LSTV) is present, because sacralisation and lumbarisation are one
-morphology under two counts and a spine-limited field of view cannot distinguish them.
-Public collections either omit the pelvis, or omit the classes a transitional vertebra
-requires: the largest whole-body collection has no L6 and no lumbar-rib class, and the
-reference spine benchmark excludes vertebrae fused to the sacrum by design.
+transitional vertebra (LSTV) is present. Sacralisation and lumbarisation describe the same
+appearance at the junction; what separates them is only which number the transitional
+segment carries, and that number is obtained by counting vertebrae downward from C2, the
+one landmark present in every spine and never duplicated~\cite{koninwalz2010}. A field of
+view that begins in the thorax contains no such landmark, so the count cannot be made and
+the same segment supports either name. Public collections either omit the pelvis
+(CTSpine1K~\cite{ctspine1k}, VerSe~\cite{verse2021}) or omit the classes a transitional
+vertebra requires: TotalSegmentator~\cite{totalsegmentator}, the largest whole-body
+collection, provides no sixth lumbar vertebra and no class for a rib arising from a lumbar
+level, and VerSe excludes vertebrae fused to the sacrum by design~\cite{versedata2021}.
 CTSpinoPelvic1K provides 802 CT records carrying radiologist-sourced spine \emph{and}
-pelvic annotation on one coordinate frame, with per-level ribs and femora, in a scheme that
-can represent the variants. The primary use is the lumbosacral interface --- sacral
+pelvic annotation on one coordinate frame, with per-level ribs and femora. Four classes
+exist so that a variant need not be forced into an ordinary level: a sixth lumbar vertebra,
+a thirteenth thoracic vertebra, the first sacral segment held separate from the sacrum, and
+left and right lumbar ribs. The primary use is the lumbosacral interface --- sacral
 morphology measured against the lumbar spine, for pelvic fixation and lumbar surgical
 planning --- and the transitional labelling is what makes that interface trustworthy, since
-a trajectory cannot be planned across a junction whose segments cannot be named.
+a trajectory cannot be planned across a junction whose segments cannot be named. Because
+every record follows one screening protocol, between-scan variation reflects anatomy rather
+than acquisition, which suits the collection to learning morphology directly.
 
 \textbf{Acquisition and Validation Methods:} Records were built by patient-level
 crosswalk of three public collections --- TCIA CT~COLONOGRAPHY imaging, CTSpine1K~\cite{ctspine1k}
