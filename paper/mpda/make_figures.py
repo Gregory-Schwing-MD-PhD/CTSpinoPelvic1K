@@ -110,8 +110,8 @@ def kde(v, lo, hi, n=200):
 # ---------------------------------------------------------------- fig 3
 def fig_countfree(out):
     tr = load("transition_morphometrics.csv")
-    fig = plt.figure(figsize=(7.0, 2.5))
-    gs = gridspec.GridSpec(1, 3, wspace=0.34)
+    fig = plt.figure(figsize=(7.0, 2.5), constrained_layout=True)
+    gs = gridspec.GridSpec(1, 3, figure=fig)
 
     # (a) the interval count
     ax = fig.add_subplot(gs[0])
@@ -127,7 +127,7 @@ def fig_countfree(out):
     ax.set_yscale("log")
     ax.set_xlabel("rib-free vertebrae above the sacrum")
     ax.set_ylabel("cases (log)")
-    ax.set_title("(a) an interval, not a level", loc="left", fontsize=8.5)
+    ax.set_title("(a) Rib-free vertebral count", loc="left", fontsize=8.5)
 
     # (b) the bimodal rib ratio
     ax = fig.add_subplot(gs[1])
@@ -141,7 +141,8 @@ def fig_countfree(out):
         ax.axvline(m, color=FAINT, ls=":", lw=0.7)
     ax.set_xlabel("lowest rib length / rib above")
     ax.set_ylabel("density")
-    ax.set_title(f"(b) two populations (n = {len(v)})", loc="left", fontsize=8.5)
+    ax.set_title(f"(b) Lowest rib length ratio (n = {len(v)})",
+                 loc="left", fontsize=8.5)
 
     # (c) the Castellvi geometry
     ax = fig.add_subplot(gs[2])
@@ -159,7 +160,7 @@ def fig_countfree(out):
     ax.set_yscale("log")
     ax.set_xlabel("transverse span, one side (mm)")
     ax.set_ylabel("gap to the ala (mm)")
-    ax.set_title("(c) span against contact", loc="left", fontsize=8.5)
+    ax.set_title("(c) Span against gap to the ala", loc="left", fontsize=8.5)
 
     for ax in fig.axes:
         ax.spines[["top", "right"]].set_visible(False)
@@ -172,8 +173,8 @@ def fig_countfree(out):
 def fig_validation(out):
     sg = load("surgical_morphometrics.csv")
     lv = load("level_gradients.csv")
-    fig = plt.figure(figsize=(7.0, 4.6))
-    gs = gridspec.GridSpec(2, 3, hspace=0.52, wspace=0.34)
+    fig = plt.figure(figsize=(7.0, 4.6), constrained_layout=True)
+    gs = gridspec.GridSpec(2, 3, figure=fig)
 
     # (a-c) three spinopelvic measures against their published value
     # REFERENCE VALUES ARE SOURCED AND CARRY THEIR SPREAD. Round numbers drawn as a
@@ -199,8 +200,7 @@ def fig_validation(out):
         ax.plot(xs, ys, color=TEAL, lw=1.3)
         ax.set_xlabel(f"{title} (deg)")
         ax.set_ylabel("density" if i == 0 else "")
-        ax.set_title(f"({'abc'[i]}) {np.median(v):.1f} vs {ref:g}" + r"$\pm$" + f"{sd:g}",
-                     loc="left", fontsize=8.5)
+        ax.set_title(f"({'abc'[i]}) {title.capitalize()}", loc="left", fontsize=8.5)
 
     # (d) the level gradient
     ax = fig.add_subplot(gs[1, 0])
@@ -214,7 +214,7 @@ def fig_validation(out):
     ax.set_xlabel("superior endplate width (mm)")
     ax.set_ylabel("density")
     ax.legend(fontsize=6.4, ncol=2, handlelength=1.1, columnspacing=0.8)
-    ax.set_title("(d) bodies broaden caudally", loc="left", fontsize=8.5)
+    ax.set_title("(d) Superior endplate width by level", loc="left", fontsize=8.5)
 
     # (e) what changes with age, and what does not
     ax = fig.add_subplot(gs[1, 1:])
@@ -240,7 +240,7 @@ def fig_validation(out):
     ax.set_xlabel("age")
     ax.set_ylabel("degrees")
     ax.legend(fontsize=6.8, ncol=3, handlelength=1.6)
-    ax.set_title("(e) incidence holds still while the spine compensates",
+    ax.set_title("(e) Spinopelvic measures by decade",
                  loc="left", fontsize=8.5)
 
     for ax in fig.axes:
@@ -257,8 +257,8 @@ def fig_opportunistic(out):
     if not op:
         print("  ! opportunistic.csv missing; fig5 skipped")
         return
-    fig = plt.figure(figsize=(7.0, 2.4))
-    gs = gridspec.GridSpec(1, 3, wspace=0.34)
+    fig = plt.figure(figsize=(7.0, 2.4), constrained_layout=True)
+    gs = gridspec.GridSpec(1, 3, figure=fig)
 
     # (a) the distribution, with the osteoporosis threshold
     ax = fig.add_subplot(gs[0])
@@ -272,7 +272,8 @@ def fig_opportunistic(out):
             fontsize=6.6, color=OCHRE, va="top")
     ax.set_xlabel("L1 trabecular attenuation (HU)")
     ax.set_ylabel("density")
-    ax.set_title(f"(a) median {np.median(v):.0f} HU", loc="left", fontsize=8.5)
+    # the median belongs in the caption: at this panel width the title overran into (b)
+    ax.set_title("(a) L1 trabecular attenuation", loc="left", fontsize=8.5)
 
     # (b) the crossover
     ax = fig.add_subplot(gs[1])
@@ -295,7 +296,7 @@ def fig_opportunistic(out):
     ax.set_xlabel("age")
     ax.set_ylabel("L1 attenuation (HU)")
     ax.legend(fontsize=6.8, handlelength=1.6)
-    ax.set_title("(b) the lines cross", loc="left", fontsize=8.5)
+    ax.set_title("(b) Attenuation by decade and sex", loc="left", fontsize=8.5)
 
     # (c) wedging
     ax = fig.add_subplot(gs[2])
@@ -315,7 +316,7 @@ def fig_opportunistic(out):
             fontsize=6.6, color=OCHRE, va="top")
     ax.set_xlabel("anterior / posterior body height")
     ax.set_ylabel("density")
-    ax.set_title("(c) vertebral wedging", loc="left", fontsize=8.5)
+    ax.set_title("(c) Lowest lumbar wedge ratio", loc="left", fontsize=8.5)
 
     for ax in fig.axes:
         ax.spines[["top", "right"]].set_visible(False)
