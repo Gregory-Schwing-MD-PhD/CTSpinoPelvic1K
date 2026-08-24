@@ -369,8 +369,28 @@ def main() -> int:
             print("      holes: none above 2% of edges")
         index.append({"case": stem, "structures": len(meta), "kB": round(kb)})
 
-    (out / "index.json").write_text(json.dumps({"cases": index}, indent=1))
-    print(f"\n  wrote {out}/  ({len(index)} case(s))")
+    # THE INDEX DESCRIBES THE DIRECTORY, NOT THIS RUN. Writing only the cases just
+    # exported replaced an eight-case index with a one-case index the first time a single
+    # case was regenerated, and deck.js reads it, so the rest of the set disappeared.
+    # Rebuilt from what is on disk: exporting one case can no longer remove seven.
+    everything = []
+    for j in sorted(out.glob("*.json")):
+        if j.stem in ("index", "distributions"):
+            continue
+        try:
+            h = json.loads(j.read_text(encoding="utf-8"))
+        except ValueError:
+            continue
+        b = out / f"{j.stem}.bin"
+        everything.append({
+            "case": j.stem,
+            "structures": len(h.get("structures", [])),
+            "kB": round(b.stat().st_size / 1024) if b.exists() else 0,
+        })
+    (out / "index.json").write_text(json.dumps({"cases": everything}, indent=1) + "\n",
+                                    encoding="utf-8")
+    print(f"\n  wrote {out}/  ({len(index)} case(s) this run, "
+          f"{len(everything)} in the index)")
     return 0
 
 
