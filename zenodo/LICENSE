@@ -1,0 +1,20 @@
+CTSpinoPelvic1K annotations
+Copyright (c) 2026 Gregory Schwing
+
+Released under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+International License (CC BY-NC-SA 4.0).
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+You are free to share and adapt this material for non-commercial purposes, provided
+you give appropriate credit and distribute any derivative under the same licence.
+
+SCOPE. This licence covers the ANNOTATIONS in this deposit: the label volumes, the
+manifest, the splits and the accompanying code. It does not and cannot cover the
+underlying CT imaging, which is distributed by The Cancer Imaging Archive under its
+own terms. Obtain the imaging from TCIA and observe the terms attached to it.
+
+RESEARCH USE ONLY. These labels are not a medical device. They have not been
+validated for clinical decision-making, and they must not be used to guide the care
+of a patient. Portions are pseudolabelled, portions carry a triaged rather than
+exhaustive human review, and the limitations recorded in README.md are part of the
+release.
