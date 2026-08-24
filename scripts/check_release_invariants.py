@@ -95,20 +95,38 @@ def one(args) -> dict:
     #
     # aff2axcodes says, for each ARRAY axis, which way anatomically the index grows.
     # Nothing here has to remember a convention.
+    # EACH SIDED PAIR IS CHECKED SEPARATELY, and that is the point of this block.
+    #
+    # This used to test the RIBS ONLY, and it passed all 802 records. Three of them --
+    # 0027, 0107, 0935 -- have left_hip and right_hip transposed: the label called
+    # `left_hip` sits on the patient's right, above a correctly-sided right femur. Their
+    # ribs are fine, so a rib-only check reported the release as clean and the paper
+    # claimed 802/802 on the strength of it.
+    #
+    # Pooling the pairs instead would not have helped either, and would be worse: the hips
+    # and femora vastly outweigh the ribs by voxel count, so one pooled centroid per side
+    # lets a large correct structure mask a smaller transposed one, or the reverse. Each
+    # pair gets its own comparison and its own message.
     codes = nib.aff2axcodes(li.affine)
     lr = [i for i, k in enumerate(codes) if k in ("L", "R")]
-    lm = np.isin(lab, list(RIB_L))
-    rm = np.isin(lab, list(RIB_R))
-    if lr and lm.any() and rm.any():
+    if lr:
         ax = lr[0]
-        lc = float(np.argwhere(lm)[:, ax].mean())
-        rc = float(np.argwhere(rm)[:, ax].mean())
-        # code "R": the index grows toward the patient's right, so right-side structures
-        # sit at the higher index and left-side at the lower. "L" is the mirror.
-        wrong = (lc >= rc) if codes[ax] == "R" else (lc <= rc)
-        if wrong:
-            bad.append(f"left and right ribs are on the wrong sides "
-                       f"(axis {ax} grows toward {codes[ax]}; left {lc:.0f}, right {rc:.0f})")
+        for name, left_ids, right_ids in (("ribs", RIB_L, RIB_R),
+                                          ("hips", {30}, {31}),
+                                          ("femora", {32}, {33})):
+            lm = np.isin(lab, list(left_ids))
+            rm = np.isin(lab, list(right_ids))
+            if not (lm.any() and rm.any()):
+                continue
+            lc = float(np.argwhere(lm)[:, ax].mean())
+            rc = float(np.argwhere(rm)[:, ax].mean())
+            # code "R": the index grows toward the patient's right, so right-side
+            # structures sit at the higher index and left-side at the lower. "L" mirrors.
+            wrong = (lc >= rc) if codes[ax] == "R" else (lc <= rc)
+            if wrong:
+                bad.append(f"left and right {name} are on the wrong sides "
+                           f"(axis {ax} grows toward {codes[ax]}; "
+                           f"left {lc:.0f}, right {rc:.0f})")
 
     r["ok"] = 0 if bad else 1
     r["problems"] = "; ".join(bad)
