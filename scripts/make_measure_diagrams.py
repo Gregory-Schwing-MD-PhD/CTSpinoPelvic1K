@@ -48,8 +48,8 @@ PAPER = "#f4f2ec"
 
 # The backdrop has to read as bone at a glance while still losing to the line work. The
 # first pair sat within a few counts of the paper and disappeared entirely.
-BONE_FAR = np.array([150, 147, 139], np.float32)
-BONE_NEAR = np.array([228, 225, 216], np.float32)
+BONE_FAR = np.array([128, 125, 117], np.float32)
+BONE_NEAR = np.array([215, 211, 200], np.float32)
 FONT = "ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif"
 
 
@@ -57,7 +57,7 @@ def _rgb(h):
     return np.array([int(h[i:i + 2], 16) for i in (1, 3, 5)], np.float32)
 
 
-def surface(vol, view_axis, highlight_ids=None):
+def surface(vol, view_axis, highlight_ids=None, highlight_mask=None):
     """First-hit surface render along view_axis; returns an RGB image and the kept axes.
 
     Depth shading only. These are backdrops for line work: a flat silhouette would fight
@@ -78,8 +78,16 @@ def surface(vol, view_axis, highlight_ids=None):
              + BONE_FAR[None, None, :] * t[..., None])
     img[anyhit] = shade[anyhit]
 
+    # A region can be named by label id or given as a mask. The mask form exists because
+    # the interesting region is often not a label at all: the vertebral BODY is what
+    # body_of() carves out of a vertebra, and the caption is about that carve.
+    hany = None
     if highlight_ids:
         hany = np.isin(vol, list(highlight_ids)).any(axis=view_axis)
+    if highlight_mask is not None:
+        m2 = highlight_mask.any(axis=view_axis)
+        hany = m2 if hany is None else (hany | m2)
+    if hany is not None:
         img[hany] = img[hany] * 0.55 + _rgb(SECOND) * 0.45
 
     keep = [a for a in range(3) if a != view_axis]
@@ -172,9 +180,21 @@ class Canvas:
             f'font-size="5.4" opacity="0.65" font-family="{FONT}" text-anchor="middle">'
             f'{mm} mm</text>')
 
+    NOMINAL_W = 190.0
+
     def svg(self, title, caption):
         pad = self.pad
-        vb_w = self.W + 2 * pad
+        # EVERY DIAGRAM IS NORMALISED TO ONE NOMINAL WIDTH. Drawing in patient millimetres
+        # is right for the geometry and wrong for the page: a whole pelvis is 190 mm across
+        # and a single vertebra 65, so a caption set at a fixed 6 mm was readable on one and
+        # swallowed the other, running to eleven lines under a picture three lines tall.
+        # Scaling the content group instead keeps type, stroke weight and the anatomy in the
+        # same proportion across the whole set, and the scale bar rescales with it, so it
+        # stays true.
+        s = self.NOMINAL_W / self.W
+        draw_w = self.NOMINAL_W
+        draw_h = self.H * s
+        vb_w = draw_w + 2 * pad
         # THE CAPTION IS WRAPPED, NOT TRUSTED TO FIT. SVG text does not wrap, so a single
         # <text> ran off the right edge and the sentence lost its last third. Width is
         # estimated at half an em per character, which is close for a humanist sans and
@@ -192,7 +212,7 @@ class Canvas:
         if cur:
             lines.append(cur)
         cap_h = 6.0 + len(lines) * (size * 1.35)
-        vb_h = self.H + 2 * pad + cap_h
+        vb_h = draw_h + 2 * pad + cap_h
         body = "\n".join(self.parts)
         return (
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {vb_w:.1f} {vb_h:.1f}" '
@@ -204,12 +224,12 @@ class Canvas:
             f'width="100%">\n'
             f'<title>{title}</title>\n'
             f'<rect width="100%" height="100%" fill="{PAPER}"/>\n'
-            f'<g transform="translate({pad},{pad})">\n'
+            f'<g transform="translate({pad},{pad}) scale({s:.5f})">\n'
             f'<image x="0" y="0" width="{self.W:.2f}" height="{self.H:.2f}" '
             f'href="data:image/png;base64,{self.b64}"/>\n'
             f'{body}\n</g>\n'
             + "\n".join(
-                f'<text x="{pad}" y="{self.H + 2 * pad + 4 + i * size * 1.35:.1f}" '
+                f'<text x="{pad}" y="{draw_h + 2 * pad + 4 + i * size * 1.35:.1f}" '
                 f'fill="{INK}" font-size="{size}" opacity="0.78" '
                 f'font-family="{FONT}">{ln}</text>'
                 for i, ln in enumerate(lines))
@@ -242,17 +262,19 @@ def crop_to(lab, ids, sp, margin_mm=14.0):
 # with a sign so the result matches how the study is normally hung -- a lateral lumbar image
 # is read with the patient facing left, so anterior runs to the LEFT of the page.
 SAGITTAL = dict(view=0, h_axis=1, h_sign=-1, v_axis=2, v_sign=1)
-CORONAL = dict(view=1, h_axis=0, h_sign=1, v_axis=2, v_sign=1)
+# h_sign is -1 so the patient's LEFT falls on the viewer's RIGHT, which is how an
+# anteroposterior study is hung and the opposite of what the raw array order gives.
+CORONAL = dict(view=1, h_axis=0, h_sign=-1, v_axis=2, v_sign=1)
 AXIAL = dict(view=2, h_axis=0, h_sign=1, v_axis=1, v_sign=-1)
 
 
-def render_view(vol, sp, origin_mm, view, highlight_ids=None):
+def render_view(vol, sp, origin_mm, view, highlight_ids=None, highlight_mask=None):
     """Render vol in the given view, oriented so rows run top-down and +v is up.
 
     Returns (image, sp_h, sp_v, origin_h, origin_v) ready to hand to Canvas, plus a
     projection function taking a world 3-vector to canvas (h, v) millimetres.
     """
-    img, keep = surface(vol, view["view"], highlight_ids)
+    img, keep = surface(vol, view["view"], highlight_ids, highlight_mask)
     if img is None:
         return None
     ha, va = view["h_axis"], view["v_axis"]
@@ -367,8 +389,166 @@ def diagram_pelvic_incidence(case, labels_dir):
     return c.svg("Pelvic incidence, sacral slope and pelvic tilt", cap), None
 
 
+def _measure_bar(c, v_mm, h0, h1, colour, label, side="above", tick=3.0):
+    """A horizontal span with end ticks and a label -- the width diagrams' only idiom."""
+    c.line((h0, v_mm), (h1, v_mm), colour, 1.7)
+    for h in (h0, h1):
+        c.line((h, v_mm - tick), (h, v_mm + tick), colour, 1.5)
+    dy = -4.0 if side == "above" else 9.0
+    c.text(((h0 + h1) / 2, v_mm), label, colour, 6.6, "middle", dy=dy)
+
+
+def diagram_endplate_flare(case, labels_dir):
+    """Endplate width against mid-body width, on one lumbar body, in one coronal view.
+
+    These are two numbers the site plots separately -- absolute endplate width by level, and
+    their ratio as the osteophyte index -- and they are the same picture. A healthy body is
+    an hourglass in the coronal plane; spurs grow at the rim, so the rim widens while the
+    waist does not, and the ratio rises. Two spans on one vertebra say that in a way neither
+    histogram can.
+    """
+    from extract_degenerative import body_of                          # noqa: E402
+
+    lab, sp = load(case, labels_dir)
+    vid, name = 23, "L4"                       # mid-lumbar: typical, and load-bearing
+    m = lab == vid
+    if m.sum() < MIN_VOX:
+        return None, f"no {name}"
+    b = body_of(m)
+    if b is None:
+        return None, f"no body carved from {name}"
+
+    idx = np.argwhere(b)
+    zs = idx[:, 2]
+
+    def span(p0, p1):
+        sel = idx[(zs >= np.percentile(zs, p0)) & (zs <= np.percentile(zs, p1))]
+        if len(sel) < 60:
+            return None
+        return (float(np.percentile(sel[:, 0], 1)),
+                float(np.percentile(sel[:, 0], 99)),
+                float(np.mean(sel[:, 2])))
+
+    rim = span(80, 100)                        # the endplate rim, where spurs grow
+    waist = span(38, 62)                       # mid-body, narrowest on a healthy vertebra
+    if rim is None or waist is None:
+        return None, "band too thin to measure"
+
+    # SHOW ONLY THIS VERTEBRA. The crop box catches the neighbours above and below, and
+    # with them in frame the reader cannot tell which bone carries the two spans.
+    sub, origin = crop_to(lab, [vid], sp, margin_mm=9.0)
+    keep_m = sub == vid
+    sub = np.where(keep_m, sub, 0)
+    body_sub = np.zeros_like(sub, bool)
+    idx_lo = np.argwhere(np.isin(lab, [vid])).min(0)
+    off = tuple(int(round(o / z)) for o, z in zip(origin, sp))
+    bb = body_of(keep_m)
+    if bb is not None:
+        body_sub = bb
+    r = render_view(sub, sp, origin, CORONAL, highlight_mask=body_sub)
+    if r is None:
+        return None, "nothing to render"
+    img, sp_h, sp_v, oh, ov, proj = r
+    c = Canvas(img, sp_h, sp_v, oh, ov)
+
+    out = {}
+    for key, (lo, hi, zc), colour in (("rim", rim, ACCENT), ("waist", waist, SECOND)):
+        a = proj(np.array([lo * sp[0], 0.0, zc * sp[2]]))
+        bb = proj(np.array([hi * sp[0], 0.0, zc * sp[2]]))
+        width_mm = abs(hi - lo) * sp[0]
+        out[key] = width_mm
+        label = (f"superior endplate {width_mm:.1f} mm" if key == "rim"
+                 else f"mid-body {width_mm:.1f} mm")
+        _measure_bar(c, a[1], min(a[0], bb[0]), max(a[0], bb[0]), colour, label,
+                     "above" if key == "rim" else "below")
+
+    ratio = out["rim"] / out["waist"] if out["waist"] > 5 else float("nan")
+    c.scalebar(20)
+    cap = (f"Case {case}, {name}, anteroposterior view. The body is separated from the "
+           f"posterior elements at the anterior wall of the canal, then measured in two "
+           f"height bands: the top fifth for the endplate rim, the middle quarter for the "
+           f"waist. Endplate flare is their ratio, {ratio:.2f} here; 1.0 is no flare.")
+    return c.svg("Endplate width, mid-body width, and the flare between them", cap), None
+
+
+def diagram_disc_height(case, labels_dir):
+    """The interbody gap, measured where a radiologist measures it.
+
+    The subtlety worth drawing is WHY the measurement is confined to a midline column.
+    Endplates are concave, so the narrowest part of the space is rim to rim; taking that
+    reads 4 to 6 mm against a published 8 to 12. Each column through a 16 mm midline box is
+    measured separately and the median reported, which is the mid-sagittal reading.
+    """
+    from extract_degenerative import body_of                          # noqa: E402
+
+    lab, sp = load(case, labels_dir)
+    upper, lower, name = 23, 24, "L4-5"
+    bu = body_of(lab == upper) if (lab == upper).sum() >= MIN_VOX else None
+    bl = body_of(lab == lower) if (lab == lower).sum() >= MIN_VOX else None
+    if bu is None or bl is None:
+        return None, f"no bodies for {name}"
+
+    iu, il = np.argwhere(bu), np.argwhere(bl)
+    cx = float(np.median(np.concatenate([iu[:, 0], il[:, 0]])))
+    cy = float(np.median(np.concatenate([iu[:, 1], il[:, 1]])))
+    rx = max(2, int(round(8.0 / sp[0])))
+    ry = max(2, int(round(8.0 / sp[1])))
+    sel_u = iu[(np.abs(iu[:, 0] - cx) <= rx) & (np.abs(iu[:, 1] - cy) <= ry)]
+    sel_l = il[(np.abs(il[:, 0] - cx) <= rx) & (np.abs(il[:, 1] - cy) <= ry)]
+    if len(sel_u) < 40 or len(sel_l) < 40:
+        return None, "midline column too thin"
+
+    cols = {}
+    for xx, yy, zz in sel_u:
+        k = (xx, yy)
+        cols.setdefault(k, [None, None])
+        cols[k][0] = zz if cols[k][0] is None else min(cols[k][0], zz)
+    for xx, yy, zz in sel_l:
+        k = (xx, yy)
+        if k in cols:
+            cols[k][1] = zz if cols[k][1] is None else max(cols[k][1], zz)
+    pairs = [(a, b2) for a, b2 in cols.values() if a is not None and b2 is not None]
+    if len(pairs) < 15:
+        return None, "too few columns"
+    gap_vox = float(np.median([a - b2 for a, b2 in pairs]))
+    h_mm = max(0.0, gap_vox * sp[2])
+    z_up = float(np.median([a for a, _ in pairs]))
+    z_lo = z_up - gap_vox
+
+    sub, origin = crop_to(lab, [upper, lower], sp, margin_mm=8.0)
+    r = render_view(sub, sp, origin, SAGITTAL)
+    if r is None:
+        return None, "nothing to render"
+    img, sp_h, sp_v, oh, ov, proj = r
+    c = Canvas(img, sp_h, sp_v, oh, ov)
+
+    v_up = proj(np.array([0.0, 0.0, z_up * sp[2]]))[1]
+    v_lo = proj(np.array([0.0, 0.0, z_lo * sp[2]]))[1]
+    h_a = proj(np.array([0.0, (cy - ry) * sp[1], 0.0]))[0]
+    h_b = proj(np.array([0.0, (cy + ry) * sp[1], 0.0]))[0]
+    hl, hr = min(h_a, h_b), max(h_a, h_b)
+
+    c.line((hl - 6, v_up), (hr + 6, v_up), SECOND, 1.6)
+    c.line((hl - 6, v_lo), (hr + 6, v_lo), SECOND, 1.6)
+    for h in (hl, hr):
+        c.line((h, v_lo - 9), (h, v_up + 9), MUTED, 0.9, dash="2 2.5")
+    mid = (hl + hr) / 2
+    c.line((mid, v_lo), (mid, v_up), ACCENT, 2.0)
+    c.text((mid, (v_lo + v_up) / 2), f"{h_mm:.1f} mm", ACCENT, 7.0, "start", dx=7, dy=2)
+    c.text((mid, v_up), "16 mm midline column", INK, 5.4, "middle", "500", dy=-9)
+    c.scalebar(20)
+
+    cap = (f"Case {case}, {name}, lateral view with anterior to the left. Endplates are "
+           f"concave, so the space is narrowest rim to rim and measuring there understates "
+           f"it. Each column through the midline box is measured separately and the median "
+           f"reported.")
+    return c.svg("Disc height, measured at the midline", cap), None
+
+
 BUILDERS = {
     "pelvic_incidence": diagram_pelvic_incidence,
+    "endplate_flare": diagram_endplate_flare,
+    "disc_height": diagram_disc_height,
 }
 
 # Which panels each construction explains. One picture serves every plot that shares a
@@ -378,6 +558,12 @@ PANEL_MAP = {
         "pelvic_incidence_deg", "sacral_slope_deg", "pelvic_tilt_deg", "pi_ll_mismatch_deg",
         "pi_vs_ll", "pi_by_sex", "aging", "mismatch_age", "agesex_pelvic_tilt_deg",
         "ridge_pelvic_incidence_deg", "ridge_pelvic_tilt_deg",
+    ],
+    "endplate_flare": [
+        "grad_endplate_width", "vertebral_size_sex", "osteophyte", "grad_body_height",
+    ],
+    "disc_height": [
+        "disc_height", "disc_ratio", "disc_by_group", "vacuum",
     ],
 }
 

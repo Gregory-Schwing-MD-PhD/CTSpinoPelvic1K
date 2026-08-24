@@ -33,8 +33,7 @@ Reporting a facet score off these labels would be inventing a measurement, so it
 absent rather than approximated.
 
     python scripts/extract_degenerative.py --labels data/v5_final --ct data/hf_export/ct
-"""
-"""
+
 WITHHELD: DISH. Four detectors were built and none survives its own check.
 
   1.  0.5% against a published 3.8-27%. Too strict.
