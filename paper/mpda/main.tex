@@ -195,7 +195,7 @@ corpus usable for models that must assign a level without being able to count.
              minimum height=11mm, inner sep=2.5pt},
   src/.style={bx=52mm, fill=black!5},
   proc/.style={bx=168mm, fill=blue!7},
-  rec/.style={bx=38mm, fill=black!3},
+  rec/.style={bx=36mm, fill=black!3},
   ver/.style={bx=24mm, fill=green!14, minimum height=9mm},
   det/.style={align=left, text width=124mm, font=\small, anchor=west},
   gate/.style={bx=168mm, fill=orange!14},
@@ -233,19 +233,19 @@ corpus usable for models that must assign a level without being able to count.
   $n{=}112$ spine fixes / 103 cases, $n{=}13$ pelvic fixes / 12 cases};
 \foreach \x in {-60,-20,20,60} \draw[ln] (\x,-65) -- (\x,-70);
 \draw[ln] (-60,-70) -- (60,-70);
-\draw[ar] (0,-70) -- (0,-74);
+\draw[ar] (0,-70) -- (fix.north);
 
 % --- row 5: filling in the missing half ----------------------- centre -108, half 8
 \node[proc] (dense) at (0,-108) {\textbf{pseudolabel the missing half --- asymmetrically,
   by design}\\[2pt]a pelvis has no enumeration to get wrong; a spine does, so the 20
   pelvic-only spines were corrected \emph{by hand}};
-\draw[ar] (cross.south -| 0,0) ++(0,0) -- (0,-90) -- (0,-100);
+\draw[ar] (fix.south) -- (dense.north);
 
 % --- rows 6-8: the releases, in order -------------------------- 20mm apart
 \node[ver] (v3) at (-72,-132) {\textbf{v3}};
 \node[ver] (v4) at (-72,-152) {\textbf{v4}};
 \node[ver] (v5) at (-72,-172) {\textbf{v5}};
-\draw[ar] (0,-116) -- (0,-122) -- (-72,-122) -- (v3.north);
+\draw[ar] (dense.south) -- (0,-122) -- (-72,-122) -- (v3.north);
 \draw[ar] (v3.south) -- (v4.north);
 \draw[ar] (v4.south) -- (v5.north);
 
@@ -262,7 +262,7 @@ corpus usable for models that must assign a level without being able to count.
   chain}\\[2pt]label shares its CT's affine and structures are correctly sided
   $\rightarrow$ each rib articulates with the vertebra its number implies $\rightarrow$
   measures fall in physiological range};
-\draw[ar] (v5.south) -- (-72,-186) -- (0,-186) -- (qc.north);
+\draw[ar] (v5.south) -- (-72,-182) -- (0,-182) -- (qc.north);
 
 % --- row 10: release ------------------------------------------- centre -220
 \node[fin] (rel) at (0,-220) {\textbf{802 released records}\\[2pt]spine, pelvis, per-level
