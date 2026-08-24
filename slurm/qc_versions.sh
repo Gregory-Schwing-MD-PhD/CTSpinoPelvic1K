@@ -14,8 +14,14 @@
 #
 # The expensive step is rib–vertebra incidence: every rib is compared against every
 # candidate vertebra as a point cloud, so cost scales with ribs times vertebrae per case.
-# That is what made a whole-corpus pass take hours, and it is why the per-version budget
-# below is generous.
+# Versions therefore run at VERY different speeds — v2 has no ribs and was at 600 of 802
+# while v3, which has ribs and has not yet had the speckle cleaned out of them, was at 100.
+# Do not size the wall clock from the fastest version.
+#
+# AND DO NOT SIZE IT TIGHTLY AT ALL. The primary QoS allows 30 days. The original eight
+# hours killed job 40011919 outright, and the six hours I replaced it with would have killed
+# v3 in the same place. Both numbers were arbitrary and a job that finishes early costs
+# nothing, which is why the default here is now 24 hours.
 #
 #   sbatch slurm/qc_versions.sh              # all four versions
 #   sbatch --array=3 slurm/qc_versions.sh    # just v5
@@ -29,7 +35,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=128G
-#SBATCH --time=06:00:00
+#SBATCH --time=24:00:00
 #SBATCH --array=0-3
 #SBATCH --output=logs/qcver_%A_%a.out
 #SBATCH --error=logs/qcver_%A_%a.out
