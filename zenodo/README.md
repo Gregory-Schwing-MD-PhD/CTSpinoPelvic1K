@@ -47,9 +47,29 @@ with the right anatomy on the wrong grid.
 Everything needed to fix that is already in the label file: **the label's own affine is the
 target.**
 
+**All three steps, automated.** `fetch_from_tcia.py` reproduces what the release did,
+in the same order and with the same settings: download the named series with
+`tcia_utils`, convert with `dcm2niix`, resample onto the label grid trilinearly with
+-1024 HU outside the original extent.
+
 ```bash
-# 1. fetch the series named in manifest.json from TCIA, convert to NIfTI
-# 2. resample it onto the label grid
+pip install tcia_utils nibabel scipy numpy       # and dcm2niix on PATH
+python fetch_from_tcia.py --manifest manifest.json --labels labels --out ct
+python fetch_from_tcia.py ... --cases 0007 0033  # or just a few
+```
+
+It downloads a *named series*, never a patient: every patient here was scanned twice,
+prone and supine, and only one of those volumes is the one the annotation was drawn
+on. Per record it reports what fraction of the label lands on bone and warns below
+50% -- which indicates the wrong series rather than a resampling error.
+
+Because the label's affine is the target, the released PIR orientation comes along
+with it. There is nothing separate to rotate.
+
+**If you already have your own conversion**, `reconstruct_ct.py` does the resampling
+step alone:
+
+```bash
 python reconstruct_ct.py --label labels/0007_label.nii.gz \
     --ct my_conversion/0007.nii.gz --out ct/0007_ct.nii.gz --check
 ```

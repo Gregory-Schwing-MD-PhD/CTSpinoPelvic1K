@@ -1609,6 +1609,8 @@ def main() -> int:
     ap.add_argument("--degen", default="morphometrics/degenerative.csv")
     ap.add_argument("--femur", default="morphometrics/proximal_femur.csv")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--force", action="store_true",
+                    help="write even if the panel count drops sharply")
     a = ap.parse_args()
 
     rows = list(csv.DictReader(open(a.csv)))
@@ -1714,6 +1716,31 @@ def main() -> int:
 
     p = Path(a.out)
     p.parent.mkdir(parents=True, exist_ok=True)
+
+    # DO NOT SILENTLY REPLACE THE LIVE FILE WITH A SMALLER ONE. Each add_* helper warns and
+    # returns when its input CSV is missing, and main() then writes whatever it managed to
+    # assemble. Run against a tree where most morphometrics were absent, this produced 4
+    # panels, overwrote the 47 that were live, and reported "4 panels" as if that were a
+    # result. The site's entire results section disappeared and the run printed no error.
+    if p.exists():
+        try:
+            prev = json.loads(p.read_text(encoding="utf-8"))
+            was, now = len(prev.get("panels", [])), len(out["panels"])
+            if was and now < was * 0.67 and not a.force:
+                def sections(d):
+                    return {q.get("section") for q in d.get("panels", []) if q.get("section")}
+                lost = sorted(sections(prev) - sections(out))
+                print(f"  ! REFUSING TO WRITE: {p} already holds {was} panels and this run "
+                      f"built {now}.")
+                if lost:
+                    print(f"  ! sections that would be lost: {lost}")
+                print("  ! An add_* helper skipped its input above -- read those warnings; a")
+                print("  ! missing morphometrics CSV is the usual cause. Pass --force if the")
+                print("  ! reduction is intended.")
+                return 1
+        except (OSError, ValueError):
+            pass                       # unreadable existing file is not a reason to refuse
+
     p.write_text(json.dumps(out, indent=1), encoding="utf-8")
     kb = p.stat().st_size / 1024
     print(f"  {len(rows)} cases -> {len(out['panels'])} panels, {kb:.0f} kB")
