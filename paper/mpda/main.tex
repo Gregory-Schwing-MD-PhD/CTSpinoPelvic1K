@@ -464,12 +464,9 @@ Both are found from the labels rather than assumed, so in (b) the rostral anchor
 vertebra bearing a rib rather than T12 --- colouring by role rather than by identifier is
 what keeps the panels comparable, since colouring T12 specifically would assert the count
 the figure is deriving. Panels (b) and (c) carry the same interval of four reached from
-opposite ends: in (b) a rib on the first lumbar-type vertebra shortens it from above, in (c)
-the lowest lumbar segment is incorporated into the sacrum and shortens it from below. They
-are indistinguishable by the interval alone, and are separable here only because rib
-presence is itself labelled. All four panels are resampled to one millimetre scale and
-aligned at the sacral base, so the interval lengths can be compared directly rather than
-reflecting differences in voxel size.}
+opposite ends, and are indistinguishable by the interval alone. All four panels are
+resampled to one millimetre scale and aligned at the sacral base, so the interval lengths
+compare directly rather than reflecting voxel size.}
 \label{fig:anchors}
 \end{figure*}
 
@@ -551,14 +548,17 @@ offsets are field-of-view truncations on individually characterised cases --- on
 $+1$ level and one at $-1$ --- and are reported rather than suppressed: a threshold tuned
 until the count reaches zero yields a cleaner number and a less informative one.
 
-The same check carries an invariant that is easy to overlook because it reads as a null
-result. Of the 5{,}749 evaluable ribs, \emph{zero} are assigned to a lumbar vertebra. That
-is not a claim that no lumbar ribs exist --- 15 records carry one --- but a confirmation
-that the scheme is applied consistently: a rib articulating with a lumbar body is given
-class 74 or 75 and is therefore never among the numbered ribs the incidence test examines.
-Had any numbered rib landed on a lumbar vertebra, it would mean either a rib numbered as
-thoracic sitting on a lumbar body or a vertebra numbered as lumbar bearing a thoracic rib,
-and either would be a counting error of exactly the kind this dataset exists to expose.
+The same check carries an invariant that reads as a null result. Of the 5{,}749 evaluable
+ribs, \emph{zero} are assigned to a lumbar vertebra --- not because no lumbar ribs exist,
+since 15 records carry one, but because such a rib takes class 74 or 75 and never enters the
+numbered set the test examines. A numbered rib landing on a lumbar vertebra would be a
+counting error of exactly the kind this dataset exists to expose.
+
+\emph{Across versions.} Running the same checks against every release makes the version
+history a measurement rather than a list of dates. Ribs arrived with fragmentation --- 1146
+labels in more than one piece against 366 before ribs existed --- and this release carries
+377 while still carrying the ribs. A fragmented label is scan truncation, which is
+legitimate, or speckle, which is not.
 
 \emph{Agreement with published values.} Derived spinopelvic measures are compared against
 Vialle \emph{et al.}~\cite{vialle2005} (Table~\ref{tab:spinopelvic}). Pelvic incidence is
