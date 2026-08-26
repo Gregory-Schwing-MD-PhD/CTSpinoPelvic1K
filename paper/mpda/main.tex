@@ -39,6 +39,37 @@
   \fi
 }
 
+% Fit content to what is left of a FLOAT PAGE once its caption has been set.
+%
+% MAXWIDTH CONSTRAINS ONE DIMENSION. Figure 1 is a tall flow chart and at full height it
+% overran the page by 166pt -- to which LaTeX's answer is to set the graphic anyway and let
+% the caption slide off the bottom edge. Nothing is reported as an overfull box, the figure
+% looks correct, and its caption is simply not there.
+%
+% The caption is boxed FIRST so its height can be measured, because that height is not a
+% constant: this file is compiled both preprint (single column, double spaced) and reprint
+% (two column, single spaced), and a nine-line caption occupies very different amounts of
+% page in the two. CAPTION is safe to build inside a box -- the counter steps and LABEL
+% reads it as usual -- as long as the box is used in the same float.
+\newsavebox{\capbox}
+\newcommand{\fitfloat}[2]{% {graphic}{caption text, with its \label}
+  \sbox{\capbox}{\parbox{\linewidth}{\caption{#2}}}%
+  \sbox{\fitbox}{#1}%
+  \ifdim \wd \fitbox>\linewidth
+    \sbox{\fitbox}{\resizebox{\linewidth}{!}{\usebox{\fitbox}}}%
+  \fi
+  % resizebox keeps the aspect ratio, so fitting the width and then the height leaves the
+  % smaller of the two scales -- which is the one that fits
+  % ONE baseline of reserve, not three: on a float page the leftover is centred as white
+  % space above and below, so every point held back here is a point of type size given up.
+  \dimen0=\dimexpr \ht \fitbox+\dp \fitbox \relax
+  \dimen2=\dimexpr \textheight-\ht \capbox-\dp \capbox-\baselineskip \relax
+  \ifdim \dimen0>\dimen2
+    \sbox{\fitbox}{\resizebox{!}{\dimen2}{\usebox{\fitbox}}}%
+  \fi
+  \usebox{\fitbox}\par \usebox{\capbox}%
+}
+
 \begin{document}
 
 \title{CTSpinoPelvic1K: a fused spine and pelvis CT segmentation dataset
@@ -216,7 +247,7 @@ corpus usable for models that must assign a level without being able to count.
 %     checked, in words a surgeon would use.
 %   * "out" is a reserved TikZ key: naming a node (out) silently drops its shape and
 %     surfaces much later as "missing \item". The final node is (rel).
-\maxwidth{%
+\fitfloat{%
 \begin{tikzpicture}[
   x=1mm, y=1mm,
   font=\small,
@@ -298,17 +329,17 @@ corpus usable for models that must assign a level without being able to count.
 \node[fin] (rel) at (0,-220) {\textbf{802 released records}\\[2pt]spine, pelvis, per-level
   ribs and femurs in one frame; 33 carry a radiologist Castellvi grade};
 \draw[ar] (qc.south) -- (rel.north);
-\end{tikzpicture}}%
-\caption{How the dataset was built. Three public collections are combined patient by
+\end{tikzpicture}}{How the dataset was built. Three public collections are combined patient by
 patient. Neither annotation source published the CT series its labels were drawn on, and
 every patient in this cohort was scanned prone and supine, so each label set has to be
 matched to the series whose bone it agrees with --- a label placed on the wrong series of the
-right patient is a correct segmentation of that patient that does not register to the image
-beneath it.
+right patient is competent work on the wrong image, and because the spine changes shape
+between prone and supine it is the wrong shape for that image and not merely out of position,
+so no realignment repairs it.
 The four kinds of record are the result of that matching and are the main finding of it: in
 351 patients the two collections had drawn their outlines on \emph{different scans of the
-same person}. Numbers marked $n$ are scans, or corrections, at that step.}
-\label{fig:pipeline}
+same person}. Numbers marked $n$ are scans, or corrections, at that step.%
+\label{fig:pipeline}}
 \end{figure*}
 
 \begin{figure*}[t]
@@ -344,12 +375,20 @@ annotation to the specific CT series it was drawn on.
 That mapping is not a bookkeeping detail. Every patient in CT~COLONOGRAPHY was scanned
 \emph{twice} --- prone and supine --- and each acquisition was commonly reconstructed with
 more than one kernel, so a single patient identifier resolves to several volumes that
-differ in position, in field of view and in noise. An annotation carries a patient
+differ in posture, in position, in field of view and in noise. An annotation carries a patient
 identifier and nothing finer. Placing it on the wrong volume of the same patient produces a
-mask that is correctly shaped and correctly named --- it is a faithful segmentation of that
-patient's spine --- but that does not sit on the bone in the volume it has been attached to.
-The failure is one of registration, not of anatomy, which is what makes it hard to see: the
-mask looks right in isolation and only reveals itself when overlaid on the image.
+mask that is correctly named and, taken by itself, looks like competent work on that
+patient's spine --- and does not sit on the bone in the volume it has been attached to.
+
+It is not merely displaced. The spine is mildly deformable, and the two acquisitions are
+not two views of one posture: turning a patient from supine to prone alters lumbar
+lordosis and the alignment of each segment against the next, so a vertebra moves by a
+different amount, and in a different direction, from the vertebra above it. Outlines drawn
+on one series are therefore the wrong \emph{shape} for the other and not just in the wrong
+place, and no rigid realignment of the mask as a whole recovers them. That is what makes
+the error both hard to see and impossible to repair afterwards: in isolation the mask looks
+right, it reveals itself only when overlaid on the image, and by then the only remedy is to
+assign it to the series it was actually drawn on.
 
 The crosswalk therefore proceeds in two stages. Each annotation is first resolved to a
 patient, and then, within that patient's volumes only, to the series whose bone
