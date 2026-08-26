@@ -111,6 +111,15 @@ def open_edge_fraction(faces):
     return float((counts == 1).sum()) / max(1, len(counts))
 
 
+# WHICH DECIMATOR ACTUALLY RAN. The two are not interchangeable: measured against the
+# full-resolution surface at an identical triangle budget, clustering leaves a hip bone with
+# a mean error of 0.433 mm and a worst case of 2.00 mm, while quadric decimation gives 0.313
+# and 0.82. Two millimetres of deviation on a cortical surface is what reads as patchiness in
+# the viewer. This set is printed at the end of every build so a machine without open3d
+# cannot quietly ship the worse mesh again.
+DECIMATOR = set()
+
+
 def decimate(verts, faces, target):
     """Quadric decimation if available, vertex-clustering if not.
 
@@ -122,6 +131,7 @@ def decimate(verts, faces, target):
         return verts, faces
     try:
         import open3d as o3d                                        # noqa: PLC0415
+        DECIMATOR.add("quadric")
         m = o3d.geometry.TriangleMesh(
             o3d.utility.Vector3dVector(verts.astype(np.float64)),
             o3d.utility.Vector3iVector(faces.astype(np.int32)))
@@ -129,7 +139,7 @@ def decimate(verts, faces, target):
         m.remove_degenerate_triangles(); m.remove_duplicated_vertices()
         return np.asarray(m.vertices, np.float32), np.asarray(m.triangles, np.int64)
     except Exception:                                               # noqa: BLE001
-        pass
+        DECIMATOR.add("clustering")
     # THE FALLBACK NOW AIMS AT THE TARGET INSTEAD OF GUESSING.
     #
     # It used to pick a clustering grid from a closed-form expression containing a bare
@@ -263,14 +273,33 @@ def main() -> int:
             # triangles directly, is far cheaper, and on bone at display size is
             # indistinguishable. Anti-aliasing the boolean first stops the coarser grid
             # from turning smooth cortex into stairs.
+            # CROP TO THE STRUCTURE FIRST. Blurring and marching the WHOLE volume for
+            # every one of thirty structures allocated a 570 MiB float32 copy each time --
+            # which is both why the export took a quarter of an hour a case and why running
+            # several at once died with a memory error. A vertebra occupies well under a
+            # hundredth of the volume, and marching cubes inside its own bounding box gives
+            # the same surface; the vertices are shifted back afterwards.
+            bb = []
+            for ax in range(3):
+                hit = np.nonzero(m.any(axis=tuple(i for i in range(3) if i != ax)))[0]
+                if not len(hit):
+                    break
+                pad = 3
+                bb.append(slice(max(0, int(hit[0]) - pad),
+                                min(m.shape[ax], int(hit[-1]) + pad + 1)))
+            if len(bb) != 3:
+                continue
+            sub = m[tuple(bb)]
+            origin = np.array([q.start for q in bb], float) * np.asarray(sp, float)
+
             step = DOWNSAMPLE
             if step == 1:
                 # a light blur, not a resample: it takes the staircase off the cortex
                 # without moving the surface, and gives the decimator a smoother field
-                sm = ndimage.gaussian_filter(m.astype(np.float32), 0.6)
+                sm = ndimage.gaussian_filter(sub.astype(np.float32), 0.6)
                 eff = tuple(np.asarray(sp, float))
             else:
-                sm = ndimage.zoom(m.astype(np.float32), 1.0 / step, order=1)
+                sm = ndimage.zoom(sub.astype(np.float32), 1.0 / step, order=1)
                 eff = tuple(np.asarray(sp, float) * step)
             if sm.size == 0 or sm.max() < 0.5:
                 continue
@@ -278,6 +307,7 @@ def main() -> int:
                 v, f, _, _ = measure.marching_cubes(sm, level=0.5, spacing=eff)
             except Exception:                                       # noqa: BLE001
                 continue
+            v = v + origin
             if len(f) == 0:
                 continue
             v, f = decimate(v.astype(np.float32), f.astype(np.int64),
@@ -361,6 +391,12 @@ def main() -> int:
         tris = sum(m["ntris"] for m in meta)
         print(f"  {stem}: {len(meta)} structures, {tris} tris, "
               f"{kb:.0f} kB raw, {gz_kb:.0f} kB gzipped")
+        if DECIMATOR:
+            which = ", ".join(sorted(DECIMATOR))
+            print(f"  decimator: {which}")
+            if "clustering" in DECIMATOR:
+                print("  ! vertex clustering was used for at least one structure. Install "
+                      "open3d: it halves the surface error at the same triangle count.")
         if holed:
             worst = sorted(holed, key=lambda t: -t[1])[:4]
             print("      holes: " + ", ".join(f"id{v} {o:.1%}" for v, o in worst)
@@ -387,8 +423,18 @@ def main() -> int:
             "structures": len(h.get("structures", [])),
             "kB": round(b.stat().st_size / 1024) if b.exists() else 0,
         })
-    (out / "index.json").write_text(json.dumps({"cases": everything}, indent=1) + "\n",
-                                    encoding="utf-8")
+    # A BUILD STAMP OVER THE MESH PAYLOAD, for the same reason the measure figures carry
+    # one: the .bin and .bin.gz names never change, so a browser holding them keeps them and
+    # a rebuilt gallery reaches nobody. viewer.js appends this to every data URL.
+    import hashlib
+    h = hashlib.sha256()
+    for q in sorted(out.glob("*.bin")):
+        h.update(q.read_bytes())
+    build = h.hexdigest()[:8]
+    (out / "index.json").write_text(
+        json.dumps({"build": build, "cases": everything}, indent=1) + "\n",
+        encoding="utf-8")
+    print(f"  mesh build {build}")
     print(f"\n  wrote {out}/  ({len(index)} case(s) this run, "
           f"{len(everything)} in the index)")
     return 0

@@ -388,16 +388,50 @@ def add_demographics(out, rows):
         pct0 = 100 * sum(1 for a in ages if a % 10 == 0) / len(ages)
         n89 = sum(1 for a in ages if a == 89)
         if len(series) == 2:
+            # THE DEMOGRAPHIC PANEL IS A DISTRIBUTION, not a record of how the ages were
+            # typed. Paired densities, women against men, with the rounding stated in the
+            # caption so the caveat travels with the figure.
+            dens = []
+            for want, label in (("F", "female"), ("M", "male")):
+                v = [x for x in (num(r, "age") for r in rows
+                                 if (r.get("sex") or "").strip().upper().startswith(want))
+                     if x is not None]
+                if len(v) < 20:
+                    continue
+                dens.append({"label": label, "n": len(v),
+                             **density(v, float(lo), float(hi))})
+            if len(dens) == 2:
+                out["panels"].append({
+                    "key": "age_by_sex", "section": sect, "section_note": note,
+                    "title": "Age, by sex",
+                    "subtitle": "a screening population: the lower bound is the guideline, "
+                                "not a filter",
+                    "type": "split", "series": dens,
+                    "xlabel": "age (years)", "ylabel": "density",
+                    "caption": (
+                        f"Median {meds['female']:.0f} years in women and "
+                        f"{meds['male']:.0f} in men. Nothing below the screening age "
+                        f"threshold appears because nothing below it was scanned. The "
+                        f"ages are not continuous -- {pct0:.0f}% of them end in a zero -- "
+                        f"which the next panel shows and which attenuates any slope "
+                        f"against age by about 5%."),
+                })
+
             out["panels"].append({
-                "key": "age_by_sex", "section": sect, "section_note": note,
-                "title": "Age, and the fact that half of it is rounded",
-                "type": "grouped", "categories": [str(y) for y in yrs], "series": series,
+                "key": "age_rounding", "section": sect,
+                "title": "Half of the recorded ages are rounded",
+                "type": "grouped", "categories": [str(y) for y in yrs],
+                "series": [{"label": "all records",
+                            "n": sum(x["n"] for x in series),
+                            "counts": [a + b for a, b in zip(series[0]["counts"],
+                                                             series[1]["counts"])],
+                            "pct": [100.0 * (a + b) / len(ages) for a, b in
+                                    zip(series[0]["counts"], series[1]["counts"])]}],
                 "xlabel": "age (years, as recorded)",
-                "subtitle": "one bar per year of age, because the recorded ages are not continuous",
+                "subtitle": "one bar per year, both sexes together, because the spikes are "
+                            "the subject",
                 "caption": (
-                    f"Median {meds['female']:.0f} years in women and {meds['male']:.0f} "
-                    f"in men, and nothing below the screening threshold because nothing "
-                    f"below it was scanned. The spikes are the story: {pct0:.0f}% of ages "
+                    f"{pct0:.0f}% of ages "
                     f"end in a zero where 10% would be expected, and the Whipple-type "
                     f"index over 51-80 is {whip:.0f} against 100 for no preference -- the "
                     f"UN calls anything above 175 'very rough'. The spike at 89 "
@@ -528,15 +562,25 @@ def add_pelvic_shape(out, path, extra=None):
 # and the levels to show -- because a measure can be sound at four levels and fail at the
 # fifth, and dropping the level is more honest than dropping the panel.
 LEVEL_GRADIENTS = [
-    ("tp_span", "The transverse processes peak at L3, not L5", 40, 130, "mm",
+    # THE OLD TITLE CLAIMED A PEAK AT L3 AND THE CAPTION LISTED THE NUMBERS THAT REFUTE IT:
+    # 72.7, 80.9, 89.8, 86.6, 92.5 -- L5 is the largest. The claim was reasoning from
+    # textbook anatomy, where L3 does carry the longest transverse processes, and reading
+    # the L4 dip as confirmation while stepping over the L5 value.
+    #
+    # The measurement is also biased. Against published tip-to-tip series it runs about
+    # 5 mm high at L1 and 30 mm high at L5, and the published gradient falls from L3 to L5
+    # where this one rises. At the lower levels the left-right extent of the vertebra takes
+    # in the lateral mass and pars, not the process tip. So the panel is described rather
+    # than interpreted, and the caveat is stated where a reader will meet it.
+    ("tp_span", "Transverse process span, level by level", 40, 130, "mm",
      ["L1", "L2", "L3", "L4", "L5"],
-     "tip to tip across the transverse processes",
-     "Measured at 72.7, 80.9, 89.8, 86.6 and 92.5 mm. The dip at L4 is not an error: L3 "
-     "carries the longest transverse processes in a normal lumbar spine, which is "
-     "textbook anatomy and the one place in this figure where the caudal gradient is "
-     "SUPPOSED to break. Reproducing a known exception is a better check than "
-     "reproducing a trend, because a measurement error would smooth it away rather "
-     "than invent it."),
+     "widest left-right extent of the vertebra, tip to tip",
+     "Measured at 72.7, 80.9, 89.8, 86.6 and 92.5 mm. Read with care: against published "
+     "tip-to-tip figures this runs high, by roughly 5 mm at L1 and 30 mm at L5, and those "
+     "series peak at L3 and fall to L5 where these rise. At the lower levels the extent "
+     "includes the lateral mass and pars rather than the process tip alone, so the "
+     "level-to-level trend should not be read as anatomy until the measurement is put on "
+     "identified landmarks."),
     ("body_height", "Vertebral bodies grow taller under load", 18, 45, "mm",
      ["L1", "L2", "L3", "L4", "L5"],
      "anterior body height, level by level",
@@ -1678,27 +1722,47 @@ def main() -> int:
     })
 
     # --- Castellvi space ------------------------------------------------------------
+    # THE X AXIS IS THE PROCESS'S HEIGHT, NOT ITS REACH. Castellvi type I is a dysplastic
+    # transverse process defined craniocaudally, at nineteen millimetres or more; how far the
+    # process extends sideways is a different measurement and does not carry the grade. This
+    # panel plotted lateral span under a caption about Castellvi grading, while the height it
+    # needed was already measured in morphometrics/tp_height.csv and unused.
+    #
+    # The y axis is unchanged: how close the process comes to the ala is the other half of
+    # the grade, and it is what separates type I from types II to IV.
+    heights = {}
+    tph = Path(a.csv).parent / "tp_height.csv"
+    if tph.exists():
+        for h in csv.DictReader(open(tph, encoding="utf-8")):
+            heights[h["case"]] = h
     pts = []
     for r in rows:
+        h = heights.get(r["case"])
+        if not h:
+            continue
         for side in ("left", "right"):
-            s, g = num(r, f"ll_span_{side}_mm"), num(r, f"tp_gap_{side}_mm")
-            if s is None or g is None or not (20 <= s <= 100) or not (0 < g <= 60):
+            ht, g = num(h, f"tp_height_{side}_mm"), num(r, f"tp_gap_{side}_mm")
+            if ht is None or g is None or not (4 <= ht <= 60) or not (0 < g <= 60):
                 continue
-            pts.append({"x": round(s, 1), "y": round(g, 2),
+            pts.append({"x": round(ht, 1), "y": round(g, 2),
                         "f": int((r.get("lstv_label") or "normal") != "normal")})
     pts = pts[::2]           # thin for page weight; the shape is unchanged
     out["panels"].append({
         "key": "castellvi",
         "section": "Anatomy of the transition",
-        "title": "How far the lowest lumbar reaches, and how close it comes to the ala",
+        "title": "How tall the lowest transverse process is, and how close it comes to the ala",
         "subtitle": "one point per side — the asymmetry is the phenotype",
         "type": "scatter",
         "points": pts,
-        "xlabel": "lateral span, one side (mm)",
+        "xlabel": "transverse process height, craniocaudal (mm)",
         "ylabel": "gap to sacrum / ilium (mm)",
-        "caption": ("Castellvi grades on a process that approaches, articulates with, or "
-                    "fuses to the sacral ala. Span and gap carry most of that without "
-                    "naming the level."),
+        "vline": 19.0,
+        "vline_label": "19 mm — Castellvi I",
+        "caption": ("Castellvi grades a transverse process that is dysplastic, and then "
+                    "approaches, articulates with or fuses to the sacral ala. Type I is "
+                    "defined on craniocaudal height at nineteen millimetres, marked here; "
+                    "the gap on the vertical axis is what separates it from types II to IV. "
+                    "Height and gap carry most of the grading without naming the level."),
     })
 
     add_surgical(out, a.surgical)
