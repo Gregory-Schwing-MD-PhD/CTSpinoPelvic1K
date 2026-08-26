@@ -330,15 +330,10 @@ corpus usable for models that must assign a level without being able to count.
   ribs and femurs in one frame; 33 carry a radiologist Castellvi grade};
 \draw[ar] (qc.south) -- (rel.north);
 \end{tikzpicture}}{How the dataset was built. Three public collections are combined patient by
-patient. Neither annotation source published the CT series its labels were drawn on, and
-every patient in this cohort was scanned prone and supine, so each label set has to be
-matched to the series whose bone it agrees with --- a label placed on the wrong series of the
-right patient is competent work on the wrong image, and because the spine changes shape
-between prone and supine it is the wrong shape for that image and not merely out of position,
-so no realignment repairs it.
-The four kinds of record are the result of that matching and are the main finding of it: in
-351 patients the two collections had drawn their outlines on \emph{different scans of the
-same person}. Numbers marked $n$ are scans, or corrections, at that step.%
+patient. Neither annotation source published the CT series its labels were drawn on, so each
+label set is matched to the series whose bone agrees with it. In 351 of those patients the
+two collections had drawn their outlines on \emph{different scans of the same person}.
+Numbers marked $n$ are scans, or corrections, at that step.%
 \label{fig:pipeline}}
 \end{figure*}
 
