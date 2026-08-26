@@ -8,7 +8,7 @@ resolved.
 
 | case | token | deferred | blocker | in morphometrics? |
 |---|---|---|---|---|
-| 0068 | 46 | 2026-08-19 | interbody cage fuses L5–L6; boundary is implicit | **exclude** |
+| 0068 | 46 | 2026-08-19 | interbody cage fuses L5–L6; boundary is implicit | **resolved 2026-08-26** — see below |
 
 ---
 
@@ -82,3 +82,76 @@ case that used it.
 ### State of the file
 
 The label on disk is untouched — nothing was saved during the session that deferred it.
+
+---
+
+## 0068 — resolved 2026-08-26
+
+Everything the deferred entry said about the anatomy held up. Six free lumbar bodies, five
+labels, the top two merged under one label, and the cage at L5–L6 — all confirmed by
+measurement. The entry above is left as written; this records what was done.
+
+### The count, settled by two independent anchors
+
+The deferred entry proposed counting **up from the sacrum**. The renumbering used the
+**twelfth rib** instead: `rib_left_12` and `rib_right_12` both articulate with one vertebra
+at about 5 mm, and the vertebra bearing the twelfth rib is T12 by definition. Both anchors
+give **six free lumbar bodies**, which is worth more than either alone — this is a case
+where counting from the top is exactly what cannot be done, because the scan starts
+mid-thoracic.
+
+`scripts/split_and_renumber_0068.py` finds how many bodies each label covers by restricting
+to the anterior column, where the disc is a real gap and the posterior elements do not run
+continuously past it. It reported five labels over six bodies with the merge at L1, split it,
+and shifted everything below:
+
+    L1 -> L1 + L2 ;  L2 -> L3 ;  L3 -> L4 ;  L4 -> L5 ;  L5 -> L6
+
+The merged label is split by **nearest body**, not by a flat plane at the disc: a plane cuts
+the laminae at an arbitrary height and leaves half of one on the wrong vertebra. The two
+bodies become seeds and every voxel of the merged label joins the nearer one, so the
+posterior elements follow their own body.
+
+### The hardware, read rather than assumed
+
+Two **threaded cylindrical interbody cages**, hollow, 27 × 14 × 14 mm each, screwed into the
+L5–L6 disc space side by side and symmetric about the midline — BAK/Ray type. Labelled `77`.
+
+**There is no posterior instrumentation anywhere in the volume.** A whole-volume census
+found only two dense objects touching the skeleton; every other dense component is 24–75 mm
+away from any labelled bone, which is tagged stool from the colonography prep saturating the
+scanner exactly as titanium does. No screws, no rods, so nothing is labelled `78`. That is
+not hardware missing from the scan — standalone threaded cages without posterior fixation is
+the technique this implant was used with.
+
+The cage voxels were **taken back from the vertebrae that held them**: the bone segmenter had
+absorbed the metal into L5 and L6, so 100% of the cage sat inside an existing label and
+naming it meant a subtraction, not an addition.
+
+Threshold: **2500 HU**, the lower of the two values validated in the metal-segmentation
+literature. Not 3000, which scores marginally better in that literature but on this series
+would measure the saturation plateau — these images clip at 3071 HU, so a 3000 threshold
+keeps only what is within 71 HU of the ceiling.
+
+### The thoracic levels that were never labelled
+
+The case carried no thoracic vertebra at all while imaging 48 mm of column above the
+lumbar spine. T12, T11 and a truncated T10 were added. Keeping the truncated ones is the
+release convention, not a judgement: 553 of 802 records (69%) have their top vertebra cut by
+the field of view, with a median labelled height of 13.6 mm and a range down to 0.8 mm.
+
+### Still open — needs a reader, not a script
+
+Point 4 of the original list stands: **whether the L5–L6 fusion is surgical only, or surgical
+on top of a pre-existing transitional vertebra.** Those are different findings and no
+measurement separates them. `lstv_vertebral` remains unread for this case.
+
+### Manifest
+
+`hardware`, `hardware_components`, `hardware_mm3` and `hardware_bridges_interspace` now exist
+for all 802 records, populated from the metal scan — the instrumented population is **84
+cases**, which the deferred entry asked for and could not have. The read-level fields
+(`hardware_type`, `hardware_level`, `fusion`) are populated for 0068 only; a null there means
+**not yet read**, never "no hardware". `has_l6` and `n_lumbar_labels` are corrected to
+`true` and `6`.
+

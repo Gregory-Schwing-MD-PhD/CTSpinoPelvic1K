@@ -112,3 +112,70 @@ Publish the **dataset once** (v3 → MLHC/Scientific Data); model improvements a
 **separate** method/benchmark papers that *cite* it (not re-publications). A new
 dataset paper is justified when the data **materially expands** — i.e. **v4
 (+ribs +nerves +iliolumbar +VerSeFusion)** is the next dataset paper.
+
+---
+
+## Landmark model (XR) — generalization gap, and the plan to close it
+
+**Status 2026-08-26: the lateral-radiograph corner model does not survive contact with an
+outside film.** Tested on a post-operative lateral from a patient outside the training
+cohort, dropped into the PACS demo as a screenshot. Eight vertebrae detected; the corners
+did not land on vertebral corners, and lumbar lordosis came back as **0.0 degrees** --
+which is not a measurement of anything, it is what the arithmetic returns when the L1 and
+S1 endplate lines come out parallel.
+
+### Why it fails, in order of how much each probably contributes
+
+**The training set is narrower than the question.** All 400 BUU-LSPINE lateral films carry
+exactly 11 endplate rows: L1-L5 both endplates, plus the S1 superior plate. The model has
+never seen a labelled thoracic vertebra. It is a single-class detector, so it will happily
+fire a box on T11/T12, and the demo then names levels from the caudal end -- which is
+correct only if the bottom-most detection really is S1. Nothing checks that it is.
+
+**The resolution gap runs the wrong way.** Training films are 1996x2428 to 3040x3034.
+The test film was 770x1337. Letterboxing to 1024 therefore UPSAMPLES the test image, where
+every training image was downsampled. The model has never seen soft, upscaled input, and a
+PACS screenshot also arrives with large black borders, so after letterboxing the spine
+occupies a smaller fraction of the square than in any training image.
+
+**Out-of-cohort anatomy.** The test film is instrumented. BUU-LSPINE is a screening and
+degenerative cohort; bright metal is a strong out-of-distribution feature on top of
+everything else.
+
+**It is not only an out-of-domain problem.** In-domain validation is a median corner error
+of 8.3 px with 82% inside 15 px -- and a **maximum of 2047 px**. Catastrophic collapses
+already exist in the validation set. Out of domain the tail simply gets fatter.
+
+### Plan
+
+*Cheap, no retraining -- do these first and find out which one is actually responsible:*
+
+1. **Crop to the film content before inference.** `preprocess` in `pacs/infer.js` already
+   takes a crop rectangle, so this is plumbing rather than new capability, and it addresses
+   the scale mismatch directly.
+2. **Expose tiled mode.** The auto trigger only fires below 5 detections; this film produced
+   8, so tiling never ran.
+3. **Try the 640 model.** On a 770 px film, 640 downsamples -- closer to the training
+   regime than 1024 upsampling.
+4. **Refuse degenerate output.** Collapsed corners, or LL near 0, should read as "not
+   measurable" rather than printing a number that looks like a measurement.
+
+*The real fix -- new data:*
+
+5. **Augment for the deployment domain**: downscale-then-upscale, JPEG, blur, border
+   padding. That IS the screenshot-versus-DICOM gap.
+6. **Add out-of-cohort films**: post-operative with instrumentation, and films that include
+   thoracic levels.
+7. **Anchor identity on a positively-identified S1** rather than on whatever is lowest, so
+   a mis-detection fails loudly instead of renaming every level silently. This is the same
+   principle the CT side uses -- see the twelfth-rib anchor on 0068 in
+   `docs/DEFERRED_CASES.md` -- and the same failure it is there to prevent.
+
+### Why this is worth writing up rather than just fixing
+
+The failure is the paper's own thesis appearing in a second modality. On CT the enumeration
+breaks because the scan starts mid-thoracic and there is no top to count from; here it
+breaks because the film's bottom-most detection is assumed to be S1. Both are identity by
+counting from an end nobody verified. A generalization result stated honestly, with the
+cohort gap measured, is a contribution -- 400 films from one cohort is a small base for a
+claim about lateral radiographs in general.
