@@ -50,26 +50,22 @@ must be excluded from any measurement of the gap between bones.
 | `dataset_labels.json` | the label scheme — identifier to structure name |
 | `fetch_from_tcia.py` | rebuilds the image half end to end: download, convert, resample |
 | `reconstruct_ct.py` | the resampling step alone, for an existing conversion |
+| `KNOWN_ISSUES.md` | what to filter before which analysis; read it first |
+| `SHA256SUMS.txt` | checksum for every file above |
+| `LICENSE` | CC BY 4.0 |
 
-**Not included** — the CT images, which are 193 GB against 1.8 GB of labels. There are two
-ways to get them, and they answer different needs.
+Verify the download before you use it — 1.8 GB that truncated silently looks exactly like
+1.8 GB that did not:
 
-**The quick way — a HuggingFace mirror.** One volume per record, named to match the labels,
-so a case id means the same acquisition in both:
-
-```python
-from huggingface_hub import snapshot_download
-snapshot_download("gregoryschwingmdphd/CTSpinoPelvic1K", repo_type="dataset",
-                  revision="v5", allow_patterns=["ct/*"], local_dir="ct")
+```bash
+sha256sum -c SHA256SUMS.txt
 ```
 
-> **Status: pending.** That repository currently holds an earlier export in which only 529
-> of these 802 records appear, under different filenames. Until the `v5` branch is
-> published, use the TCIA route below. `mirror_ct_to_hf.py` in this repository's source
-> refuses to publish a mirror that is missing records, because a partial mirror is worse
-> than none: the case ids still resolve and quietly return the wrong volume.
+**Not included** — the CT images, which are 193 GB against 1.8 GB of labels. There are two
+ways to get them. Only the first works today.
 
-**The durable way — rebuild from TCIA.** The images are already public in
+**Start here — rebuild from TCIA.** This is the route that works today, and the one that
+lasts: the images are already public in
 [The Cancer Imaging Archive](https://www.cancerimagingarchive.net/), which is the archive of
 record and will outlive any mirror.
 
@@ -77,6 +73,31 @@ What the source collections never published — and what this deposit does — i
 from each annotation to the CT series it belongs on.** `manifest.json` carries a
 `spine_series_uid` and, where one exists, a `pelvic_series_uid` for every record: TCIA
 SeriesInstanceUIDs. Every one of the 802 records has at least one.
+
+**Second, a HuggingFace mirror — once it is published.** One volume per record, named to
+match the labels, so that a case id means the same acquisition in both:
+
+```python
+from huggingface_hub import snapshot_download
+
+snapshot_download(
+    "gregoryschwingmdphd/CTSpinoPelvic1K",
+    repo_type="dataset",
+    revision="v6",
+    allow_patterns=["ct/*"],
+    local_dir="ct",
+)
+```
+
+> **Status: pending — the `v6` branch above does not exist yet, and that call will fail
+> until it does.** What the repository holds today is an earlier, larger export that does
+> not line up with this deposit. Of these 802 ids: **236** have a `ct/<id>_ct.nii.gz`,
+> **280** are present only under a per-acquisition name (`<id>_spine_ct.nii.gz`,
+> `<id>_pelvic_ct.nii.gz`), and **286** are absent. Use the TCIA route above.
+>
+> `mirror_ct_to_hf.py` in this repository's source refuses to publish a mirror that is
+> missing records, because a partial mirror is worse than none: the case ids still resolve
+> and quietly return the wrong volume.
 
 ---
 
@@ -122,6 +143,26 @@ python reconstruct_ct.py --label labels/0007_label.nii.gz \
 `--check` reports the fraction of labelled voxels sitting at bone attenuation. A low number
 means you have the **wrong series**, not a resampling problem — every patient in this cohort
 was scanned twice, prone and supine, and no amount of interpolation fixes the wrong one.
+
+**Confirm a rebuilt pair before you train on 802 of them.** Image and label share an affine
+exactly, so there is nothing to resample or reorient to overlay them, and that is the first
+thing to check:
+
+```python
+import nibabel as nib
+import numpy as np
+
+lab = nib.load("labels/0007_label.nii.gz")
+ct = nib.load("ct/0007_ct.nii.gz")
+
+assert np.allclose(lab.affine, ct.affine)        # same grid, always
+print("orientation:", nib.aff2axcodes(lab.affine))   # ('P', 'I', 'R')
+
+L = np.asanyarray(lab.dataobj)
+C = np.asanyarray(ct.dataobj)
+print("structures present:", sorted(int(v) for v in np.unique(L) if v))
+print("label on bone:", f"{(C[L > 0] > 200).mean():.1%}")   # ~55%; below 50% = wrong series
+```
 
 ---
 

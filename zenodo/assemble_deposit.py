@@ -164,7 +164,12 @@ def main() -> int:
     # is not negative, prone and supine must not be pooled, instrumented cases must
     # leave any gap measurement -- and a caveat that arrives separately from the files
     # is a caveat that arrives too late.
-    for name in ("README.md", "KNOWN_ISSUES.md", "reconstruct_ct.py", "LICENSE"):
+    # fetch_from_tcia.py SHIPS TOO. The README lists it in the table of files in this
+    # deposit and tells the reader to run it; leaving it out means the deposit
+    # documents a tool it does not contain, and the rebuild path -- the entire reason
+    # a labels-only deposit is usable -- has no starting point.
+    for name in ("README.md", "KNOWN_ISSUES.md", "fetch_from_tcia.py",
+                 "reconstruct_ct.py", "LICENSE"):
         if (Path(a.extras) / name).exists():
             shutil.copy(Path(a.extras) / name, out / name)
 

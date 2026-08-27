@@ -71,8 +71,12 @@ def download_series(uid, dest):
     if dest.exists():
         shutil.rmtree(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    nbia.downloadSeries([{"SeriesInstanceUID": uid}],
-                        input_type="list", path=str(dest.parent), as_zip=False)
+    # input_type="list" means series_data is a list of UID STRINGS. Passing the
+    # list-of-dicts form here -- which is what the DEFAULT input type wants, being the shape
+    # getSeries returns -- raises "unhashable type: dict" and downloads nothing. The two
+    # arguments have to agree, and this combination was shipped without ever being run.
+    nbia.downloadSeries([uid], input_type="list",
+                        path=str(dest.parent), as_zip=False)
     got = dest.parent / uid
     if got.exists() and got != dest:
         got.rename(dest)
