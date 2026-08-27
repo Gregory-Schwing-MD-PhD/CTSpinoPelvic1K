@@ -82,9 +82,38 @@ def main() -> int:
         if not unknown:
             print("    every file and field it names exists")
 
+    # --- the licence, which the deposit states in several places ------------------------
+    print()
+    print("  licence, as stated in each place it appears:")
+    stated = {}
+    lic = dep / "LICENSE"
+    if lic.exists():
+        t = lic.read_text(encoding="utf-8")
+        m = re.search(r"CC BY[A-Z-]*[ -]?4\.0", t)
+        stated["LICENSE"] = m.group(0) if m else "not found"
+    zj = Path("zenodo/zenodo.json")
+    if zj.exists():
+        j = json.loads(zj.read_text(encoding="utf-8"))
+        code = (j.get("license") or j.get("metadata", {}).get("license") or "")
+        stated["zenodo.json"] = str(code).upper().replace("CC-", "CC ").replace("-4.0", " 4.0")
+    rd = dep / "README.md"
+    if rd.exists():
+        for m in set(re.findall(r"CC BY[A-Z-]*[ -]?4\.0", rd.read_text(encoding="utf-8"))):
+            stated.setdefault("README.md", m)
+            if m != stated["README.md"]:
+                stated["README.md (also)"] = m
+    norm = lambda v: v.upper().replace("-", " ").replace("  ", " ").strip()
+    for k, v in stated.items():
+        print(f"    {k:<22} {v}")
+    if len({norm(v) for v in stated.values()}) > 1:
+        print("    THE DEPOSIT DISAGREES WITH ITSELF ABOUT ITS OWN LICENCE")
+        bad += 1
+    elif stated:
+        print("    all agree")
+
     print()
     print("  the docs and the deposit agree" if not bad
-          else f"  {bad} reference(s) point at nothing")
+          else f"  {bad} problem(s) found")
     return 1 if bad else 0
 
 

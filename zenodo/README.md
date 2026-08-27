@@ -52,7 +52,7 @@ must be excluded from any measurement of the gap between bones.
 | `reconstruct_ct.py` | the resampling step alone, for an existing conversion |
 | `KNOWN_ISSUES.md` | what to filter before which analysis; read it first |
 | `SHA256SUMS.txt` | checksum for every file above |
-| `LICENSE` | CC BY 4.0 |
+| `LICENSE` | CC BY-NC-SA 4.0, matching zenodo.json and the licence section below |
 
 Verify the download before you use it — 1.8 GB that truncated silently looks exactly like
 1.8 GB that did not:

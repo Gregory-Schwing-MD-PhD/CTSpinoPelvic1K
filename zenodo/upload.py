@@ -2,6 +2,8 @@
 
     export ZENODO_TOKEN=...            # zenodo.org/account/settings/applications/tokens
     python zenodo/upload.py --dir data/zenodo_deposit --reserve-doi
+    python zenodo/upload.py --dir data/zenodo_deposit --deposition 1234567
+    # ^ resumes into an existing draft if an upload died partway
     # inspect the draft in the browser, then publish there, or:
     python zenodo/upload.py --publish 1234567
 
@@ -24,6 +26,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 import requests
@@ -52,6 +55,35 @@ def _check(r, what):
     return r
 
 
+def _put_with_retry(bucket, rel, path, params, attempts=5, dep_id=None):
+    """One file into the bucket, retrying only what is worth retrying.
+
+    A connection error or a 5xx is the network or the server having a moment, and the same
+    request usually works seconds later. A 4xx is the request itself being wrong, and
+    repeating it just produces the same rejection more slowly -- so that stops immediately.
+    """
+    delay = 2.0
+    for n in range(1, attempts + 1):
+        try:
+            with path.open("rb") as fh:
+                r = requests.put(f"{bucket}/{rel}", data=fh, params=params, timeout=None)
+            if r.status_code < 300:
+                return
+            if r.status_code < 500:
+                return _check(r, f"upload {rel}")          # 4xx: stop, do not retry
+            why = f"HTTP {r.status_code}"
+        except requests.RequestException as exc:
+            why = type(exc).__name__
+        if n == attempts:
+            print(f"  ! upload {rel} failed after {attempts} attempts ({why})")
+            print(f"    resume with:  --deposition {dep_id}"
+                  f"  (files already up are skipped)")
+            sys.exit(1)
+        print(f"    {rel}: {why}, retrying in {delay:.0f}s ({n}/{attempts - 1})", flush=True)
+        time.sleep(delay)
+        delay *= 2
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", default="data/zenodo_deposit")
@@ -59,6 +91,10 @@ def main() -> int:
     ap.add_argument("--reserve-doi", action="store_true")
     ap.add_argument("--publish", default=None, metavar="RECORD_ID",
                     help="publish an existing draft. Irreversible.")
+    ap.add_argument("--deposition", default=None, metavar="ID",
+                    help="continue into an existing draft instead of creating one. Use the "
+                         "id the first run printed when an upload died partway; files "
+                         "already up at the right size are skipped.")
     a = ap.parse_args()
     tok = _tok()
     params = {"access_token": tok}
@@ -81,9 +117,22 @@ def main() -> int:
 
     meta = json.loads(Path(a.metadata).read_text(encoding="utf-8"))
 
-    r = _check(requests.post(f"{BASE}/deposit/depositions", params=params,
-                             json={}, timeout=60), "create deposition")
-    dep = r.json()
+    if a.deposition:
+        if a.reserve_doi:
+            print("  ! --reserve-doi with --deposition would reserve a second DOI for a "
+                  "draft that already has one. Drop --reserve-doi.")
+            return 1
+        r = _check(requests.get(f"{BASE}/deposit/depositions/{a.deposition}",
+                                params=params, timeout=60), "open deposition")
+        dep = r.json()
+        if dep.get("submitted"):
+            print(f"  ! deposition {a.deposition} is already published; nothing to resume.")
+            return 1
+        print(f"  continuing into deposition {a.deposition}")
+    else:
+        r = _check(requests.post(f"{BASE}/deposit/depositions", params=params,
+                                 json={}, timeout=60), "create deposition")
+        dep = r.json()
     dep_id = dep["id"]
     bucket = dep["links"]["bucket"]
     print(f"  deposition {dep_id}")
@@ -101,14 +150,25 @@ def main() -> int:
         print(f"  reserved DOI: {doi}")
         print(f"  put this in the manuscript: {B_DOI_HINT}")
 
+    # what is already up there, so a re-run after a failure resumes rather than restarts
+    r = requests.get(f"{BASE}/deposit/depositions/{dep_id}/files", params=params, timeout=60)
+    already = {}
+    if r.status_code < 300:
+        for f in r.json():
+            already[f.get("filename")] = f.get("filesize")
+
     # bucket upload: streams, so a 1.8 GB deposit does not need to fit in memory
+    skipped = 0
     for i, p in enumerate(files, 1):
         rel = p.relative_to(src).as_posix()
-        with p.open("rb") as fh:
-            _check(requests.put(f"{bucket}/{rel}", data=fh, params=params, timeout=None),
-                   f"upload {rel}")
+        if already.get(rel) == p.stat().st_size:
+            skipped += 1
+        else:
+            _put_with_retry(bucket, rel, p, params, dep_id=dep_id)
         if i % 50 == 0 or i == len(files):
             print(f"    {i}/{len(files)}", flush=True)
+    if skipped:
+        print(f"  {skipped} file(s) were already uploaded at the right size and were skipped")
 
     print(f"\n  draft ready: https://zenodo.org/deposit/{dep_id}")
     print("  NOT PUBLISHED. Look at the draft, then publish in the browser or run")
