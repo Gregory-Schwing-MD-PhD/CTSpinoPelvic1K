@@ -1,0 +1,6 @@
+case,state,lost_from_working,gained_in_working,relabelled,largest_lost_piece_vox,largest_lost_piece_mm3,labels_affected
+0179,differs,0,0,811299,0,0.0,
+0378,differs,438,267,3729,190,67.0,rib_L11 rib_L12
+0412,differs,1797,8428,157269,109,53.2,T10 T6 T7 T8 T9
+0787,differs,0,2176,34511,0,0.0,
+1153,differs,187,0,18823,6,2.5,rib_L12

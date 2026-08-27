@@ -179,3 +179,34 @@ breaks because the film's bottom-most detection is assumed to be S1. Both are id
 counting from an end nobody verified. A generalization result stated honestly, with the
 cohort gap measured, is a contribution -- 400 films from one cohort is a small base for a
 claim about lateral radiographs in general.
+
+---
+
+## Prone/supine as a design constraint, not a nuisance
+
+**Mixing prone and supine acquisitions biases any measurement taken across the cohort.**
+Position changes lumbar lordosis and segmental alignment, so a value measured on a prone
+series and one measured on a supine series are not the same quantity. This is the same fact
+the Methods section leans on to justify the crosswalk -- a label drawn on one series is the
+wrong *shape* for the other, not merely out of position -- and it applies just as forcefully
+to the numbers derived from those labels.
+
+For the clinical study the consequence is that both acquisitions of a patient have to be
+pseudolabelled, and every reported value has to name the position it was measured in.
+
+**The cohort is already built for this.** Every patient in CT COLONOGRAPHY was scanned twice,
+and **351 patients** have their two annotations on *different* series -- the `separate`
+configuration, held out by design rather than merged. That is a paired within-patient design
+with the position as the only deliberate difference, which is exactly what is needed to
+measure **flexion-extension mobility** segment by segment.
+
+So the bias and the opportunity are the same fact. A cohort that must not be pooled across
+position is a cohort that can measure what position does.
+
+### What this needs
+
+1. Pseudolabel both acquisitions for the paired patients, not just the one that carries the
+   annotation.
+2. Report every spinopelvic parameter with its position, and never pool across it.
+3. Then the mobility study: per-segment angular change between the two positions, on 351
+   pairs.
