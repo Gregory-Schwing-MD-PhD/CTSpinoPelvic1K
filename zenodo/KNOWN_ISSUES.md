@@ -30,9 +30,12 @@ congenitally fused transitional vertebra does.
 Filter on `hardware_labelled` in `manifest.json` before any analysis of the gap between the
 lowest lumbar vertebra and the sacrum.
 
-In **9 cases the femoral head itself is an implant**. Pelvic incidence and pelvic tilt are
-measured from the femoral head centre, so those parameters are measured on metal in those
-records — usable if you know it, misleading if you do not.
+In **8 records the femoral head itself is a prosthesis** — ten replaced hips, since two of
+the eight are bilateral. Pelvic incidence and pelvic tilt are taken from the midpoint of the
+two femoral head centres, so in all eight that midpoint is derived from metal rather than
+bone, whether one head was replaced or both. Usable if you know it, misleading if you do not.
+The eight are `0188`, `0443`, `0485`, `0515`, `0671`, `0974`, `1003`, `1128`; `hardware_label_ids`
+contains 80 for each.
 
 ---
 
@@ -93,16 +96,44 @@ rather than being forced to be rib 12.
 
 ## 7. Open questions, recorded rather than resolved
 
-- **0068**: the L5–L6 interspace is fused by paired interbody cages. Whether that fusion is
-  surgical only, or surgical *on top of* a pre-existing transitional vertebra, is not
-  determinable from the images. `lstv_vertebral` is unread for this case.
-- **0878** and the other rejected hardware proposals: 41 of 52 metal detections were read as
-  artefact — contrast, calcification and reconstruction overshoot. 0878 is the closest call,
-  at 1,711 mm³ touching a hip. Recorded as artefact.
-- **1035**: the sacroiliac screws cross the joint. The hip labels were lateralised for v6;
-  the fragments that remain are anatomically real.
+**0068 — the fusion is surgical; whether it is *only* surgical is not answerable.**
+Two threaded cylindrical interbody cages sit in the L5–L6 interspace, 1,277 mm³ and
+1,309 mm³, and each one independently abuts both L5 and L6. So the bridge is instrumented
+and there is no ambiguity about that. What cannot be recovered from a post-operative image
+is whether the interspace was normal before the operation, or whether this patient had a
+transitional vertebra that the surgery then fused. `lstv_vertebral` is left unread for this
+case rather than guessed. Case 0068 also has six lumbar bodies, numbered against the twelfth
+rib rather than by counting down, which is the situation this dataset exists to document.
 
----
+**The 41 rejected detections — the size separation is real, and one gap in it is narrow.**
+52 metal detections survived the 2500 HU floor and a radiologist read every one. What
+separated the 11 kept from the 41 rejected was not the attenuation, which saturates at the
+scanner's 3071 HU ceiling for implant and dense artefact alike:
+
+| | kept (11) | rejected (41) |
+|---|---|---|
+| median volume | 74,466 mm³ | 68 mm³ |
+| volume range | 2,586 – 134,966 mm³ | 14 – 1,768 mm³ |
+| components | median 2 | median 1, up to 18 |
+| an identifiable surgical site | 11 of 11 | 6 of 41 |
+| peak above the 3071 HU ceiling | 0 of 11 | 4 of 41 |
+
+Three orders of magnitude separate the medians. The gap that is *not* wide is at the
+boundary: the smallest implant kept is 0068's cage pair at 2,586 mm³ and the largest thing
+rejected is 0317 at 1,768 mm³. Anything in that band is a judgement, and it was made by
+reading the image rather than by thresholding the table.
+
+**0878 is the clearest of the rejections and worth stating why**, because its volume alone
+would not have rejected it. It reaches 11,798 HU. No implant can: 3071 is the ceiling of the
+reconstruction, so a value above it is the reconstruction overshooting, not a denser metal.
+It is also 18 disconnected specks rather than a body. Recorded as artefact.
+
+**1035 — this entry previously warned of fragmentation that the v6 labels do not have.**
+The left hip and right hip both carried the *left* label over part of their extent, which
+made the left hip look like it was in two large pieces. That was a laterality error, not
+fragmentation, and it was corrected for v6. As shipped: left hip 99.88% one component with a
+single 473 mm³ crumb, right hip one component, sacrum one component, S1 one component. The
+sacroiliac screws are two components because there are two screws.
 
 ## 8. v6 against the published v5
 

@@ -42,7 +42,19 @@ def main() -> int:
     man = json.loads((dep / "manifest.json").read_text(encoding="utf-8"))
     recs = man if isinstance(man, list) else man.get("records", list(man.values()))
     fields = {k for r in recs for k in r}
-    print(f"  deposit: {len(files)} path(s), manifest has {len(fields)} field(s)")
+
+    # STRUCTURE NAMES COUNT TOO. `hardware_arthroplasty` is snake_case and is not a manifest
+    # field, but it is a real name in dataset_labels.json and a reader who looks it up finds
+    # it. Only a name that resolves NOWHERE is a broken reference.
+    dl = dep / "dataset_labels.json"
+    names = set()
+    if dl.exists():
+        j = json.loads(dl.read_text(encoding="utf-8"))
+        for v in j.values() if isinstance(j, dict) else []:
+            if isinstance(v, dict):
+                names |= {str(x) for x in v.values()} | {str(x) for x in v}
+    print(f"  deposit: {len(files)} path(s), manifest has {len(fields)} field(s), "
+          f"{len(names)} structure name(s)")
 
     bad = 0
     for name in a.docs:
@@ -55,7 +67,7 @@ def main() -> int:
         toks = sorted(set(re.findall(r"`([A-Za-z0-9_./-]+)`", txt)))
         unknown = []
         for t in toks:
-            if t in PROSE or t in files or t in fields:
+            if t in PROSE or t in files or t in fields or t in names:
                 continue
             # a filename that is not in the deposit is the dangerous case
             if re.search(r"\.(py|json|md|txt|sh|nii\.gz|csv)$", t):

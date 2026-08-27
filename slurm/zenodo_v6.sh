@@ -3,9 +3,9 @@
 #SBATCH -q primary
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
-#SBATCH --time=06:00:00
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=4G
+#SBATCH --time=03:00:00
 #SBATCH --output=logs/zenodo_v6_%j.out
 #SBATCH --error=logs/zenodo_v6_%j.err
 # =============================================================================
@@ -23,10 +23,16 @@
 # of those and whose published tree is additionally missing five hand-corrections
 # that were never re-exported.
 #
-# --sidedness is left at its default so the transposition check runs. That check
-# exists because three records once shipped with left_hip and right_hip swapped
-# and the release QC could not see it; 1035 was a partial version of the same
-# fault, which it did not catch either.
+# --sidedness -1 checks all 802. It was previously left unset, which means SKIP --
+# the comment here claimed the check was running and it was not. It exists because
+# three records once shipped with left_hip and right_hip swapped and the release QC
+# could not see it, and because 1035 shipped with half a hip wearing the other hip's
+# label. The second of those needed a second test, which assemble_deposit.py now has.
+#
+# Resources are deliberately small. This job copies files, hashes them, and reads one label
+# volume at a time -- about 210 MB each. The cluster is memory-allocated to within ~5 GB per
+# node with CPUs idle, so a large --mem request is unschedulable for reasons unrelated to the
+# work; 4 GB is what it needs and 4 GB is what gets placed.
 # =============================================================================
 set -euo pipefail
 cd "${SLURM_SUBMIT_DIR:-$PWD}"
@@ -42,7 +48,7 @@ trap 'rm -rf "${NODE_SCRATCH}" 2>/dev/null || true' EXIT
 
 singularity exec --bind "$(pwd)":/w,"${DATA_DIR}":/data --pwd /w \
     --env PYTHONPATH=/w/scripts,PYTHONUNBUFFERED=1 "${SIF_PATH}" \
-    python3 -u /w/zenodo/assemble_deposit.py --src "${SRC}" --check
+    python3 -u /w/zenodo/assemble_deposit.py --src "${SRC}" --check --sidedness -1
 
 echo ""
 echo "=== assembling ==="

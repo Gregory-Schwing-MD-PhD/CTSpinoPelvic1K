@@ -43,8 +43,26 @@ def rec_id(r):
     return Path(str(r.get("label_file", ""))).name.split("_")[0]
 
 
+# How much of a sided label may lie on the far side of the midplane between the two before
+# it is a laterality error rather than anatomy. The pubic symphysis and midline rib tips put
+# a little across; half a bone wearing the wrong label puts about half across.
+CROSSOVER = 0.25
+
+
 def check_sidedness(path):
-    """-> list of transposed pair names for one volume."""
+    """-> list of (pair name, what is wrong) for one volume.
+
+    Two different faults, and the second one shipped once already:
+
+      TRANSPOSED -- the two labels are swapped outright, so their centroids are in the wrong
+      order along the left-right axis.
+
+      CROSSOVER -- the labels are in the right order but a large piece of one carries the
+      other's identifier. 1035 shipped this way: a 476,756-voxel piece of the right hip was
+      labelled left, which pulled the left centroid toward the midline without pushing it
+      past the right one. A centroid-order test cannot see that, so measure how much of each
+      label sits beyond the plane midway between the two centroids.
+    """
     img = nib.load(str(path))
     lab = np.asanyarray(img.dataobj)
     codes = nib.aff2axcodes(img.affine)
@@ -59,10 +77,20 @@ def check_sidedness(path):
         rm = np.isin(lab, list(ri))
         if not (lm.any() and rm.any()):
             continue
-        lc = float(np.argwhere(lm)[:, ax].mean())
-        rc = float(np.argwhere(rm)[:, ax].mean())
+        lpos = np.argwhere(lm)[:, ax]
+        rpos = np.argwhere(rm)[:, ax]
+        lc, rc = float(lpos.mean()), float(rpos.mean())
         if (lc >= rc) if codes[ax] == "R" else (lc <= rc):
-            out.append(name)
+            out.append((name, "transposed"))
+            continue
+        mid = (lc + rc) / 2.0
+        # whichever side each label is meant to be on, count what is past the midplane
+        l_over = float((lpos > mid).mean() if lc < rc else (lpos < mid).mean())
+        r_over = float((rpos < mid).mean() if lc < rc else (rpos > mid).mean())
+        worst = max(l_over, r_over)
+        if worst >= CROSSOVER:
+            side = "left" if l_over >= r_over else "right"
+            out.append((name, f"{worst:.0%} of the {side} label is on the other side"))
     return out
 
 
@@ -135,10 +163,22 @@ def main() -> int:
                 bad.append((f.name.split("_")[0], t))
             if i % 100 == 0:
                 print(f"    {i}/{len(files)}", flush=True)
-        if bad:
-            fail.append(f"{len(bad)} record(s) have a transposed sided pair: {bad[:5]}")
-        else:
-            print("  sidedness: every checked pair is correctly sided")
+        swapped = [(c, f) for c, f in bad if any(w == "transposed" for _, w in f)]
+        crossed = [(c, f) for c, f in bad if all(w != "transposed" for _, w in f)]
+        for cid, faults in bad:
+            for pair, why in faults:
+                print(f"    {cid}  {pair}: {why}")
+        if swapped:
+            # a centroid ordering cannot come out wrong on real anatomy
+            fail.append(f"{len(swapped)} record(s) have a transposed sided pair: "
+                        f"{[c for c, _ in swapped][:5]}")
+        if crossed:
+            # a proportion past a threshold can; print it and let a person decide
+            print(f"  sidedness: {len(crossed)} record(s) exceed the {CROSSOVER:.0%} "
+                  f"crossover threshold -- review, not a blocker")
+        if not bad:
+            print("  sidedness: every checked pair is correctly sided, "
+                  "in order and without crossover")
 
     # --- verdict -------------------------------------------------------------------------
     print()
