@@ -24,6 +24,7 @@ Everything here is a check that would otherwise be discovered by a user after do
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
 import sys
@@ -158,9 +159,31 @@ def main() -> int:
     for name in ("manifest.json", "splits_5fold.json", "dataset_labels.json"):
         if (src / name).exists():
             shutil.copy(src / name, out / name)
-    for name in ("README.md", "reconstruct_ct.py", "LICENSE"):
+    # KNOWN_ISSUES.md ships WITH the data, not beside it in a repository. Every entry
+    # in it is a filter somebody has to apply before a particular analysis -- ungraded
+    # is not negative, prone and supine must not be pooled, instrumented cases must
+    # leave any gap measurement -- and a caveat that arrives separately from the files
+    # is a caveat that arrives too late.
+    for name in ("README.md", "KNOWN_ISSUES.md", "reconstruct_ct.py", "LICENSE"):
         if (Path(a.extras) / name).exists():
             shutil.copy(Path(a.extras) / name, out / name)
+
+    # A CHECKSUM MANIFEST, because a 1.8 GB download that silently truncates looks exactly
+    # like one that completed. Zenodo checksums the archive it stores; this lets someone
+    # verify the files they actually ended up with, offline, against a list they can cite.
+    sums = out / "SHA256SUMS.txt"
+    files = sorted((q for q in out.rglob("*") if q.is_file() and q != sums),
+                   key=lambda q: str(q.relative_to(out)).replace("\\", "/"))
+    with open(sums, "w", encoding="utf-8", newline="\n") as fh:
+        for q in files:
+            h = hashlib.sha256()
+            with open(q, "rb") as src_fh:
+                for chunk in iter(lambda: src_fh.read(1 << 20), b""):
+                    h.update(chunk)
+            rel = str(q.relative_to(out)).replace("\\", "/")
+            fh.write(f"{h.hexdigest()}  {rel}\n")
+    print(f"  wrote {sums.name} covering {len(files)} file(s)")
+    print("  verify with:  sha256sum -c SHA256SUMS.txt")
 
     total = sum(p.stat().st_size for p in out.rglob("*") if p.is_file())
     n = len(list((out / "labels").glob("*.nii.gz")))

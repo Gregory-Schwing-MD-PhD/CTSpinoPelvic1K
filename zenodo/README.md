@@ -12,6 +12,32 @@ make that decidable where it can be, and to say so plainly where it cannot.
 
 ---
 
+## v6 — surgical hardware
+
+Identifiers 76-82 were declared in every previous release and populated in none. In v6 they
+are. 11 of the 802 records carry instrumentation:
+
+| id | class | n |
+|---|---|---|
+| 80 | `hardware_arthroplasty` | 8 |
+| 82 | `hardware_osteosynthesis` | 1 |
+| 81 | `hardware_si_screw` | 1 |
+| 77 | `hardware_cage` | 1 |
+
+**Metal outranks bone.** Where an implant lay inside a vertebra, hip or femur label, the
+voxel now belongs to the implant, so naming the hardware reclaimed 1,538,852 voxels rather
+than adding them. 80 and 82 are the two arms of one clinical decision and must not be
+confused: arthroplasty *replaces a joint*, osteosynthesis holds parts of *the same bone*
+together. Pelvic incidence and pelvic tilt are measured from the femoral head, which a
+prosthesis replaces and fixation does not.
+
+Case 0068 is also corrected: six lumbar bodies where the pseudolabel had five, renumbered
+against the twelfth rib, with T10-T12 added and the vertebral-body mixing resolved.
+
+**Read `KNOWN_ISSUES.md` before analysing.** In particular: a null Castellvi field means
+ungraded rather than negative, prone and supine must not be pooled, and instrumented cases
+must be excluded from any measurement of the gap between bones.
+
 ## What is in this deposit, and what is not
 
 **Included** — about 1.8 GB:
