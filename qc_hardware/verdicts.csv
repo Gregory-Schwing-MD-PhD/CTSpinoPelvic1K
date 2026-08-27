@@ -1,0 +1,53 @@
+case,verdict,site,proposed_class,peak_HU,saturated_vox,total_mm3,n_comp,sizes,near,why
+0023,instrumentation,unclear,,3071,1049,1044.9,3,16x17x10; 7x4x3; 5x4x1,sacrum,"1 saturated component(s), largest 988 mm3 with 969 voxels at the ceiling"
+0027,instrumentation,unclear,,7438,248,74.0,2,5x5x4; 4x3x2,sacrum,"1 saturated component(s), largest 60 mm3 with 195 voxels at the ceiling"
+0068,instrumentation,spine,,3071,3955,2585.9,2,27x14x14; 27x14x13,L4 L5,"2 saturated component(s), largest 1309 mm3 with 1,995 voxels at the ceiling"
+0100,instrumentation,unclear,,3071,528,224.4,3,13x6x3; 10x6x2; 11x3x1,S1,"1 saturated component(s), largest 136 mm3 with 367 voxels at the ceiling"
+0101,artefact,unclear,,3071,20,14.0,1,5x4x1,,largest piece is 14 mm3 -- below the implant floor
+0140,artefact,unclear,,3071,91,48.4,1,10x8x3,,largest piece is 48 mm3 -- below the implant floor
+0150,instrumentation,unclear,,3071,607,398.4,1,18x14x6,,"1 saturated component(s), largest 398 mm3 with 607 voxels at the ceiling"
+0158,instrumentation,unclear,,3071,770,501.0,3,18x15x5; 12x8x3; 4x3x2,,"2 saturated component(s), largest 342 mm3 with 513 voxels at the ceiling"
+0188,instrumentation,hip joint,,3071,174302,89309.5,3,116x77x42; 60x59x31; 46x5x3,femur_right right_hip,"3 saturated component(s), largest 58492 mm3 with 115,708 voxels at the ceiling"
+0247,instrumentation,hip joint,,3071,21722,7852.4,5,93x7x7; 91x7x8; 77x8x7,femur_left left_hip right_hip sacrum,"4 saturated component(s), largest 2823 mm3 with 7,869 voxels at the ceiling"
+0302,instrumentation,unclear,,3071,993,1621.8,2,32x26x8; 6x6x3,,"1 saturated component(s), largest 1577 mm3 with 959 voxels at the ceiling"
+0317,instrumentation,unclear,,3071,3106,1768.2,3,37x25x8; 8x3x2; 4x3x2,sacrum,"1 saturated component(s), largest 1731 mm3 with 3,072 voxels at the ceiling"
+0334,artefact,unclear,,3071,28,53.7,1,5x4x4,sacrum,largest piece is 54 mm3 -- below the implant floor
+0342,instrumentation,unclear,,3071,112,66.9,1,14x3x3,sacrum,"1 saturated component(s), largest 67 mm3 with 112 voxels at the ceiling"
+0345,artefact,unclear,,3071,21,17.2,1,5x4x1,,largest piece is 17 mm3 -- below the implant floor
+0355,artefact,unclear,,3071,37,43.2,1,4x4x4,,largest piece is 43 mm3 -- below the implant floor
+0371,artefact,unclear,,3071,66,41.7,1,4x4x3,,largest piece is 42 mm3 -- below the implant floor
+0375,instrumentation,unclear,,4636,186,81.3,1,9x4x4,,"1 saturated component(s), largest 81 mm3 with 186 voxels at the ceiling"
+0391,instrumentation,unclear,,3071,924,471.8,1,14x10x9,,"1 saturated component(s), largest 472 mm3 with 924 voxels at the ceiling"
+0394,instrumentation,unclear,,3000,1503,793.0,2,25x10x8; 17x13x5,sacrum,"2 saturated component(s), largest 595 mm3 with 1,270 voxels at the ceiling"
+0421,instrumentation,spine,,3071,219,1281.5,2,68x34x0; 46x7x0,T10 T9,"2 saturated component(s), largest 1104 mm3 with 87 voxels at the ceiling"
+0428,artefact,unclear,,3070,32,39.6,1,19x5x1,,largest piece is 40 mm3 -- below the implant floor
+0441,instrumentation,unclear,,3071,16,429.4,1,19x16x6,,"1 saturated component(s), largest 429 mm3 with 16 voxels at the ceiling"
+0442,instrumentation,unclear,,3071,98,68.2,1,9x8x2,,"1 saturated component(s), largest 68 mm3 with 98 voxels at the ceiling"
+0443,instrumentation,hip joint,,3071,178772,118568.1,4,165x64x65; 8x6x4; 8x7x3,femur_left left_hip,"2 saturated component(s), largest 118411 mm3 with 178,676 voxels at the ceiling"
+0469,artefact,unclear,,3071,35,22.1,1,7x5x2,,largest piece is 22 mm3 -- below the implant floor
+0485,instrumentation,hip joint,,3071,108873,47736.7,2,101x46x29; 51x51x27,femur_left left_hip,"2 saturated component(s), largest 31124 mm3 with 72,432 voxels at the ceiling"
+0493,artefact,pelvis,,3072,92,49.0,2,12x5x3; 11x3x3,right_hip,largest piece is 30 mm3 -- below the implant floor
+0509,artefact,unclear,,3071,63,49.7,1,10x7x2,,largest piece is 50 mm3 -- below the implant floor
+0515,instrumentation,hip joint,,3000,234986,92897.9,2,108x50x47; 100x52x51,femur_left femur_right left_hip right_hip,"2 saturated component(s), largest 48321 mm3 with 122,433 voxels at the ceiling"
+0527,instrumentation,unclear,,3071,89,74.7,1,10x7x3,,"1 saturated component(s), largest 75 mm3 with 89 voxels at the ceiling"
+0550,artefact,unclear,,3071,37,18.4,1,8x2x2,,largest piece is 18 mm3 -- below the implant floor
+0577,instrumentation,unclear,,3071,344,467.8,1,22x13x6,,"1 saturated component(s), largest 468 mm3 with 344 voxels at the ceiling"
+0646,instrumentation,spine,,3071,563,365.2,9,9x6x3; 8x5x3; 8x5x2,L2 L3 L5 left_hip,"1 saturated component(s), largest 64 mm3 with 98 voxels at the ceiling"
+0671,instrumentation,hip joint,,3071,148305,93442.3,2,115x60x62; 20x10x6,femur_left left_hip right_hip,"2 saturated component(s), largest 93242 mm3 with 148,237 voxels at the ceiling"
+0750,instrumentation,unclear,,3072,195,188.7,3,9x9x4; 8x7x4; 4x3x3,,"2 saturated component(s), largest 99 mm3 with 95 voxels at the ceiling"
+0763,artefact,unclear,,9534,115,56.7,1,8x6x3,sacrum,largest piece is 57 mm3 -- below the implant floor
+0816,instrumentation,unclear,,3071,1164,511.4,9,11x7x4; 14x6x4; 16x4x3,L3 L4 L5,"3 saturated component(s), largest 112 mm3 with 246 voxels at the ceiling"
+0831,artefact,unclear,,3071,17,16.7,1,4x2x2,S1,largest piece is 17 mm3 -- below the implant floor
+0855,artefact,unclear,,3041,2,41.0,1,10x4x4,,"only 2 saturated voxel(s) -- a bright speck, not a core"
+0878,instrumentation,pelvis,,11798,4209,1710.6,18,15x15x8; 13x8x4; 13x8x4,right_hip,"10 saturated component(s), largest 484 mm3 with 1,275 voxels at the ceiling"
+0885,artefact,femur,,3071,45,24.9,1,9x4x3,femur_left,largest piece is 25 mm3 -- below the implant floor
+0895,artefact,unclear,,3071,27,15.8,1,4x3x2,,largest piece is 16 mm3 -- below the implant floor
+0948,artefact,pelvis,,3072,29,18.1,1,8x2x1,left_hip,largest piece is 18 mm3 -- below the implant floor
+0972,artefact,unclear,,3071,72,36.3,1,9x4x3,,largest piece is 36 mm3 -- below the implant floor
+0974,instrumentation,hip joint,,3071,197281,134965.8,4,111x56x59; 105x56x58; 11x7x3,femur_left femur_right left_hip right_hip,"3 saturated component(s), largest 73264 mm3 with 107,868 voxels at the ceiling"
+1003,instrumentation,hip joint,,3071,259495,74465.8,1,118x49x50,femur_right right_hip,"1 saturated component(s), largest 74466 mm3 with 259,495 voxels at the ceiling"
+1010,artefact,unclear,,3071,155,92.0,2,4x4x4; 6x4x3,sacrum,largest piece is 49 mm3 -- below the implant floor
+1035,instrumentation,sacroiliac joint,,3071,7389,3710.4,2,50x14x13; 50x14x13,S1 left_hip right_hip sacrum,"2 saturated component(s), largest 1908 mm3 with 3,691 voxels at the ceiling"
+1048,instrumentation,unclear,,3071,116,468.3,2,22x13x5; 7x5x2,,"1 saturated component(s), largest 444 mm3 with 115 voxels at the ceiling"
+1111,artefact,unclear,,2992,0,13.7,1,5x3x1,sacrum,nothing reaches the 3000 HU ceiling (peak 2992)
+1128,instrumentation,hip joint,,3071,102408,54624.9,2,93x48x30; 65x54x42,femur_left left_hip,"2 saturated component(s), largest 38478 mm3 with 74,870 voxels at the ceiling"

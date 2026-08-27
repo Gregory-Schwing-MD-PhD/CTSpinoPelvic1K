@@ -477,7 +477,7 @@ The scheme is VerSe-native: vertebrae keep their VerSe identifiers (C1--C7 = 1--
 T1--T12 = 8--19, L1--L6 = 20--25, sacrum 26), and every non-VerSe structure takes a fixed
 identifier above that range --- S1 carved from the sacrum (29), hips (30--31), femora
 (32--33), ribs (34--45 left, 46--57 right), soft tissue (58--73), lumbar ribs (74--75)
-and hardware (76--79).
+and surgical hardware (76--82).
 
 Two anchors make the count decidable. Rostrally, \textbf{T12} is the last rib-bearing
 vertebra and sits directly above ground-truth L1. Caudally, \textbf{S1} is carved as a
@@ -689,6 +689,68 @@ PI $-$ LL mismatch & 2.6\si{\degree} & centred near 0 \\
 }
 \end{ruledtabular}
 \end{table*}
+
+
+% ---------------------------------------------------------------------------
+\subsection{Surgical hardware, and why a threshold is not enough}
+
+Metal is trivial to detect and hard to interpret, and the difference matters here for a
+specific reason: \textbf{an iatrogenic fusion is indistinguishable from a congenital one to
+a distance measurement}. The transitional-anatomy analysis measures the gap between the
+lowest lumbar vertebra and the sacrum, and a cage-bridged interspace reads as ``no gap''
+exactly as a congenitally fused transitional vertebra does. An unrecorded instrumented case
+can therefore contribute a false positive to the central result, and until this release
+nothing in the label scheme or the manifest said which cases they were: identifiers
+76--79 were declared in every prior version and populated in none.
+
+\paragraph{Detection over-calls by a factor of seven.} A threshold at 1800\,HU inside a
+shell around the labelled skeleton flags 84\ of the 802\ records. Raising it to
+2500\,HU --- the lower of the two values validated in the metal-segmentation literature ---
+leaves 52\ with a component above a 40-voxel floor. A radiologist read all
+52\ and confirmed 11, rejecting 41\ (79\%) as contrast, calcification
+and reconstruction artefact. Instrumentation prevalence in this cohort is 1.4\%, not the
+10.5\% an unreviewed threshold reports. The threshold at 3000\,HU is not the answer
+either: these series clip at 3071\,HU, so it measures the saturation plateau rather than
+the implant.
+
+\paragraph{Saturation does not separate implant from artefact.} This is the obvious test
+and it fails. Both groups reach the scanner ceiling, and 4\ of the rejected proposals
+\emph{exceed} it, peaking at 11,798\,HU --- values above the ceiling being the signature of
+reconstruction overshoot around something dense rather than of denser metal. What does
+separate them is position and size together: a real surgical site (a hip joint, the
+sacroiliac joint, the spine) \emph{and} volume, with every confirmed implant at
+2,586\,mm$^3$ or above and every rejection at 1,768\,mm$^3$ or below
+(Fig.~\ref{fig:hardware}).
+
+\paragraph{The subtype block had to be extended.} Identifiers 76--79 were written for
+spinal instrumentation --- generic, cage, screw-and-rod, plate --- and cannot name what this
+cohort holds. Three classes were added: \textbf{80 arthroplasty}, \textbf{81 sacroiliac
+screw} and \textbf{82 osteosynthesis}. The last two are not decoration. Osteosynthesis holds
+parts of the same bone together where arthroplasty replaces a joint, a dichotomy the
+femoral-neck literature is written in, and the shape rules would otherwise have called a
+femoral stem a rod, because a stem is long and thin and that is all ``linear'' tests. The
+confirmed cases comprise 8\ arthroplasties, one osteosynthesis (three parallel
+cannulated screws in an inverted-triangle configuration at the femoral neck), one
+sacroiliac screw fixation and one pair of threaded cylindrical interbody cages.
+
+\paragraph{Metal outranks bone, and that is a subtraction.} In every confirmed case the
+implant was already inside a bone label, a segmenter handed a bright object against a
+cortical surface having taken it for bone. Naming the hardware therefore reclaims voxels
+rather than adding them: 1,538,852\ voxels across the eleven records. The consequence
+reaches past bookkeeping. Pelvic incidence and pelvic tilt are measured from the femoral
+head centre, and in 9\ of these cases that head is an implant --- any spinopelvic
+parameter previously computed from them was measured on metal.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_hardware.pdf}
+\caption{Surgical instrumentation. (a) An unreviewed metal threshold over-counts
+instrumentation sevenfold. (b) Saturation cannot sort implant from artefact: both reach the
+scanner ceiling and several artefacts exceed it. (c) Site and volume can. (d) Every
+confirmed implant was already labelled as bone, so naming it reclaims voxels from the
+structure that held them.%
+\label{fig:hardware}}
+\end{figure*}
 
 % ---------------------------------------------------------------------------
 \section{Data Format and Usage Notes}

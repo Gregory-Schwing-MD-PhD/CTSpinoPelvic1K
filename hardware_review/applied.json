@@ -1,0 +1,117 @@
+[
+ {
+  "case": "0974",
+  "class": "hardware_arthroplasty",
+  "voxels": 213587,
+  "source": "mask + reviewed class",
+  "taken_from": {
+   "left_hip": 14561,
+   "right_hip": 117,
+   "femur_left": 78213,
+   "femur_right": 115200
+  }
+ },
+ {
+  "case": "0443",
+  "class": "hardware_arthroplasty",
+  "voxels": 200684,
+  "source": "mask + reviewed class",
+  "taken_from": {
+   "left_hip": 2844,
+   "femur_left": 196011
+  }
+ },
+ {
+  "case": "0671",
+  "class": "hardware_arthroplasty",
+  "voxels": 191369,
+  "source": "mask + reviewed class",
+  "taken_from": {
+   "left_hip": 5867,
+   "right_hip": 59,
+   "femur_left": 184782
+  }
+ },
+ {
+  "case": "0515",
+  "class": "hardware_arthroplasty",
+  "voxels": 248500,
+  "source": "mask + reviewed class",
+  "taken_from": {
+   "left_hip": 20560,
+   "right_hip": 18293,
+   "femur_left": 108116,
+   "femur_right": 99278
+  }
+ },
+ {
+  "case": "0188",
+  "class": "hardware_arthroplasty",
+  "voxels": 182906,
+  "source": "mask + reviewed class",
+  "taken_from": {
+   "right_hip": 17296,
+   "femur_right": 152363
+  }
+ },
+ {
+  "case": "1003",
+  "class": "hardware_arthroplasty",
+  "voxels": 271122,
+  "source": "mask + reviewed class",
+  "taken_from": {
+   "right_hip": 91,
+   "femur_right": 271006
+  }
+ },
+ {
+  "case": "1128",
+  "class": "hardware_arthroplasty",
+  "voxels": 111872,
+  "source": "mask + reviewed class",
+  "taken_from": {
+   "left_hip": 28852,
+   "femur_left": 82132
+  }
+ },
+ {
+  "case": "0485",
+  "class": "hardware_arthroplasty",
+  "voxels": 116137,
+  "source": "mask + reviewed class",
+  "taken_from": {
+   "left_hip": 15402,
+   "femur_left": 96025
+  }
+ },
+ {
+  "case": "0247",
+  "class": "hardware_osteosynthesis",
+  "voxels": 23204,
+  "source": "mask + reviewed class",
+  "taken_from": {
+   "sacrum": 24,
+   "left_hip": 7,
+   "right_hip": 10,
+   "femur_left": 22892
+  }
+ },
+ {
+  "case": "1035",
+  "class": "hardware_si_screw",
+  "voxels": 8881,
+  "source": "mask + reviewed class",
+  "taken_from": {
+   "sacrum": 1711,
+   "S1": 1550,
+   "left_hip": 4890,
+   "right_hip": 700
+  }
+ },
+ {
+  "case": "0068",
+  "class": "hardware_cage",
+  "source": "reviewed label",
+  "taken_from": {}
+ }
+]

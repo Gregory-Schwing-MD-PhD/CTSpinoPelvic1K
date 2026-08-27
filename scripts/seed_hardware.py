@@ -59,8 +59,12 @@ from scipy import ndimage
 
 log = logging.getLogger("seed_hardware")
 
-# kept identical to scan_hardware.py: the detection is the same detection
-METAL_HU = 1800.0
+# 2500 HU, not the 1800 scan_hardware.py uses. 1800 is below anything published; the
+# metal-segmentation literature validates 2500 (DSC 82.9%) and 3000 (DSC 84.2%), and 1800
+# over-segments the implant by about 40% through threshold blooming. Not 3000 either: these
+# series clip at 3071, so a 3000 threshold keeps only what is within 71 HU of the ceiling
+# and measures the saturation plateau rather than the implant.
+METAL_HU = 2500.0
 DILATE_MM = 12.0
 MIN_VOX = 40
 
@@ -68,12 +72,19 @@ THORACIC = list(range(8, 20))
 LUMBAR = list(range(20, 26))
 SACRAL = [26, 29]
 SPINE_IDS = THORACIC + LUMBAR + SACRAL
+# THE SEARCH REGION IS THE WHOLE SKELETON, not the spine. A shell around the vertebrae
+# misses an arthroplasty entirely -- on 0188 that is 174,302 saturated voxels sitting
+# against the femur and acetabulum, which a spine-only search reported as "no metal".
+PELVIS_IDS = [30, 31, 32, 33]                      # hips and femurs
+SEARCH_IDS = SPINE_IDS + PELVIS_IDS
 
 HW_GENERIC, HW_CAGE, HW_SCREW_ROD, HW_PLATE = 76, 77, 78, 79
 HW_NAME = {76: "hardware", 77: "hardware_cage", 78: "hardware_screw_rod", 79: "hardware_plate"}
 
 VERT_NAME = {**{v: f"T{v - 7}" for v in THORACIC},
-             **{v: f"L{v - 19}" for v in LUMBAR}, 26: "sacrum", 29: "S1"}
+             **{v: f"L{v - 19}" for v in LUMBAR}, 26: "sacrum", 29: "S1",
+             30: "left_hip", 31: "right_hip", 32: "femur_left",
+             33: "femur_right"}
 
 
 # distances and sizes the calls turn on, all in mm
@@ -83,7 +94,7 @@ PLANAR = 3.0            # width against thickness, above which it is a plate
 CAGE_MIN_MM = 15.0      # an implant that spans a disc space is at least this long
 
 
-def classify(ext, dist_mm, in_body_column):
+def classify(ext, dist_mm, in_body_column, appendicular=False):
     """(v5 id, reason) from where the component sits and how big it is.
 
     `ext` is the physical extent in mm along each of the component's own principal
@@ -92,6 +103,13 @@ def classify(ext, dist_mm, in_body_column):
     vertebral bodies, which is where a disc space is and where a cage must therefore be.
     """
     length, width, thick = [float(x) for x in ext]
+    if appendicular:
+        # The subtype block is spinal: cage, screw and rod, plate. A femoral stem or an
+        # acetabular cup is none of them, and the shape rules would call a stem a rod
+        # because "linear" is all they test. Generic, and the QC gate on generic sends it
+        # to a reader -- the scheme has no arthroplasty class to put it in.
+        return HW_GENERIC, (f"on a hip or femur, {length:.0f} x {width:.0f} x {thick:.0f} "
+                            f"mm -- arthroplasty, which the subtype block does not cover")
     if dist_mm > OFF_BONE_MM:
         return None, (f"{dist_mm:.0f} mm from the nearest labelled bone -- tagged stool "
                       f"or contrast, not instrumentation")
@@ -136,9 +154,9 @@ def main() -> int:
     log.info(f"{a.case}: {lab.shape}, {sp.round(3)} mm, "
              f"axcodes {nib.aff2axcodes(lab_img.affine)}")
 
-    spine = np.isin(lab, SPINE_IDS)
+    spine = np.isin(lab, SEARCH_IDS)
     if not spine.any():
-        log.error("no spine labels; the search region cannot be built")
+        log.error("no skeleton labels; the search region cannot be built")
         return 3
 
     # CROP BEFORE DILATING. The shell is the spine grown by 12 mm; growing it across the
@@ -183,7 +201,8 @@ def main() -> int:
         if vox < a.min_voxels:
             continue
         near = ndimage.binary_dilation(m, iterations=max(1, it // 4))
-        touched = sorted({int(v) for v in np.unique(lab_c[near]) if v in SPINE_IDS})
+        touched = sorted({int(v) for v in np.unique(lab_c[near]) if v in SEARCH_IDS})
+        appendicular = bool(touched) and all(v in PELVIS_IDS for v in touched)
 
         # world mm, so the extents are lengths and "anterior" is anterior
         idx = np.argwhere(m) + np.array([sl[k].start for k in range(3)])
@@ -203,7 +222,8 @@ def main() -> int:
             back = vw.max() - 0.60 * (vw.max() - vw.min())
             in_body = bool(w[:, 1].mean() > back)
 
-        hw, why = classify(ext, float(dist_c[m].min()), in_body)
+        hw, why = classify(ext, float(dist_c[m].min()), in_body,
+                           appendicular=appendicular)
         rows.append({"voxels": vox, "mm3": round(vox * float(np.prod(sp)), 1),
                      "touches": [VERT_NAME.get(t, str(t)) for t in touched],
                      "extent_mm": [round(x, 1) for x in ext],

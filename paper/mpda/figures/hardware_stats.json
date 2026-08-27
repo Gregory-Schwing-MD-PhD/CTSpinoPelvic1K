@@ -1,0 +1,21 @@
+{
+ "scanned": 802,
+ "flagged_1800HU": 84,
+ "above_floor_2500HU": 52,
+ "confirmed": 11,
+ "artefact": 41,
+ "artefact_rate_of_proposals": 78.8,
+ "prevalence_pct": 1.37,
+ "classes": {
+  "hardware_arthroplasty": 8,
+  "hardware_osteosynthesis": 1,
+  "hardware_si_screw": 1,
+  "hardware_cage": 1
+ },
+ "peak_HU_above_ceiling_artefacts": 4,
+ "max_artefact_peak_HU": 11798,
+ "smallest_confirmed_mm3": 2585.9,
+ "largest_rejected_mm3": 1768.2,
+ "voxels_reclaimed_total": 1538852,
+ "cases_with_femoral_head_replaced": 9
+}

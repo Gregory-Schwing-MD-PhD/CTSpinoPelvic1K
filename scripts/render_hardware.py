@@ -187,11 +187,19 @@ def main() -> int:
     print(f"\nwrote {out / f'{a.case}_hardware_mip.png'}")
 
     # ---- the hardware ALONE, in 3-D --------------------------------------------------
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from render3d import surface_mesh, fit_camera, render
-
-    verts, normals = surface_mesh(hw_c > 0, sp, step=1, smooth=1.0)
-    if len(verts):
+    # THE 3-D VIEW IS THE OPTIONAL HALF. The projections are what a reviewer reads a case
+    # from; marching cubes on a handful of voxels can fail on a degenerate component, and
+    # over a batch that must cost one picture rather than the whole case.
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from render3d import surface_mesh, fit_camera, render
+        verts, normals = surface_mesh(hw_c > 0, sp, step=1, smooth=0.6)
+    except Exception as exc:                                        # noqa: BLE001
+        print(f"  ! no 3-D view: {type(exc).__name__}: {exc}")
+        verts = np.zeros((0, 3))
+    # surface_mesh RETURNS None on a degenerate mask rather than raising, so the
+    # try/except above never fires and len(None) is what actually crashed six cases.
+    if verts is not None and len(verts):
         cams = [("from the left", (1, 0, 0)), ("from the front", (0, -1, 0)),
                 ("from above", (0, 0, -1))]
         fig, ax = plt.subplots(1, 3, figsize=(15, 6), dpi=140)

@@ -1,0 +1,12 @@
+order,case,class,reviewed,verdict,notes
+1,1035,hardware_si_screw,yes,segmentation ok,
+2,0247,hardware_osteosynthesis,yes,segmentation ok,"three parallel cannulated screws, inverted triangle, left femoral neck"
+3,0068,hardware_cage,yes,verified earlier,
+4,1003,hardware_arthroplasty,yes,segmentation ok,"HEMIARTHROPLASTY -- femoral ball articulating directly with the native acetabulum, no cup (reader)"
+5,0515,hardware_arthroplasty,yes,segmentation ok,bilateral total hip; acetabular cups both sides (reader)
+6,0974,hardware_arthroplasty,yes,segmentation ok,"bilateral TOTAL hip, cups both sides (reader); my hemi-right call was wrong"
+7,0443,hardware_arthroplasty,yes,segmentation ok,"left total hip, cup present (reader)"
+8,0671,hardware_arthroplasty,yes,segmentation ok,"left total hip, cup present (reader)"
+9,0188,hardware_arthroplasty,yes,segmentation ok,"right total hip, cup present (reader)"
+10,0485,hardware_arthroplasty,yes,segmentation ok,"left total hip, cup present (reader)"
+11,1128,hardware_arthroplasty,yes,segmentation ok,left total hip; cup anchored by supplementary transacetabular screws into the ilium (reader)

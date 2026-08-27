@@ -1,0 +1,32 @@
+case,structure,was,now,kept_pct,pieces,dust_pieces,dust_mm3,main_piece_pct,state,detail
+0068,L4,191434,197968,103.4,3,0,0.0,94.6,ok,
+0068,L5,206960,188615,91.1,6,5,4.9,100.0,DUST,"5 speck(s), 4.9 mm3 total, 0.01% of the structure; main piece holds 100%"
+0188,right_hip,749232,731936,97.7,52,51,84.0,100.0,DUST,"51 speck(s), 84.0 mm3 total, 0.02% of the structure; main piece holds 100%"
+0188,femur_right,407477,255114,62.6,77,75,140.1,97.3,DUST,"75 speck(s), 140.1 mm3 total, 0.11% of the structure; main piece holds 97%"
+0247,sacrum,464141,464117,100.0,1,0,0.0,100.0,ok,
+0247,left_hip,962712,962705,100.0,13,12,52.5,100.0,DUST,"12 speck(s), 52.5 mm3 total, 0.02% of the structure; main piece holds 100%"
+0247,right_hip,941552,941542,100.0,19,17,88.3,100.0,DUST,"17 speck(s), 88.3 mm3 total, 0.03% of the structure; main piece holds 100%"
+0247,femur_left,419865,396973,94.5,12,11,14.6,100.0,DUST,"11 speck(s), 14.6 mm3 total, 0.01% of the structure; main piece holds 100%"
+0443,left_hip,392862,390018,99.3,34,32,54.4,100.0,DUST,"32 speck(s), 54.4 mm3 total, 0.02% of the structure; main piece holds 100%"
+0443,femur_left,481115,285104,59.3,406,405,486.2,99.7,DUST,"405 speck(s), 486.2 mm3 total, 0.29% of the structure; main piece holds 100%"
+0485,left_hip,876616,861214,98.2,49,47,36.2,98.1,DUST,"47 speck(s), 36.2 mm3 total, 0.01% of the structure; main piece holds 98%"
+0485,femur_left,331874,235849,71.1,52,50,83.0,99.9,DUST,"50 speck(s), 83.0 mm3 total, 0.09% of the structure; main piece holds 100%"
+0515,left_hip,882878,862318,97.7,127,124,126.0,92.2,DUST,"124 speck(s), 126.0 mm3 total, 0.04% of the structure; main piece holds 92%"
+0515,right_hip,784978,766685,97.7,113,108,216.1,96.3,DUST,"108 speck(s), 216.1 mm3 total, 0.08% of the structure; main piece holds 96%"
+0515,femur_left,336546,228430,67.9,26,24,45.6,99.9,DUST,"24 speck(s), 45.6 mm3 total, 0.05% of the structure; main piece holds 100%"
+0515,femur_right,344989,245711,71.2,49,47,86.7,99.8,DUST,"47 speck(s), 86.7 mm3 total, 0.09% of the structure; main piece holds 100%"
+0671,left_hip,690658,684791,99.2,193,190,223.1,94.6,DUST,"190 speck(s), 223.1 mm3 total, 0.07% of the structure; main piece holds 95%"
+0671,right_hip,760874,760815,100.0,269,259,550.8,96.4,DUST,"259 speck(s), 550.8 mm3 total, 0.15% of the structure; main piece holds 96%"
+0671,femur_left,432941,248159,57.3,732,731,1071.3,99.1,DUST,"731 speck(s), 1071.3 mm3 total, 0.88% of the structure; main piece holds 99%"
+0974,left_hip,665988,651427,97.8,132,129,143.4,99.8,DUST,"129 speck(s), 143.4 mm3 total, 0.03% of the structure; main piece holds 100%"
+0974,right_hip,583158,583041,100.0,46,43,154.8,99.9,DUST,"43 speck(s), 154.8 mm3 total, 0.04% of the structure; main piece holds 100%"
+0974,femur_left,315059,236846,75.2,83,80,112.5,99.8,DUST,"80 speck(s), 112.5 mm3 total, 0.08% of the structure; main piece holds 100%"
+0974,femur_right,340897,225697,66.2,151,150,242.0,99.8,DUST,"150 speck(s), 242.0 mm3 total, 0.17% of the structure; main piece holds 100%"
+1003,right_hip,1108461,1108370,100.0,25,24,19.2,100.0,DUST,"24 speck(s), 19.2 mm3 total, 0.01% of the structure; main piece holds 100%"
+1003,femur_right,725207,454201,62.6,15,14,6.0,100.0,DUST,"14 speck(s), 6.0 mm3 total, 0.00% of the structure; main piece holds 100%"
+1035,sacrum,402929,401218,99.6,2,1,4.6,100.0,DUST,"1 speck(s), 4.6 mm3 total, 0.00% of the structure; main piece holds 100%"
+1035,S1,219437,217887,99.3,1,0,0.0,100.0,ok,
+1035,left_hip,1427210,1422320,99.7,41,38,65.6,66.4,SHATTERED,largest piece holds only 66% across 41 pieces
+1035,right_hip,453420,452720,99.8,70,63,132.0,83.8,SHATTERED,largest piece holds only 84% across 70 pieces
+1128,left_hip,660823,631971,95.6,34,32,23.4,99.7,DUST,"32 speck(s), 23.4 mm3 total, 0.01% of the structure; main piece holds 100%"
+1128,femur_left,309890,227758,73.5,22,20,14.2,99.9,DUST,"20 speck(s), 14.2 mm3 total, 0.01% of the structure; main piece holds 100%"
