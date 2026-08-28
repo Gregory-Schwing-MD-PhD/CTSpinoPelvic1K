@@ -51,6 +51,7 @@ must be excluded from any measurement of the gap between bones.
 | `fetch_from_tcia.py` | rebuilds the image half end to end: download, convert, resample |
 | `reconstruct_ct.py` | the resampling step alone, for an existing conversion |
 | `KNOWN_ISSUES.md` | what to filter before which analysis; read it first |
+| `croissant.json` | MLCommons Croissant metadata — the label scheme, the manifest's fields and the responsible-AI declarations, machine-readable |
 | `SHA256SUMS.txt` | checksum for all 810 files — the 802 labels by their extracted path, and the eight loose files |
 | `LICENSE` | CC BY-NC-SA 4.0, matching zenodo.json and the licence section below |
 
