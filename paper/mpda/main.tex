@@ -693,6 +693,7 @@ PI $-$ LL mismatch & 2.6\si{\degree} & centred near 0 \\
 
 % ---------------------------------------------------------------------------
 \subsection{Surgical hardware, and why a threshold is not enough}
+\label{sec:hardware}
 
 Metal is trivial to detect and hard to interpret, and the difference matters here for a
 specific reason: \textbf{an iatrogenic fusion is indistinguishable from a congenital one to
@@ -780,6 +781,7 @@ the tagged release commit; any model-hub copy is a convenience mirror, not the a
 
 % ---------------------------------------------------------------------------
 \section{Descriptive Analysis}
+\label{sec:descriptive}
 
 \begin{figure*}[t]
 \centering
@@ -853,6 +855,69 @@ across a junction whose segments cannot be named. Level-numbering benchmarks, va
 studies and opportunistic screening (Fig.~\ref{fig:opportunistic}) follow from the same
 annotation.
 
+\subsection{Naming a level from its own geometry rather than from a count}
+
+Wrong-level spine surgery is uncommon per case and common per career: roughly one in 3{,}110
+spinal procedures, 4.5--12.8 per 10{,}000 lumbar discectomies annually, and half of surveyed
+neurosurgeons report having operated at the wrong level at least once.\cite{epstein2021} Its
+most frequently cited cause is anatomic variation, and specifically the sacralised lumbar and
+lumbarised sacral vertebrae this cohort was assembled around.\cite{epstein2021} The failure
+is structural rather than careless: the convention counts down from C2, the count is
+ambiguous exactly where a transitional segment sits, and the intraoperative image sees less
+of the column than the preoperative one did.
+
+That suggests a question this release is shaped to support --- whether a network can name a
+lumbar level from the \emph{local} morphology of the vertebra in front of it, without
+counting from a landmark outside the field of view. The released per-level measurements are
+the substrate: anterior and posterior body height, canal width, endplate width,
+transverse-process span and wedge ratio, for T11--L5 across all 802 records
+(Sec.~\ref{sec:descriptive}). Two properties of the release matter more than its size here.
+The labels were assigned against the twelfth rib rather than by enumeration, so a model
+trained on them is not being taught to reproduce the convention that fails; and the
+transitional records supply the adversarial cases --- 17 sacralisations, 14 lumbarisations,
+33 radiologist-graded --- on which a count-based method and a geometry-based one should be
+expected to disagree. A method that names L4 correctly on a six-lumbar spine has demonstrated
+something a method validated only on ordinary anatomy has not.
+
+\subsection{Normative morphometry at cohort scale}
+
+Reference values for vertebral and canal dimensions in the spine biomechanics literature
+derive substantially from cadaveric series and small imaging cohorts, which is what was
+available when they were established.\cite{benzel2015} The per-level measurements released
+here are computed identically across 802 records from segmentations rather than from
+landmarks placed by hand, which makes them reproducible and re-derivable rather than quoted.
+
+The claim this supports is narrow and worth keeping narrow. Larger $n$ improves the precision
+of a distribution; it does not fix the population it was drawn from. This is a colorectal
+screening cohort aged 50 and over, imaged supine, so these measurements should update the
+sample size behind a reference range and not be read as normal values for a young or surgical
+population. Where the two uses meet is variation: a reference table gives one number per
+level, and what a planning system needs is the spread, including the tail where a level does
+not look like its own textbook description.
+
+\subsection{Patient-specific models and surgical simulation}
+
+Preoperative planning is moving from static radiographic targets toward patient-specific
+biomechanical models --- digital twins --- on the argument that aligning a patient to a
+population norm is the wrong objective when the patient's own geometry is
+measurable.\cite{hamilton2026} Such a model needs the spine, the pelvis and the femoral heads
+in one coordinate frame, which is the construction this release exists to provide, and it
+needs them per patient rather than per cohort.
+
+Three features of the cohort bear directly on it. Pelvic incidence, pelvic tilt and sacral
+slope are derived from the segmented sacrum and femoral heads rather than from radiographic
+landmarks, so a model can be initialised from the anatomy instead of from a measurement of
+it. In 351 patients the annotation sits on two acquisitions in different positions, giving a
+within-patient change in alignment against which a model that claims to predict postural
+response can be checked --- a twin that cannot reproduce a change already observed in the
+same patient has not been validated. And the eleven instrumented records carry their hardware
+as its own structure rather than absorbed into the bone, so a post-operative state is
+representable rather than merely present.
+
+The limitation is the same one as above and it is not incidental: these are supine screening
+scans of an older cohort, so they support building and checking such models, not establishing
+the alignment targets a deformity correction should aim for.
+
 Its limitations are part of it, and they are stated at the level of detail a reader would
 need to catch them independently.
 
@@ -861,11 +926,13 @@ Postural angles are supine; pelvic incidence is not postural and needs no such c
 cohort is a colorectal screening population aged 50 and over, so its distributions should
 not be read as representative of a surgical one.
 
-\emph{Declared but empty, and confirmed so.} Soft-tissue (58--73) and hardware (76--79)
-identifiers are declared in the scheme and occur in no record --- checked by counting
-identifiers in all 802 released volumes rather than by assertion. They are retained so that
-a downstream annotation can use them without renumbering, and a user should treat their
-absence as absence of annotation rather than absence of the structure.
+\emph{Declared but empty, and confirmed so.} The soft-tissue identifiers (58--73) are
+declared in the scheme and occur in no record --- checked by counting identifiers in all 802
+released volumes rather than by assertion. They are retained so that a downstream annotation
+can use them without renumbering, and a user should treat their absence as absence of
+annotation rather than absence of the structure. The hardware identifiers were in this
+position until v6 and are no longer: 76--82 are populated in the eleven instrumented records
+described in Sec.~\ref{sec:hardware}.
 
 \emph{Strength of the labels varies by structure, and the release does not average over
 that.} Vertebral labels derive from radiologist-supervised source annotations, corrected
@@ -968,6 +1035,16 @@ obtained for other indications,'' \emph{Ann.~Intern.~Med.} \textbf{158}, 588--59
 \bibitem{genant1993} H.~K.~Genant, C.~Y.~Wu, C.~van Kuijk, and M.~C.~Nevitt, ``Vertebral
 fracture assessment using a semiquantitative technique,''
 \emph{J.~Bone Miner.~Res.} \textbf{8}, 1137--1148 (1993).
+
+\bibitem{epstein2021} N.~A.~Epstein, ``A perspective on wrong level, wrong side, and
+wrong site spine surgery,'' \emph{Surg.~Neurol.~Int.} \textbf{12}, 286 (2021).
+
+\bibitem{benzel2015} E.~C.~Benzel, \emph{Biomechanics of Spine Stabilization}, 3rd ed.
+(Thieme, New York, 2015), Chaps.~1--3.
+
+\bibitem{hamilton2026} D.~K.~Hamilton, quoted in ``Digital twins: a tremendous step forward
+for complex spine cases,'' \emph{Becker's Spine Review} (2026),
+\url{https://www.beckersspine.com/spine/digital-twins-a-tremendous-step-forward-for-complex-spine-cases/}.
 
 \bibitem{castellvi1984} A.~E.~Castellvi, L.~A.~Goldstein, and D.~P.~K.~Chan, ``Lumbosacral
 transitional vertebrae and their relationship with lumbar extradural defects,''

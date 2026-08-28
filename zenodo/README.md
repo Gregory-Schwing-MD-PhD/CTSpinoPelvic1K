@@ -175,6 +175,45 @@ print("label on bone:", f"{(C[L > 0] > 200).mean():.1%}")   # ~55%; below 50% = 
 
 ---
 
+## What this is for
+
+**Naming a level without counting to it.** Vertebral level is conventionally established by
+counting down from C2, and wrong-level spine surgery — about one in 3,100 spinal procedures,
+with half of surveyed neurosurgeons reporting at least one over a career — is most often
+attributed to anatomic variation, specifically the sacralised and lumbarised segments this
+cohort was built around. The count is ambiguous exactly where the variant is. That makes the
+open question whether a level can be identified from the *local* shape of the vertebra
+itself, and this release is shaped for it: per-level anterior and posterior body height,
+canal width, endplate width, transverse-process span and wedge ratio for T11–L5 across all
+802 records, with labels assigned against the twelfth rib rather than by enumeration — so a
+model trained here is not learning to reproduce the convention that fails. The 17
+sacralisations, 14 lumbarisations and 33 radiologist-graded records are the cases on which a
+counting method and a geometric one should disagree.
+
+**Reference morphometry at a larger sample size.** Textbook values for vertebral and canal
+dimensions rest substantially on cadaveric series and small imaging cohorts. The measurements
+here are computed identically across 802 records from segmentations rather than from
+hand-placed landmarks, so they are re-derivable rather than quoted. The limit matters as much
+as the number: this is a colorectal screening population aged 50 and over, imaged supine.
+That updates the *n* behind a reference range; it does not make the range representative of a
+young or surgical population.
+
+**Patient-specific models and surgical simulation.** Planning is moving from static
+radiographic targets toward patient-specific biomechanical models, on the argument that
+aligning a patient to a population norm is the wrong objective when their own geometry is
+measurable. Such a model needs spine, pelvis and femoral heads in one coordinate frame, which
+is what this release is. Pelvic incidence, tilt and sacral slope come from the segmented
+sacrum and femoral heads rather than from radiographic landmarks, so a model can start from
+the anatomy instead of from a measurement of it. In 351 patients the annotation sits on two
+acquisitions in different positions, giving a within-patient change in alignment to check a
+predicted postural response against. The eleven instrumented records carry hardware as its
+own structure rather than absorbed into bone, so a post-operative state is representable.
+
+These are supine screening scans of an older cohort. They support building and checking such
+models; they do not establish the alignment targets a deformity correction should aim for.
+
+---
+
 ## The label scheme
 
 VerSe-native: vertebrae keep their VerSe identifiers, and every non-VerSe structure takes a

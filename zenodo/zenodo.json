@@ -1,42 +1,94 @@
 {
- "title": "CTSpinoPelvic1K: spine, pelvis, ribs and femurs in one coordinate frame, annotated for lumbosacral transitional anatomy",
- "upload_type": "dataset",
- "license": "cc-by-nc-sa-4.0",
- "access_right": "open",
- "language": "eng",
- "version": "v6",
- "description": "<p>802 abdominal CT records with a unified segmentation of the spine, pelvis, per-level ribs and femurs, built so that a lumbar vertebra can be identified when the vertebral count itself is in doubt.</p><p>Vertebral numbering is conventionally established by counting down from C2. No abdominal CT contains C2, so at the thoracolumbar junction a thirteenth thoracic vertebra, a rib borne by a lumbar vertebra, and a stump rib produce overlapping appearances, and which label is correct depends on a count the field of view does not support. This release is annotated to make that decidable where it can be, and says so plainly where it cannot.</p><p><strong>This deposit contains the labels and the crosswalk, not the CT images.</strong> The images are already public in The Cancer Imaging Archive and are 193 GB against 1.8 GB of labels. What the source collections never published &mdash; and what this deposit does &mdash; is the mapping from each annotation to the CT series it was drawn on: manifest.json carries TCIA SeriesInstanceUIDs for all 802 records. reconstruct_ct.py rebuilds the image half, including the resampling step without which the masks will not align.</p><p><strong>Two classes no other public CT collection carries:</strong> L6, without which a six-lumbar spine cannot be recorded at all (17 records), and a lumbar rib class, without which a thirteenth rib must either be called rib 12 &mdash; asserting the vertebra beneath it is thoracic, the very question at issue &mdash; or discarded (15 records).</p><p>33 records carry a radiologist Castellvi grade. The grade and the vertebral count are different axes: grade IIIb occurs here at rib-free counts of four, five and six alike, and seven graded records carry a perfectly normal count of five.</p><p><strong>Research use only.</strong> These labels are not a medical device and are not validated for clinical decision-making. Known limitations are enumerated in README.md and should be read before use.</p><p><strong>v6 adds surgical hardware.</strong> Identifiers 76&ndash;82 were declared in every previous release and populated in none. 11 of the 802 records carry instrumentation &mdash; 8 hip arthroplasties, one femoral-neck osteosynthesis, one sacroiliac screw fixation and one pair of interbody cages &mdash; each read by a radiologist and labelled as its own structure rather than left inside the bone a segmenter had absorbed it into. This matters for the dataset's own use case: an iatrogenic fusion is indistinguishable from a congenital one to a distance measurement, so instrumented cases must be filtered out of any analysis of the gap between the lowest lumbar vertebra and the sacrum. See KNOWN_ISSUES.md.</p>",
- "keywords": [
-  "computed tomography",
-  "spine",
-  "pelvis",
-  "segmentation",
-  "lumbosacral transitional vertebra",
-  "Castellvi classification",
-  "enumeration anomaly",
-  "vertebra labeling",
-  "lumbar rib",
-  "medical imaging"
- ],
- "creators": [
-  {
-   "name": "Schwing, Gregory",
-   "affiliation": "Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
-  }
- ],
- "related_identifiers": [
-  {
-   "relation": "isDerivedFrom",
-   "identifier": "10.7937/K9/TCIA.2015.NWTESAY1",
-   "resource_type": "dataset",
-   "scheme": "doi"
-  },
-  {
-   "relation": "isDerivedFrom",
-   "identifier": "10.1007/s11548-021-02363-8",
-   "resource_type": "publication-article",
-   "scheme": "doi"
-  }
- ],
- "notes": "Imaging from TCIA CT COLONOGRAPHY. Vertebral annotations derive from CTSpine1K and pelvic annotations from CTPelvic1K, both produced under board-certified radiologist supervision; neither published the mapping from an annotation to the CT series it was drawn on, which is the gap this release closes. The underlying TCIA imaging carries its own terms; cite the source collections alongside this one."
+  "title": "CTSpinoPelvic1K: spine, pelvis, ribs and femurs in one coordinate frame, annotated for lumbosacral transitional anatomy",
+  "upload_type": "dataset",
+  "license": "cc-by-nc-sa-4.0",
+  "access_right": "open",
+  "language": "eng",
+  "version": "v6",
+  "description": "<p>802 abdominal CT records with a unified segmentation of the spine, pelvis, per-level ribs and femurs, built so that a lumbar vertebra can be identified when the vertebral count itself is in doubt.</p><p>Vertebral numbering is conventionally established by counting down from C2. No abdominal CT contains C2, so at the thoracolumbar junction a thirteenth thoracic vertebra, a rib borne by a lumbar vertebra, and a stump rib produce overlapping appearances, and which label is correct depends on a count the field of view does not support. This release is annotated to make that decidable where it can be, and says so plainly where it cannot.</p><p><strong>This deposit contains the labels and the crosswalk, not the CT images.</strong> The images are already public in The Cancer Imaging Archive and are 193 GB against 1.8 GB of labels. What the source collections never published &mdash; and what this deposit does &mdash; is the mapping from each annotation to the CT series it was drawn on: manifest.json carries TCIA SeriesInstanceUIDs for all 802 records. reconstruct_ct.py rebuilds the image half, including the resampling step without which the masks will not align.</p><p><strong>Two classes no other public CT collection carries:</strong> L6, without which a six-lumbar spine cannot be recorded at all (17 records), and a lumbar rib class, without which a thirteenth rib must either be called rib 12 &mdash; asserting the vertebra beneath it is thoracic, the very question at issue &mdash; or discarded (15 records).</p><p>33 records carry a radiologist Castellvi grade. The grade and the vertebral count are different axes: grade IIIb occurs here at rib-free counts of four, five and six alike, and seven graded records carry a perfectly normal count of five.</p><p><strong>What this supports.</strong> <em>Naming a level without counting to it:</em> vertebral level is conventionally established by counting down from C2, and wrong-level spine surgery &mdash; roughly one in 3,100 spinal procedures &mdash; is most often attributed to the sacralised and lumbarised segments this cohort was built around. The count is ambiguous exactly where the variant is, which makes the open question whether a level can be identified from the local shape of the vertebra itself. Per-level body height, canal width, endplate width, transverse-process span and wedge ratio are released for T11&ndash;L5 across all 802 records, and the labels were assigned against the twelfth rib rather than by enumeration, so a model trained here is not learning to reproduce the convention that fails.</p><p><em>Reference morphometry at a larger sample size:</em> textbook values for vertebral and canal dimensions rest substantially on cadaveric series and small imaging cohorts. These are computed identically across 802 records from segmentations rather than from hand-placed landmarks. This is a colorectal screening population aged 50 and over, imaged supine &mdash; that updates the sample size behind a reference range without making the range representative of a young or surgical population.</p><p><em>Patient-specific models and surgical simulation:</em> planning is moving from static radiographic targets toward patient-specific biomechanical models, on the argument that aligning a patient to a population norm is the wrong objective when their own geometry is measurable. Such a model needs spine, pelvis and femoral heads in one coordinate frame, which is what this release is; pelvic incidence, tilt and sacral slope derive from the segmented sacrum and femoral heads rather than from radiographic landmarks. In 351 patients the annotation sits on two acquisitions in different positions, giving a within-patient change in alignment to check a predicted postural response against, and the eleven instrumented records carry hardware as its own structure so a post-operative state is representable. These remain supine screening scans of an older cohort: they support building and checking such models, not setting the alignment targets a correction should aim for.</p><p><strong>Research use only.</strong> These labels are not a medical device and are not validated for clinical decision-making. Known limitations are enumerated in README.md and should be read before use.</p><p><strong>v6 adds surgical hardware.</strong> Identifiers 76&ndash;82 were declared in every previous release and populated in none. 11 of the 802 records carry instrumentation &mdash; 8 hip arthroplasties, one femoral-neck osteosynthesis, one sacroiliac screw fixation and one pair of interbody cages &mdash; each read by a radiologist and labelled as its own structure rather than left inside the bone a segmenter had absorbed it into. This matters for the dataset's own use case: an iatrogenic fusion is indistinguishable from a congenital one to a distance measurement, so instrumented cases must be filtered out of any analysis of the gap between the lowest lumbar vertebra and the sacrum. See KNOWN_ISSUES.md.</p>",
+  "keywords": [
+    "computed tomography",
+    "spine",
+    "pelvis",
+    "segmentation",
+    "lumbosacral transitional vertebra",
+    "Castellvi classification",
+    "enumeration anomaly",
+    "vertebra labeling",
+    "lumbar rib",
+    "medical imaging"
+  ],
+  "creators": [
+    {
+      "name": "Schwing, Gregory",
+      "affiliation": "Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Schehr, Ashley",
+      "affiliation": "Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Tekumulla, Annika",
+      "affiliation": "Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Khoushi, Margret",
+      "affiliation": "Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Christian, Ryan",
+      "affiliation": "Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Hubers, Dane",
+      "affiliation": "Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Mahjoub, Faris",
+      "affiliation": "Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Saad, Hassan",
+      "affiliation": "Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Sooch, Mia",
+      "affiliation": "Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Siddapureddy, Sathya",
+      "affiliation": "Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    },
+    {
+      "name": "McLellan, Michael",
+      "affiliation": "Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Kim, Jerick",
+      "affiliation": "Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Ismoilov, Miraziz",
+      "affiliation": "Department of Radiology, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Alnabahneh, Nizar",
+      "affiliation": "Department of Radiology, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    }
+  ],
+  "related_identifiers": [
+    {
+      "relation": "isDerivedFrom",
+      "identifier": "10.7937/K9/TCIA.2015.NWTESAY1",
+      "resource_type": "dataset",
+      "scheme": "doi"
+    },
+    {
+      "relation": "isDerivedFrom",
+      "identifier": "10.1007/s11548-021-02363-8",
+      "resource_type": "publication-article",
+      "scheme": "doi"
+    }
+  ],
+  "notes": "Imaging from TCIA CT COLONOGRAPHY. Vertebral annotations derive from CTSpine1K and pelvic annotations from CTPelvic1K, both produced under board-certified radiologist supervision; neither published the mapping from an annotation to the CT series it was drawn on, which is the gap this release closes. The underlying TCIA imaging carries its own terms; cite the source collections alongside this one."
 }
