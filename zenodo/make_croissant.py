@@ -36,21 +36,27 @@ LICENSE = "https://creativecommons.org/licenses/by-nc-sa/4.0/"
 # manuscript and the Zenodo record all designate it v6, and the description says so.
 VERSION = "6.0.0"
 
+SURGERY = ("Department of Surgery, Detroit Medical Center / Wayne State University, "
+           "Detroit, Michigan, USA")
+SOM = "Wayne State University School of Medicine, Detroit, Michigan, USA"
+RADIOLOGY = ("Department of Radiology, Detroit Medical Center / Wayne State University, "
+             "Detroit, Michigan, USA")
+
 AUTHORS = [
-    ("Schwing, Gregory", "Department of Surgery, Detroit Medical Center / Wayne State University"),
-    ("Schehr, Ashley", "Department of Surgery, Detroit Medical Center / Wayne State University"),
-    ("Tekumulla, Annika", "Department of Surgery, Detroit Medical Center / Wayne State University"),
-    ("Khoushi, Margret", "Department of Surgery, Detroit Medical Center / Wayne State University"),
-    ("Christian, Ryan", "Department of Surgery, Detroit Medical Center / Wayne State University"),
-    ("Hubers, Dane", "Department of Surgery, Detroit Medical Center / Wayne State University"),
-    ("Mahjoub, Faris", "Department of Surgery, Detroit Medical Center / Wayne State University"),
-    ("Saad, Hassan", "Department of Surgery, Detroit Medical Center / Wayne State University"),
-    ("Sooch, Mia", "Department of Surgery, Detroit Medical Center / Wayne State University"),
-    ("Siddapureddy, Sathya", "Department of Surgery, Detroit Medical Center / Wayne State University"),
-    ("McLellan, Michael", "Department of Surgery, Detroit Medical Center / Wayne State University"),
-    ("Kim, Jerick", "Department of Surgery, Detroit Medical Center / Wayne State University"),
-    ("Ismoilov, Miraziz", "Department of Radiology, Detroit Medical Center / Wayne State University"),
-    ("Alnabahneh, Nizar", "Department of Radiology, Detroit Medical Center / Wayne State University"),
+    ("Schwing, Gregory", SURGERY),
+    ("Schehr, Ashley", SOM),
+    ("Tekumulla, Annika", SOM),
+    ("Khoushi, Margret", SOM),
+    ("Christian, Ryan", SOM),
+    ("Hubers, Dane", SOM),
+    ("Mahjoub, Faris", SOM),
+    ("Saad, Hassan", SOM),
+    ("Sooch, Mia", SOM),
+    ("Siddapureddy, Sathya", SOM),
+    ("McLellan, Michael", SOM),
+    ("Kim, Jerick", SOM),
+    ("Ismoilov, Miraziz", RADIOLOGY),
+    ("Alnabahneh, Nizar", RADIOLOGY),
 ]
 
 CONTEXT = {
