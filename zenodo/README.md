@@ -51,7 +51,7 @@ must be excluded from any measurement of the gap between bones.
 | `fetch_from_tcia.py` | rebuilds the image half end to end: download, convert, resample |
 | `reconstruct_ct.py` | the resampling step alone, for an existing conversion |
 | `KNOWN_ISSUES.md` | what to filter before which analysis; read it first |
-| `SHA256SUMS.txt` | checksum for every label, by its extracted path |
+| `SHA256SUMS.txt` | checksum for all 810 files — the 802 labels by their extracted path, and the eight loose files |
 | `LICENSE` | CC BY-NC-SA 4.0, matching zenodo.json and the licence section below |
 
 Everything except the labels is left unarchived so it can be read on the record page without
@@ -59,8 +59,9 @@ downloading anything: the manifest, the label scheme, the splits and this file a
 previewable in place.
 
 **Extract first, then verify.** 1.8 GB that truncated silently looks exactly like 1.8 GB
-that did not, and the checksums list the extracted paths — they confirm the 802 labels you
-end up with rather than the container they arrived in:
+that did not. The checksums describe the extracted tree rather than the archive, so they
+confirm the 802 labels you end up with rather than the container they arrived in —
+`labels.zip` itself is deliberately not listed, since it is gone once extracted:
 
 ```bash
 unzip labels.zip          # -> labels/0001_label.nii.gz ... labels/1154_label.nii.gz
