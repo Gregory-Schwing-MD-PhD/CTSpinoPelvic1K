@@ -196,3 +196,21 @@ renumbering on 0179).
 
 Expect v6 to differ from published v5 in: those five records, the eleven hardware cases,
 0068's renumbering, and the twenty-two hip corrections in section 8.
+
+**The manifest also changed in every record, and not because the labels did.** Three fields
+were wrong through v5 and are recomputed here from the label volumes:
+
+| field | through v5 | in v6, counted in the voxels |
+|---|---|---|
+| `has_l6` | true in 1 record, which contains no L6 | true in the **18** that do |
+| `has_lumbar_rib` | false in all 802 | true in the **16** that carry one |
+| `n_lumbar_labels` | 0 in 799 of 802 | 4 in 9, 5 in 775, 6 in 18 |
+
+These are the fields a reader filters on to find the transitional cases this dataset exists
+to document, so the failure was quiet and total: selecting six-lumbar spines returned one
+record that is not one, and selecting lumbar ribs returned nothing at all, with no indication
+either result was wrong. `lumbar_rib_side` is new, and records that the sixteen split
+thirteen bilateral and three right-only, with no left-only case.
+
+If you compare a v5 manifest against a v6 one, every record differs on these fields. No label
+voxel changed on that account.
