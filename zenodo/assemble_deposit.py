@@ -27,6 +27,8 @@ import argparse
 import hashlib
 import json
 import shutil
+import multiprocessing
+import os
 import sys
 from collections import Counter
 from pathlib import Path
@@ -155,14 +157,23 @@ def main() -> int:
         files = sorted((src / "labels").glob("*_label.nii.gz"))
         if a.sidedness > 0:
             files = files[: a.sidedness]
-        print(f"  checking sidedness on {len(files)} volume(s)...")
+        workers = min(len(files), max(1, (os.cpu_count() or 2) - 1))
+        print(f"  checking sidedness on {len(files)} volume(s) "
+              f"across {workers} process(es)...")
         bad = []
-        for i, f in enumerate(files, 1):
-            t = check_sidedness(f)
+        if workers == 1:
+            results = ((f, check_sidedness(f)) for f in files)
+        else:
+            pool = multiprocessing.Pool(workers)
+            results = zip(files, pool.imap(check_sidedness, files, chunksize=4))
+        for i, (f, t) in enumerate(results, 1):
             if t:
                 bad.append((f.name.split("_")[0], t))
             if i % 100 == 0:
                 print(f"    {i}/{len(files)}", flush=True)
+        if workers > 1:
+            pool.close()
+            pool.join()
         swapped = [(c, f) for c, f in bad if any(w == "transposed" for _, w in f)]
         crossed = [(c, f) for c, f in bad if all(w != "transposed" for _, w in f)]
         for cid, faults in bad:

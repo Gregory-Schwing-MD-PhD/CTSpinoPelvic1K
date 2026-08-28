@@ -34,8 +34,20 @@ def main() -> int:
     src = Path(a.src)
     man = json.loads((src / "manifest.json").read_text(encoding="utf-8"))
     recs = man if isinstance(man, list) else man.get("records", list(man.values()))
-    flagged = {str(r["volume_id"]) for r in recs if r.get("hardware")}
-    print(f"  manifest says hardware in {len(flagged)} record(s)")
+    # v5 called this `hardware` and set it on all 84 detections at 1800 HU, before the
+    # radiologist read. v6 renamed it to `hardware_labelled` and set it on the 11 that
+    # survived. Reading the v5 name against a v6 manifest silently yields zero flagged
+    # records, and then every real implant reports as an undocumented one.
+    field = next((f for f in ("hardware_labelled", "hardware") if any(f in r for r in recs)),
+                 None)
+    if field is None:
+        print("  manifest carries NO hardware field at all")
+        flagged, claimed = set(), {}
+    else:
+        flagged = {str(r["volume_id"]) for r in recs if r.get(field)}
+        claimed = {str(r["volume_id"]): r.get("hardware_label_ids")
+                   for r in recs if r.get(field)}
+        print(f"  manifest field `{field}` is set on {len(flagged)} record(s)")
 
     truth = {}
     labs = sorted((src / "labels").glob("*_label.nii.gz"))
@@ -59,6 +71,20 @@ def main() -> int:
     for k, v in sorted(tot.items()):
         n = sum(1 for r in truth.values() if k in r)
         print(f"   {k:>3} {NAMES.get(k, ''):<24} {n:>3} case(s)  {v:>10,} voxels")
+
+    # the ids the manifest claims must be the ids that are actually in the volume, not
+    # merely "some hardware here" -- a record that says arthroplasty and contains a cage
+    # is wrong in the way that matters to anyone filtering by class
+    wrong_ids = []
+    for cid, ids in claimed.items():
+        if ids is None or cid not in truth:
+            continue
+        if sorted(int(i) for i in ids) != sorted(truth[cid]):
+            wrong_ids.append((cid, sorted(int(i) for i in ids), sorted(truth[cid])))
+    print("")
+    print(f"  records whose claimed ids differ from the volume: {len(wrong_ids)}")
+    for cid, said, got in wrong_ids:
+        print(f"    {cid}  manifest says {said}, volume has {got}")
 
     over = sorted(flagged - set(truth))
     under = sorted(set(truth) - flagged)
