@@ -52,22 +52,38 @@ measurable.
 
 ---
 
-## 4. Detached label pieces — mostly the edge of the scan, sometimes not
+## 4. Detached label pieces are mostly specks, and a few are real
 
-**523 detached pieces across 408 records.** Two different things, and the split matters:
+Counted on the labels in this deposit, with **no minimum size**: **27,738 detached pieces
+across 741 of the 802 records**. That number is large because it includes single voxels.
+The size distribution is the finding, not the total:
 
-| | n | what it is |
-|---|---|---|
-| touching the edge of the scan | 331 (63%) | the structure leaves the reconstructed volume; the label is correct and the anatomy is simply cut |
-| not at an edge | 192 (37%) | a genuine break, mostly a vertebra separated at the pedicle |
+| piece size | n | share | what it is |
+|---|---|---|---|
+| under 10 voxels | 24,777 | 89.3% | a speck at the boundary between two labels |
+| 10–99 | 1,920 | 6.9% | boundary roughness |
+| 100–999 | 523 | 1.9% | a fragment |
+| 1000 or more | 518 | 1.9% | a real detached piece of bone |
 
-Commonest labels: sacrum ×92, T9 ×83, T8 ×79, T7 ×51, T10 ×47. The thoracic concentration
-is expected — these are FOV-limited abdominal scans and the upper thoracic levels are at the
-margin of the reconstruction.
+**The last row is the one to act on: 518 pieces of 1000+ voxels, spread over 359 records.**
+Everything above it is the segmentation disagreeing with itself by a voxel or two along a
+seam, which no analysis of shape, volume or position will notice.
 
-Across all 21,474 label components in the deposit: 20,162 are a single clean component, 704
-carry loose voxels, 518 sit inside the imaged volume, 62 are near-edge uncertain and 28 lie
-on the reconstruction circle.
+The counting rule, so the number is reproducible: `scipy.ndimage.label` with the default
+face-adjacent connectivity, per label id, per volume, counting every component after the
+largest. 22,126 label instances are a single clean component; 52,285 components exist in
+total.
+
+The commonest labels among detached pieces are `right_hip` (9,574) and `left_hip` (5,282),
+which is the pubic symphysis and the sacroiliac joints: two bones that meet along a seam the
+segmenter has to cut, so both sides carry specks of the other. Then the ribs — `rib_left_12`
+(1,604), `rib_right_6` (1,114), `rib_left_7` (1,003) — where a thin cortical shell breaks
+across a slice.
+
+**801 pieces (3%) touch the edge of the reconstructed volume.** For those the label is
+correct and the anatomy is simply cut. That share is low here only because specks dominate
+the total; among the large pieces, truncation is the usual explanation, and section 5 gives
+the extent of it.
 
 ---
 
@@ -135,13 +151,48 @@ fragmentation, and it was corrected for v6. As shipped: left hip 99.88% one comp
 single 473 mm³ crumb, right hip one component, sacrum one component, S1 one component. The
 sacroiliac screws are two components because there are two screws.
 
-## 8. v6 against the published v5
+## 8. Hip laterality was wrong in 22 records and is corrected in v6
+
+**If you used v5 for anything measured from the hip or the femoral head, re-run it.**
+
+Four records — `0027`, `0107`, `0790`, `0935` — had `left_hip` and `right_hip` swapped
+outright. Eighteen more — `0012`, `0065`, `0135`, `0146`, `0172`, `0186`, `0376`, `0410`,
+`0471`, `0513`, `0746`, `0830`, `0917`, `0938`, `0957`, `1124`, `1145`, `1148` — had most of
+one hip bone wearing the other hip's label, the same fault previously recorded for 1035.
+
+The evidence, since a laterality claim should carry it:
+
+- **The femurs disagreed with the hips.** Each femur sits in its own hip's socket, and every
+  femur pair in the release is correctly sided. In all four transposed records the femurs are
+  right and each hip lies beside the *other* femur. No orientation error can do that — a
+  prone/supine flip moves both pairs together.
+- **Position does not explain it.** The flag rate is 2.39% among prone acquisitions and
+  2.84% among supine. If patient position drove it, one would carry the flags and the other
+  none.
+- **Controls separate cleanly.** Measured as the fraction of a hip label lying across the
+  spine midline — the lumbar and sacral centroid, which does not move when a hip label is
+  wrong — unflagged records sit at 0.0% (max 4.0%) and the eighteen sat at 31.8% median, up
+  to 49.7%.
+- **The correction improved the labels.** Hip components fell from 4,315 to 410 and pieces
+  under 100 voxels from 4,198 to 347 across those eighteen; each hip is now essentially a
+  single component instead of about two-thirds of one, and the two hips come out
+  near-symmetric in volume, as a pelvis is.
+
+Laterality is re-derived per voxel from the side of the spine midline, computed through the
+affine, so it does not depend on the stored orientation.
+
+**Why this reached v5:** the release check that detects it takes a `--sidedness` argument
+that defaults to 0, meaning skipped. It had never been run across all 802 records. It is not
+optional in the build that produced this deposit.
+
+---
+
+## 9. v6 against the published v5
 
 v6 is **not** simply v5 plus hardware. Five records — `0179`, `0378`, `0412`, `0787`,
 `1153` — were hand-corrected after the v5 export was cut and never re-exported, so those
 corrections appear for the first time in v6 (1,025,631 voxels relabelled, chiefly a rib
-renumbering on 0179). The remaining 797 records are unchanged apart from the eleven hardware
-cases and 0068's renumbering.
+renumbering on 0179).
 
-If you are comparing against published v5, expect those five to differ for reasons unrelated
-to this release.
+Expect v6 to differ from published v5 in: those five records, the eleven hardware cases,
+0068's renumbering, and the twenty-two hip corrections in section 8.
