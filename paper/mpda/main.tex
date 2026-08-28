@@ -24,7 +24,7 @@
 
 % Reserve this on Zenodo BEFORE the final draft: a reserved DOI is quotable while the
 % record is still private. Deleting that draft destroys the DOI and its files.
-\newcommand{\datasetdoi}{10.5281/zenodo.XXXXXXX}
+\newcommand{\datasetdoi}{10.5281/zenodo.22139643}
 
 % Fit content to the text block WITHOUT enlarging it. \resizebox{\linewidth}{!}
 % forces the width to match exactly, which scales small things UP -- inflating
@@ -487,20 +487,24 @@ distinguishable where a spine-limited view alone would not be.
 
 Neither anchor is novel on its own. TotalSegmentator~\cite{totalsegmentator} also
 carries a separate S1 class alongside the sacrum and labels ribs per level, and
-VerSe~\cite{verse2021} carries L6. What no published scheme carries is the pair of
-classes below.
+VerSe~\cite{verse2021} carries L6 --- this release uses the VerSe identifiers, so its L6
+\emph{is} VerSe's, and is interoperable with it and with CTSpine1K rather than local to this
+work. One class below has no counterpart in a published scheme; the other is included
+because the whole-body schemes omit it.
 
 \textbf{A rib on a lumbar body receives its own class} rather than being forced to be a
-twelfth rib. A lumbar rib and a stump rib are the same object under two counts; assigning
-it a number would commit the label to one reading of an enumeration anomaly. 15 released records
-carry one, and 17 carry an L6.
-This is the class whose absence is decisive elsewhere: a scheme that numbers every rib
-1--12 has nowhere to put a thirteenth, so the annotator must either call it rib~12 --- which
-asserts the vertebra beneath it is thoracic, the very question at issue --- or discard it.
+twelfth rib, and this is the class with no published counterpart. A lumbar rib and a stump
+rib are the same object under two counts; assigning it a number would commit the label to one
+reading of an enumeration anomaly. Its absence is decisive elsewhere: a scheme that numbers
+every rib 1--12 has nowhere to put a thirteenth, so the annotator must either call it rib~12
+--- which asserts the vertebra beneath it is thoracic, the very question at issue --- or
+discard it. TotalSegmentator carries ribs 1--12 per side and no such class, and VerSe's T13
+is a vertebra rather than a rib. 16 released records carry a lumbar rib and 18 carry an L6.
 
-\textbf{L6 is a class, not an exception.} A scheme without one cannot record a six-lumbar
-spine at all, and must renumber the column or drop a level to fit. The largest whole-body
-collection stops at L5.
+\textbf{L6 is a class, not an exception.} It is inherited rather than introduced, and the
+reason it is retained is that a scheme without one cannot record a six-lumbar spine at all,
+and must renumber the column or drop a level to fit. The whole-body collections do exactly
+that: TotalSegmentator stops at L5.
 
 \begin{figure*}[t]
 \centering
@@ -519,8 +523,8 @@ compare directly rather than reflecting voxel size.}
 \end{figure*}
 
 Figure~\ref{fig:anchors} shows why the interval is the primitive and the label is derived.
-Of the 29 records with four rib-free vertebrae, 15 reach that count through a lumbar rib
-and 14 without one; the two are indistinguishable by the count alone and are distinguished
+Among the records with four rib-free vertebrae, some reach that count through a lumbar rib
+and some without one; the two are indistinguishable by the count alone and are distinguished
 here only because rib presence is itself labelled.
 
 Fifteen records carry a lumbar rib in the released volumes: twelve bilateral and three
@@ -855,68 +859,41 @@ across a junction whose segments cannot be named. Level-numbering benchmarks, va
 studies and opportunistic screening (Fig.~\ref{fig:opportunistic}) follow from the same
 annotation.
 
-\subsection{Naming a level from its own geometry rather than from a count}
+\subsection{Three uses the released measurements support}
 
-Wrong-level spine surgery is uncommon per case and common per career: roughly one in 3{,}110
-spinal procedures, 4.5--12.8 per 10{,}000 lumbar discectomies annually, and half of surveyed
-neurosurgeons report having operated at the wrong level at least once.\cite{epstein2021} Its
-most frequently cited cause is anatomic variation, and specifically the sacralised lumbar and
-lumbarised sacral vertebrae this cohort was assembled around.\cite{epstein2021} The failure
-is structural rather than careless: the convention counts down from C2, the count is
-ambiguous exactly where a transitional segment sits, and the intraoperative image sees less
-of the column than the preoperative one did.
+\emph{Naming a level from its own geometry.} Wrong-level spine surgery runs at roughly one in
+3{,}110 spinal procedures and 4.5--12.8 per 10{,}000 lumbar discectomies annually, and half of
+surveyed neurosurgeons report having operated at the wrong level at least once; the cause most
+often cited is the transitional anatomy this cohort was assembled around.\cite{epstein2021}
+The failure is structural rather than careless, since the count is ambiguous exactly where the
+variant sits. Whether a level can instead be named from the local morphology of the vertebra
+in front of the reader is a question this release is shaped to support: per-level body height,
+canal width, endplate width, transverse-process span and wedge ratio are released for T11--L5
+across all 802 records, the labels were assigned against the twelfth rib rather than by
+enumeration --- so a model trained here is not learning the convention that fails --- and the
+transitional records supply the cases on which a count-based method and a geometric one should
+disagree.
 
-That suggests a question this release is shaped to support --- whether a network can name a
-lumbar level from the \emph{local} morphology of the vertebra in front of it, without
-counting from a landmark outside the field of view. The released per-level measurements are
-the substrate: anterior and posterior body height, canal width, endplate width,
-transverse-process span and wedge ratio, for T11--L5 across all 802 records
-(Sec.~\ref{sec:descriptive}). Two properties of the release matter more than its size here.
-The labels were assigned against the twelfth rib rather than by enumeration, so a model
-trained on them is not being taught to reproduce the convention that fails; and the
-transitional records supply the adversarial cases --- 17 sacralisations, 14 lumbarisations,
-33 radiologist-graded --- on which a count-based method and a geometry-based one should be
-expected to disagree. A method that names L4 correctly on a six-lumbar spine has demonstrated
-something a method validated only on ordinary anatomy has not.
+\emph{Reference morphometry at cohort scale.} Reference values for vertebral and canal
+dimensions derive substantially from cadaveric series and small imaging
+cohorts.\cite{benzel2015} These measurements are computed identically across 802 records from
+segmentations rather than from landmarks placed by hand. Larger $n$ improves the precision of
+a distribution and does not fix the population it was drawn from: this is a screening cohort
+aged 50 and over, imaged supine, so it updates the sample size behind a reference range rather
+than making the range representative.
 
-\subsection{Normative morphometry at cohort scale}
-
-Reference values for vertebral and canal dimensions in the spine biomechanics literature
-derive substantially from cadaveric series and small imaging cohorts, which is what was
-available when they were established.\cite{benzel2015} The per-level measurements released
-here are computed identically across 802 records from segmentations rather than from
-landmarks placed by hand, which makes them reproducible and re-derivable rather than quoted.
-
-The claim this supports is narrow and worth keeping narrow. Larger $n$ improves the precision
-of a distribution; it does not fix the population it was drawn from. This is a colorectal
-screening cohort aged 50 and over, imaged supine, so these measurements should update the
-sample size behind a reference range and not be read as normal values for a young or surgical
-population. Where the two uses meet is variation: a reference table gives one number per
-level, and what a planning system needs is the spread, including the tail where a level does
-not look like its own textbook description.
-
-\subsection{Patient-specific models and surgical simulation}
-
-Preoperative planning is moving from static radiographic targets toward patient-specific
-biomechanical models --- digital twins --- on the argument that aligning a patient to a
-population norm is the wrong objective when the patient's own geometry is
-measurable.\cite{hamilton2026} Such a model needs the spine, the pelvis and the femoral heads
-in one coordinate frame, which is the construction this release exists to provide, and it
-needs them per patient rather than per cohort.
-
-Three features of the cohort bear directly on it. Pelvic incidence, pelvic tilt and sacral
-slope are derived from the segmented sacrum and femoral heads rather than from radiographic
-landmarks, so a model can be initialised from the anatomy instead of from a measurement of
-it. In 351 patients the annotation sits on two acquisitions in different positions, giving a
-within-patient change in alignment against which a model that claims to predict postural
-response can be checked --- a twin that cannot reproduce a change already observed in the
-same patient has not been validated. And the eleven instrumented records carry their hardware
-as its own structure rather than absorbed into the bone, so a post-operative state is
-representable rather than merely present.
-
-The limitation is the same one as above and it is not incidental: these are supine screening
-scans of an older cohort, so they support building and checking such models, not establishing
-the alignment targets a deformity correction should aim for.
+\emph{Patient-specific models.} Planning is moving from static radiographic targets toward
+patient-specific biomechanical models, on the argument that aligning a patient to a population
+norm is the wrong objective when their own geometry is measurable.\cite{hamilton2026} Such a
+model needs the spine, pelvis and femoral heads in one frame, which is this release's
+construction, and pelvic incidence, tilt and sacral slope derive here from the segmented
+sacrum and femoral heads rather than from radiographic landmarks. In 351 patients the
+annotation sits on two acquisitions in different positions, giving a within-patient change in
+alignment against which a predicted postural response can be checked --- the difference
+between a model that is built and one that is validated --- and the eleven instrumented
+records carry hardware as its own structure, so a post-operative state is representable. These
+remain supine screening scans of an older cohort: they support building and checking such
+models, not setting the alignment targets a correction should aim for.
 
 Its limitations are part of it, and they are stated at the level of detail a reader would
 need to catch them independently.
@@ -956,8 +933,7 @@ There is no held-out test set, and with 15 lumbarisation and 15 sacralisation re
 per-fold metric on the rare classes is estimated from three cases.
 
 \section*{Data Availability}
-The dataset is permanently archived at \url{https://doi.org/\datasetdoi}. Code is at
-[repository URL], tagged at the release commit.
+The dataset is permanently archived at \url{https://doi.org/\datasetdoi}. Code is at \url{https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K}, tagged at the release commit.
 
 \section*{Conflict of Interest}
 The authors have no relevant conflicts of interest to disclose.
@@ -965,15 +941,23 @@ The authors have no relevant conflicts of interest to disclose.
 % -- this statement covers all of them and none of them has been asked yet.
 
 \section*{Ethics}
-% [CONFIRM BEFORE SUBMISSION] Greg is obtaining an IRB determination. The expected form is
-% non-human-subjects / exempt, since every image is already public and de-identified in
-% TCIA, but the determination letter is what the journal will want and it does not exist
-% yet. Do not submit with this paragraph as written.
+% [CO-AUTHOR] What exists is a completed WSU Human Participant Research determination
+% tool -- a self-determination, which that form explicitly provides for. What does not
+% exist is a letter of concurrence from the IRB. The sentence below states the former and
+% claims nothing about the latter. If written concurrence is obtained before submission,
+% replace the second sentence with a reference to the determination number.
 This work uses publicly available, de-identified imaging from The Cancer Imaging
-Archive~\cite{tcia,colonog} and derived annotations. An institutional review board
-determination was obtained [PENDING].
+Archive~\cite{tcia,colonog} and annotations derived from it. The investigators obtain no
+identifiable private information and have no interaction with the individuals imaged, so the
+activity does not meet the definition of human participant research under 45~CFR~46.102; a
+Wayne State University Human Participant Research determination to that effect has been
+completed and is retained by the investigators.
 
 \begin{thebibliography}{20}
+% \sloppy in the reference list only: a news-article URL with no hyphens to break on
+% overflows the two-column measure by 40pt, and loosening inter-word spacing among the
+% references is a smaller cost than a line running out into the margin.
+\sloppy
 
 % These were written from knowledge of the literature rather than copied from the
 % articles, so the volume/page fields are the part most likely to carry an error.
@@ -1043,8 +1027,7 @@ wrong site spine surgery,'' \emph{Surg.~Neurol.~Int.} \textbf{12}, 286 (2021).
 (Thieme, New York, 2015), Chaps.~1--3.
 
 \bibitem{hamilton2026} D.~K.~Hamilton, quoted in ``Digital twins: a tremendous step forward
-for complex spine cases,'' \emph{Becker's Spine Review} (2026),
-\url{https://www.beckersspine.com/spine/digital-twins-a-tremendous-step-forward-for-complex-spine-cases/}.
+for complex spine cases,'' \emph{Becker's Spine Review} (2026), \url{beckersspine.com}.
 
 \bibitem{castellvi1984} A.~E.~Castellvi, L.~A.~Goldstein, and D.~P.~K.~Chan, ``Lumbosacral
 transitional vertebrae and their relationship with lumbar extradural defects,''

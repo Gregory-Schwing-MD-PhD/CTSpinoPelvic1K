@@ -237,14 +237,24 @@ fixed identifier above that range.
 | 76–79 | hardware — *declared, empty in this release* |
 | 255 | ignore |
 
-Two classes exist that no other public CT collection carries, and they are the reason this
-scheme is not simply another whole-body label map:
+Two classes distinguish this scheme from a whole-body label map, and only one of them is
+unusual:
 
-- **L6.** A scheme without one cannot record a six-lumbar spine at all, and must renumber
-  the column or drop a level to fit. 17 records here carry an L6.
-- **Lumbar rib (74/75).** A scheme that numbers every rib 1–12 has nowhere to put a
-  thirteenth: the annotator must either call it rib 12 — which asserts the vertebra beneath
-  it is thoracic, the very question at issue — or discard it. 15 records carry one.
+- **L6 (identifier 25).** Not novel, and deliberately not: the vertebral identifiers follow
+  VerSe, which defines 20–25 as L1–L6 and 28 as T13. An L6 label here therefore means the
+  same thing it means in VerSe and in CTSpine1K rather than being local to this release.
+  What matters is that a scheme *without* an L6 cannot record a six-lumbar spine at all and
+  must renumber the column or drop a level to fit — which the widely used whole-body schemes
+  do, since TotalSegmentator stops at L5. **18 records carry an L6.**
+- **Lumbar rib (74/75).** This one has no counterpart in the public schemes. A scheme that
+  numbers every rib 1–12 has nowhere to put a thirteenth: the annotator must either call it
+  rib 12 — which asserts the vertebra beneath it is thoracic, the very question at issue —
+  or discard it. TotalSegmentator has `rib_left_1`–`12` and `rib_right_1`–`12` and no lumbar
+  rib class; VerSe's T13 is a vertebra, not a rib. **16 records carry a lumbar rib.**
+
+Filter on `has_l6`, `has_lumbar_rib` and `lumbar_rib_side` in `manifest.json`; those fields
+are derived from the released label volumes rather than carried forward from an earlier
+pass.
 
 ---
 
