@@ -172,11 +172,11 @@ def main() -> int:
     text_vals = {
         "Project Title": TITLE,
         "Name of person conducting the project": a.name,
-        "Title": TODO,
+        "Title": "Resident, Department of Surgery",
         "Date": date.today().strftime("%m/%d/%Y"),
         "Email Address": TODO + " (WSU e-mail)",
         "Phone": TODO,
-        STATUS_FIELD: TODO,
+        STATUS_FIELD: "School of Medicine / Department of Surgery",
         "Department": TODO,
         "Campus Address": TODO,
         "Name": a.sponsor,
@@ -200,6 +200,7 @@ def main() -> int:
     #   3.1-3.4 all unchecked -> not FDA-regulated
     # Research yes + human participants no = not HPR, no IRB review required.
     checks = {
+        "ResidentFellowTrainee": True,      # confirmed: a surgical resident
         "Behavioral social education nonmedical study": False,
         "Medical study": True,
         "Secondary or retrospective data collection": True,
