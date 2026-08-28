@@ -44,22 +44,31 @@ must be excluded from any measurement of the gap between bones.
 
 | | |
 |---|---|
-| `labels/` | 802 gzipped NIfTI label volumes, `NNNN_label.nii.gz` |
+| `labels.zip` | 802 gzipped NIfTI label volumes, `NNNN_label.nii.gz`; extracts to `labels/` |
 | `manifest.json` | one record per case: TCIA series identifiers, demographics, scanner, LSTV label, Castellvi grade |
 | `splits_5fold.json` | frozen patient-grouped, LSTV-stratified five-fold cross-validation splits |
 | `dataset_labels.json` | the label scheme — identifier to structure name |
 | `fetch_from_tcia.py` | rebuilds the image half end to end: download, convert, resample |
 | `reconstruct_ct.py` | the resampling step alone, for an existing conversion |
 | `KNOWN_ISSUES.md` | what to filter before which analysis; read it first |
-| `SHA256SUMS.txt` | checksum for every file above |
+| `SHA256SUMS.txt` | checksum for every label, by its extracted path |
 | `LICENSE` | CC BY-NC-SA 4.0, matching zenodo.json and the licence section below |
 
-Verify the download before you use it — 1.8 GB that truncated silently looks exactly like
-1.8 GB that did not:
+Everything except the labels is left unarchived so it can be read on the record page without
+downloading anything: the manifest, the label scheme, the splits and this file are all
+previewable in place.
+
+**Extract first, then verify.** 1.8 GB that truncated silently looks exactly like 1.8 GB
+that did not, and the checksums list the extracted paths — they confirm the 802 labels you
+end up with rather than the container they arrived in:
 
 ```bash
+unzip labels.zip          # -> labels/0001_label.nii.gz ... labels/1154_label.nii.gz
 sha256sum -c SHA256SUMS.txt
 ```
+
+Every path in the rest of this file assumes that extraction has happened, so
+`labels/0007_label.nii.gz` means what it says.
 
 **Not included** — the CT images, which are 193 GB against 1.8 GB of labels. There are two
 ways to get them. Only the first works today.
