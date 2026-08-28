@@ -527,21 +527,25 @@ Among the records with four rib-free vertebrae, some reach that count through a 
 and some without one; the two are indistinguishable by the count alone and are distinguished
 here only because rib presence is itself labelled.
 
-Fifteen records carry a lumbar rib in the released volumes: twelve bilateral and three
+Sixteen records carry a lumbar rib in the released volumes: thirteen bilateral and three
 unilateral, all three on the right. That laterality is reported because it is what the
-release contains and not as a finding --- fifteen records cannot support a statement about
+release contains and not as a finding --- sixteen records cannot support a statement about
 side preference, and none is made.
 
-Seventeen records carry an L6. Fourteen are labelled lumbarisation, two sacralisation and
-one semi-sacralisation, which is worth stating because it shows the two annotation axes
-disagreeing in the open: a record can carry six lumbar-type vertebrae and still be read as
-a sacralisation, depending on where the reader started the count.
+Eighteen records carry an L6. Fourteen are labelled lumbarisation, two sacralisation, one
+semi-sacralisation and one normal, which is worth stating because it shows the two annotation
+axes disagreeing in the open: a record can carry six lumbar-type vertebrae and still be read
+as a sacralisation, or as unremarkable, depending on where the reader started the count.
 
-Both counts come from the released label volumes rather than from the manifest, and the
-distinction is not pedantic. The manifest carries a \texttt{has\_l6} flag which is true
-for exactly one record, and that record contains no L6, while all seventeen that do are
-flagged false. The flag is wrong in both directions and nothing in the release depends on
-it; users should read the label volumes, and it is noted here so that nobody trusts it.
+Both counts are derived from the released label volumes, and so are the manifest fields
+that report them. That is a correction rather than a design note: through v5 the
+\texttt{has\_l6} flag was true for exactly one record, which contains no L6, and false for
+all eighteen that do, while \texttt{has\_lumbar\_rib} was false everywhere and
+\texttt{n\_lumbar\_labels} read zero in 799 of 802 records. A reader selecting the six-lumbar
+cases on those fields would have received one record that is not one, and a reader selecting
+lumbar ribs an empty set, with nothing to indicate either. The fields are rebuilt for this
+release by counting identifiers 25 and 74--75 in each volume, and
+\texttt{lumbar\_rib\_side} is added alongside them.
 
 \subsection{Validation}
 \label{sec:validation}
@@ -743,10 +747,13 @@ implant was already inside a bone label, a segmenter handed a bright object agai
 cortical surface having taken it for bone. Naming the hardware therefore reclaims voxels
 rather than adding them: 1,538,852\ voxels across the eleven records. The consequence
 reaches past bookkeeping. Pelvic incidence and pelvic tilt are measured from the femoral
-head centre, and in 9\ of these cases that head is an implant --- any spinopelvic
+head centre, and in 8\ of these cases that head is an implant --- any spinopelvic
 parameter previously computed from them was measured on metal.
 
-\begin{figure*}[t]
+% Single column, not figure*: this panel is 794x559, an aspect of 1.42. Set to the full
+% two-column measure it renders about five inches tall and takes most of a page; at column
+% width it is legible in a quarter of the area.
+\begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_hardware.pdf}
 \caption{Surgical instrumentation. (a) An unreviewed metal threshold over-counts
@@ -755,7 +762,7 @@ scanner ceiling and several artefacts exceed it. (c) Site and volume can. (d) Ev
 confirmed implant was already labelled as bone, so naming it reclaims voxels from the
 structure that held them.%
 \label{fig:hardware}}
-\end{figure*}
+\end{figure}
 
 % ---------------------------------------------------------------------------
 \section{Data Format and Usage Notes}
@@ -818,6 +825,8 @@ dimensions increase caudally in step with the load each level carries. Pelvic in
 does not vary with age, while pelvic tilt increases --- the descriptive signature of a
 pelvis retroverting as a spine ages.
 
+% Left full-width deliberately: narrowing this one to a column saved no page and cost
+% legibility in a five-panel figure. The hardware figure was worth narrowing; this is not.
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_validation.pdf}
