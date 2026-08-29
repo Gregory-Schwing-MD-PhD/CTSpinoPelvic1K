@@ -1,0 +1,25 @@
+Lumbar levels cannot be numbered reliably when a lumbosacral transitional vertebra is
+present. Sacralisation and lumbarisation leave different traces, but those traces are not
+decisive in every case, and the count that would arbitrate is taken downward from C2 - the one
+landmark present in every spine and never duplicated. An abdominal field of view contains no
+such landmark, so the name rests on morphology exactly where morphology is least certain.
+Existing public collections either omit the pelvis or omit the classes a transitional vertebra
+requires: the largest whole-body collection provides no sixth lumbar vertebra and no class for
+a rib arising from a lumbar level, and VerSe excludes vertebrae fused to the sacrum by design.
+
+CTSpinoPelvic1K provides 802 abdominal CT records carrying radiologist-sourced spine and
+pelvic annotation on one coordinate frame, with per-level ribs, femora and surgical
+instrumentation. Classes exist so that a variant need not be forced into an ordinary level: a
+sixth lumbar vertebra, a thirteenth thoracic vertebra, the first sacral segment held separate
+from the sacrum, and left and right lumbar ribs. What the source collections never published,
+and what this release adds, is the mapping from each annotation to the CT series it was drawn
+on. Validation is threefold: per-case geometric invariants (802/802 pass), rib-vertebra
+incidence across 5,749 evaluable ribs (2 residual offsets, 0.035%), and agreement of derived
+spinopelvic measures with published reference values.
+
+Limitations: thoracic ground truth is field-of-view limited; postural angles are supine; the
+splits are cross-validation folds with no held-out test set; the rib layer is a reviewed
+pseudolabel whose review was triaged automatically rather than exhaustively; and the Castellvi
+grades are one reader's.
+
+Archived at https://doi.org/10.5281/zenodo.22139643 under CC BY-NC-SA 4.0.
