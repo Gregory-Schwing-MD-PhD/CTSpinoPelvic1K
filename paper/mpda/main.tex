@@ -322,27 +322,32 @@ information needed to settle these variants is present locally.
 \node[ver] (v3) at (-72,-132) {\textbf{v3}};
 \node[ver] (v4) at (-72,-152) {\textbf{v4}};
 \node[ver] (v5) at (-72,-172) {\textbf{v5}};
+\node[ver] (v6) at (-72,-192) {\textbf{v6}};
 \draw[ar] (dense.south) -- (0,-122) -- (-72,-122) -- (v3.north);
 \draw[ar] (v3.south) -- (v4.north);
 \draw[ar] (v4.south) -- (v5.north);
+\draw[ar] (v5.south) -- (v6.north);
 
-\foreach \y in {-132,-152,-172} \draw[ln, black!35] (-60,\y) -- (-54,\y);
+\foreach \y in {-132,-152,-172,-192} \draw[ln, black!35] (-60,\y) -- (-54,\y);
 \node[det] at (-52,-132) {added \textbf{femurs} and the lower thoracic levels, and carved
   \textbf{S1} out of the sacrum as its own class --- the caudal anchor};
 \node[det] at (-52,-152) {added \textbf{ribs}: M\"oller's binary rib net unioned with
   TotalSegmentator, numbered from TotalSegmentator, then $n{=}152$ cases to human review};
 \node[det] at (-52,-172) {\textbf{relabelled lumbar ribs} to their own class rather than
-  forcing them to be rib~12 ($n{=}15$ cases)};
+  forcing them to be rib~12 ($n{=}16$ cases)};
+\node[det] at (-52,-192) {added \textbf{surgical instrumentation} as its own classes rather
+  than leaving it inside the bone that absorbed it ($n{=}11$ cases), renumbered 0068 against
+  the twelfth rib, and corrected hip laterality ($n{=}22$ cases)};
 
-% --- row 9: the checks ----------------------------------------- centre -196, half 8
-\node[gate] (qc) at (0,-196) {\textbf{release gates, in order --- a failure stops the
+% --- row 9: the checks ----------------------------------------- centre -216, half 8
+\node[gate] (qc) at (0,-216) {\textbf{release gates, in order --- a failure stops the
   chain}\\[2pt]label shares its CT's affine and structures are correctly sided
   $\rightarrow$ each rib articulates with the vertebra its number implies $\rightarrow$
   measures fall in physiological range};
-\draw[ar] (v5.south) -- (-72,-182) -- (0,-182) -- (qc.north);
+\draw[ar] (v6.south) -- (-72,-202) -- (0,-202) -- (qc.north);
 
-% --- row 10: release ------------------------------------------- centre -220
-\node[fin] (rel) at (0,-220) {\textbf{802 released records}\\[2pt]spine, pelvis, per-level
+% --- row 10: release ------------------------------------------- centre -240
+\node[fin] (rel) at (0,-240) {\textbf{802 released records}\\[2pt]spine, pelvis, per-level
   ribs and femurs in one frame; 33 carry a radiologist Castellvi grade};
 \draw[ar] (qc.south) -- (rel.north);
 \end{tikzpicture}}{How the dataset was built. Three public collections are combined patient by
