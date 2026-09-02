@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  2 SEP 2026 09:09
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  2 SEP 2026 09:24
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -666,51 +666,50 @@ File: figures/fig_priorart.pdf Graphic file (type pdf)
 Package pdftex.def Info: figures/fig_priorart.pdf  used on input line 389.
 (pdftex.def)             Requested size: 468.0pt x 153.7114pt.
 [6] [7] [8 <./figures/fig_priorart.pdf>] [9] [10]
-<figures/fig_anchors.pdf, id=252, 673.12538pt x 198.75566pt>
+<figures/fig_anchors.pdf, id=257, 673.12538pt x 198.75566pt>
 File: figures/fig_anchors.pdf Graphic file (type pdf)
 <use figures/fig_anchors.pdf>
-Package pdftex.def Info: figures/fig_anchors.pdf  used on input line 551.
+Package pdftex.def Info: figures/fig_anchors.pdf  used on input line 535.
 (pdftex.def)             Requested size: 468.0pt x 138.19087pt.
- [11] [12 <./figures/fig_anchors.pdf>]
-Overfull \hbox (5.94673pt too wide) in paragraph at lines 604--609
+ [11 <./figures/fig_anchors.pdf>]
+Overfull \hbox (5.94673pt too wide) in paragraph at lines 588--593
 []\OT1/cmr/m/it/12 Generative ar-ti-fi-cial in-tel-li-gence. \OT1/cmr/m/n/12 Large-language-model as-sis-tance was used for manuscript
  []
 
-[13] [14] [15] [16]
-<figures/fig_countfree.pdf, id=345, 509.01744pt x 177.54282pt>
+[12] [13] [14] [15] [16] [17]
+<figures/fig_countfree.pdf, id=355, 509.01744pt x 177.54282pt>
 File: figures/fig_countfree.pdf Graphic file (type pdf)
 <use figures/fig_countfree.pdf>
-Package pdftex.def Info: figures/fig_countfree.pdf  used on input line 836.
+Package pdftex.def Info: figures/fig_countfree.pdf  used on input line 817.
 (pdftex.def)             Requested size: 468.0pt x 163.24112pt.
- [17] [18]
 <figures/fig_validation.pdf, id=358, 509.01744pt x 134.18082pt>
 File: figures/fig_validation.pdf Graphic file (type pdf)
 <use figures/fig_validation.pdf>
-Package pdftex.def Info: figures/fig_validation.pdf  used on input line 869.
+Package pdftex.def Info: figures/fig_validation.pdf  used on input line 848.
 (pdftex.def)             Requested size: 468.0pt x 123.37207pt.
 <figures/fig_levelatlas.pdf, id=361, 506.88995pt x 302.18257pt>
 File: figures/fig_levelatlas.pdf Graphic file (type pdf)
 <use figures/fig_levelatlas.pdf>
-Package pdftex.def Info: figures/fig_levelatlas.pdf  used on input line 880.
+Package pdftex.def Info: figures/fig_levelatlas.pdf  used on input line 859.
 (pdftex.def)             Requested size: 468.0pt x 279.00267pt.
- [19 <./figures/fig_countfree.pdf> <./figures/fig_validation.pdf>] [20 <./figures/fig_levelatlas.pdf>] [21] [22] [23] [24]
-Underfull \hbox (badness 2042) in paragraph at lines 1081--1085
+ [18 <./figures/fig_countfree.pdf>] [19 <./figures/fig_validation.pdf>] [20 <./figures/fig_levelatlas.pdf>] [21] [22] [23]
+Underfull \hbox (badness 2042) in paragraph at lines 1045--1049
 []\OT1/cmr/m/n/12 A. Sekuboy-ina et al.,  VerSe: a ver-te-brae la-belling and seg-men-ta-tion bench-
  []
 
 
-Underfull \hbox (badness 3240) in paragraph at lines 1081--1085
+Underfull \hbox (badness 3240) in paragraph at lines 1045--1049
 \OT1/cmr/m/n/12 mark for multi-detector CT im-ages,  Med. Im-age Anal. \OT1/cmr/bx/n/12 73\OT1/cmr/m/n/12 , 102166 (2021),
  []
 
 
-Underfull \hbox (badness 4156) in paragraph at lines 1105--1109
+Underfull \hbox (badness 4156) in paragraph at lines 1069--1073
 []\OT1/cmr/m/n/12 L. Jin et al.,  Rib-Seg v2: a large-scale bench-mark for rib la-bel-ing and
  []
 
-[25]
+[24]
 No file main.bbl.
-[26] (./main.aux)
+[25] (./main.aux)
  ***********
 LaTeX2e <2026-06-01>
 L3 programming layer <2026-08-10>
@@ -720,17 +719,17 @@ Package rerunfilecheck Info: File `main.out' has not changed.
  ) 
 Here is how much of TeX's memory you used:
  26189 strings out of 469089
- 524706 string characters out of 5459054
- 915146 words of memory out of 5000000
- 54824 multiletter control sequences out of 15000+600000
+ 524718 string characters out of 5459054
+ 914172 words of memory out of 5000000
+ 54825 multiletter control sequences out of 15000+600000
  636930 words of font info for 74 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 92i,10n,104p,1007b,1202s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 92i,10n,104p,1007b,1206s stack positions out of 10000i,1000n,20000p,200000b,200000s
  </home/gschwing/.TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1200.600pk></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmcsc10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt12.pfb>
-Output written on main.pdf (26 pages, 744570 bytes).
+Output written on main.pdf (25 pages, 742160 bytes).
 PDF statistics:
- 647 PDF objects out of 1000 (max. 8388607)
- 374 compressed objects within 4 object streams
- 82 named destinations out of 1000 (max. 500000)
+ 648 PDF objects out of 1000 (max. 8388607)
+ 376 compressed objects within 4 object streams
+ 81 named destinations out of 1000 (max. 500000)
  230 words of extra memory for PDF output out of 10000 (max. 10000000)
 
