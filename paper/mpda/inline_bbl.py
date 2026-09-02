@@ -37,8 +37,9 @@ header = r"""\begin{thebibliography}{20}
 %   * moller2026 the title belonged to a different paper; it is now the published
 %                preprint, which also settles the citable form the co-author was to choose
 %   * ctspine1k  the preprint has appeared in Mach. Learn. Biomed. Imaging
-% One entry remains unverified and is marked in the .bib: hamilton2026, a trade-press
-% quotation whose host returns 403 to automated retrieval.
+% A trade-press item was removed rather than published unverified: its host returns 403 to
+% automated retrieval, so the attribution rested on search snippets and not on the page. The
+% claim it supported now cites a peer-reviewed review of the same subject.
 %
 % \sloppy in the reference list only: a news-article URL with no hyphens to break on
 % overflows the two-column measure, and loosening inter-word spacing among the references

@@ -100,9 +100,10 @@ E.~C. Benzel,
 \newblock {\em Biomechanics of Spine Stabilization},
 \newblock Thieme, New York, 3rd edition, 2015.
 
-\bibitem{hamilton2026}
-Digital twins: a ``tremendous step forward'' for complex spine cases,
-\newblock Becker's Spine Review, 2026,
-\newblock [date] 2026. Quoting D. Kojo Hamilton, MD, University of Pittsburgh School of Medicine. Accessed 2 September 2026. \url{https://www.beckersspine.com/spine/digital-twins-a-tremendous-step-forward-for-complex-spine-cases/}.
+\bibitem{fea2026}
+E.~Beaulieu et~al.,
+\newblock A review of finite element analysis in spine surgery decision-making,
+\newblock J. Clin. Med. {\bf 15}, 2584 (2026),
+\newblock doi:10.3390/jcm15072584.
 
 \end{thebibliography}
