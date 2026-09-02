@@ -374,7 +374,7 @@ information needed to settle these variants is present locally.
 
 % --- row 10: release ------------------------------------------- centre -240
 \node[fin] (rel) at (0,-240) {\textbf{802 released records}\\[2pt]spine, pelvis, per-level
-  ribs and femurs in one frame; 33 carry a radiologist Castellvi grade};
+  ribs and femora in one frame; 33 carry a radiologist Castellvi grade};
 \draw[ar] (qc.south) -- (rel.north);
 \end{tikzpicture}}{How the dataset was built. Three public collections are combined patient by
 patient. Neither annotation source published the CT series its labels were drawn on, so each
@@ -522,13 +522,10 @@ distinguishable where a spine-limited view alone would not be.
 
 \emph{How S1 is cut.} The sacrum's outer boundary is the source annotation and is never
 altered; S1 is the cranial part of that same bone, separated by a plane. The plane's normal
-is the sacrum's own cranio-caudal axis --- taken as the principal component most closely
-aligned with the superior--inferior direction, since the bone is nearly as wide as it is
-tall and its longest axis is therefore not reliably the cranio-caudal one --- made orthogonal
-to the patient's left--right axis. That left--right axis is measured rather than assumed, as
-the normal of the reflection plane that best maps the sacrum onto itself, which removes any
-rotation of the patient within the scanner: across this cohort that rotation has a median of
-4.5\textdegree{} and reaches 16.1\textdegree{}, and 508 of 801 records exceed
+is the sacrum's own cranio-caudal axis, made orthogonal to a left--right axis that is
+measured rather than assumed --- the normal of the reflection plane best mapping the sacrum
+onto itself, which removes the patient's rotation within the scanner. That rotation is not
+negligible: median 4.5\textdegree{}, maximum 16.1\textdegree{}, and 508 of 801 records above
 3\textdegree{}. The level of the cut preserves the sub-division volume of the preceding
 release, so the plane changes the shape and orientation of the S1/S2 boundary and not how
 much of the sacrum is called S1. Per-record geometry ships with the archive.
@@ -741,9 +738,7 @@ shell around the labelled skeleton flags 84\ of the 802\ records. Raising it to
 leaves 52\ with a component above a 40-voxel floor. A radiologist read all
 52\ and confirmed 11, rejecting 41\ (79\%) as contrast, calcification
 and reconstruction artefact. Instrumentation prevalence in this cohort is 1.4\%, not the
-10.5\% an unreviewed threshold reports. The threshold at 3000\,HU is not the answer
-either: these series clip at 3071\,HU, so it measures the saturation plateau rather than
-the implant.
+10.5\% an unreviewed threshold reports.
 
 \paragraph{Saturation does not separate implant from artefact.} Both groups reach the
 scanner ceiling and 4\ rejected proposals \emph{exceed} it, peaking at 11,798\,HU --- the
@@ -758,9 +753,7 @@ osteosynthesis} were added. The distinction is clinical, not cosmetic: osteosynt
 parts of the same bone together where arthroplasty replaces a joint, and without it the shape
 rules call a femoral stem a rod, since a stem is long and thin and that is all ``linear''
 tests. The
-confirmed cases comprise 8\ arthroplasties, one osteosynthesis (three parallel
-cannulated screws in an inverted-triangle configuration at the femoral neck), one
-sacroiliac screw fixation and one pair of threaded cylindrical interbody cages.
+confirmed cases comprise 8\ arthroplasties, one osteosynthesis, one sacroiliac screw fixation and one pair of threaded cylindrical interbody cages.
 
 \paragraph{Metal outranks bone, and that is a subtraction.} In every confirmed case the
 implant was already inside a bone label, a segmenter handed a bright object against a
@@ -980,8 +973,11 @@ pseudolabelled. The rib layer is a pseudolabel whose human review was triaged by
 automated rule rather than exhaustive, so its guarantee is the absence of the failure modes
 that rule detects. Transitional labels derive from two independent sources and are not
 uniformly adjudicated --- which is precisely why the measures reported here are count-free
---- and the Castellvi grades are a single reader's pending the confirmation described in
-Sec.~\ref{sec:validation}.
+--- and the Castellvi grades are a single reader's, with five cases read a second time.
+The sacral sub-division inherits its level from an automatic method, and in 100 records that
+level places S1 above half the sacrum or below fifteen percent of it, which no first sacral
+segment is; those records are flagged in the released quality-control table and should be
+filtered before any measurement depending on the sacral endplate.
 
 \emph{Structures are not universally present.} The same census shows the release is not
 uniformly complete. Sacrum, hips and femora are present in all 802 records. One record
@@ -1001,28 +997,6 @@ There is no held-out test set, and with 15 lumbarisation and 15 sacralisation re
 per-fold metric on the rare classes is estimated from three cases.
 
 \section{Discussion}
-
-\emph{What the release enables.} Three kinds of reuse need no further annotation:
-segmentation and level-numbering benchmarks on a cohort where the count is genuinely
-ambiguous rather than merely unlabelled; morphometric description of the lumbosacral
-junction from landmarks inside the field of view; and templating work on the instrumented
-subset, where metal is labelled rather than absorbed into the bone beside it. Because spine,
-pelvis, ribs and femora share one coordinate frame, a measurement needing both a spinal and
-a pelvic landmark --- sacral slope and pelvic incidence among them --- requires no
-registration between two annotations.
-
-\emph{Limitations with respect to future use.} The cohort is a colon-screening population
-imaged supine and prone --- not a trauma, deformity or paediatric series --- so
-generalisation beyond adult abdominal computed tomography is not established here. No scan
-contains C2, so the conventional cervical-down count cannot be performed on any record;
-that is a property of the imaging rather than the annotation, and it is why the measures
-reported here are count-free. Label strength is not uniform: vertebral labels derive from
-radiologist-supervised sources, pelvic labels on records that lacked one are model-completed,
-and the rib layer is a pseudolabel whose review was triaged rather than exhaustive. The
-sacral sub-division inherits its level from an automatic method, and in 100 records that
-level places S1 above half the sacrum or below fifteen percent of it, which no first sacral
-segment is; those records are flagged in the released quality-control table and should be
-filtered before any measurement depending on the sacral endplate.
 
 \emph{Comparison with related material.} Sources annotating the spine alone cannot supply a
 pelvic landmark, and sources annotating the pelvis alone cannot supply a vertebral count.
