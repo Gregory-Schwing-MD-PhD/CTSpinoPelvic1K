@@ -212,11 +212,9 @@ Existing public collections do not make this tractable, and not because they are
 (Fig.~\ref{fig:priorart}): the spine collections omit the pelvis, the pelvic ones carry no
 vertebral count, and the whole-body schemes have neither an L6 class nor a class for a rib
 borne by a lumbar vertebra, so a six-lumbar spine cannot be written down in them at any
-segmentation quality. VerSe~\cite{verse2021} is the instructive case: it enriched for anatomical variants
-deliberately and grades transitional vertebrae by Castellvi, then uses the grade to decide
-what to omit. Its descriptor~\cite{versedata2021} states that vertebrae showing partial
-fusion with the sacrum, grades III and IV, were not segmented; nor is the sacrum. Those
-grades are 25 of the 33 graded records here.
+segmentation quality. VerSe~\cite{verse2021,versedata2021} is the instructive case, and
+Fig.~\ref{fig:priorart}(b) gives it: a collection can enrich for anatomical variants
+deliberately, grade them, and still be unable to represent the ones it grades.
 
 CTSpinoPelvic1K places the spine, pelvis, ribs and femora in one coordinate frame and gives
 a class to each structure an enumeration anomaly produces: a sixth lumbar vertebra, and a
@@ -499,11 +497,11 @@ identifier above that range --- S1 carved from the sacrum (29), hips (30--31), f
 (32--33), ribs (34--45 left, 46--57 right), soft tissue (58--73), lumbar ribs (74--75)
 and surgical hardware (76--82).
 
-Two anchors make the count decidable. Rostrally, \textbf{T12} is the last rib-bearing
-vertebra and sits directly above ground-truth L1. Caudally, \textbf{S1} is carved as a
-distinct class, giving the bottom bracket and the sacral endplate landmark required for
-sacral slope and pelvic incidence. With both brackets present, L5 and L6 are
-distinguishable where a spine-limited view alone would not be.
+Two anchors make the count decidable, and Fig.~\ref{fig:anchors} shows both: the lowest
+rib-bearing vertebra above, \textbf{S1} carved from the sacrum below. Each earns its place
+by what it supports rather than by being an endpoint --- S1 supplies the sacral endplate
+landmark that sacral slope and pelvic incidence are measured from, and with both brackets
+present L5 and L6 are distinguishable where a spine-limited view alone would not be.
 
 \emph{How S1 is cut.} The sacrum's outer boundary is the source annotation and is never
 altered; S1 is the cranial part of that same bone, separated by a plane. The plane's normal
@@ -960,11 +958,11 @@ anchor should filter explicitly rather than assume it.
 
 \section{Discussion}
 
-\emph{Comparison with related material.} Sources annotating the spine alone cannot supply a
-pelvic landmark, and sources annotating the pelvis alone cannot supply a vertebral count.
-The contribution here is the crosswalk placing both on the same series, with classes for the
-anatomy an enumeration anomaly actually produces: where another scheme must record a sixth
-lumbar vertebra or a lumbar-borne rib as something else, this release records it as itself.
+\emph{Comparison with related material.} Against the collections in
+Fig.~\ref{fig:priorart}, the contribution is the crosswalk placing spine and pelvis on the
+same series, together with classes for the anatomy an enumeration anomaly actually produces:
+where another scheme must record a sixth lumbar vertebra or a lumbar-borne rib as something
+else, this release records it as itself.
 
 \section{Conclusion}
 
