@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  2 SEP 2026 15:05
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  2 SEP 2026 15:15
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -628,59 +628,59 @@ Package: lineno 2026/03/08 line numbers on paragraphs v5.9
 \bframebox=\box95
 \@LN@amsmath@ams@eqpen=\count364
 )
-LaTeX Font Info:    Trying to load font information for U+msa on input line 149.
+LaTeX Font Info:    Trying to load font information for U+msa on input line 151.
  (/home/gschwing/.TinyTeX/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 149.
+LaTeX Font Info:    Trying to load font information for U+msb on input line 151.
  (/home/gschwing/.TinyTeX/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 ) [1{/home/gschwing/.TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}] [2] [3]
-<figures/fig_priorart.pdf, id=148, 815.23125pt x 267.75972pt>
+<figures/fig_priorart.pdf, id=143, 815.23125pt x 267.75972pt>
 File: figures/fig_priorart.pdf Graphic file (type pdf)
 <use figures/fig_priorart.pdf>
-Package pdftex.def Info: figures/fig_priorart.pdf  used on input line 254.
+Package pdftex.def Info: figures/fig_priorart.pdf  used on input line 253.
 (pdftex.def)             Requested size: 468.0pt x 153.7114pt.
  [4] [5 <./figures/fig_priorart.pdf>] [6] [7] [8]
-<figures/fig_anchors.pdf, id=244, 673.12538pt x 198.75566pt>
+<figures/fig_anchors.pdf, id=240, 673.12538pt x 198.75566pt>
 File: figures/fig_anchors.pdf Graphic file (type pdf)
 <use figures/fig_anchors.pdf>
-Package pdftex.def Info: figures/fig_anchors.pdf  used on input line 405.
+Package pdftex.def Info: figures/fig_anchors.pdf  used on input line 404.
 (pdftex.def)             Requested size: 468.0pt x 138.19087pt.
  [9 <./figures/fig_anchors.pdf>]
-Overfull \hbox (5.94673pt too wide) in paragraph at lines 458--463
+Overfull \hbox (5.94673pt too wide) in paragraph at lines 457--462
 []\OT1/cmr/m/it/12 Generative ar-ti-fi-cial in-tel-li-gence. \OT1/cmr/m/n/12 Large-language-model as-sis-tance was used for manuscript
  []
 
 [10] [11] [12] [13] [14] [15]
-<figures/fig_countfree.pdf, id=344, 509.01744pt x 177.54282pt>
+<figures/fig_countfree.pdf, id=340, 509.01744pt x 177.54282pt>
 File: figures/fig_countfree.pdf Graphic file (type pdf)
 <use figures/fig_countfree.pdf>
-Package pdftex.def Info: figures/fig_countfree.pdf  used on input line 678.
+Package pdftex.def Info: figures/fig_countfree.pdf  used on input line 677.
 (pdftex.def)             Requested size: 468.0pt x 163.24112pt.
-<figures/fig_validation.pdf, id=347, 509.01744pt x 134.18082pt>
+<figures/fig_validation.pdf, id=343, 509.01744pt x 134.18082pt>
 File: figures/fig_validation.pdf Graphic file (type pdf)
 <use figures/fig_validation.pdf>
-Package pdftex.def Info: figures/fig_validation.pdf  used on input line 709.
+Package pdftex.def Info: figures/fig_validation.pdf  used on input line 708.
 (pdftex.def)             Requested size: 468.0pt x 123.37207pt.
  [16 <./figures/fig_countfree.pdf>] [17 <./figures/fig_validation.pdf>]
-<figures/fig_levelatlas.pdf, id=448, 506.88995pt x 302.18257pt>
+<figures/fig_levelatlas.pdf, id=444, 506.88995pt x 302.18257pt>
 File: figures/fig_levelatlas.pdf Graphic file (type pdf)
 <use figures/fig_levelatlas.pdf>
-Package pdftex.def Info: figures/fig_levelatlas.pdf  used on input line 751.
+Package pdftex.def Info: figures/fig_levelatlas.pdf  used on input line 750.
 (pdftex.def)             Requested size: 468.0pt x 279.00267pt.
  [18 <./figures/fig_levelatlas.pdf>] [19] [20]
-Underfull \hbox (badness 2042) in paragraph at lines 899--903
+Underfull \hbox (badness 2042) in paragraph at lines 898--902
 []\OT1/cmr/m/n/12 A. Sekuboy-ina et al.,  VerSe: a ver-te-brae la-belling and seg-men-ta-tion bench-
  []
 
 
-Underfull \hbox (badness 3240) in paragraph at lines 899--903
+Underfull \hbox (badness 3240) in paragraph at lines 898--902
 \OT1/cmr/m/n/12 mark for multi-detector CT im-ages,  Med. Im-age Anal. \OT1/cmr/bx/n/12 73\OT1/cmr/m/n/12 , 102166 (2021),
  []
 
 [21]
-Underfull \hbox (badness 4156) in paragraph at lines 923--927
+Underfull \hbox (badness 4156) in paragraph at lines 922--926
 []\OT1/cmr/m/n/12 L. Jin et al.,  Rib-Seg v2: a large-scale bench-mark for rib la-bel-ing and
  []
 
@@ -703,10 +703,10 @@ Here is how much of TeX's memory you used:
  14 hyphenation exceptions out of 8191
  92i,10n,104p,1007b,1226s stack positions out of 10000i,1000n,20000p,200000b,200000s
  </home/gschwing/.TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1200.600pk></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmcsc10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt12.pfb>
-Output written on main.pdf (23 pages, 726163 bytes).
+Output written on main.pdf (23 pages, 725643 bytes).
 PDF statistics:
- 635 PDF objects out of 1000 (max. 8388607)
- 365 compressed objects within 4 object streams
+ 631 PDF objects out of 1000 (max. 8388607)
+ 361 compressed objects within 4 object streams
  78 named destinations out of 1000 (max. 500000)
  230 words of extra memory for PDF output out of 10000 (max. 10000000)
 
