@@ -220,9 +220,10 @@ def fig_countfree(out):
 # ---------------------------------------------------------------- fig 4
 def fig_validation(out):
     sg = load("surgical_morphometrics.csv")
-    lv = load("level_gradients.csv")
-    fig = plt.figure(figsize=(COL2, 4.6), constrained_layout=True)
-    gs = gridspec.GridSpec(2, 3, figure=fig)
+    # ONE ROW. The level-by-level panels moved to the level atlas, which draws the
+    # same measurements with their spread instead of as overlapping density curves.
+    fig = plt.figure(figsize=(COL2, 1.9), constrained_layout=True)
+    gs = gridspec.GridSpec(1, 3, figure=fig)
 
     # (a-c) three spinopelvic measures against their published value
     # REFERENCE VALUES ARE SOURCED AND CARRY THEIR SPREAD. Round numbers drawn as a
@@ -249,47 +250,6 @@ def fig_validation(out):
         ax.set_xlabel(f"{title} (deg)")
         ax.set_ylabel("density" if i == 0 else "")
         ax.set_title(f"({'abc'[i]}) {title.capitalize()}", loc="left", fontsize=8.5)
-
-    # (d) the level gradient
-    ax = fig.add_subplot(gs[1, 0])
-    levels = ["L1", "L2", "L3", "L4", "L5"]
-    for i, lvl in enumerate(levels):
-        v = col(lv, f"endplate_width_{lvl}_mm", 25, 75)
-        if v.size < 30:
-            continue
-        xs, ys = kde(v, 25, 75)
-        ax.plot(xs, ys, color=RAMP[i], lw=1.2, label=lvl)
-    ax.set_xlabel("superior endplate width (mm)")
-    ax.set_ylabel("density")
-    ax.legend(fontsize=6.4, ncol=2, handlelength=1.1, columnspacing=0.8)
-    ax.set_title("(d) Superior endplate width by level", loc="left", fontsize=8.5)
-
-    # (e) what changes with age, and what does not
-    ax = fig.add_subplot(gs[1, 1:])
-    buckets = {}
-    for r in sg:
-        a = num(r, "age")
-        if a is None or not (40 <= a <= 99):
-            continue
-        buckets.setdefault(int(a // 10) * 10, []).append(r)
-    decs = [d for d in sorted(buckets) if len(buckets[d]) >= 25]
-    style = {"pelvic_incidence_deg": ("pelvic incidence", TEAL, "-"),
-             "ll_supine_deg": ("lumbar lordosis", OCHRE, "--"),
-             "pelvic_tilt_deg": ("pelvic tilt", INK, ":")}
-    for key, (lab, cc, ls) in style.items():
-        med = [np.median(col(buckets[d], key)) for d in decs]
-        q1 = [np.percentile(col(buckets[d], key), 25) for d in decs]
-        q3 = [np.percentile(col(buckets[d], key), 75) for d in decs]
-        x = np.arange(len(decs))
-        ax.fill_between(x, q1, q3, color=cc, alpha=0.10, lw=0)
-        ax.plot(x, med, color=cc, ls=ls, lw=1.4, marker="o", ms=3, label=lab)
-    ax.set_xticks(np.arange(len(decs)))
-    ax.set_xticklabels([f"{d}s" for d in decs])
-    ax.set_xlabel("age")
-    ax.set_ylabel("degrees")
-    ax.legend(fontsize=6.8, ncol=3, handlelength=1.6)
-    ax.set_title("(e) Spinopelvic measures by decade",
-                 loc="left", fontsize=8.5)
 
     for ax in fig.axes:
         ax.spines[["top", "right"]].set_visible(False)
