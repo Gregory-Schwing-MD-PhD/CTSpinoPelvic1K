@@ -306,17 +306,15 @@ annotation mask. Bone rather than image similarity, because bone is what the ann
 describes --- two acquisitions of one abdomen resemble each other everywhere except in where
 the skeleton sits.
 
-% [BEFORE SUBMISSION] The released v7 tables carry the literal value "pelvic_native" in
-% their config column for these 20 records. The manuscript now calls them pelvic_only, which
-% is the consistent name against spine_only, so the DATA must be renamed to match before
-% this wording is correct. That is a new dataset version, and it can ride along with the
-% Castellvi second-read reconciliation already outstanding.
 \subsection{Fused and split records}
 
 The two annotation sets were placed independently, so they do not always land on the same
 series. Of 802 records, 342 carry spine and pelvic annotations on the same volume
 (\emph{fused}), 351 are \emph{separate}, 89 are \emph{spine\_only} with no pelvic
-annotation for that patient, and 20 are \emph{pelvic\_only}. The split is the crosswalk's
+annotation for that patient, and 20 are \emph{pelvic\_only}. These four are the values of
+the manifest's \texttt{match\_type} field; the coarser \texttt{config} field folds
+\emph{separate} into \emph{spine\_only}, so a user wanting the four types should read
+\texttt{match\_type}. The split is the crosswalk's
 main finding rather than bookkeeping: in those separate records --- nearly half of all
 patients --- the two public collections annotated \emph{different volumes of the same
 person}, and
