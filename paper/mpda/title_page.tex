@@ -1,0 +1,125 @@
+% ============================================================================
+%  TITLE PAGE -- uploaded as a SEPARATE document from main.tex.
+%
+%  Medical Physics uses double-anonymised review, so everything that identifies the
+%  authors lives here and nowhere in the manuscript: names, affiliations, the author
+%  contribution statement, the conflict-of-interest declaration, the acknowledgements
+%  and the repository URL (which carries the corresponding author's account name).
+%
+%  Per the author guidelines: "Include acknowledgements, author information/contributions,
+%  and author name order in the title page, not in the manuscript" and "Include your
+%  complete conflicts of interest declaration in the title page and NOT in the submission
+%  system."
+%
+%  BEFORE SUBMISSION, three things below are placeholders and must be completed:
+%    * each co-author's own conflict-of-interest confirmation
+%    * the CRediT-style contribution of each author
+%    * the IRB determination number, once the letter is issued
+% ============================================================================
+\documentclass[12pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}   % sans serif, per the author guidelines
+\usepackage{hyperref}
+\linespread{1.5}
+\setlength{\parindent}{5ex}                 % classic five-letter indentation
+\raggedright                                % left aligned only, not justified
+
+\begin{document}
+
+\begin{center}
+{\large\bfseries CTSpinoPelvic1K: spine, pelvis, ribs and femora in one coordinate frame,
+annotated for lumbosacral transitional anatomy}
+\end{center}
+
+\vspace{1em}
+\noindent\textbf{Article type:} Dataset and Software Article
+
+\vspace{1em}
+\noindent\textbf{Authors}
+
+\begin{enumerate}\itemsep0pt
+\item Gregory Schwing, MD, PhD\,$^{1}$
+\item Ashley Schehr, BS\,$^{2}$
+\item Annika Tekumulla, BS\,$^{2}$
+\item Margret Khoushi, BS\,$^{2}$
+\item Ryan Christian, BS\,$^{2}$
+\item Dane Hubers, BS\,$^{2}$
+\item Faris Mahjoub, BS\,$^{2}$
+\item Hassan Saad, BS\,$^{2}$
+\item Mia Sooch, BA\,$^{2}$
+\item Sathya Siddapureddy, BS\,$^{2}$
+\item Michael McLellan, BS\,$^{2}$
+\item Jerick Kim, BS\,$^{2}$
+\item Miraziz Ismoilov, MD\,$^{3}$
+\item Nizar Alnabahneh, MD\,$^{3}$
+\end{enumerate}
+
+\noindent $^{1}$Department of Surgery, Detroit Medical Center and Wayne State University,
+Detroit, Michigan, United States of America\\
+$^{2}$School of Medicine, Wayne State University, Detroit, Michigan, United States of America\\
+$^{3}$Department of Radiology, Detroit Medical Center and Wayne State University, Detroit,
+Michigan, United States of America
+
+\vspace{1em}
+\noindent\textbf{Corresponding author}
+
+\noindent Gregory Schwing\\
+Department of Surgery, Detroit Medical Center and Wayne State University\\
+Detroit, Michigan, United States of America\\
+Email: \texttt{[corresponding author email]}
+
+\vspace{1em}
+\noindent\textbf{Author contribution statement}
+
+\noindent % [BEFORE SUBMISSION] Every author must have a stated contribution. The policy is
+% explicit that funding, clinical access or purely technical help do not by themselves
+% qualify a person for authorship, so a contribution that reduces to one of those needs
+% either a substantive addition or removal from the author list.
+G.S. designed the dataset and the label scheme, implemented the processing pipeline and the
+quality-control procedures, and drafted the manuscript. A.S., A.T., M.K., R.C., D.H., F.M.,
+H.S., M.S., S.S., M.M. and J.K. performed annotation correction and quality-control review of
+the released segmentations under supervision. M.I. and N.A. provided the radiological reads,
+including the Castellvi grading and the adjudication of candidate instrumentation. [BEFORE SUBMISSION: confirm each contribution
+individually with the author concerned and expand to CRediT roles.] All authors read and
+approved the final version of the manuscript.
+
+\vspace{1em}
+\noindent\textbf{Conflict of interest statement}
+
+\noindent % [BEFORE SUBMISSION] Each co-author must confirm this personally. As of writing
+% only the corresponding author has done so, and a blanket statement covering people who
+% have not been asked is not a declaration.
+The authors have no relevant conflicts of interest to disclose.
+
+\vspace{1em}
+\noindent\textbf{Acknowledgements}
+
+\noindent % [BEFORE SUBMISSION] Name the funding sources. This is essential for NIH-funded
+% work, which is deposited to PubMed automatically on that basis.
+The imaging analysed here was made available by The Cancer Imaging Archive and by the
+investigators who published the source annotations. [Funding sources to be listed.]
+
+\vspace{1em}
+\noindent\textbf{Data and code availability (unblinded)}
+
+\noindent Dataset, archived before submission:
+\url{https://doi.org/10.5281/zenodo.22139642} (concept identifier, resolves to the current
+version); the version described in the manuscript is v7,
+\url{https://doi.org/10.5281/zenodo.22242745}.\\
+Code: \url{https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K}, tagged at the release
+commit.\\
+Mirror: \url{https://huggingface.co/datasets/OpenSpineConsortium/CTSpinoPelvic1K} --- a
+convenience mirror, not the archive of record.
+
+\vspace{1em}
+\noindent\textbf{Ethics}
+
+\noindent % [BEFORE SUBMISSION] Replace "has been submitted to" with "was issued by" and add
+% the determination number once the letter arrives.
+This work uses publicly available, de-identified imaging and annotations derived from it. A
+determination of not-human-participant research has been submitted to the Wayne State
+University Institutional Review Board.
+
+\end{document}

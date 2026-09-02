@@ -32,28 +32,76 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 
-M = "morphometrics"
+# Resolved against the repository root, not the working directory: a relative
+# path here made every input load as empty when the script was run from its own
+# directory, and the failure surfaced as a numpy dtype error rather than a
+# missing-file message.
+M = str((Path(__file__).resolve().parents[2] / "morphometrics"))
 
 # A restrained palette. Teal and ochre carry the two-group comparisons; the level
 # gradient uses a single hue ramp so it reads in order and survives greyscale.
 TEAL, OCHRE, INK, FAINT = "#1c6b73", "#b8791f", "#22262b", "#8c9199"
 RAMP = ["#cfe3e5", "#9dc7cc", "#6aabb2", "#3f8f97", "#1c6b73"]
 
+# --------------------------------------------------------------------------
+# FIGURE STYLE -- Medical Physics author guidelines.
+#
+#   SANS SERIF: the guidelines name Arial, Helvetica or Calibri.
+#
+#   COLUMN WIDTHS ARE FIXED at 80 mm (single) and 180 mm (double), and "figure size
+#   cannot be reduced in the typeset version". Figures are therefore authored AT the
+#   final width and included at natural size, never rescaled afterwards -- rescaling
+#   changes the printed type size and defeats any font choice made here.
+#
+#   TYPE SIZE: the guidelines ask for 20 pt or larger on the assumption that a figure
+#   is drawn large and then shrunk to half a page. Authoring at the final width means
+#   no shrinking occurs, so the equivalent is type that stays legible at 80-180 mm.
+#
+#   AXES bold black, GRIDLINES grey, MAJOR ticks outside and MINOR ticks inside.
+#
+#   RESOLUTION: 600 dpi for line art and charts; 300 dpi is for photographs only.
+# --------------------------------------------------------------------------
+MM = 1.0 / 25.4
+COL1, COL2 = 80 * MM, 180 * MM          # single and double column, in inches
+BLACK, GRIDGREY = "#000000", "#B0B0B0"
+
 plt.rcParams.update({
-    "font.family": "serif",
-    "font.serif": ["DejaVu Serif", "Times New Roman"],
-    "font.size": 8.5,
-    "axes.linewidth": 0.7,
-    "axes.edgecolor": INK,
-    "axes.labelcolor": INK,
-    "text.color": INK,
-    "xtick.color": INK, "ytick.color": INK,
-    "xtick.major.width": 0.7, "ytick.major.width": 0.7,
+    "font.family": "sans-serif",
+    "font.sans-serif": ["Arial", "Helvetica", "Calibri", "DejaVu Sans"],
+    "font.size": 8.0,
+    "axes.titlesize": 8.0,
+    "axes.labelsize": 8.0,
+    "xtick.labelsize": 7.5, "ytick.labelsize": 7.5,
+    "legend.fontsize": 7.5,
+    "axes.linewidth": 1.1,
+    "axes.edgecolor": BLACK,
+    "axes.labelcolor": BLACK,
+    "text.color": BLACK,
+    "axes.titleweight": "normal",
+    "grid.color": GRIDGREY,
+    "grid.linewidth": 0.6,
+    "axes.axisbelow": True,
+    "xtick.color": BLACK, "ytick.color": BLACK,
+    "xtick.direction": "out", "ytick.direction": "out",
+    "xtick.major.width": 1.1, "ytick.major.width": 1.1,
+    "xtick.minor.width": 0.7, "ytick.minor.width": 0.7,
+    "xtick.major.size": 3.5, "ytick.major.size": 3.5,
+    "xtick.minor.size": 2.0, "ytick.minor.size": 2.0,
+    "xtick.minor.visible": True, "ytick.minor.visible": True,
     "legend.frameon": False,
-    "figure.dpi": 300,
+    "figure.dpi": 600,
+    "savefig.dpi": 600,
     "savefig.bbox": "tight",
     "savefig.pad_inches": 0.02,
 })
+
+
+def mp_ticks(ax):
+    """Major ticks outward, minor ticks inward, grey grid behind the data."""
+    ax.tick_params(which="major", direction="out")
+    ax.tick_params(which="minor", direction="in")
+    ax.set_axisbelow(True)
+    return ax
 
 
 def load(name):
@@ -110,7 +158,7 @@ def kde(v, lo, hi, n=200):
 # ---------------------------------------------------------------- fig 3
 def fig_countfree(out):
     tr = load("transition_morphometrics.csv")
-    fig = plt.figure(figsize=(7.0, 2.5), constrained_layout=True)
+    fig = plt.figure(figsize=(COL2, 2.5), constrained_layout=True)
     gs = gridspec.GridSpec(1, 3, figure=fig)
 
     # (a) the interval count
@@ -173,7 +221,7 @@ def fig_countfree(out):
 def fig_validation(out):
     sg = load("surgical_morphometrics.csv")
     lv = load("level_gradients.csv")
-    fig = plt.figure(figsize=(7.0, 4.6), constrained_layout=True)
+    fig = plt.figure(figsize=(COL2, 4.6), constrained_layout=True)
     gs = gridspec.GridSpec(2, 3, figure=fig)
 
     # (a-c) three spinopelvic measures against their published value
@@ -257,7 +305,7 @@ def fig_opportunistic(out):
     if not op:
         print("  ! opportunistic.csv missing; fig5 skipped")
         return
-    fig = plt.figure(figsize=(7.0, 2.4), constrained_layout=True)
+    fig = plt.figure(figsize=(COL2, 2.4), constrained_layout=True)
     gs = gridspec.GridSpec(1, 3, figure=fig)
 
     # (a) the distribution, with the osteoporosis threshold

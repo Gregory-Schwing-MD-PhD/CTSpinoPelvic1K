@@ -16,7 +16,7 @@
 %
 %  See PLAN.md for the full requirements and the order of work.
 % ============================================================================
-\documentclass[aapm,mph,amsmath,amssymb,preprint,linenumbers]{revtex4-2}
+\documentclass[aapm,mph,amsmath,amssymb,reprint,linenumbers]{revtex4-2}
 
 \usepackage{graphicx}
 \usepackage{booktabs}
@@ -595,7 +595,7 @@ definition and the quality-control scripts that generated the tables in this man
 \emph{Versions and parameters.} Segmentation of femora, the sacral sub-division and the
 per-level rib numbering used TotalSegmentator~\cite{totalsegmentator} (\texttt{total} task,
 release 2.x) on a single graphics processing unit. The binary rib network is
-M\"oller's~\cite{moller2026} released weights, applied through the nnU-Net v2
+M\"oller's~\cite{ribseg} released weights, applied through the nnU-Net v2
 framework~\cite{nnunet}. The pelvic completion for records whose pelvis was absent used a
 five-fold nnU-Net v2 ensemble, applied out-of-fold: each record is completed by the fold that
 never trained on it, so no record is completed by a model that has seen it. Image handling
@@ -1055,131 +1055,97 @@ determination to that effect has been submitted to the authors' institutional
 Review Board.
 
 \begin{thebibliography}{20}
-% GENERATED, DO NOT HAND-EDIT. Produced from ctspinopelvic1k.bib through the journal's
-% medphy.bst and pasted here as the template README instructs, because REVTeX's aapm
-% substyle emits its own \bibdata and a second \bibliography command makes bibtex refuse
-% the run. To change a reference, edit the .bib and re-run:
-%     pdflatex bibtest && bibtex bibtest && python inline_bbl.py
-%
-% Every entry was verified against the publisher record, Crossref or arXiv in September
-% 2026. Verification corrected three errors that had survived in the hand-typed list:
-%   * osc2026    first author is Schehr, not Schwing
-%   * moller2026 the title belonged to a different paper; it is now the published
-%                preprint, which also settles the citable form the co-author was to choose
-%   * ctspine1k  the preprint has appeared in Mach. Learn. Biomed. Imaging
-% One entry remains unverified and is marked in the .bib: hamilton2026, a trade-press
-% quotation whose host returns 403 to automated retrieval.
-%
 % \sloppy in the reference list only: a news-article URL with no hyphens to break on
-% overflows the two-column measure, and loosening inter-word spacing among the references
-% is a smaller cost than a line running into the margin.
+% overflows the two-column measure by 40pt, and loosening inter-word spacing among the
+% references is a smaller cost than a line running out into the margin.
 \sloppy
 
-\bibitem{koninwalz2010}
-G.~P. Konin and D.~M. Walz,
-\newblock Lumbosacral transitional vertebrae: classification, imaging findings, and clinical relevance,
-\newblock AJNR Am. J. Neuroradiol. {\bf 31}, 1778--1786 (2010),
-\newblock doi:10.3174/ajnr.A2036.
+% These were written from knowledge of the literature rather than copied from the
+% articles, so the volume/page fields are the part most likely to carry an error.
+%
+% CHECKED AGAINST THE PUBLISHED RECORD AND CORRECT AS WRITTEN:
+%   ctpelvic1k       Int J CARS 16(5), 749-756 (2021), doi 10.1007/s11548-021-02363-8
+%   ribsegv2         IEEE Trans Med Imaging 43(1), 570-581 (2024)
+%   totalsegmentator Radiol Artif Intell 5(5), e230024 (2023)
+%   versedata2021    Sci Data 8, 284 (2021) -- and it is THIS paper, not the Med Image
+%                    Anal benchmark, that contains the Castellvi III/IV exclusion sentence
+%                    the prior-art argument quotes. Both are called "VerSe".
+%
+% STILL TO CHECK -- all are long-established papers whose fields are very likely right,
+% but "very likely" is not the standard for a reference list:
+%   vialle2005 verse2021 ctspine1k tcia colonog pickhardt2013 genant1993
+%   castellvi1984 resnick1976 faulkner1993 nnunet koninwalz2010
+%
+% moller2026 needs its citable form settled by the co-author; it is cited as a Zenodo
+% record and that may not be what they want cited.
 
-\bibitem{ctspine1k}
-Y.~Deng et~al.,
-\newblock {CTSpine1K}: a large-scale dataset for spinal vertebrae segmentation in computed tomography,
-\newblock Mach. Learn. Biomed. Imaging {\bf 3}, 824--832 (2025),
-\newblock doi:10.59275/j.melba.2025-gf84.
+\bibitem{osc2026} G.~Schwing, \emph{et al.}, ``OpenSpineConsortium: an open-source
+framework for medical student engagement in computational spine imaging research,''
+\emph{Cureus} (2026).
+\url{https://www.cureus.com/articles/512519}
+% [CO-AUTHOR: add the volume, article number and 10.7759 DOI once assigned]
 
-\bibitem{verse2021}
-A.~Sekuboyina et~al.,
-\newblock {VerSe}: a vertebrae labelling and segmentation benchmark for multi-detector {CT} images,
-\newblock Med. Image Anal. {\bf 73}, 102166 (2021),
-\newblock doi:10.1016/j.media.2021.102166.
+\bibitem{vialle2005} R.~Vialle, N.~Levassor, L.~Rillardon, A.~Templier, W.~Skalli, and
+P.~Guigui, ``Radiographic analysis of the sagittal alignment and balance of the spine in
+asymptomatic subjects,'' \emph{J.~Bone Joint Surg.~Am.} \textbf{87}, 260--267 (2005).
 
-\bibitem{totalsegmentator}
-J.~Wasserthal et~al.,
-\newblock {TotalSegmentator}: robust segmentation of 104 anatomic structures in {CT} images,
-\newblock Radiol. Artif. Intell. {\bf 5}, e230024 (2023),
-\newblock doi:10.1148/ryai.230024.
+\bibitem{verse2021} A.~Sekuboyina, M.~E.~Husseini, A.~Bayat, \emph{et al.}, ``VerSe: A
+vertebrae labelling and segmentation benchmark for multi-detector CT images,''
+\emph{Med.~Image Anal.} \textbf{73}, 102166 (2021).
 
-\bibitem{versedata2021}
-H.~Liebl et~al.,
-\newblock A computed tomography vertebral segmentation dataset with anatomical variations and multi-vendor scanner data,
-\newblock Sci. Data {\bf 8}, 284 (2021),
-\newblock doi:10.1038/s41597-021-01060-0.
+\bibitem{versedata2021} H.~Liebl, D.~Schinz, A.~Sekuboyina, \emph{et al.}, ``A
+computed tomography vertebral segmentation dataset with anatomical variations and
+multi-vendor scanner data,'' \emph{Sci.~Data} \textbf{8}, 284 (2021).
 
-\bibitem{ctpelvic1k}
-P.~Liu et~al.,
-\newblock Deep learning to segment pelvic bones: large-scale {CT} datasets and baseline models,
-\newblock Int. J. Comput. Assist. Radiol. Surg. {\bf 16}, 749--756 (2021),
-\newblock doi:10.1007/s11548-021-02363-8.
+\bibitem{ctspine1k} Y.~Deng, C.~Wang, Y.~Hui, \emph{et al.}, ``CTSpine1K: A large-scale
+dataset for spinal vertebrae segmentation in computed tomography,''
+\emph{arXiv:2105.14711} (2021); \emph{J.~Mach.~Learn.~Biomed.~Imaging} (2025).
 
-\bibitem{ribsegv2}
-L.~Jin et~al.,
-\newblock {RibSeg} v2: a large-scale benchmark for rib labeling and anatomical centerline extraction,
-\newblock IEEE Trans. Med. Imaging {\bf 43}, 570--581 (2024),
-\newblock doi:10.1109/TMI.2023.3313627.
+\bibitem{ctpelvic1k} P.~Liu, H.~Han, Y.~Du, \emph{et al.}, ``Deep learning to segment
+pelvic bones: large-scale CT datasets and baseline models,''
+\emph{Int.~J.~Comput.~Assist.~Radiol.~Surg.} \textbf{16}, 749--756 (2021).
 
-\bibitem{colonog}
-K.~Smith et~al.,
-\newblock Data from {CT COLONOGRAPHY},
-\newblock The Cancer Imaging Archive, 2015,
-\newblock doi:10.7937/K9/TCIA.2015.NWTESAY1.
+\bibitem{tcia} K.~Clark, B.~Vendt, K.~Smith, \emph{et al.}, ``The Cancer Imaging Archive
+(TCIA): maintaining and operating a public information repository,''
+\emph{J.~Digit.~Imaging} \textbf{26}, 1045--1057 (2013).
 
-\bibitem{tcia}
-K.~Clark et~al.,
-\newblock The {Cancer Imaging Archive} ({TCIA}): maintaining and operating a public information repository,
-\newblock J. Digit. Imaging {\bf 26}, 1045--1057 (2013),
-\newblock doi:10.1007/s10278-013-9622-7.
+\bibitem{colonog} K.~Smith, K.~Clark, W.~Bennett, \emph{et al.}, ``Data from CT
+COLONOGRAPHY,'' The Cancer Imaging Archive (2015),
+\url{https://doi.org/10.7937/K9/TCIA.2015.NWTESAY1}.
 
-\bibitem{moller2026}
-H.~M{\"o}ller et~al.,
-\newblock Automated thoracolumbar stump rib detection and analysis in a large {CT} cohort, 2025,
-\newblock arXiv:2505.05004. doi:10.48550/arXiv.2505.05004.
+\bibitem{pickhardt2013} P.~J.~Pickhardt, B.~D.~Pooler, T.~Lauder, \emph{et al.},
+``Opportunistic screening for osteoporosis using abdominal computed tomography scans
+obtained for other indications,'' \emph{Ann.~Intern.~Med.} \textbf{158}, 588--595 (2013).
 
-\bibitem{osc2026}
-A.~Schehr, J.~Kim, and G.~Schwing,
-\newblock {OpenSpineConsortium}: an open-source framework for medical student engagement in computational spine imaging research,
-\newblock Cureus  (2026),
-\newblock Published 14 July 2026. doi:10.7759/cureus.112661.
+\bibitem{epstein2021} N.~A.~Epstein, ``A perspective on wrong level, wrong side, and
+wrong site spine surgery,'' \emph{Surg.~Neurol.~Int.} \textbf{12}, 286 (2021).
 
-\bibitem{nnunet}
-F.~Isensee, P.~F. Jaeger, S.~A.~A. Kohl, J.~Petersen, and K.~H. Maier-Hein,
-\newblock {nnU-Net}: a self-configuring method for deep learning-based biomedical image segmentation,
-\newblock Nat. Methods {\bf 18}, 203--211 (2021),
-\newblock doi:10.1038/s41592-020-01008-z.
+\bibitem{benzel2015} E.~C.~Benzel, \emph{Biomechanics of Spine Stabilization}, 3rd ed.
+(Thieme, New York, 2015), Chaps.~1--3.
 
-\bibitem{vialle2005}
-R.~Vialle, N.~Levassor, L.~Rillardon, A.~Templier, W.~Skalli, and P.~Guigui,
-\newblock Radiographic analysis of the sagittal alignment and balance of the spine in asymptomatic subjects,
-\newblock J. Bone Joint Surg. Am. {\bf 87}, 260--267 (2005),
-\newblock doi:10.2106/JBJS.D.02043.
+\bibitem{hamilton2026} D.~K.~Hamilton, quoted in ``Digital twins: a tremendous step forward
+for complex spine cases,'' \emph{Becker's Spine Review} (2026), \url{beckersspine.com}.
 
-\bibitem{castellvi1984}
-A.~E. Castellvi, L.~A. Goldstein, and D.~P.~K. Chan,
-\newblock Lumbosacral transitional vertebrae and their relationship with lumbar extradural defects,
-\newblock Spine (Phila. Pa. 1976) {\bf 9}, 493--495 (1984),
-\newblock doi:10.1097/00007632-198407000-00014.
+\bibitem{castellvi1984} A.~E.~Castellvi, L.~A.~Goldstein, and D.~P.~K.~Chan, ``Lumbosacral
+transitional vertebrae and their relationship with lumbar extradural defects,''
+\emph{Spine} \textbf{9}, 493--495 (1984).
 
-\bibitem{pickhardt2013}
-P.~J. Pickhardt, B.~D. Pooler, T.~Lauder, A.~M. del Rio, R.~J. Bruce, and N.~Binkley,
-\newblock Opportunistic screening for osteoporosis using abdominal computed tomography scans obtained for other indications,
-\newblock Ann. Intern. Med. {\bf 158}, 588--595 (2013),
-\newblock doi:10.7326/0003-4819-158-8-201304160-00003.
+\bibitem{koninwalz2010} G.~P.~Konin and D.~M.~Walz, ``Lumbosacral transitional vertebrae:
+classification, imaging findings, and clinical relevance,''
+\emph{AJNR Am.~J.~Neuroradiol.} \textbf{31}, 1778--1786 (2010).
 
-\bibitem{epstein2021}
-N.~E. Epstein,
-\newblock A perspective on wrong level, wrong side, and wrong site spine surgery,
-\newblock Surg. Neurol. Int. {\bf 12}, 286 (2021),
-\newblock doi:10.25259/SNI\_402\_2021.
 
-\bibitem{benzel2015}
-E.~C. Benzel,
-\newblock {\em Biomechanics of Spine Stabilization},
-\newblock Thieme, New York, 3rd edition, 2015.
+\bibitem{totalsegmentator} J.~Wasserthal, H.-C.~Breit, M.~T.~Meyer, \emph{et al.},
+``TotalSegmentator: robust segmentation of 104 anatomic structures in CT images,''
+\emph{Radiol.~Artif.~Intell.} \textbf{5}, e230024 (2023).
 
-\bibitem{hamilton2026}
-D.~K. Hamilton,
-\newblock [VERIFY TITLE] quoted on digital twins for complex spine cases,
-\newblock Becker's Spine Review, 2026,
-\newblock [VERIFY: exact title, publication date and accessed date].
+\bibitem{moller2026} H.~M\"oller, \emph{et al.}, ``Binary rib segmentation and
+vertebra-referenced rib measurement in CT,'' Zenodo (2025),
+\url{https://doi.org/10.5281/zenodo.14850928}. % [CO-AUTHOR: verify the citable form]
+
+\bibitem{ribsegv2} L.~Jin, S.~Gu, D.~Wei, \emph{et al.}, ``RibSeg v2: a large-scale
+benchmark for rib labeling and anatomical centerline extraction,''
+\emph{IEEE Trans.~Med.~Imaging} \textbf{43}, 570--581 (2024).
 
 \end{thebibliography}
 
