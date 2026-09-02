@@ -110,12 +110,12 @@ annotated for lumbosacral transitional anatomy
 \draw[ln] (spine.south) -- (0,-15);
 \draw[ar] (0,-15) -- (0,-22);
 
-% --- row 2: the crosswalk ------------------------------------- centre -30, half 8
+% --- row 2: the crosswalk ------------------------------------- center -30, half 8
 \node[proc] (cross) at (0,-30) {\textbf{match each label set to the series it was drawn
   on}\\[2pt]every patient was scanned prone \emph{and} supine; neither source published the
   series it used};
 
-% --- row 3: the four kinds of record -------------------------- centre -56, half 9
+% --- row 3: the four kinds of record -------------------------- center -56, half 9
 \node[rec] (fused) at (-60,-56) {\textbf{fused}\\[2pt]both on one series\\[1pt]$n{=}342$};
 \node[rec] (sep)   at (-20,-56) {\textbf{separate}\\[2pt]pelvis: other series\\[1pt]$n{=}351$};
 \node[rec] (sonly) at ( 20,-56) {\textbf{spine only}\\[2pt]no pelvic label\\[1pt]$n{=}89$};
@@ -124,15 +124,15 @@ annotated for lumbosacral transitional anatomy
 \draw[ln] (-60,-44) -- (60,-44);
 \foreach \x in {-60,-20,20,60} \draw[ar] (\x,-44) -- (\x,-47);
 
-% --- row 4: corrections --------------------------------------- centre -82, half 8
+% --- row 4: corrections --------------------------------------- center -82, half 8
 \node[proc] (fix) at (0,-82) {\textbf{correct errors in the source ground
-  truth}\\[2pt]split vertebrae, skipped levels, levels unlabelled inside the FOV:
+  truth}\\[2pt]split vertebrae, skipped levels, levels unlabeled inside the FOV:
   $n{=}112$ spine fixes / 103 cases, $n{=}13$ pelvic fixes / 12 cases};
 \foreach \x in {-60,-20,20,60} \draw[ln] (\x,-65) -- (\x,-70);
 \draw[ln] (-60,-70) -- (60,-70);
 \draw[ar] (0,-70) -- (fix.north);
 
-% --- row 5: filling in the missing half ----------------------- centre -108, half 8
+% --- row 5: filling in the missing half ----------------------- center -108, half 8
 \node[proc] (dense) at (0,-108) {\textbf{pseudolabel the missing half --- asymmetrically,
   by design}\\[2pt]a pelvis has no enumeration to get wrong; a spine does, so the 20
   pelvic-only spines were corrected \emph{by hand}};
@@ -153,20 +153,20 @@ annotated for lumbosacral transitional anatomy
   \textbf{S1} out of the sacrum as its own class --- the caudal anchor};
 \node[det] at (-52,-152) {added \textbf{ribs}: M\"oller's binary rib net unioned with
   TotalSegmentator, numbered from TotalSegmentator, then $n{=}152$ cases to human review};
-\node[det] at (-52,-172) {\textbf{relabelled lumbar ribs} to their own class rather than
+\node[det] at (-52,-172) {\textbf{relabeled lumbar ribs} to their own class rather than
   forcing them to be rib~12 ($n{=}16$ cases)};
 \node[det] at (-52,-192) {added \textbf{surgical instrumentation} as its own classes rather
   than leaving it inside the bone that absorbed it ($n{=}11$ cases), renumbered 0068 against
   the twelfth rib, and corrected hip laterality ($n{=}22$ cases)};
 
-% --- row 9: the checks ----------------------------------------- centre -216, half 8
+% --- row 9: the checks ----------------------------------------- center -216, half 8
 \node[gate] (qc) at (0,-216) {\textbf{release gates, in order --- a failure stops the
   chain}\\[2pt]label shares its CT's affine and structures are correctly sided
   $\rightarrow$ each rib articulates with the vertebra its number implies $\rightarrow$
   measures fall in physiological range};
 \draw[ar] (v6.south) -- (-72,-202) -- (0,-202) -- (qc.north);
 
-% --- row 10: release ------------------------------------------- centre -240
+% --- row 10: release ------------------------------------------- center -240
 \node[fin] (rel) at (0,-240) {\textbf{802 released records}\\[2pt]spine, pelvis, per-level
   ribs and femora in one frame; 33 carry a radiologist Castellvi grade};
 \draw[ar] (qc.south) -- (rel.north);
