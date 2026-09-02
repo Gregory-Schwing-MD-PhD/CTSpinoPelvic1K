@@ -263,124 +263,7 @@ That is reported as a property of the released measurements rather than as a met
 information needed to settle these variants is present locally.
 
 % ---------------------------------------------------------------------------
-\begin{figure*}[p]
-\centering
-% SINGLE DOWNWARD FLOW ON A FIXED GRID.
-%
-% THE RECURRING FAILURE HERE, THREE TIMES NOW: minimum height is a FLOOR, not a height.
-% A box whose text wraps to one more line than expected grows downward into the row beneath
-% and prints through it, and this is invisible in the source. The rule that finally works:
-% EVERY BOX IS AT MOST TWO LINES. Text is kept short enough to guarantee that at the box
-% width given, anything longer goes in the caption, and rows are then spaced at twice the
-% two-line height. Detail hangs to the RIGHT of the version boxes where there is free width,
-% not inside them where it would add lines.
-%
-% Also fixed:
-%   * v3|v4|v5 ran ACROSS, so the arrow into v3 came up from below-left. A version history
-%     is a sequence and now reads as one.
-%   * the previous attempt was drawn ~200mm wide and shrunk by \maxwidth to fit, which is
-%     why the type came out at 6pt in a field of white space. The design width is ~175mm
-%     against a ~165mm \linewidth, so \maxwidth scales by about 0.94 and the type stays
-%     essentially the size it was set in.
-%   * the stub joining v5 to its description was drawn THROUGH the description.
-%   * jargon: "geometric invariants" told the reader nothing. The gates now say what is
-%     checked, in words a surgeon would use.
-%   * "out" is a reserved TikZ key: naming a node (out) silently drops its shape and
-%     surfaces much later as "missing \item". The final node is (rel).
-\fitfloat{%
-\begin{tikzpicture}[
-  x=1mm, y=1mm,
-  font=\small,
-  every node/.style={inner sep=0pt},
-  bx/.style={draw, rounded corners=1.5pt, align=center, text width=#1,
-             minimum height=11mm, inner sep=2.5pt},
-  src/.style={bx=52mm, fill=black!5},
-  proc/.style={bx=168mm, fill=blue!7},
-  rec/.style={bx=36mm, fill=black!3},
-  ver/.style={bx=24mm, fill=green!14, minimum height=9mm},
-  det/.style={align=left, text width=124mm, font=\small, anchor=west},
-  gate/.style={bx=168mm, fill=orange!14},
-  fin/.style={bx=168mm, fill=green!22},
-  ar/.style={-{Stealth[length=5pt]}, semithick, black!70},
-  ln/.style={semithick, black!70},
-]
 
-% --- row 1: sources ------------------------------------------- 2 lines, half 7
-\node[src] (tcia)   at (-58, 0) {\textbf{TCIA CT Colonography}\\[2pt]CT volumes};
-\node[src] (spine)  at (  0, 0) {\textbf{CTSpine1K}\\[2pt]vertebral labels};
-\node[src] (pelvic) at ( 58, 0) {\textbf{CTPelvic1K}\\[2pt]sacrum + hip labels};
-\draw[ln] (tcia.south) -- (-58,-15) -- (0,-15);
-\draw[ln] (pelvic.south) -- (58,-15) -- (0,-15);
-\draw[ln] (spine.south) -- (0,-15);
-\draw[ar] (0,-15) -- (0,-22);
-
-% --- row 2: the crosswalk ------------------------------------- centre -30, half 8
-\node[proc] (cross) at (0,-30) {\textbf{match each label set to the series it was drawn
-  on}\\[2pt]every patient was scanned prone \emph{and} supine; neither source published the
-  series it used};
-
-% --- row 3: the four kinds of record -------------------------- centre -56, half 9
-\node[rec] (fused) at (-60,-56) {\textbf{fused}\\[2pt]both on one series\\[1pt]$n{=}342$};
-\node[rec] (sep)   at (-20,-56) {\textbf{separate}\\[2pt]pelvis: other series\\[1pt]$n{=}351$};
-\node[rec] (sonly) at ( 20,-56) {\textbf{spine only}\\[2pt]no pelvic label\\[1pt]$n{=}89$};
-\node[rec] (ponly) at ( 60,-56) {\textbf{pelvis only}\\[2pt]held back\\[1pt]$n{=}20$};
-\draw[ln] (cross.south) -- (0,-44);
-\draw[ln] (-60,-44) -- (60,-44);
-\foreach \x in {-60,-20,20,60} \draw[ar] (\x,-44) -- (\x,-47);
-
-% --- row 4: corrections --------------------------------------- centre -82, half 8
-\node[proc] (fix) at (0,-82) {\textbf{correct errors in the source ground
-  truth}\\[2pt]split vertebrae, skipped levels, levels unlabelled inside the FOV:
-  $n{=}112$ spine fixes / 103 cases, $n{=}13$ pelvic fixes / 12 cases};
-\foreach \x in {-60,-20,20,60} \draw[ln] (\x,-65) -- (\x,-70);
-\draw[ln] (-60,-70) -- (60,-70);
-\draw[ar] (0,-70) -- (fix.north);
-
-% --- row 5: filling in the missing half ----------------------- centre -108, half 8
-\node[proc] (dense) at (0,-108) {\textbf{pseudolabel the missing half --- asymmetrically,
-  by design}\\[2pt]a pelvis has no enumeration to get wrong; a spine does, so the 20
-  pelvic-only spines were corrected \emph{by hand}};
-\draw[ar] (fix.south) -- (dense.north);
-
-% --- rows 6-8: the releases, in order -------------------------- 20mm apart
-\node[ver] (v3) at (-72,-132) {\textbf{v3}};
-\node[ver] (v4) at (-72,-152) {\textbf{v4}};
-\node[ver] (v5) at (-72,-172) {\textbf{v5}};
-\node[ver] (v6) at (-72,-192) {\textbf{v6}};
-\draw[ar] (dense.south) -- (0,-122) -- (-72,-122) -- (v3.north);
-\draw[ar] (v3.south) -- (v4.north);
-\draw[ar] (v4.south) -- (v5.north);
-\draw[ar] (v5.south) -- (v6.north);
-
-\foreach \y in {-132,-152,-172,-192} \draw[ln, black!35] (-60,\y) -- (-54,\y);
-\node[det] at (-52,-132) {added \textbf{femora} and the lower thoracic levels, and carved
-  \textbf{S1} out of the sacrum as its own class --- the caudal anchor};
-\node[det] at (-52,-152) {added \textbf{ribs}: M\"oller's binary rib net unioned with
-  TotalSegmentator, numbered from TotalSegmentator, then $n{=}152$ cases to human review};
-\node[det] at (-52,-172) {\textbf{relabelled lumbar ribs} to their own class rather than
-  forcing them to be rib~12 ($n{=}16$ cases)};
-\node[det] at (-52,-192) {added \textbf{surgical instrumentation} as its own classes rather
-  than leaving it inside the bone that absorbed it ($n{=}11$ cases), renumbered 0068 against
-  the twelfth rib, and corrected hip laterality ($n{=}22$ cases)};
-
-% --- row 9: the checks ----------------------------------------- centre -216, half 8
-\node[gate] (qc) at (0,-216) {\textbf{release gates, in order --- a failure stops the
-  chain}\\[2pt]label shares its CT's affine and structures are correctly sided
-  $\rightarrow$ each rib articulates with the vertebra its number implies $\rightarrow$
-  measures fall in physiological range};
-\draw[ar] (v6.south) -- (-72,-202) -- (0,-202) -- (qc.north);
-
-% --- row 10: release ------------------------------------------- centre -240
-\node[fin] (rel) at (0,-240) {\textbf{802 released records}\\[2pt]spine, pelvis, per-level
-  ribs and femora in one frame; 33 carry a radiologist Castellvi grade};
-\draw[ar] (qc.south) -- (rel.north);
-\end{tikzpicture}}{How the dataset was built. Three public collections are combined patient by
-patient. Neither annotation source published the CT series its labels were drawn on, so each
-label set is matched to the series whose bone agrees with it. In 351 of those patients the
-two collections had drawn their outlines on \emph{different scans of the same person}.
-Numbers marked $n$ are scans, or corrections, at that step.%
-\label{fig:pipeline}}
-\end{figure*}
 
 \begin{figure*}[t]
 \centering
@@ -417,7 +300,7 @@ a different direction, from the one above it. Outlines drawn on one series are t
 \emph{shape} for the other, and no rigid realignment recovers them. In isolation such a mask
 looks like competent work; it reveals itself only when overlaid on the image.
 
-The crosswalk (Fig.~\ref{fig:pipeline}) therefore resolves each annotation first to a
+The crosswalk (Fig.~S1) therefore resolves each annotation first to a
 patient and then, within that patient's volumes only, to the series whose bone \emph{agrees}
 with it: candidates are thresholded at bone attenuation and scored by overlap with the
 annotation mask. Bone rather than image similarity, because bone is what the annotation
@@ -427,10 +310,12 @@ the skeleton sits.
 \subsection{Fused and split records}
 
 The two annotation sets were placed independently, so they do not always land on the same
-series. The four record types that result are given with their counts in
-Fig.~\ref{fig:pipeline}, and the split among them is the crosswalk's main finding rather
-than bookkeeping: in \emph{separate} records --- 351 of 802, nearly half of all patients ---
-the two public collections annotated \emph{different volumes of the same person}, and
+series. Of 802 records, 342 carry spine and pelvic annotations on the same volume
+(\emph{fused}), 351 are \emph{separate}, 89 are \emph{spine\_only} with no pelvic
+annotation for that patient, and 20 are \emph{pelvic\_native}. The split is the crosswalk's
+main finding rather than bookkeeping: in those separate records --- nearly half of all
+patients --- the two public collections annotated \emph{different volumes of the same
+person}, and
 neither recorded which. A pelvic annotation placed on the other acquisition of a
 prone/supine pair cannot be combined with the spine annotation without resampling across a
 change of posture. Those records are retained rather than discarded, and held out of the
@@ -440,7 +325,7 @@ a resource for a mobility study rather than a defect.
 \subsection{Densification, and why it is asymmetric}
 
 A corpus in which half the records lack a pelvis is not usable as a spinopelvic dataset, so
-the missing structures were pseudolabelled --- asymmetrically (Fig.~\ref{fig:pipeline}),
+the missing structures were pseudolabelled --- asymmetrically (Fig.~S1),
 because the two directions are not equivalent.
 
 Pelvis onto spine-only records is the safe direction. The sacrum and innominate bones are
@@ -472,7 +357,7 @@ approaching the costovertebral joint --- is frequently absent. A rib truncated a
 medial end never reaches the vertebra it articulates with, so the incidence test that
 assigns a rib to its level has nothing to test.
 
-The two were therefore unioned (Fig.~\ref{fig:pipeline}): TotalSegmentator supplies
+The two were therefore unioned (Fig.~S1): TotalSegmentator supplies
 numbering and the medial-clipped cases, Möller supplies detection where its output is more
 complete, and the union carries TotalSegmentator's per-level identities.
 
@@ -852,32 +737,7 @@ agreement is the strongest check here.}
 \label{fig:validation}
 \end{figure*}
 
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_levelatlas.pdf}
-\caption{Lumbar and lower thoracic morphometry by level, in the format the standard
-reference figures use --- level on the vertical axis, measurement on the horizontal.
-Marker, median; bar, interquartile range; line, 5th--95th percentile; the number at the
-right of a row is its $n$. (a) Vertebral body height, ventral against dorsal. (b) Superior
-endplate width. (c) Canal width against depth. (d) Transverse pedicle width. (e) Disc
-height, drawn at the interspace it occupies. (f) Trabecular attenuation at the published
-opportunistic-screening site. Coverage is not uniform and is drawn rather than assumed:
-canal depth and pedicle width rest on 330--656 records because they need an axial extent
-many field-limited series do not carry, while the remaining measures rest on 720--784.
-No comparison between levels is tested and none is implied; the intervals are dispersion.}
-\label{fig:levelatlas}
-\end{figure*}
 
-\emph{Reference morphometry with its spread.} The figures a surgeon consults for vertebral
-body height, canal dimensions and pedicle width come from cadaveric series of a few dozen
-specimens, plotted as single values with no indication of spread.\cite{benzel2015} They
-cannot tell a reader whether the patient in front of them is unusual, because they never
-show what usual looks like. The same questions are answered here from 802 records with the
-distribution attached (Fig.~\ref{fig:levelatlas}), and the per-level values ship as a table.
-Two properties of the classical figures are reproduced --- body height crosses over, dorsal
-exceeding ventral at T11--T12 and reversing by L4--L5, and pedicle width widens steeply into
-the lower lumbar spine --- and what is added is the width of each distribution, the part
-needed to judge an individual against a population.
 
 \emph{Opportunistic measures.} Every scan carries a
 vertebral bone density measurement at no additional dose.\cite{pickhardt2013} L1 trabecular attenuation is
@@ -908,11 +768,33 @@ endplate width, transverse-process span and wedge ratio are released for T11--L5
 802 records, and because the labels were assigned against the twelfth rib rather than by
 enumeration, a model trained on them is not learning the convention that fails.
 
-\emph{Reference morphometry at cohort scale.} Reference values for vertebral and canal
-dimensions derive substantially from cadaveric series and small imaging
-cohorts;\cite{benzel2015} these are computed identically across 802 records from
-segmentations. Larger $n$ improves the precision of a distribution without fixing the
-population it came from, and this one is a screening cohort aged 50 and over.
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_levelatlas.pdf}
+\caption{Lumbar and lower thoracic morphometry by level, in the format the standard
+reference figures use --- level on the vertical axis, measurement on the horizontal.
+Marker, median; bar, interquartile range; line, 5th--95th percentile; the number at the
+right of a row is its $n$. (a) Vertebral body height, ventral against dorsal. (b) Superior
+endplate width. (c) Canal width against depth. (d) Transverse pedicle width. (e) Disc
+height, drawn at the interspace it occupies. (f) Trabecular attenuation at the published
+opportunistic-screening site. Coverage is not uniform and is drawn rather than assumed:
+canal depth and pedicle width rest on 330--656 records because they need an axial extent
+many field-limited series do not carry, while the remaining measures rest on 720--784.
+No comparison between levels is tested and none is implied; the intervals are dispersion.}
+\label{fig:levelatlas}
+\end{figure*}
+
+\emph{Reference morphometry with its spread.} The values a surgeon consults for vertebral
+body height, canal dimensions and pedicle width come from cadaveric series of a few dozen
+specimens, plotted as single values with no indication of spread.\cite{benzel2015} They
+cannot tell a reader whether the patient in front of them is unusual, because they never
+show what usual looks like. The same measures are given here from 802 records with the
+distribution attached (Fig.~\ref{fig:levelatlas}), reproducing two properties of the
+classical figures --- body height crosses over, dorsal exceeding ventral at T11--T12 and
+reversing by L4--L5, and pedicle width widens steeply into the lower lumbar spine --- and
+adding the width of each distribution, which is the part needed to judge an individual. A
+larger $n$ sharpens a distribution without changing the population it came from, and this
+one is a screening cohort aged 50 and over.
 
 \emph{Patient-specific models.} Planning is moving toward patient-specific biomechanical
 models rather than population norms.\cite{fea2026} Such a model needs spine, pelvis and
