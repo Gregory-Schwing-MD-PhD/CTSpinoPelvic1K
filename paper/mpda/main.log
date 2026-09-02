@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  2 SEP 2026 11:06
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  2 SEP 2026 11:30
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -705,15 +705,15 @@ Package rerunfilecheck Info: File `main.out' has not changed.
 (rerunfilecheck)             Checksum: DEC1D01A3E673A1A22654D59FCF1217E;4869.
  ) 
 Here is how much of TeX's memory you used:
- 25951 strings out of 469089
- 520483 string characters out of 5459054
- 893774 words of memory out of 5000000
- 54590 multiletter control sequences out of 15000+600000
+ 25952 strings out of 469089
+ 520493 string characters out of 5459054
+ 894774 words of memory out of 5000000
+ 54591 multiletter control sequences out of 15000+600000
  636930 words of font info for 74 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 92i,10n,104p,1007b,1190s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 92i,10n,104p,1007b,1182s stack positions out of 10000i,1000n,20000p,200000b,200000s
  </home/gschwing/.TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1200.600pk></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmcsc10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt12.pfb>
-Output written on main.pdf (23 pages, 726024 bytes).
+Output written on main.pdf (23 pages, 726106 bytes).
 PDF statistics:
  635 PDF objects out of 1000 (max. 8388607)
  365 compressed objects within 4 object streams
