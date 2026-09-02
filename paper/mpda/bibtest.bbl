@@ -1,5 +1,11 @@
 \begin{thebibliography}{10}
 
+\bibitem{lian2018}
+J.~Lian, N.~Levine, and W.~Cho,
+\newblock A review of lumbosacral transitional vertebrae and associated vertebral numeration,
+\newblock Eur. Spine J. {\bf 27}, 995--1004 (2018),
+\newblock doi:10.1007/s00586-018-5554-8.
+
 \bibitem{koninwalz2010}
 G.~P. Konin and D.~M. Walz,
 \newblock Lumbosacral transitional vertebrae: classification, imaging findings, and clinical relevance,
@@ -12,29 +18,23 @@ Y.~Deng et~al.,
 \newblock Mach. Learn. Biomed. Imaging {\bf 3}, 824--832 (2025),
 \newblock doi:10.59275/j.melba.2025-gf84.
 
+\bibitem{ctpelvic1k}
+P.~Liu et~al.,
+\newblock Deep learning to segment pelvic bones: large-scale {CT} datasets and baseline models,
+\newblock Int. J. Comput. Assist. Radiol. Surg. {\bf 16}, 749--756 (2021),
+\newblock doi:10.1007/s11548-021-02363-8.
+
 \bibitem{verse2021}
 A.~Sekuboyina et~al.,
 \newblock {VerSe}: a vertebrae labelling and segmentation benchmark for multi-detector {CT} images,
 \newblock Med. Image Anal. {\bf 73}, 102166 (2021),
 \newblock doi:10.1016/j.media.2021.102166.
 
-\bibitem{totalsegmentator}
-J.~Wasserthal et~al.,
-\newblock {TotalSegmentator}: robust segmentation of 104 anatomic structures in {CT} images,
-\newblock Radiol. Artif. Intell. {\bf 5}, e230024 (2023),
-\newblock doi:10.1148/ryai.230024.
-
 \bibitem{versedata2021}
 H.~Liebl et~al.,
 \newblock A computed tomography vertebral segmentation dataset with anatomical variations and multi-vendor scanner data,
 \newblock Sci. Data {\bf 8}, 284 (2021),
 \newblock doi:10.1038/s41597-021-01060-0.
-
-\bibitem{ctpelvic1k}
-P.~Liu et~al.,
-\newblock Deep learning to segment pelvic bones: large-scale {CT} datasets and baseline models,
-\newblock Int. J. Comput. Assist. Radiol. Surg. {\bf 16}, 749--756 (2021),
-\newblock doi:10.1007/s11548-021-02363-8.
 
 \bibitem{ribsegv2}
 L.~Jin et~al.,
@@ -58,6 +58,12 @@ K.~Clark et~al.,
 H.~M{\"o}ller et~al.,
 \newblock Automated thoracolumbar stump rib detection and analysis in a large {CT} cohort, 2025,
 \newblock arXiv:2505.05004. doi:10.48550/arXiv.2505.05004.
+
+\bibitem{totalsegmentator}
+J.~Wasserthal et~al.,
+\newblock {TotalSegmentator}: robust segmentation of 104 anatomic structures in {CT} images,
+\newblock Radiol. Artif. Intell. {\bf 5}, e230024 (2023),
+\newblock doi:10.1148/ryai.230024.
 
 \bibitem{osc2026}
 A.~Schehr, J.~Kim, and G.~Schwing,
