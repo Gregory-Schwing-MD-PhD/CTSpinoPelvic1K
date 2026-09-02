@@ -107,8 +107,8 @@
 
 \begin{document}
 
-\title{CTSpinoPelvic1K: a fused spine and pelvis CT segmentation dataset
-       built for lumbosacral transitional anatomy}
+\title{CTSpinoPelvic1K: spine, pelvis, ribs and femora in one coordinate frame,
+       annotated for lumbosacral transitional anatomy}
 
 % DOUBLE-ANONYMISED REVIEW: author names and affiliations live in title_page.tex and
 % must NOT appear here. Restore this block only for the camera-ready version.
@@ -223,9 +223,11 @@ a class to each structure an enumeration anomaly produces: a sixth lumbar verteb
 rib borne by a lumbar vertebra. A scheme without those classes must record such anatomy as
 something it is not.
 
-\emph{Where the material is.} The release described here (\datasetversion) is archived at
-\url{https://doi.org/\datasetdoi}, which resolves to the current version; the exact version
-described by this manuscript is \datasetversiondoi. Documentation, the label scheme, the
+\emph{Where the material is.} Everything described here is \datasetversion{} of a single
+archived dataset, deposited at \url{https://doi.org/\datasetversiondoi}. Citations should
+use \url{https://doi.org/\datasetdoi}, the permanent identifier for the dataset across all
+of its versions, which resolves to whichever version is current; the version identifier
+above pins the exact release measured in this manuscript. Documentation, the label scheme, the
 reference loader and the per-record quality-control tables are distributed with the archive
 and are described in Sec.~\ref{sec:format}.
 
@@ -1041,8 +1043,9 @@ persistent identifier, ships the loader and quality-control tables needed to ver
 states per structure how strong each label is.
 
 \section*{Data Availability}
-The dataset is permanently archived at \url{https://doi.org/\datasetdoi}, which resolves to
-the current version; the release described here is \datasetversion{} (\datasetversiondoi).
+The release described here is \datasetversion{}, permanently archived at
+\url{https://doi.org/\datasetversiondoi}. The dataset as a whole, across versions, is cited
+as \url{https://doi.org/\datasetdoi}, which always resolves to the current version.
 The archive carries the reference loader, the label-scheme definition and the
 quality-control tables, and the analysis code is distributed with it under an open-source
 licence. The repository URL is omitted here because it identifies the authors; it is given

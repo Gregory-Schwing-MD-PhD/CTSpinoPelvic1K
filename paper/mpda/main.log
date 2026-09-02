@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  2 SEP 2026 08:27
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  2 SEP 2026 08:36
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -640,71 +640,71 @@ Underfull \hbox (badness 2158) in paragraph at lines 179--187
  []\OT1/cmr/bx/n/12 Potential Ap-pli-ca-tions: \OT1/cmr/m/n/12 Seg-men-ta-tion and level-numbering bench-marks,
  []
 
-[1{/home/gschwing/.TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}] [2] [3] [4]
-Underfull \hbox (badness 5756) in paragraph at lines 382--382
+[1{/home/gschwing/.TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}] [2] [3] [4] [5]
+Underfull \hbox (badness 5756) in paragraph at lines 384--384
 [][]\OT1/cmr/m/n/10.95 added \OT1/cmr/bx/n/10.95 fe-murs \OT1/cmr/m/n/10.95 and the lower tho-racic lev-els, and carved 
  []
 
 
-Underfull \hbox (badness 3250) in paragraph at lines 382--382
+Underfull \hbox (badness 3250) in paragraph at lines 384--384
 \OT1/cmr/bx/n/10.95 S1 \OT1/cmr/m/n/10.95 out of the sacrum as its own class --- the cau-dal an-chor 
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 382--382
+Underfull \hbox (badness 10000) in paragraph at lines 384--384
 [][]\OT1/cmr/bx/n/10.95 relabelled lum-bar ribs \OT1/cmr/m/n/10.95 to their own class rather 
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 382--382
+Underfull \hbox (badness 10000) in paragraph at lines 384--384
 \OT1/cmr/m/n/10.95 than forc-ing them to be rib 12 ($\OML/cmm/m/it/10.95 n[]\OT1/cmr/m/n/10.95 16$ cases) 
  []
 
-<figures/fig_priorart.pdf, id=150, 815.23125pt x 267.75972pt>
+<figures/fig_priorart.pdf, id=155, 815.23125pt x 267.75972pt>
 File: figures/fig_priorart.pdf Graphic file (type pdf)
 <use figures/fig_priorart.pdf>
-Package pdftex.def Info: figures/fig_priorart.pdf  used on input line 387.
+Package pdftex.def Info: figures/fig_priorart.pdf  used on input line 389.
 (pdftex.def)             Requested size: 468.0pt x 153.7114pt.
-[5] [6] [7 <./figures/fig_priorart.pdf>] [8] [9] [10]
-<figures/fig_anchors.pdf, id=251, 673.12538pt x 198.75566pt>
+[6] [7] [8 <./figures/fig_priorart.pdf>] [9] [10]
+<figures/fig_anchors.pdf, id=252, 673.12538pt x 198.75566pt>
 File: figures/fig_anchors.pdf Graphic file (type pdf)
 <use figures/fig_anchors.pdf>
-Package pdftex.def Info: figures/fig_anchors.pdf  used on input line 552.
+Package pdftex.def Info: figures/fig_anchors.pdf  used on input line 554.
 (pdftex.def)             Requested size: 468.0pt x 138.19087pt.
- [11 <./figures/fig_anchors.pdf>] [12]
-Overfull \hbox (5.94673pt too wide) in paragraph at lines 605--610
+ [11] [12 <./figures/fig_anchors.pdf>]
+Overfull \hbox (5.94673pt too wide) in paragraph at lines 607--612
 []\OT1/cmr/m/it/12 Generative ar-ti-fi-cial in-tel-li-gence. \OT1/cmr/m/n/12 Large-language-model as-sis-tance was used for manuscript
  []
 
 [13] [14] [15] [16] [17]
-<figures/fig_countfree.pdf, id=349, 509.01744pt x 177.54282pt>
+<figures/fig_countfree.pdf, id=350, 509.01744pt x 177.54282pt>
 File: figures/fig_countfree.pdf Graphic file (type pdf)
 <use figures/fig_countfree.pdf>
-Package pdftex.def Info: figures/fig_countfree.pdf  used on input line 841.
+Package pdftex.def Info: figures/fig_countfree.pdf  used on input line 843.
 (pdftex.def)             Requested size: 468.0pt x 163.24112pt.
  [18]
-<figures/fig_validation.pdf, id=356, 509.01744pt x 134.18082pt>
+<figures/fig_validation.pdf, id=357, 509.01744pt x 134.18082pt>
 File: figures/fig_validation.pdf Graphic file (type pdf)
 <use figures/fig_validation.pdf>
-Package pdftex.def Info: figures/fig_validation.pdf  used on input line 874.
+Package pdftex.def Info: figures/fig_validation.pdf  used on input line 876.
 (pdftex.def)             Requested size: 468.0pt x 123.37207pt.
-<figures/fig_levelatlas.pdf, id=359, 506.88995pt x 302.18257pt>
+<figures/fig_levelatlas.pdf, id=360, 506.88995pt x 302.18257pt>
 File: figures/fig_levelatlas.pdf Graphic file (type pdf)
 <use figures/fig_levelatlas.pdf>
-Package pdftex.def Info: figures/fig_levelatlas.pdf  used on input line 885.
+Package pdftex.def Info: figures/fig_levelatlas.pdf  used on input line 887.
 (pdftex.def)             Requested size: 468.0pt x 279.00267pt.
  [19 <./figures/fig_countfree.pdf>] [20 <./figures/fig_validation.pdf>] [21 <./figures/fig_levelatlas.pdf>] [22] [23] [24]
-Underfull \hbox (badness 2042) in paragraph at lines 1104--1108
+Underfull \hbox (badness 2042) in paragraph at lines 1107--1111
 []\OT1/cmr/m/n/12 A. Sekuboy-ina et al.,  VerSe: a ver-te-brae la-belling and seg-men-ta-tion bench-
  []
 
 
-Underfull \hbox (badness 3240) in paragraph at lines 1104--1108
+Underfull \hbox (badness 3240) in paragraph at lines 1107--1111
 \OT1/cmr/m/n/12 mark for multi-detector CT im-ages,  Med. Im-age Anal. \OT1/cmr/bx/n/12 73\OT1/cmr/m/n/12 , 102166 (2021),
  []
 
 [25]
-Underfull \hbox (badness 4156) in paragraph at lines 1128--1132
+Underfull \hbox (badness 4156) in paragraph at lines 1131--1135
 []\OT1/cmr/m/n/12 L. Jin et al.,  Rib-Seg v2: a large-scale bench-mark for rib la-bel-ing and
  []
 
@@ -716,21 +716,21 @@ LaTeX2e <2026-06-01>
 L3 programming layer <2026-08-10>
  ***********
 Package rerunfilecheck Info: File `main.out' has not changed.
-(rerunfilecheck)             Checksum: 4208244AB9E7712BFDCCC09F4AB9BF5A;4811.
+(rerunfilecheck)             Checksum: DEC1D01A3E673A1A22654D59FCF1217E;4869.
  ) 
 Here is how much of TeX's memory you used:
- 26190 strings out of 469089
- 524713 string characters out of 5459054
- 920871 words of memory out of 5000000
- 54824 multiletter control sequences out of 15000+600000
+ 26189 strings out of 469089
+ 524703 string characters out of 5459054
+ 915148 words of memory out of 5000000
+ 54823 multiletter control sequences out of 15000+600000
  636930 words of font info for 74 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 92i,10n,104p,1007b,1226s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 92i,10n,104p,1007b,1214s stack positions out of 10000i,1000n,20000p,200000b,200000s
  </home/gschwing/.TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1200.600pk></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmcsc10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt12.pfb>
-Output written on main.pdf (27 pages, 746650 bytes).
+Output written on main.pdf (27 pages, 746832 bytes).
 PDF statistics:
- 646 PDF objects out of 1000 (max. 8388607)
- 372 compressed objects within 4 object streams
+ 652 PDF objects out of 1000 (max. 8388607)
+ 378 compressed objects within 4 object streams
  83 named destinations out of 1000 (max. 500000)
  230 words of extra memory for PDF output out of 10000 (max. 10000000)
 
