@@ -1,247 +1,149 @@
 ---
-title: "Multiview Radiographic Fracture Detection with Correct Anatomic Naming"
-subtitle: "Research proposal — Detroit Medical Center / Wayne State University"
-author: "Gregory Schwing, MD, PhD — Department of Surgery"
+title: "Automated fracture detection and level identification on trauma radiographs"
+subtitle: "Analysis plan under the DMC Trauma QI protocol (PI: Rahul Vaidya, MD)"
+author: "Gregory Schwing, MD, PhD — Department of Surgery, Detroit Medical Center / Wayne State University"
 date: "September 2026"
 ---
 
-# Summary
+# What we want to do
 
-Commercial AI already tells a radiologist *that* a bone is broken, and does it well enough to
-be running in hundreds of hospitals. What it does not do is say **which** bone, in a way that
-survives anatomic variation, or **outline** the fracture, or characterize it.
+We want to train a model that reads a trauma spine radiograph and reports three things:
+whether there is a fracture, which vertebra it is in, and whether it is displaced. We then
+want to check how often it is right using the imaging and reports already collected under the
+Trauma QI protocol.
 
-This proposal builds a multiview model that produces a structured finding rather than a
-flag — detection, an outline of the fracture, the named bone or level with side, and whether
-the fragment is displaced — across the structures a trauma series covers: vertebrae, sacrum,
-pelvis and hips, ribs, and proximal femur. It is trained on public data, refined on DMC
-imaging, and is **research only**: no output enters the medical record and no clinician sees
-it during care.
+This is a retrospective analysis of existing imaging. Nothing the model produces goes into
+a chart, gets shown to a treating physician, or affects any patient's care. The output is a
+paper and a set of model weights.
 
-# What the system would output
+# Why this is worth doing
 
-For every radiograph, per finding:
+Commercial fracture detection already exists and works. GLEAMER's BoneView is FDA-cleared for
+the appendicular skeleton, ribs, and thoracolumbar spine, runs in over 300 hospitals, and in
+its reader study improved fracture sensitivity by about 10 points and cut false negatives by
+29%.^1^ We are not trying to beat that.
 
-| Output | Form | Why it is not already available |
-|---|---|---|
-| Fracture present | probability | Solved commercially; included as the baseline |
-| Fracture outline | pixel mask | Cleared products localize with a box, not a boundary |
-| Bone / level name | label + side | The failure mode this project exists to fix |
-| Displacement | none / minimal / displaced | Not offered by cleared products; drives management |
-| Spinopelvic parameters | PI, PT, SS, LL, PI–LL | Available separately, not alongside the fracture read |
-| Anatomic anomaly | L6, lumbar rib, transitional | Not offered anywhere |
+The problem these tools do not solve is naming the level. A detector that says "fracture at
+L1" gets there by counting vertebrae on the film, and counting is unreliable in exactly the
+patients where it matters. Lumbosacral transitional vertebrae occur in somewhere between 4%
+and 30% of people depending on the definition,^2^ and the accepted way to number the spine is
+to count down from C2 on whole-spine imaging^3^ — which no one gets in the trauma bay.
+Wrong-level spine surgery happens roughly once per 3,100 procedures and transitional anatomy
+is the most common reason.^4^
 
-# Prior art, and what hospitals are actually running
+For a trauma surgeon the practical version is this: a confident wrong level on the initial
+film is worse than no level at all, and it will be wrong most often in the patient whose
+anatomy is unusual. Same problem for ribs (numbered by counting) and for side (routinely
+mislabeled — our own CT quality control caught four cases with a left hip labeled on the
+patient's right).
 
-**Detection is a commercial product.** GLEAMER's BoneView received FDA 510(k) clearance in
-March 2022 for detection and localization of fractures across the appendicular skeleton, rib
-cage, and thoracic and lumbar spine. It is deployed in more than 300 institutions across 13
-countries, is used by over 3,500 radiologists and emergency physicians, and is distributed
-through Aidoc, Fujifilm, Ferrum Health and Blackford. Reported effects are a 10.4-point gain
-in fracture-detection sensitivity, a 29% reduction in false negatives, and a 15% reduction in
-reading time.^1^ Competing detection work reports external-validation AUC of 0.90 (95% CI
-0.84–0.95) for vertebral compression fracture on radiographs.^2^
+We have a resource nobody else has for this. CTSpinoPelvic1K is a public CT dataset we
+built: 802 scans with the spine, sacrum, hips, femora, and every rib labeled on one
+coordinate frame, with explicit classes for L6, a thirteenth thoracic vertebra, a separate
+S1, and lumbar ribs.^5^ It was built specifically to test whether a vertebra can be named
+from its own appearance without counting from C2. That is the supervision a radiograph model
+needs and cannot get from radiographs.
 
-**Spinopelvic measurement is also solved.** A 2025 meta-analysis of 15 studies and more than
-10,000 radiographs reports pooled mean absolute error of 4.1° for pelvic incidence, ICC above
-0.81 against human measurement.^3^
+# Why radiographs, and whether we actually need CT
 
-**Three things remain open, and they are the proposal.**
+**Radiographs are the target, so they are non-negotiable.** The model has to work on the
+film a patient actually gets first. Training and evaluation both have to be on real trauma
+radiographs from this population, AP and lateral, because the AP carries the twelfth rib and
+the transverse processes (what decides the level) and the lateral carries the fracture
+morphology and the sagittal alignment.
 
-*Naming.* A detector reporting a fracture at "L1" is counting, and the count fails where it
-matters. Lumbosacral transitional vertebrae occur in 4–30% of people depending on
-definition,^4^ the accepted standard for numeration is whole-spine imaging counted caudally
-from C2^5^ — which a trauma film cannot provide — and wrong-level spine surgery runs at
-roughly one in 3,110 procedures with transitional anatomy the usual cause.^6^ The ambiguity
-is specific: four rib-free lumbar vertebrae may mean an L1 bearing a lumbar rib or an L5
-assimilated to the sacrum; six may mean a true sixth lumbar vertebra or a T12 with aplastic
-ribs. The observation is identical within each pair. The same counting problem applies to
-ribs, and side is routinely mislabeled — quality control on our own CT corpus caught four
-records carrying a left hip on the patient's right.
+**CT is needed for less than it looks like.** It is not needed to train the detector. The
+fracture and outline heads train on public radiograph datasets, and the level-naming head
+pretrains on radiograph-like projections rendered from our own CT dataset. What DMC CT gives
+us is ground truth for two specific questions the radiograph cannot answer about itself:
 
-*Outlining.* Cleared products draw a box. A boundary is what supports measurement —
-fragment size, angulation, displacement distance.
+1. *Was the level right?* On a transitional spine, the film cannot settle which vertebra is
+   which. The CT can. This is the one comparison that makes the project worth doing, and it
+   only needs CT for patients who had both studies in the same encounter.
+2. *Was the fracture missed?* The clinically meaningful error is a fracture not seen on the
+   initial film and found later on CT. To count those we need to know a CT was done and
+   what it showed. For this the **CT report** is enough; we do not need the images.
 
-*Characterization.* Displacement is what changes management, and no cleared product reports
-it.
+So the honest data request is: all trauma spine radiographs in the log; CT *reports* for the
+same encounters; and CT *images* only for the paired subset used for the level-naming
+check. Everything else about the model can be built without touching DMC CT at all.
 
-**What we already hold.** CTSpinoPelvic1K is an openly licensed release of 802 CT records
-placing spine, sacrum, hips, femora and per-level ribs on one coordinate frame, with explicit
-classes for a sixth lumbar vertebra, a thirteenth thoracic vertebra, a separately carved
-first sacral segment, and lumbar ribs.^7^ It was built to test whether local morphology alone
-can name a structure without the global count, and it ships per-level morphometry and
-validated spinopelvic parameters.
+# What we would pull from the protocol
 
-# Public data available for pretraining
+From the trauma log and PACS, for patients already captured under the Trauma QI protocol:
 
-No DMC data is needed to build the first working model. The following are openly available
-and cover the three outputs above:
+- Thoracolumbar and lumbar spine radiographs (AP and lateral), with the dictated report.
+- The CT report for any spine CT in the same encounter.
+- CT images for the subset of encounters with both a radiograph and a spine CT.
+- Age, sex, mechanism, and whether the injury was operative. No names, MRNs, or dates
+  leave the DMC environment; the study ID is generated at pull.
 
-| Dataset | Size | What it supplies |
-|---|---|---|
-| FracAtlas^8^ | 4,083 radiographs | Fracture **segmentation masks** — the outline task |
-| GRAZPEDWRI-DX | 20,327 images, 6,091 patients | 67,771 annotated objects: fractures, implants, boxes and polygons |
-| VinDr-SpineXR | 10,469 spine radiographs | Lesion boxes, 13 categories — spine-specific |
-| VinDr-RibCXR | chest radiographs | Individual **rib segmentation and labeling** |
-| MURA | 40,561 radiographs | Large-scale normal/abnormal pretraining (no localization) |
-| RSNA Cervical Spine Fracture | CT | Fracture supervision in 3D |
-| CTSpinoPelvic1K^7^ | 802 CT | Correct level, rib number and side under variant anatomy |
+A retrospective, de-identified pull. Volume to be set with the lab once we know the log's
+date range.
 
-The gap none of them fill is the pairing of a radiograph with a correct anatomic name under
-transitional anatomy — which is why the CT corpus matters: digitally reconstructed
-radiographs generated from it carry labels that are already correct, supervision unobtainable
-from radiographs alone, because on a radiograph the correct name is precisely what is
-unknown.
+# What we would do with it
 
-# What needs to be done
+**Stage 1 — build the model on public data.** This happens first and needs nothing from DMC.
+Fracture detection and outlining train on FracAtlas (4,083 radiographs with segmentation
+masks)^6^ and GRAZPEDWRI-DX (20,000 wrist films with boxes); level naming trains on
+projections rendered from CTSpinoPelvic1K plus VinDr-RibCXR for rib numbering; the
+spinopelvic measurements are already benchmarked on the CT. By the time we ask for DMC data
+we have a working model with published-benchmark numbers.
 
-**Stage 1 — Public-data model (no DMC data, no approvals needed).** Train detection and
-outline heads on FracAtlas and GRAZPEDWRI-DX; the naming head on DRRs from CTSpinoPelvic1K
-plus VinDr-RibCXR; the parameter head on the existing CT-derived measurements. Deliverable: a
-model with published-benchmark performance, built entirely on public data.
+**Stage 2 — refine on DMC radiographs.** Fine-tune on the de-identified trauma films so the
+model has seen our scanners, our protocols, and our patients.
 
-**Stage 2 — DMC refinement (research use only).** A retrospective, de-identified cohort of
-DMC trauma radiographs with paired CT from the same encounter. CT settles both fracture and
-name and becomes the reference standard. Fine-tune for local scanner, protocol and
-population.
+**Stage 3 — evaluate against CT.** On a held-out set never used for training, report:
 
-**Stage 3 — Validation and evaluation.** Held-out DMC cases never used in training, reported
-in the terms decisions are made in: sensitivity for injuries missed on the initial film and
-found on subsequent CT; naming accuracy against CT, **stratified into ordinary and
-transitional anatomy**, since aggregate accuracy hides failure in exactly the 4–30% where the
-question is hard; outline agreement (Dice) against CT-derived fracture extent; displacement
-against the dictated report; spinopelvic parameters against the published error bands.^3^
+- Sensitivity for fractures that were missed on the initial film and found on CT. That is
+  the number that matters clinically, not just an AUC.
+- Level agreement with CT, reported separately for normal and transitional spines. Averaging
+  the two hides the failure in the 4–30% where it actually happens.
+- Displacement call against the report.
+- Spinopelvic parameters against manual measurement, compared with the published error bands
+  (pooled mean absolute error for pelvic incidence is about 4°).^7^
 
-*Scope note: the CT corpus reaches the axial skeleton, hips and proximal femur. Long bones
-below the femur would need a separate imaging source and are a later extension.*
+# Where the data lives
 
-# Regulatory and institutional pathway
+All DMC imaging is de-identified before it leaves the DMC environment and is then stored and
+processed only on Wayne State research computing — the WSU high-performance cluster, where
+our CT pipeline already runs. Nothing goes to a personal machine, a personal cloud account,
+commercial cloud compute, or any third-party AI service. The models are open-weight and
+trained locally, so no patient image ever leaves institutional storage. Access to the study
+directory is limited to named study personnel. Any linkage to the record stays inside DMC
+under the protocol.
 
-**This is research, not clinical use, and the distinction is deliberate.** All analysis is
-retrospective on completed encounters. No output is placed in the medical record, returned to
-a treating clinician, or used in any care decision. A model used this way is not a medical
-device; prospective use at the point of care would be, and is explicitly out of scope.
+What gets published is model weights and aggregate numbers, not images. If a figure needs an
+example radiograph we use a public-dataset case.
 
-**IRB — this study requires approval, and that is not the pathway our existing work used.**
-The CTSpinoPelvic1K dataset work received a Non-Human Participant Research determination
-(WSU IRB HPR 2026-269, 2 September 2026) because it is built entirely from publicly released,
-already de-identified imaging; that letter itself notes that changes to the study plan may
-affect the determination. **This
-proposal is categorically different: it draws imaging and reports from DMC patients' own
-records, which is human subjects research and requires IRB review and approval.** That the
-data is de-identified before analysis does not change it, because assembling the cohort
-requires reaching identifiers in the first place.
+# What we are asking of the lab
 
-A full protocol will therefore be submitted to the WSU IRB (irb.wayne.edu, 313-577-1628).
-Retrospective review of records collected for clinical purposes is commonly eligible for
-expedited review, and studies of this design commonly request a waiver of informed consent
-and a HIPAA waiver of authorization — but the review category and the waivers are the IRB's
-determination to make, and are named here as what will be requested rather than what applies.
-De-identification and DICOM header scrubbing occur under the approved protocol, before any
-imaging is used for model development.
+- A query of the trauma log for encounters with spine radiographs and the corresponding CT
+  reports, and an imaging pull for those encounters.
+- Confirmation from the IRB manager that this analysis sits within the protocol's scope as
+  written, or what would need to be added if it does not.
+- A point of contact for questions about the log's fields.
 
-**Two approvals, not one.** The determination letter for our existing work states that
-projects must obtain support from any unaffiliated institution involved, and names DMC among
-the applicable affiliates. **DMC authorization is therefore a separate approval from Wayne
-State's**, and both are needed before imaging moves. The same letter notes that work touching
-identifiable PHI must adhere to HIPAA regardless of the human-participant question and may
-require authorization from the covered entity's privacy officer.
-
-**AI platform authorization — the step most people miss.** The determination letter issued
-for our existing dataset work carries a condition that will apply here too and is easy to
-overlook: *"for the use of AI platforms in research,
-please consult with C&IT regarding authorization to use external software."* The route is the
-Academic Research Technology team at **services@wayne.edu**. This is worth resolving early,
-and it argues for training on **WSU-managed compute** rather than commercial cloud or external
-model APIs — doing so keeps the data inside the institution and avoids the external-software
-authorization question entirely.
-
-# Data handling and computing environment
-
-**Nothing leaves Wayne State.** All imaging is stored on WSU-managed research storage and
-processed on the WSU high-performance computing cluster (the Grid). No patient imaging is
-copied to personal machines, personal cloud accounts, commercial cloud compute, or any
-third-party model or inference API. Models are open-weight and trained locally, so there is
-no external software to authorize under the determination letter's AI-platform condition —
-the condition is answered by not using one. Academic Research Technology
-(services@wayne.edu) will be consulted before any tool outside that boundary is added.
-
-**What is already in place.** The investigator holds an active Grid account with roughly
-5 TB of allocated storage and access to NVIDIA H200 NVL GPU nodes under SLURM, on which the
-CTSpinoPelvic1K pipeline already runs. Stage 1 needs nothing further.
-
-**What will be requested, and from where.** C&IT's Research Technology service catalog
-(services.wayne.edu → Research technology) is the single intake for the resources this
-project needs:
-
-| Service | Used for | What WSU documents |
-|---|---|---|
-| High performance computing | GPU training; existing account | No cost; any WSU faculty, staff or student with an AccessID and a research task; new accounts within two business days; allocation first come, first served |
-| Research storage request | A group directory for the DMC cohort, sized to the cohort | Quota checked with `wsuquota`; additional space requested in GB; Panasas tiers, Tier 1 backed up for two weeks |
-| Research consulting | Confirming the storage tier and any control needed for the cohort | Advisory; also the stated route for grant-support questions |
-| Research data request | If DMC imaging is delivered through a WSU broker rather than directly | Form-based |
-
-The catalog states no lead times beyond account creation, so the storage request will be
-filed as soon as the cohort size is known rather than when the imaging is ready to move.
-
-**The one thing WSU does not document, and how the design makes it moot.** No public WSU
-page states whether identifiable PHI may be placed on the Grid; the Confidential Information
-Policy (07-2) classifies PHI and personal information collected under IRB-approved protocols
-as confidential data with access limited to those whose duties require it, but does not name
-approved systems. Rather than rely on an answer, the workflow is arranged so the question
-does not arise: **de-identification and DICOM header scrubbing occur before any imaging
-reaches the Grid.** Only de-identified imaging is stored or processed on the cluster. Any
-linkage between study identifiers and the medical record, if one is retained at all, stays
-within the DMC environment under the approved protocol and is not needed for model
-development. The permitted-systems question will still be put to hpc@wayne.edu and the
-Information Security Office before the first transfer, so that the answer is on record.
-
-**Two stages, different exposure.** Stage 1 uses only public datasets and digitally
-reconstructed radiographs from an already-published, de-identified CT release — no PHI, so
-the model is built and benchmarked before any DMC data is requested. Only Stages 2 and 3
-touch institutional imaging, and only in de-identified form.
-
-**Access, retention and publication.** Access to the study directory is limited to named
-study personnel. Retention and destruction follow the approved protocol and institutional
-policy. What is published is trained model weights and aggregate performance figures, not
-imaging; any figure showing a radiograph would use a public-dataset case or require separate
-authorization.
-
-# What is being asked
-
-- **Access to a retrospective DMC trauma imaging cohort** — paired radiographs and CT from
-  the same encounter — under an approved IRB protocol.
-- **Clinical framing and endpoint selection:** which outputs would change a decision, and at
-  what operating point a missed injury is worse than a false alarm.
-- **Co-investigator standing**, and guidance on where such a tool could eventually fit if the
-  research phase justified a clinical evaluation.
-
-Radiological adjudication is covered by two radiology collaborators supporting the existing
-dataset work; no reading burden falls on the trauma service.
-
-*[Cohort size, date range, scope, effort and authorship to be discussed.]*
+Radiology reads for label adjudication are already covered by two radiology residents who
+work with us on the CT dataset. There is no reading burden on the trauma service.
 
 # References
 
 1. GLEAMER BoneView: FDA 510(k) clearance, March 2022; deployment and reader-study figures as
-   reported by the manufacturer and trade press. <https://www.gleamer.ai>
-2. Zhang H, Xu R, Guo X, et al. Deep learning-based automated high-accuracy location and
-   identification of fresh vertebral compression fractures from spinal radiographs: a
-   multicenter cohort study. *Front Bioeng Biotechnol.* 2024;12:1397003.
-   doi:10.3389/fbioe.2024.1397003
-3. Glaser D, AlMekkawi AK, Caruso JP, et al. Deep learning for automated spinopelvic
-   parameter measurement from radiographs: a meta-analysis. *Artif Intell Surg.* 2025;5:1–15.
-   doi:10.20517/ais.2024.36
-4. Konin GP, Walz DM. Lumbosacral transitional vertebrae: classification, imaging findings,
+   reported by the manufacturer. https://www.gleamer.ai
+2. Konin GP, Walz DM. Lumbosacral transitional vertebrae: classification, imaging findings,
    and clinical relevance. *AJNR Am J Neuroradiol.* 2010;31(10):1778–1786.
    doi:10.3174/ajnr.A2036
-5. Lian J, Levine N, Cho W. A review of lumbosacral transitional vertebrae and associated
+3. Lian J, Levine N, Cho W. A review of lumbosacral transitional vertebrae and associated
    vertebral numeration. *Eur Spine J.* 2018;27(5):995–1004. doi:10.1007/s00586-018-5554-8
-6. Epstein NE. A perspective on wrong level, wrong side, and wrong site spine surgery.
+4. Epstein NE. A perspective on wrong level, wrong side, and wrong site spine surgery.
    *Surg Neurol Int.* 2021;12:286. doi:10.25259/SNI_402_2021
-7. Schwing G, et al. CTSpinoPelvic1K: spine, pelvis, ribs and femora in one coordinate frame,
+5. Schwing G, et al. CTSpinoPelvic1K: spine, pelvis, ribs and femora in one coordinate frame,
    annotated for lumbosacral transitional anatomy. Zenodo. doi:10.5281/zenodo.22139642
-   (concept; v7 at doi:10.5281/zenodo.22242745). Dataset descriptor in preparation.
-8. Abedeen I, Rahman MA, Prottyasha FZ, et al. FracAtlas: a dataset for fracture
+   (v7 at doi:10.5281/zenodo.22242745). Dataset descriptor in preparation.
+6. Abedeen I, Rahman MA, Prottyasha FZ, et al. FracAtlas: a dataset for fracture
    classification, localization and segmentation of musculoskeletal radiographs.
    *Sci Data.* 2023;10:521. doi:10.1038/s41597-023-02432-4
+7. Glaser D, AlMekkawi AK, Caruso JP, et al. Deep learning for automated spinopelvic
+   parameter measurement from radiographs: a meta-analysis. *Artif Intell Surg.*
+   2025;5:1–15. doi:10.20517/ais.2024.36
