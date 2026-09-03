@@ -123,8 +123,10 @@ a treating clinician, or used in any care decision. A model used this way is not
 device; prospective use at the point of care would be, and is explicitly out of scope.
 
 **IRB — this study requires approval, and that is not the pathway our existing work used.**
-The CTSpinoPelvic1K dataset work received a Not Human Participant Research determination
-because it is built entirely from publicly released, already de-identified imaging. **This
+The CTSpinoPelvic1K dataset work received a Non-Human Participant Research determination
+(WSU IRB HPR 2026-269, 2 September 2026) because it is built entirely from publicly released,
+already de-identified imaging; that letter itself notes that changes to the study plan may
+affect the determination. **This
 proposal is categorically different: it draws imaging and reports from DMC patients' own
 records, which is human subjects research and requires IRB review and approval.** That the
 data is de-identified before analysis does not change it, because assembling the cohort
@@ -138,6 +140,13 @@ determination to make, and are named here as what will be requested rather than 
 De-identification and DICOM header scrubbing occur under the approved protocol, before any
 imaging is used for model development.
 
+**Two approvals, not one.** The determination letter for our existing work states that
+projects must obtain support from any unaffiliated institution involved, and names DMC among
+the applicable affiliates. **DMC authorization is therefore a separate approval from Wayne
+State's**, and both are needed before imaging moves. The same letter notes that work touching
+identifiable PHI must adhere to HIPAA regardless of the human-participant question and may
+require authorization from the covered entity's privacy officer.
+
 **AI platform authorization — the step most people miss.** The determination letter issued
 for our existing dataset work carries a condition that will apply here too and is easy to
 overlook: *"for the use of AI platforms in research,
@@ -146,6 +155,36 @@ Academic Research Technology team at **services@wayne.edu**. This is worth resol
 and it argues for training on **WSU-managed compute** rather than commercial cloud or external
 model APIs — doing so keeps the data inside the institution and avoids the external-software
 authorization question entirely.
+
+# Data handling and computing environment
+
+**Nothing leaves Wayne State.** All DMC imaging is stored on WSU-managed research storage and
+processed on WSU-managed research computing. No patient imaging is copied to personal
+machines, personal cloud accounts, commercial cloud compute, or any third-party model or
+inference API. Model training runs on the WSU high-performance computing cluster under the
+investigator's existing account.
+
+**This is deliberate, not incidental.** The determination letter's condition on external AI
+platforms is answered by not using any: models are open-weight and trained locally, so there
+is no external software to authorize and no route by which imaging could reach a vendor.
+Academic Research Technology (services@wayne.edu) will be consulted before any tool outside
+that boundary is added.
+
+**The two stages have different exposure, and the plan exploits that.** Stage 1 uses only
+public datasets and digitally reconstructed radiographs from an already-published,
+de-identified CT release — no PHI is involved, so the model can be built and benchmarked
+before any DMC data is requested. Only Stages 2 and 3 touch institutional imaging.
+
+**Handling under the approved protocol.** Imaging is pulled by an honest broker where
+required, de-identified with DICOM header scrubbing and removal of burned-in annotation
+before analysis, and stored with access limited to named study personnel. The linkage
+between study identifiers and the medical record, if one is retained, is held separately
+under the protocol's terms and is not required for model development. Retention and
+destruction follow the approved protocol and institutional policy.
+
+**What is published.** Trained model weights and aggregate performance figures, not imaging.
+Any figure showing a radiograph would use a public-dataset case or require separate
+authorization.
 
 # What is being asked
 
