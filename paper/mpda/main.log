@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  3 SEP 2026 09:10
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  3 SEP 2026 11:09
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -639,48 +639,49 @@ File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 <figures/fig_priorart.pdf, id=150, 815.23125pt x 267.75972pt>
 File: figures/fig_priorart.pdf Graphic file (type pdf)
 <use figures/fig_priorart.pdf>
-Package pdftex.def Info: figures/fig_priorart.pdf  used on input line 258.
+Package pdftex.def Info: figures/fig_priorart.pdf  used on input line 261.
 (pdftex.def)             Requested size: 468.0pt x 153.7114pt.
  [5 <./figures/fig_priorart.pdf>] [6] [7] [8]
 <figures/fig_anchors.pdf, id=243, 673.12538pt x 198.75566pt>
 File: figures/fig_anchors.pdf Graphic file (type pdf)
 <use figures/fig_anchors.pdf>
-Package pdftex.def Info: figures/fig_anchors.pdf  used on input line 409.
+Package pdftex.def Info: figures/fig_anchors.pdf  used on input line 412.
 (pdftex.def)             Requested size: 468.0pt x 138.19087pt.
- [9 <./figures/fig_anchors.pdf>]
-Overfull \hbox (5.94673pt too wide) in paragraph at lines 462--467
+ [9 <./figures/fig_anchors.pdf>] [10]
+Overfull \hbox (5.94673pt too wide) in paragraph at lines 465--470
 []\OT1/cmr/m/it/12 Generative ar-ti-fi-cial in-tel-li-gence. \OT1/cmr/m/n/12 Large-language-model as-sis-tance was used for manuscript
  []
 
-[10] [11] [12] [13] [14] [15]
+[11] [12] [13] [14] [15]
 <figures/fig_countfree.pdf, id=343, 509.01744pt x 177.54282pt>
 File: figures/fig_countfree.pdf Graphic file (type pdf)
 <use figures/fig_countfree.pdf>
-Package pdftex.def Info: figures/fig_countfree.pdf  used on input line 681.
+Package pdftex.def Info: figures/fig_countfree.pdf  used on input line 684.
 (pdftex.def)             Requested size: 468.0pt x 163.24112pt.
-<figures/fig_validation.pdf, id=346, 509.01744pt x 134.18082pt>
+ [16 <./figures/fig_countfree.pdf>]
+<figures/fig_validation.pdf, id=401, 509.01744pt x 134.18082pt>
 File: figures/fig_validation.pdf Graphic file (type pdf)
 <use figures/fig_validation.pdf>
-Package pdftex.def Info: figures/fig_validation.pdf  used on input line 712.
+Package pdftex.def Info: figures/fig_validation.pdf  used on input line 715.
 (pdftex.def)             Requested size: 468.0pt x 123.37207pt.
- [16 <./figures/fig_countfree.pdf>] [17 <./figures/fig_validation.pdf>]
-<figures/fig_levelatlas.pdf, id=447, 506.88995pt x 302.18257pt>
+ [17 <./figures/fig_validation.pdf>]
+<figures/fig_levelatlas.pdf, id=446, 506.88995pt x 302.18257pt>
 File: figures/fig_levelatlas.pdf Graphic file (type pdf)
 <use figures/fig_levelatlas.pdf>
-Package pdftex.def Info: figures/fig_levelatlas.pdf  used on input line 754.
+Package pdftex.def Info: figures/fig_levelatlas.pdf  used on input line 757.
 (pdftex.def)             Requested size: 468.0pt x 279.00267pt.
- [18 <./figures/fig_levelatlas.pdf>] [19] [20]
-Underfull \hbox (badness 2042) in paragraph at lines 910--914
+ [18 <./figures/fig_levelatlas.pdf>] [19] [20] [21]
+Underfull \hbox (badness 2042) in paragraph at lines 913--917
 []\OT1/cmr/m/n/12 A. Sekuboy-ina et al.,  VerSe: a ver-te-brae la-belling and seg-men-ta-tion bench-
  []
 
 
-Underfull \hbox (badness 3240) in paragraph at lines 910--914
+Underfull \hbox (badness 3240) in paragraph at lines 913--917
 \OT1/cmr/m/n/12 mark for multi-detector CT im-ages,  Med. Im-age Anal. \OT1/cmr/bx/n/12 73\OT1/cmr/m/n/12 , 102166 (2021),
  []
 
-[21]
-Underfull \hbox (badness 4156) in paragraph at lines 922--926
+
+Underfull \hbox (badness 4156) in paragraph at lines 925--929
 []\OT1/cmr/m/n/12 L. Jin et al.,  Rib-Seg v2: a large-scale bench-mark for rib la-bel-ing and
  []
 
@@ -696,14 +697,14 @@ Package rerunfilecheck Info: File `main.out' has not changed.
  ) 
 Here is how much of TeX's memory you used:
  25955 strings out of 469089
- 520544 string characters out of 5459054
- 894787 words of memory out of 5000000
+ 520543 string characters out of 5459054
+ 895787 words of memory out of 5000000
  54593 multiletter control sequences out of 15000+600000
  636930 words of font info for 74 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 92i,10n,104p,1007b,1222s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 92i,10n,104p,1007b,1210s stack positions out of 10000i,1000n,20000p,200000b,200000s
  </home/gschwing/.TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1200.600pk></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmcsc10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt12.pfb>
-Output written on main.pdf (23 pages, 726400 bytes).
+Output written on main.pdf (23 pages, 726366 bytes).
 PDF statistics:
  633 PDF objects out of 1000 (max. 8388607)
  363 compressed objects within 4 object streams
