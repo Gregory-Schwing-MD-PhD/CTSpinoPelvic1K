@@ -144,28 +144,29 @@
 \begin{abstract}
 \textbf{Purpose:} Lumbar levels cannot be numbered reliably when a lumbosacral transitional
 vertebra (LSTV) is present. Levels are conventionally established by counting downward from
-C2, the reference standard for vertebral numeration~\cite{lian2018}. An abdominal field of
+C2, the reference standard for numeration~\cite{lian2018}. An abdominal field of
 view lacks that landmark, leaving a specific ambiguity: four rib-free lumbar
 vertebrae may mean an L1 bearing a lumbar rib or an L5 assimilated to the sacrum, and six
 may mean a true sixth lumbar vertebra or a T12 whose ribs are
 aplastic~\cite{koninwalz2010}. CTSpinoPelvic1K is built to test whether local morphology
 can resolve them without counting from the C2 anchor. It provides 802 CT records anchoring each lumbar level on
 the lowest rib-bearing vertebra above and the first sacral segment below, with
-radiologist-sourced spine \emph{and} pelvic annotation on one coordinate frame, per-level
-ribs and femora. Classes for a sixth lumbar vertebra, a thirteenth thoracic
-vertebra, a separate first sacral segment, and lumbar ribs record a variant as itself. For lumbosacral surgical planning and level-numbering research.
+radiologist-sourced spine \emph{and} pelvic annotation on one frame, per-level ribs and femora. Classes for a sixth lumbar vertebra, a thirteenth thoracic
+vertebra, a separate first sacral segment, and lumbar ribs make the set expressive enough for anatomical anomalies.
 
 \textbf{Acquisition and Validation Methods:} Records pair TCIA CT~COLONOGRAPHY imaging with
-CTSpine1K~\cite{ctspine1k} vertebral and CTPelvic1K~\cite{ctpelvic1k} pelvic labels, each
-placed on the acquisition with highest bone coverage, unified under a VerSe-native scheme. Validation: geometric invariants (802/802 pass); rib--vertebra incidence across 5{,}749 evaluable ribs (2 offsets,
-0.035\%); and agreement of derived spinopelvic measures with published values.
+CTSpine1K~\cite{ctspine1k} vertebral and CTPelvic1K~\cite{ctpelvic1k} pelvic labels on the acquisition with highest bone coverage, under a VerSe-native scheme. Validation: geometric invariants (802/802 pass); rib--vertebra incidence across 5{,}749 evaluable ribs (2 offsets,
+0.035\%); and agreement of spinopelvic measures with published values.
 
-\textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs sharing one affine, canonicalized to PIR, with frozen patient-grouped LSTV-stratified five-fold splits and a reference loader. Archived at \datasetdoi.
+\textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs sharing one affine, canonicalized to PIR, with frozen patient-grouped LSTV-stratified five-fold splits and a reference loader; archived at \datasetdoi.
 
-\textbf{Potential Applications:} Segmentation and level-numbering benchmarks, variant studies, surgical planning, opportunistic screening.
-\emph{Limitations:} thoracic ground truth is field-of-view limited; postural angles are
-supine; splits include no held-out test set; the rib layer is a pseudolabel whose review was triaged, not exhaustive; and the Castellvi grades were assigned by a radiology
-resident physician.
+\textbf{Potential Applications:} Testing whether a network can classify a vertebra from
+local features alone; reference morphometry at cohort scale against small cadaveric series;
+spinopelvic assessment at the lumbosacral interface; variant studies; opportunistic
+screening.
+\emph{Limitations:} thoracic ground truth is field-of-view limited; postural
+angles supine; no held-out test set; the rib layer is a triaged-review pseudolabel;
+Castellvi grades assigned by a radiology resident physician.
 \end{abstract}
 
 \maketitle
