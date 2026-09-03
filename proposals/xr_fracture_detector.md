@@ -122,14 +122,25 @@ retrospective on completed encounters. No output is placed in the medical record
 a treating clinician, or used in any care decision. A model used this way is not a medical
 device; prospective use at the point of care would be, and is explicitly out of scope.
 
-**IRB.** Our existing dataset work received a **Not Human Participant Research determination**
-from the WSU IRB. A retrospective de-identified DMC cohort follows the same pathway and needs
-its own determination through the IRB Administration Office (irb.wayne.edu, 313-577-1628).
-De-identification and DICOM header scrubbing occur before any imaging leaves the institutional
-environment.
+**IRB — this study requires approval, and that is not the pathway our existing work used.**
+The CTSpinoPelvic1K dataset work received a Not Human Participant Research determination
+because it is built entirely from publicly released, already de-identified imaging. **This
+proposal is categorically different: it draws imaging and reports from DMC patients' own
+records, which is human subjects research and requires IRB review and approval.** That the
+data is de-identified before analysis does not change it, because assembling the cohort
+requires reaching identifiers in the first place.
 
-**AI platform authorization — the step most people miss.** The IRB's determination letter
-carries a condition that is easy to overlook: *"for the use of AI platforms in research,
+A full protocol will therefore be submitted to the WSU IRB (irb.wayne.edu, 313-577-1628).
+Retrospective review of records collected for clinical purposes is commonly eligible for
+expedited review, and studies of this design commonly request a waiver of informed consent
+and a HIPAA waiver of authorization — but the review category and the waivers are the IRB's
+determination to make, and are named here as what will be requested rather than what applies.
+De-identification and DICOM header scrubbing occur under the approved protocol, before any
+imaging is used for model development.
+
+**AI platform authorization — the step most people miss.** The determination letter issued
+for our existing dataset work carries a condition that will apply here too and is easy to
+overlook: *"for the use of AI platforms in research,
 please consult with C&IT regarding authorization to use external software."* The route is the
 Academic Research Technology team at **services@wayne.edu**. This is worth resolving early,
 and it argues for training on **WSU-managed compute** rather than commercial cloud or external
@@ -139,7 +150,7 @@ authorization question entirely.
 # What is being asked
 
 - **Access to a retrospective DMC trauma imaging cohort** — paired radiographs and CT from
-  the same encounter — under the determination above.
+  the same encounter — under an approved IRB protocol.
 - **Clinical framing and endpoint selection:** which outputs would change a decision, and at
   what operating point a missed injury is worse than a false alarm.
 - **Co-investigator standing**, and guidance on where such a tool could eventually fit if the
