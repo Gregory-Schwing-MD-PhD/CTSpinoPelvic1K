@@ -30,6 +30,13 @@ and more than 10,000 radiographs reported a pooled mean absolute error of 4.1° 
 2.7–5.5) for pelvic incidence, with intraclass correlation coefficients above 0.81 against
 human measurement.^2^
 
+**Where this sits in trauma care.** Radiographs are what the patient gets first, and three
+decisions follow from them: whether a fracture has been missed and will surface on a later
+CT, whether a CT is obtained that the films could have settled, and — if the injury is
+operative — which vertebra the plan is written against. The third is where an automated
+reader can do harm rather than none: a confident level that is wrong is worse than no level
+at all, and it is wrong most often in the patients whose anatomy is unusual.
+
 **Both lines of work take the vertebral level as given, and that is the weak joint.** A
 detector that reports a fracture at "L1" is counting, and the count is exactly what fails in
 the population where it matters. Lumbosacral transitional vertebrae are reported in 4–30% of
@@ -91,11 +98,13 @@ what is unknown.
 capture scanner, protocol and population differences from the screening cohort
 CTSpinoPelvic1K was drawn from.
 
-**Evaluation.** Fracture detection against radiologist-adjudicated labels with external
-comparison to published benchmarks.^1^ Level assignment against CT ground truth, reported
-separately for anatomically ordinary and transitional cases — the stratification is the
-point, since aggregate accuracy hides failure in the 4–30% where the question is hard.
-Spinopelvic parameters against manual measurement and against the published error bands.^2^
+**Evaluation.** Reported in the terms the decisions are made in, not only as summary
+statistics. For fracture detection: sensitivity for injuries missed on the initial film and
+identified on subsequent CT, alongside AUC for comparison with published benchmarks.^1^ For
+level assignment: agreement with CT ground truth, reported **separately for anatomically
+ordinary and transitional cases** — the stratification is the point, since aggregate accuracy
+hides failure in exactly the 4–30% where the question is hard. For spinopelvic parameters:
+agreement with manual measurement against the published error bands.^2^
 
 # Why this is feasible here
 
@@ -107,12 +116,20 @@ imaging and radiological supervision, which is the collaboration being proposed.
 
 # What is being asked
 
-- Access to a retrospective DMC trauma radiograph and CT cohort, under an approved protocol.
-- Radiological supervision for label adjudication on a review subset.
-- Guidance on clinical framing and the reporting endpoints that would matter in practice.
+- **Access to a retrospective DMC trauma imaging cohort** — paired radiographs and CT from
+  the same encounter — under an approved protocol.
+- **Clinical framing and endpoint selection.** Which outputs would change a decision, and at
+  what operating point a missed injury is worse than a false alarm. This is the part the
+  published work gets wrong most often and the part a trauma surgeon is best placed to fix.
+- **Co-investigator standing** on the protocol, and guidance on the trauma-service workflow
+  any eventual tool would have to fit.
 
-*[Scope, effort and authorship expectations to be discussed. IRB determination for the
-retrospective cohort to be filed once the data request is defined.]*
+Radiological adjudication of the label subset is already covered: two radiology
+collaborators support the existing dataset work, so no reading burden falls on the trauma
+service.
+
+*[Cohort size, date range, scope, effort and authorship to be discussed. IRB determination
+to be filed once the data request is defined.]*
 
 # References
 
