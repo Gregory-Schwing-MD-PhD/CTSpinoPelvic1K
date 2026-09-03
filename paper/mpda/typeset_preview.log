@@ -2,8 +2,8 @@ This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded forma
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
-**main
-(./main.tex
+**typeset_preview
+(./typeset_preview.tex
 LaTeX2e <2026-06-01>
 L3 programming layer <2026-08-10>
 (/home/gschwing/.TinyTeX/texmf-dist/tex/latex/revtex/revtex4-2.cls
@@ -78,12 +78,12 @@ Applying: [2015/01/01] Make \] robust on input line 74.
 LaTeX Info: Redefining \] on input line 75.
 Already applied: [0000/00/00] Make \] robust on input line 83.
 )
-Class revtex4-2 Info: Reading file aps12pt4-2.rtx on input line 7674.
- (/home/gschwing/.TinyTeX/texmf-dist/tex/latex/revtex/aps12pt4-2.rtx
-File: aps12pt4-2 2022/06/05 4.2f (https://journals.aps.org/revtex/ for documentation)
-Class revtex4-2 Info: RevTeX pointsize 12pt selected on input line 39.
+Class revtex4-2 Info: Reading file aps10pt4-2.rtx on input line 7674.
+ (/home/gschwing/.TinyTeX/texmf-dist/tex/latex/revtex/aps10pt4-2.rtx
+File: aps10pt4-2 2022/06/05 4.2f (https://journals.aps.org/revtex/ for documentation)
+Class revtex4-2 Info: RevTeX pointsize 10pt selected on input line 39.
 )
-Class revtex4-2 Info: Overriding 12pt on input line 7674.
+Class revtex4-2 Info: Overriding 10pt on input line 7674.
  (/home/gschwing/.TinyTeX/texmf-dist/tex/latex/textcase/textcase.sty
 Package: textcase 2025/02/16 v1.05 Text only upper/lower case changing (DPC)
 Package textcase Info: Defining Legacy names on input line 20.
@@ -575,8 +575,8 @@ Class revtex4-2 Info: multicol was not loaded (OK!) on input line 108.
  (/home/gschwing/.TinyTeX/texmf-dist/tex/latex/l3kernel/l3backend-pdftex.def
 File: l3backend-pdftex.def 2026-08-10 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count356
-) (./main.aux)
-\openout1 = `main.aux'.
+) (./typeset_preview.aux)
+\openout1 = `typeset_preview.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 108.
 LaTeX Font Info:    ... okay on input line 108.
@@ -603,31 +603,13 @@ Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 48
 File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Live
 ))
 Package hyperref Info: Link coloring ON on input line 108.
- (./main.out) (./main.out)
+ (./typeset_preview.out) (./typeset_preview.out)
 \@outlinefile=\write5
-\openout5 = `main.out'.
+\openout5 = `typeset_preview.out'.
 
 Class revtex4-2 Info: Taking \maketitle back from hyperref on input line 108.
-\openout3 = `mainNotes.bib'.
+\openout3 = `typeset_previewNotes.bib'.
 
- (/home/gschwing/.TinyTeX/texmf-dist/tex/latex/lineno/lineno.sty
-Package: lineno 2026/03/08 line numbers on paragraphs v5.9
-\linenopenalty=\count357
-\output=\toks39
-\linenoprevgraf=\count358
-\linenumbersep=\dimen295
-\linenumberwidth=\dimen296
-\c@linenumber=\count359
-\c@pagewiselinenumber=\count360
-\c@LN@truepage=\count361
-\c@internallinenumber=\count362
-\c@internallinenumbers=\count363
-\quotelinenumbersep=\dimen297
-\bframerule=\dimen298
-\bframesep=\dimen299
-\bframebox=\box95
-\@LN@amsmath@ams@eqpen=\count364
-)
 LaTeX Font Info:    Trying to load font information for U+msa on input line 147.
  (/home/gschwing/.TinyTeX/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
@@ -635,78 +617,105 @@ File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 LaTeX Font Info:    Trying to load font information for U+msb on input line 147.
  (/home/gschwing/.TinyTeX/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
-) [1{/home/gschwing/.TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}] [2] [3]
-<figures/fig_priorart.pdf, id=145, 815.23125pt x 267.75972pt>
+) [1{/home/gschwing/.TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}]
+
+LaTeX Font Warning: Font shape `OT1/cmss/m/n' in size <9.5> not available
+(Font)              size <9> substituted on input line 214.
+
+
+LaTeX Font Warning: Font shape `OT1/cmss/bx/n' in size <9.5> not available
+(Font)              size <9> substituted on input line 214.
+
+<figures/fig_priorart.pdf, id=131, 815.23125pt x 267.75972pt>
 File: figures/fig_priorart.pdf Graphic file (type pdf)
 <use figures/fig_priorart.pdf>
 Package pdftex.def Info: figures/fig_priorart.pdf  used on input line 252.
-(pdftex.def)             Requested size: 468.0pt x 153.7114pt.
- [4] [5 <./figures/fig_priorart.pdf>] [6] [7] [8]
-<figures/fig_anchors.pdf, id=242, 673.12538pt x 198.75566pt>
+(pdftex.def)             Requested size: 510.0pt x 167.50874pt.
+[2] [3 <./figures/fig_priorart.pdf>]
+<figures/fig_anchors.pdf, id=214, 673.12538pt x 198.75566pt>
 File: figures/fig_anchors.pdf Graphic file (type pdf)
 <use figures/fig_anchors.pdf>
 Package pdftex.def Info: figures/fig_anchors.pdf  used on input line 403.
-(pdftex.def)             Requested size: 468.0pt x 138.19087pt.
- [9 <./figures/fig_anchors.pdf>]
-Overfull \hbox (5.94673pt too wide) in paragraph at lines 456--461
-[]\OT1/cmr/m/it/12 Generative ar-ti-fi-cial in-tel-li-gence. \OT1/cmr/m/n/12 Large-language-model as-sis-tance was used for manuscript
+(pdftex.def)             Requested size: 510.0pt x 150.59488pt.
+
+Underfull \hbox (badness 1360) in paragraph at lines 456--461
+[]\OT1/cmr/m/it/10 Generative ar-ti-fi-cial in-tel-li-gence. \OT1/cmr/m/n/10 Large-language-
  []
 
-[10] [11] [12] [13] [14] [15]
-<figures/fig_countfree.pdf, id=342, 509.01744pt x 177.54282pt>
+[4] [5 <./figures/fig_anchors.pdf>]
+Underfull \hbox (badness 10000) in paragraph at lines 619--623
+[]\OT1/cmr/m/n/10 Splits are patient-grouped and LSTV-stratified
+ []
+
+
+Underfull \hbox (badness 5970) in paragraph at lines 619--623
+\OT1/cmr/m/n/10 five-fold, frozen and shipped with the data as
+ []
+
+
+Underfull \hbox (badness 4084) in paragraph at lines 666--668
+[]\OT1/cmr/m/n/10 The archive of record is Zen-odo (10.5281/zen-
+ []
+
+<figures/fig_countfree.pdf, id=288, 509.01744pt x 177.54282pt>
 File: figures/fig_countfree.pdf Graphic file (type pdf)
 <use figures/fig_countfree.pdf>
 Package pdftex.def Info: figures/fig_countfree.pdf  used on input line 675.
-(pdftex.def)             Requested size: 468.0pt x 163.24112pt.
-<figures/fig_validation.pdf, id=345, 509.01744pt x 134.18082pt>
+(pdftex.def)             Requested size: 510.0pt x 177.88913pt.
+[6]
+<figures/fig_validation.pdf, id=301, 509.01744pt x 134.18082pt>
 File: figures/fig_validation.pdf Graphic file (type pdf)
 <use figures/fig_validation.pdf>
 Package pdftex.def Info: figures/fig_validation.pdf  used on input line 706.
-(pdftex.def)             Requested size: 468.0pt x 123.37207pt.
- [16 <./figures/fig_countfree.pdf>] [17 <./figures/fig_validation.pdf>]
-<figures/fig_levelatlas.pdf, id=446, 506.88995pt x 302.18257pt>
+(pdftex.def)             Requested size: 510.0pt x 134.44254pt.
+ [7 <./figures/fig_countfree.pdf>]
+<figures/fig_levelatlas.pdf, id=366, 506.88995pt x 302.18257pt>
 File: figures/fig_levelatlas.pdf Graphic file (type pdf)
 <use figures/fig_levelatlas.pdf>
 Package pdftex.def Info: figures/fig_levelatlas.pdf  used on input line 748.
-(pdftex.def)             Requested size: 468.0pt x 279.00267pt.
- [18 <./figures/fig_levelatlas.pdf>] [19] [20]
-Underfull \hbox (badness 2042) in paragraph at lines 908--912
-[]\OT1/cmr/m/n/12 A. Sekuboy-ina et al.,  VerSe: a ver-te-brae la-belling and seg-men-ta-tion bench-
+(pdftex.def)             Requested size: 510.0pt x 304.04463pt.
+ [8 <./figures/fig_validation.pdf>] [9 <./figures/fig_levelatlas.pdf>]
+Underfull \hbox (badness 1077) in paragraph at lines 890--894
+ []\OT1/cmr/m/n/8 G. P. Konin and D. M. Walz,  Lum-bosacral tran-si-tional
  []
 
 
-Underfull \hbox (badness 3240) in paragraph at lines 908--912
-\OT1/cmr/m/n/12 mark for multi-detector CT im-ages,  Med. Im-age Anal. \OT1/cmr/bx/n/12 73\OT1/cmr/m/n/12 , 102166 (2021),
+Underfull \hbox (badness 10000) in paragraph at lines 926--930
+ []\OT1/cmr/m/n/8 K. Smith et al.,  Data from CT COLONOG-
  []
 
-[21]
-Underfull \hbox (badness 4156) in paragraph at lines 920--924
-[]\OT1/cmr/m/n/12 L. Jin et al.,  Rib-Seg v2: a large-scale bench-mark for rib la-bel-ing and
+
+Underfull \hbox (badness 10000) in paragraph at lines 926--930
+ \OT1/cmr/m/n/8 RA-PHY,  The Can-cer Imag-ing Archive, 2015,
  []
 
-[22]
-No file main.bbl.
-[23] (./main.aux)
+No file typeset_preview.bbl.
+[10] (./typeset_preview.aux)
  ***********
 LaTeX2e <2026-06-01>
 L3 programming layer <2026-08-10>
  ***********
-Package rerunfilecheck Info: File `main.out' has not changed.
-(rerunfilecheck)             Checksum: D9134F933366C9149CCEB309653E56DA;4864.
+
+
+LaTeX Font Warning: Size substitutions with differences
+(Font)              up to 0.5pt have occurred.
+
+Package rerunfilecheck Info: File `typeset_preview.out' has not changed.
+(rerunfilecheck)             Checksum: B7D47878D7A935C808C8C40712C6C6A8;4758.
  ) 
 Here is how much of TeX's memory you used:
- 25955 strings out of 469089
- 520544 string characters out of 5459054
- 894787 words of memory out of 5000000
- 54593 multiletter control sequences out of 15000+600000
- 636930 words of font info for 74 fonts, out of 8000000 for 9000
+ 25694 strings out of 469089
+ 516385 string characters out of 5459054
+ 911797 words of memory out of 5000000
+ 54347 multiletter control sequences out of 15000+600000
+ 637381 words of font info for 76 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 92i,10n,104p,1007b,1222s stack positions out of 10000i,1000n,20000p,200000b,200000s
- </home/gschwing/.TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1200.600pk></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmcsc10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt12.pfb>
-Output written on main.pdf (23 pages, 725953 bytes).
+ 92i,10n,104p,1017b,1147s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ </home/gschwing/.TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1000.600pk></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmcsc10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti9.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt10.pfb>
+Output written on typeset_preview.pdf (10 pages, 748379 bytes).
 PDF statistics:
- 634 PDF objects out of 1000 (max. 8388607)
- 364 compressed objects within 4 object streams
- 79 named destinations out of 1000 (max. 500000)
- 230 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 577 PDF objects out of 1000 (max. 8388607)
+ 316 compressed objects within 4 object streams
+ 64 named destinations out of 1000 (max. 500000)
+ 222 words of extra memory for PDF output out of 10000 (max. 10000000)
 
