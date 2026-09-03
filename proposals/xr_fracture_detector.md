@@ -158,32 +158,53 @@ authorization question entirely.
 
 # Data handling and computing environment
 
-**Nothing leaves Wayne State.** All DMC imaging is stored on WSU-managed research storage and
-processed on WSU-managed research computing. No patient imaging is copied to personal
-machines, personal cloud accounts, commercial cloud compute, or any third-party model or
-inference API. Model training runs on the WSU high-performance computing cluster under the
-investigator's existing account.
+**Nothing leaves Wayne State.** All imaging is stored on WSU-managed research storage and
+processed on the WSU high-performance computing cluster (the Grid). No patient imaging is
+copied to personal machines, personal cloud accounts, commercial cloud compute, or any
+third-party model or inference API. Models are open-weight and trained locally, so there is
+no external software to authorize under the determination letter's AI-platform condition —
+the condition is answered by not using one. Academic Research Technology
+(services@wayne.edu) will be consulted before any tool outside that boundary is added.
 
-**This is deliberate, not incidental.** The determination letter's condition on external AI
-platforms is answered by not using any: models are open-weight and trained locally, so there
-is no external software to authorize and no route by which imaging could reach a vendor.
-Academic Research Technology (services@wayne.edu) will be consulted before any tool outside
-that boundary is added.
+**What is already in place.** The investigator holds an active Grid account with roughly
+5 TB of allocated storage and access to NVIDIA H200 NVL GPU nodes under SLURM, on which the
+CTSpinoPelvic1K pipeline already runs. Stage 1 needs nothing further.
 
-**The two stages have different exposure, and the plan exploits that.** Stage 1 uses only
-public datasets and digitally reconstructed radiographs from an already-published,
-de-identified CT release — no PHI is involved, so the model can be built and benchmarked
-before any DMC data is requested. Only Stages 2 and 3 touch institutional imaging.
+**What will be requested, and from where.** C&IT's Research Technology service catalog
+(services.wayne.edu → Research technology) is the single intake for the resources this
+project needs:
 
-**Handling under the approved protocol.** Imaging is pulled by an honest broker where
-required, de-identified with DICOM header scrubbing and removal of burned-in annotation
-before analysis, and stored with access limited to named study personnel. The linkage
-between study identifiers and the medical record, if one is retained, is held separately
-under the protocol's terms and is not required for model development. Retention and
-destruction follow the approved protocol and institutional policy.
+| Service | Used for | What WSU documents |
+|---|---|---|
+| High performance computing | GPU training; existing account | No cost; any WSU faculty, staff or student with an AccessID and a research task; new accounts within two business days; allocation first come, first served |
+| Research storage request | A group directory for the DMC cohort, sized to the cohort | Quota checked with `wsuquota`; additional space requested in GB; Panasas tiers, Tier 1 backed up for two weeks |
+| Research consulting | Confirming the storage tier and any control needed for the cohort | Advisory; also the stated route for grant-support questions |
+| Research data request | If DMC imaging is delivered through a WSU broker rather than directly | Form-based |
 
-**What is published.** Trained model weights and aggregate performance figures, not imaging.
-Any figure showing a radiograph would use a public-dataset case or require separate
+The catalog states no lead times beyond account creation, so the storage request will be
+filed as soon as the cohort size is known rather than when the imaging is ready to move.
+
+**The one thing WSU does not document, and how the design makes it moot.** No public WSU
+page states whether identifiable PHI may be placed on the Grid; the Confidential Information
+Policy (07-2) classifies PHI and personal information collected under IRB-approved protocols
+as confidential data with access limited to those whose duties require it, but does not name
+approved systems. Rather than rely on an answer, the workflow is arranged so the question
+does not arise: **de-identification and DICOM header scrubbing occur before any imaging
+reaches the Grid.** Only de-identified imaging is stored or processed on the cluster. Any
+linkage between study identifiers and the medical record, if one is retained at all, stays
+within the DMC environment under the approved protocol and is not needed for model
+development. The permitted-systems question will still be put to hpc@wayne.edu and the
+Information Security Office before the first transfer, so that the answer is on record.
+
+**Two stages, different exposure.** Stage 1 uses only public datasets and digitally
+reconstructed radiographs from an already-published, de-identified CT release — no PHI, so
+the model is built and benchmarked before any DMC data is requested. Only Stages 2 and 3
+touch institutional imaging, and only in de-identified form.
+
+**Access, retention and publication.** Access to the study directory is limited to named
+study personnel. Retention and destruction follow the approved protocol and institutional
+policy. What is published is trained model weights and aggregate performance figures, not
+imaging; any figure showing a radiograph would use a public-dataset case or require separate
 authorization.
 
 # What is being asked
