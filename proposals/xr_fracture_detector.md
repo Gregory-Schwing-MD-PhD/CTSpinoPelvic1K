@@ -112,7 +112,7 @@ The CT resource, the label scheme, the quality-control tooling and the derived m
 already exist and are openly archived.^6^ A trained annotation pipeline is running through
 OpenSpineConsortium, with medical students working case-by-case against a written protocol
 and every correction attributed. What the project needs and does not yet have is local trauma
-imaging and radiological supervision, which is the collaboration being proposed.
+imaging and the clinical judgement to aim it, which is the collaboration being proposed.
 
 # What is being asked
 
