@@ -161,12 +161,12 @@ CTSpine1K~\cite{ctspine1k} vertebral and CTPelvic1K~\cite{ctpelvic1k} pelvic lab
 \textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs sharing one affine, canonicalized to PIR, with frozen patient-grouped LSTV-stratified five-fold splits and a reference loader; archived at \datasetdoi.
 
 \textbf{Potential Applications:} Testing whether a network can classify a vertebra from
-local features alone; reference morphometry at cohort scale against small cadaveric series;
+local features alone; updating textbook morphometry drawn from small cadaveric series;
 spinopelvic assessment at the lumbosacral interface; variant studies; opportunistic
 screening.
 \emph{Limitations:} thoracic ground truth is field-of-view limited; postural
 angles supine; no held-out test set; the rib layer is a triaged-review pseudolabel;
-Castellvi grades assigned by a radiology resident physician.
+Castellvi grades assigned by two radiology resident physicians.
 \end{abstract}
 
 \maketitle
@@ -538,7 +538,7 @@ is built to show that they are: grade IIIb occurs here at rib-free counts of fou
 six alike, and seven of the 33 graded cases carry a perfectly normal count of five. A
 corpus that recorded only the count would describe those seven as unremarkable.
 
-The grades were assigned by a radiology resident physician. The distinction the classification turns on --- bony
+The grades were assigned by two radiology resident physicians. The distinction the classification turns on --- bony
 fusion against articulation without it~\cite{koninwalz2010} --- is the one carrying
 clinical weight.
 
@@ -578,8 +578,7 @@ populated in none.
 \paragraph{Detection over-calls by a factor of seven.} A threshold at 1800\,HU inside a
 shell around the labeled skeleton flags 84\ of the 802\ records. Raising it to
 2500\,HU --- the lower of the two values validated in the metal-segmentation literature ---
-leaves 52\ with a component above a 40-voxel floor. The same radiology resident physician read all
-52\ and confirmed 11, rejecting 41\ (79\%) as contrast, calcification
+leaves 52\ with a component above a 40-voxel floor. One of the two radiology resident physicians read all 52\ and confirmed 11, rejecting 41\ (79\%) as contrast, calcification
 and reconstruction artefact. Instrumentation prevalence in this cohort is 1.4\%, not the
 10.5\% an unreviewed threshold reports.
 
@@ -802,7 +801,7 @@ pseudolabeled. The rib layer is a pseudolabel whose human review was triaged by 
 automated rule rather than exhaustive, so its guarantee is the absence of the failure modes
 that rule detects. Transitional labels derive from two independent sources and are not
 uniformly adjudicated --- which is precisely why the measures reported here are count-free
---- and the Castellvi grades were assigned by a radiology resident physician.
+--- and the Castellvi grades were assigned by two radiology resident physicians.
 The sacral sub-division inherits its level from an automatic method, and in 100 records that
 level places S1 above half the sacrum or below fifteen percent of it, which no first sacral
 segment is; those records are flagged in the released quality-control table and should be

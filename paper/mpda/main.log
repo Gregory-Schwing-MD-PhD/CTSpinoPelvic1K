@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  3 SEP 2026 08:44
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  3 SEP 2026 08:49
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -656,31 +656,31 @@ Overfull \hbox (5.94673pt too wide) in paragraph at lines 457--462
 <figures/fig_countfree.pdf, id=342, 509.01744pt x 177.54282pt>
 File: figures/fig_countfree.pdf Graphic file (type pdf)
 <use figures/fig_countfree.pdf>
-Package pdftex.def Info: figures/fig_countfree.pdf  used on input line 677.
+Package pdftex.def Info: figures/fig_countfree.pdf  used on input line 676.
 (pdftex.def)             Requested size: 468.0pt x 163.24112pt.
 <figures/fig_validation.pdf, id=345, 509.01744pt x 134.18082pt>
 File: figures/fig_validation.pdf Graphic file (type pdf)
 <use figures/fig_validation.pdf>
-Package pdftex.def Info: figures/fig_validation.pdf  used on input line 708.
+Package pdftex.def Info: figures/fig_validation.pdf  used on input line 707.
 (pdftex.def)             Requested size: 468.0pt x 123.37207pt.
  [16 <./figures/fig_countfree.pdf>] [17 <./figures/fig_validation.pdf>]
 <figures/fig_levelatlas.pdf, id=446, 506.88995pt x 302.18257pt>
 File: figures/fig_levelatlas.pdf Graphic file (type pdf)
 <use figures/fig_levelatlas.pdf>
-Package pdftex.def Info: figures/fig_levelatlas.pdf  used on input line 750.
+Package pdftex.def Info: figures/fig_levelatlas.pdf  used on input line 749.
 (pdftex.def)             Requested size: 468.0pt x 279.00267pt.
  [18 <./figures/fig_levelatlas.pdf>] [19] [20]
-Underfull \hbox (badness 2042) in paragraph at lines 910--914
+Underfull \hbox (badness 2042) in paragraph at lines 909--913
 []\OT1/cmr/m/n/12 A. Sekuboy-ina et al.,  VerSe: a ver-te-brae la-belling and seg-men-ta-tion bench-
  []
 
 
-Underfull \hbox (badness 3240) in paragraph at lines 910--914
+Underfull \hbox (badness 3240) in paragraph at lines 909--913
 \OT1/cmr/m/n/12 mark for multi-detector CT im-ages,  Med. Im-age Anal. \OT1/cmr/bx/n/12 73\OT1/cmr/m/n/12 , 102166 (2021),
  []
 
 [21]
-Underfull \hbox (badness 4156) in paragraph at lines 922--926
+Underfull \hbox (badness 4156) in paragraph at lines 921--925
 []\OT1/cmr/m/n/12 L. Jin et al.,  Rib-Seg v2: a large-scale bench-mark for rib la-bel-ing and
  []
 
@@ -703,7 +703,7 @@ Here is how much of TeX's memory you used:
  14 hyphenation exceptions out of 8191
  92i,10n,104p,1007b,1222s stack positions out of 10000i,1000n,20000p,200000b,200000s
  </home/gschwing/.TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1200.600pk></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmcsc10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt12.pfb>
-Output written on main.pdf (23 pages, 726016 bytes).
+Output written on main.pdf (23 pages, 726022 bytes).
 PDF statistics:
  634 PDF objects out of 1000 (max. 8388607)
  364 compressed objects within 4 object streams
