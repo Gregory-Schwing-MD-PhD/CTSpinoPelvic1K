@@ -20,12 +20,14 @@
 
 \usepackage{graphicx}
 \usepackage[table]{xcolor}
-\definecolor{has}{RGB}{28,107,115}
-\definecolor{qual}{RGB}{184,121,31}
-\newcommand{\has}{{\color{has}\rule[-0.55ex]{12mm}{2.3ex}}}
-\newcommand{\qual}{{\color{qual}\rule[-0.55ex]{12mm}{2.3ex}}}
-\newcommand{\no}{\hspace{12mm}}
-\newcommand{\hd}[1]{\makebox[12mm]{#1}}
+% Table 1 cells. \cellw is set inside the table from \linewidth so the nine class
+% columns and the two text columns fill the text width exactly: no slack, so the
+% filled cells of neighbouring columns touch and each header sits in its own column.
+\newlength{\cellw}
+\newcommand{\has}{\rule[-0.9ex]{\cellw}{3.1ex}}
+\newcommand{\qual}{{\setlength{\fboxsep}{0pt}\setlength{\fboxrule}{0.5pt}\framebox[\cellw]{\rule[-0.6ex]{0pt}{2.4ex}}}}
+\newcommand{\no}{\hspace{\cellw}}
+\newcommand{\hd}[1]{\makebox[\cellw]{#1}}
 \usepackage{booktabs}
 \usepackage{siunitx}
 \usepackage{tikz}
@@ -282,13 +284,14 @@ information needed to settle these variants is present locally.
 
 
 \begin{table*}[t]
-\caption{Public CT collections at the lumbosacral junction. Teal, class present; amber,
+\caption{Public CT collections at the lumbosacral junction. Black, class present; outlined,
 graded only to exclude it~\cite{versedata2021}.}
 \label{tab:priorart}
 \begin{ruledtabular}
-\maxwidth{%
-% the class columns carry no intercolumn space, so adjacent coloured cells abut
-\begin{tabular}{lrl}
+% nine class columns sized to fill the text width with the two text columns: no slack,
+% so neighbouring filled cells touch and every header sits inside its own column
+\setlength{\cellw}{\dimexpr(\linewidth-50mm)/9\relax}%
+\begin{tabular}{@{}l@{}r@{\hspace{4mm}}l@{}}
 Collection & Scans & \hd{Count}\hd{L6}\hd{Sacrum}\hd{S1}\hd{Pelvis}\hd{Ribs}\hd{L.\,rib}\hd{Femora}\hd{Grade} \\ \colrule
 CTSpine1K~\cite{ctspine1k} & 1{,}005 & \has\has\no\no\no\no\no\no\no \\
 CTPelvic1K~\cite{ctpelvic1k} & 1{,}184 & \no\no\has\no\has\no\no\no\no \\
@@ -297,7 +300,6 @@ RibSeg~v2~\cite{ribsegv2} & 660 & \no\no\no\no\no\has\no\no\no \\
 TotalSegmentator~\cite{totalsegmentator} & 1{,}204 & \has\no\has\has\has\has\no\has\no \\
 \textbf{CTSpinoPelvic1K} & 802 & \has\has\has\has\has\has\has\has\has \\
 \end{tabular}
-}
 \end{ruledtabular}
 \end{table*}
 
