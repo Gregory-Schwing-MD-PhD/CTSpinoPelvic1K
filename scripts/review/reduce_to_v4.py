@@ -1,3 +1,7 @@
+"""RETIRED (2026-09-03): the ls_nerve and iliolumbar overlay tasks this reducer merged were never run,
+and ids 58-73 are now an unassigned gap in the bone-and-hardware scheme (label_scheme.RETIRED_IDS).
+Kept for the ribs path only; reduce_to_v5.py is the live reducer.
+"""
 """
 scripts/review/reduce_to_v4.py — merge finalized v4 overlay reviews into a v4 tree.
 

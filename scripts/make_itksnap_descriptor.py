@@ -57,13 +57,14 @@ def _rib(n: int, light: bool):
 NAMES = {
     0: "Clear Label", 26: "sacrum", 27: "coccyx", 28: "T13", 29: "S1",
     30: "left_hip", 31: "right_hip", 32: "femur_left", 33: "femur_right",
-    58: "iliolumbar_left", 59: "iliolumbar_right", 60: "psoas_left", 61: "psoas_right",
-    62: "quadratus_left", 63: "quadratus_right", 64: "gluteus_left", 65: "gluteus_right",
-    66: "aorta", 67: "kidney_left", 68: "kidney_right", 69: "inferior_vena_cava",
-    70: "iliac_artery_left", 71: "iliac_artery_right", 72: "iliac_vena_left",
-    73: "iliac_vena_right", 74: "rib_left_lumbar", 75: "rib_right_lumbar",
+    # 58..73 deliberately absent: the soft-tissue block is retired (label_scheme.RETIRED_IDS).
+    # This file had carried a DIFFERENT name list for those ids than label_scheme.py did --
+    # quadratus and kidneys here, nerve roots there -- which is exactly what an unused block
+    # invites and the reason it is gone rather than left declared.
+    74: "rib_left_lumbar", 75: "rib_right_lumbar",
     76: "hardware", 77: "hardware_cage", 78: "hardware_screw_rod",
-    79: "hardware_plate", 255: "ignore",
+    79: "hardware_plate", 80: "hardware_arthroplasty", 81: "hardware_si_screw",
+    82: "hardware_osteosynthesis", 255: "ignore",
 }
 for i in range(1, 8):
     NAMES[i] = f"C{i}"
@@ -94,20 +95,16 @@ FIXED = {
     77: (0, 255, 255),      # cage: cyan
     78: (80, 255, 0),       # screws and rods: acid green
     79: (255, 140, 0),      # plate: orange
+    80: (255, 40, 40),      # arthroplasty: red -- the one that replaces the femoral head
+    81: (40, 120, 255),     # sacroiliac screw: blue
+    82: (255, 200, 0),      # osteosynthesis: yellow, kept apart from the orange plate
     255: (40, 40, 40),
 }
-# soft tissue: muted, and semi-transparent so it never hides bone
-SOFT = {i: (150, 140, 130) for i in range(58, 66)}
-SOFT.update({66: (190, 90, 90), 67: (150, 120, 170), 68: (150, 120, 170),
-             69: (110, 130, 180), 70: (190, 100, 100), 71: (190, 100, 100),
-             72: (110, 140, 190), 73: (110, 140, 190)})
 
 
 def colour(idx: int):
     if idx in FIXED:
         return FIXED[idx]
-    if idx in SOFT:
-        return SOFT[idx]
     if 1 <= idx <= 25:                       # C1..L6, one continuous column
         return _vert(idx)
     if 34 <= idx <= 45:
@@ -124,7 +121,7 @@ def main() -> int:
 
     lines = [
         "################################################",
-        "# ITK-SnAP Label Description File (CTSpinoPelvic1K v5, VerSe-native)",
+        "# ITK-SnAP Label Description File (CTSpinoPelvic1K, VerSe-native, bone and hardware only)",
         "#",
         "# Colours are chosen so ADJACENT LEVELS NEVER LOOK ALIKE: hues step by five",
         "# around a twelve-hue wheel, so consecutive levels sit 150 degrees apart.",
@@ -136,8 +133,7 @@ def main() -> int:
     ]
     for idx in sorted(NAMES):
         r, g, b = colour(idx)
-        # soft tissue is drawn semi-transparent so it never hides the bone under it
-        alpha = 0.00 if idx == 0 else (0.45 if idx in SOFT else 1.00)
+        alpha = 0.00 if idx == 0 else 1.00
         vis = 0 if idx == 0 else 1
         lines.append(f"{idx:5d} {r:4d} {g:4d} {b:4d}  {alpha:.2f}  {vis}  {vis}    "
                      f'"{NAMES[idx]}"')

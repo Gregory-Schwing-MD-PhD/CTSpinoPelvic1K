@@ -1,5 +1,7 @@
 # CTSpinoPelvic1K — Roadmap, Projects & Publication Deadlines
 
+> **Scheme note (2026-09-03).** CTSpinoPelvic1K's label scheme is bone and hardware only. The soft-tissue aims below (LS nerves, iliolumbar ligament, psoas, vessels) are future, separate annotation layers; if released they take fresh identifiers above the hardware block, never the retired 58-73 range (see `scripts/label_scheme.py`, `RETIRED_IDS`).
+
 Single source of truth for project goals and submission targets. Dates verified
 as of 2026-06-21; ✅ = confirmed from the venue, ⚠️ = extrapolated from the prior
 year (verify on the live CFP before relying on it).

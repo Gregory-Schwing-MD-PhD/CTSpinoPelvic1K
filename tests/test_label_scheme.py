@@ -26,8 +26,20 @@ def test_spine_is_verse_verbatim():
 def test_new_structures_above_28():
     d = LS.label_dict()
     for nm in ["S1", "left_hip", "right_hip", "femur_left", "femur_right",
-               "rib_left_1", "rib_right_12", "iliolumbar_left", "iliac_vena_right"]:
+               "rib_left_1", "rib_right_12", "rib_left_lumbar", "hardware"]:
         assert d[nm] >= 29, f"{nm}={d[nm]} must be appended above the VerSe range"
+
+
+def test_retired_soft_tissue_block_is_unassigned():
+    """58..73 once reserved a soft-tissue overlay block that no released volume ever carried.
+    The dataset is a bone dataset; the block is retired and the ids must stay empty, because
+    reusing them would collide with third-party tooling still carrying the old names."""
+    d = LS.label_dict()
+    assert not (set(d.values()) & set(LS.RETIRED_IDS))
+    assert not hasattr(LS, "SOFT_TISSUE"), "the soft-tissue map is retired; do not reintroduce it"
+    # the ids above the gap are published and must not have been renumbered down into it
+    assert (d["rib_left_lumbar"], d["rib_right_lumbar"]) == (74, 75)
+    assert d["hardware"] == 76
 
 
 def test_specific_ids():

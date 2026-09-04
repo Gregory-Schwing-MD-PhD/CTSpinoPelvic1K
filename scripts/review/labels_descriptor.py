@@ -33,13 +33,9 @@ _RGB: Dict[int, Tuple[int, int, int]] = {
     # v4 rib-anchor classes — off the JET ramp so the anchor + rib pop against
     # the vertebra/pelvis colours: last_rib_vertebra magenta, rib white.
     11: (255, 0, 255), 12: (255, 255, 255),
-    # v4 overlay: iliolumbar (51/52) + LS-nerve roots (53–58) — bright, off-ramp
-    # colours so the overlay pops against the grey base context. Ribs (26–49) get
-    # an auto JET ramp from _rib_rgb() (24 ids — not worth hardcoding).
-    51: (255, 0, 128), 52: (200, 0, 128),                   # iliolumbar L/R
-    53: (255, 255, 0), 54: (255, 200, 0),                   # nerve L4 L/R
-    55: (0, 255, 0), 56: (0, 200, 0),                       # nerve L5 L/R
-    57: (0, 255, 255), 58: (0, 200, 200),                   # nerve S1 L/R
+    # Ribs (26–49) get an auto JET ramp from _rib_rgb() (24 ids — not worth hardcoding).
+    # The iliolumbar / LS-nerve overlay palette that sat at 51–58 is retired with those
+    # tasks (schema.py): the scheme is bone and hardware only.
 }
 
 
@@ -150,7 +146,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", default="labels.txt", type=Path)
     ap.add_argument("--task", default=None,
-                    help="overlay task palette (rib_anchor|ribs|ls_nerve|"
-                         "iliolumbar); omit for the canonical base scheme")
+                    help="overlay task palette (rib_anchor|ribs); omit for the "
+                         "canonical base scheme")
     a = ap.parse_args()
     print("wrote", write_label_descriptor(a.out, a.task))

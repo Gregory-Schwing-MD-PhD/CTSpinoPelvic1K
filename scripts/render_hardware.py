@@ -1,36 +1,29 @@
-"""render_hardware.py — look at the instrumentation before naming it.
+"""scripts/render_hardware.py — the instrumentation the dataset holds, one panel per subtype.
 
-The shape test in seed_hardware.py called both components of 0068 compact and therefore
-cages. Compactness was measured as the ratio of the first two singular values of the voxel
-cloud, and that number is honest but the wrong question: a screw-rod-screw construct is a Z,
-not a line, so PCA on the whole assembly reads as compact even though every piece of it is
-long and thin. A ratio near 2 does not distinguish a cage from a bent construct.
+WHAT THIS FIGURE IS FOR. The hardware section says the cohort forced three identifiers the
+subtype block did not have, and that the implants had been sitting inside bone labels. This
+shows the four objects that exist in the release, rendered from the released labels the
+same way the anchor figure is (render_turntable.render, first-hit surface): a bilateral hip
+arthroplasty, femoral-neck osteosynthesis, sacroiliac screws, and threaded interbody cages.
 
-WHAT ACTUALLY SEPARATES THEM IS WHERE THEY SIT, not how round they are:
+METAL IS DRAWN THROUGH BONE. A first-hit render shows whatever surface is nearest the eye,
+and most of an implant is inside a bone -- a femoral stem inside the shaft, cages inside an
+interspace, SI screws inside the ilium and sacrum. Rendered honestly, the cages would not be
+visible at all. So the bone is rendered once, muted, and the hardware is rendered again on
+its own and composited on top, the way metal reads on a radiograph: the bone is context, the
+metal is always visible. Nothing about the labels is changed by this; it is only a drawing
+convention, and the caption says so.
 
-    an interbody cage    lies in the DISC SPACE, between the two endplates, anterior to
-                         the canal, inside the footprint of the vertebral body
-    a pedicle screw      enters POSTERIORLY through the pedicle and runs forward into the
-                         body; it is lateral to the midline and it crosses the plane of
-                         the canal
-    a rod                lies posterior to everything, lateral, and spans levels
+EACH PANEL IS FRAMED ON ITS IMPLANT, not on the skeleton: a bounding box around the hardware
+voxels padded by a fixed margin in millimetres, so a 135,000 mm3 arthroplasty and a 2,600 mm3
+cage pair each fill their panel. The panels therefore have DIFFERENT scales, and a 5 cm bar
+is drawn in each so the reader can see that.
 
-So this measures the anterior-posterior position of each component against the vertebral
-body and the canal, its true physical length along its own principal axis, and its
-thickness -- and renders it, because a picture settles what a table of ratios argues about.
-
-READ ONLY. It writes images and a table; it does not touch a label.
-
-    python scripts/render_hardware.py --case 0068 \
-        --ct thoracic_fix/0068/0068_ct.nii.gz \
-        --label thoracic_fix/0068/0068_label_proposed.nii.gz \
-        --hardware thoracic_fix/0068/hu2500/0068_hardware_only.nii.gz \
-        --out qc_hardware_render
+    python scripts/render_hardware.py --labels data/zenodo_deposit/labels
 """
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -40,180 +33,162 @@ from scipy import ndimage
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.patches as mp
 
-LUMBAR = list(range(20, 26))
-VERT_NAME = {**{v: f"T{v - 7}" for v in range(8, 20)},
-             **{v: f"L{v - 19}" for v in LUMBAR}, 26: "sacrum", 29: "S1"}
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE))
+from render_turntable import render, BG                              # noqa: E402
+
+plt.rcParams.update({"font.family": "serif", "font.size": 9})
+
+HW = {76: "hardware", 77: "cage", 78: "screw / rod", 79: "plate",
+      80: "arthroplasty", 81: "sacroiliac screw", 82: "osteosynthesis"}
+C_HW = {80: np.array([214, 69, 65], np.float32),      # arthroplasty
+        82: np.array([232, 140, 40], np.float32),     # osteosynthesis
+        81: np.array([48, 110, 190], np.float32),     # SI screw
+        77: np.array([60, 160, 90], np.float32),      # cage
+        76: np.array([160, 60, 180], np.float32),
+        78: np.array([160, 60, 180], np.float32),
+        79: np.array([160, 60, 180], np.float32)}
+C_BONE = np.array([200, 200, 196], np.float32)
+C_SACRUM = np.array([160, 160, 158], np.float32)
+
+# The four subtypes present in the release, one exemplar each, with the view that shows
+# the object: hips and the femoral neck from the front; cages from the side, because from
+# the front an interbody device is edge-on behind the vertebral body.
+DEFAULT_CASES = ("0974:(a) bilateral hip arthroplasty:0;"
+                 "0247:(b) femoral-neck screws:0;"
+                 "1035:(c) SI screws:0;"
+                 "0068:(d) interbody cages, oblique:40")
 
 
-def axes_of(affine):
-    """(array axis, sign) for world +x(R), +y(A), +z(S) — read, never assumed."""
-    out = []
-    for w in range(3):
-        col = affine[w, :3]
-        ax = int(np.argmax(np.abs(col)))
-        out.append((ax, int(np.sign(col[ax]) or 1)))
-    return out                                   # [(R...), (A...), (S...)]
+def frame(lab, margin_mm, zooms):
+    """Zero everything outside a box around the hardware voxels, padded by margin_mm."""
+    hw = np.isin(lab, list(HW))
+    if not hw.any():
+        return lab
+    # SLICE, do not zero: the render is the size of the array it is given, and zeroing
+    # outside the box left every implant in the corner of a panel of empty volume
+    sl = []
+    for ax in range(3):
+        idx = np.nonzero(hw.any(axis=tuple(a for a in range(3) if a != ax)))[0]
+        pad = int(round(margin_mm / max(zooms[ax], 1e-6)))
+        sl.append(slice(max(0, idx.min() - pad), min(lab.shape[ax], idx.max() + pad + 1)))
+    return lab[tuple(sl)]
 
 
-def world_of(idx, affine):
-    """voxel indices (N,3) -> world mm (N,3)."""
-    h = np.concatenate([idx, np.ones((len(idx), 1))], 1)
-    return (affine @ h.T).T[:, :3]
+def composite(lab, angle, cut=False):
+    """Bone first-hit in muted grey, hardware first-hit on top: metal through bone.
+
+    cut=True is the honest alternative for an implant that sits INSIDE the column: the
+    half of the volume between the eye and the implant's mid-plane is removed and one
+    first-hit render is taken, so the cut faces of the bodies show and the cage sits in
+    the interspace where it is. Drawn through bone, a cage looks stuck to the surface.
+    """
+    # A lateral view is an axis swap, not a rotation: ndimage.rotate with reshape=False
+    # clips the corners of a non-square box, and 90 degrees is exact as a transpose.
+    if int(angle) == 90:
+        lab, angle = np.ascontiguousarray(np.transpose(lab, (1, 0, 2))[::-1]), 0
+    elif angle:
+        # an oblique view rotates in-plane with reshape=False, which clips whatever the
+        # crop box's corners held; pad the box to a square wide enough for its diagonal
+        side = int(np.ceil(np.hypot(*lab.shape[:2])))
+        px, py = (side - lab.shape[0]) // 2, (side - lab.shape[1]) // 2
+        lab = np.pad(lab, ((px, side - lab.shape[0] - px), (py, side - lab.shape[1] - py), (0, 0)))
+    if cut:
+        # the eye looks along +axis1 and the first occupied voxel wins, so the near half
+        # is the low index side; remove it up to the implant's mid-plane
+        # cut THROUGH the implant, at the plane holding the most metal: paired cages sit
+        # either side of the midline, and a cut between them shows disc and no cage
+        per_plane = np.isin(lab, list(HW)).sum(axis=(0, 2))
+        mid = int(np.argmax(per_plane)) if per_plane.any() else lab.shape[1] // 2
+        lab = lab.copy(); lab[:, :mid, :] = 0
+        cols = {int(v): C_BONE for v in np.unique(lab) if v}
+        cols[26] = C_SACRUM; cols.update(C_HW)
+        rgb = render(lab, cols, angle, 255)
+        return rgb.astype(np.float32)
+    bone = lab.copy(); bone[np.isin(bone, list(HW))] = 0
+    metal = lab.copy(); metal[~np.isin(metal, list(HW))] = 0
+    cols = {int(v): C_BONE for v in np.unique(bone) if v}
+    cols[26] = C_SACRUM
+    rgb = render(bone, cols, angle, 255)
+    if rgb is None:
+        rgb = np.full((lab.shape[2], lab.shape[0], 3), BG, np.uint8)
+    rgb = rgb.astype(np.float32)
+    hw = render(metal, {k: v for k, v in C_HW.items()}, angle, 255)
+    if hw is not None:
+        hw = hw.astype(np.float32)
+        on = np.any(np.abs(hw - BG[None, None, :]) > 2, axis=2)
+        rgb[on] = hw[on]
+    return rgb
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--case", required=True)
-    ap.add_argument("--ct", required=True)
-    ap.add_argument("--label", required=True)
-    ap.add_argument("--hardware", required=True)
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--labels", default="data/zenodo_deposit/labels")
+    ap.add_argument("--pattern", default="{case}_label.nii.gz",
+                    help="filename under --labels; hardware_review/verify uses {case}_label_hw.nii.gz")
+    ap.add_argument("--cases", default=DEFAULT_CASES,
+                    help="semicolon list of case:caption:angle_deg")
+    ap.add_argument("--margin_mm", type=float, default=35.0)
+    ap.add_argument("--mm_per_px", type=float, default=0.6)
+    ap.add_argument("--panel_in", type=float, default=1.75)
+    ap.add_argument("--height_in", type=float, default=2.6)
+    ap.add_argument("--out", default="paper/mpda/figures")
+    ap.add_argument("--name", default="fig_hardware")
     a = ap.parse_args()
 
-    out = Path(a.out)
-    out.mkdir(parents=True, exist_ok=True)
+    items = [c.split(":") for c in a.cases.split(";") if c.strip()]
+    panels, present = [], set()
+    for spec in items:
+        case, caption, ang = spec[:3]
+        cut = len(spec) > 3 and spec[3] == "cut"
+        f = Path(a.labels) / a.pattern.format(case=case)
+        img = nib.as_closest_canonical(nib.load(str(f)))
+        lab = np.asanyarray(img.dataobj)
+        zooms = img.header.get_zooms()[:3]
+        ids = [int(v) for v in np.unique(lab) if int(v) in HW]
+        present.update(ids)
+        lab = frame(lab, a.margin_mm, zooms)
+        rgb = composite(lab, float(ang), cut=cut)
+        # rows are craniocaudal (zooms[2]); columns are x for a frontal view and y for a
+        # lateral one, and the two in-plane zooms are equal on every CT here
+        fy, fx = zooms[2] / a.mm_per_px, zooms[0] / a.mm_per_px
+        rgb = ndimage.zoom(rgb, (fy, fx, 1.0), order=1, mode="nearest")
+        panels.append((case, caption, rgb))
+        print(f"  {case}: hardware ids {ids}  panel {rgb.shape[1]}x{rgb.shape[0]} px")
 
-    lab_img = nib.load(a.label)
-    lab = np.asanyarray(lab_img.dataobj).astype(np.int16)
-    hw = np.asanyarray(nib.load(a.hardware).dataobj).astype(np.int16)
-    ct = np.asanyarray(nib.load(a.ct).dataobj)
-    aff = lab_img.affine
-    sp = np.array(lab_img.header.get_zooms()[:3], float)
-    print(f"{a.case}: {lab.shape}, axcodes {nib.aff2axcodes(aff)}")
+    # ONE HEIGHT FOR EVERY PANEL, widths from each image's aspect: a fixed grid left the
+    # wide arthroplasty strip floating mid-cell and the square cage panel towering over it.
+    aspects = [p_.shape[1] / p_.shape[0] for _, _, p_ in panels]
+    fig_w = a.panel_in * len(items)
+    fig = plt.figure(figsize=(fig_w, a.height_in))
+    gs = fig.add_gridspec(1, len(items), width_ratios=aspects, wspace=0.06,
+                          left=0.01, right=0.99, top=0.88, bottom=0.2)
+    axes = [fig.add_subplot(gs[0, i]) for i in range(len(items))]
 
-    # ---- reference frame from the anatomy, in WORLD mm ------------------------------
-    # the canal is not labelled, so the posterior edge of the vertebral BODY is the
-    # landmark: anything anterior to it is in the disc/body column, anything posterior to
-    # it is in the pedicle/lamina/rod territory
-    ref = {}
-    for v in (23, 24):                                   # L4, L5
-        m = lab == v
-        if not m.any():
-            continue
-        w = world_of(np.argwhere(m), aff)
-        ref[v] = {"centre": w.mean(0), "min": w.min(0), "max": w.max(0)}
-        print(f"  {VERT_NAME[v]}: centre {w.mean(0).round(1)}, "
-              f"A-P span {w[:, 1].min():.0f}..{w[:, 1].max():.0f} mm")
-    if 23 not in ref or 24 not in ref:
-        print("  ! need both L4 and L5 to build the frame")
-        return 2
+    px_per_5cm = 50.0 / a.mm_per_px
+    for ax, (case, caption, rgb) in zip(axes, panels):
+        ax.imshow(np.clip(rgb, 0, 255).astype(np.uint8), interpolation="bilinear")
+        h, w = rgb.shape[:2]
+        # 5 cm bar, bottom left of each panel: the panels are at different scales
+        ax.plot([w * 0.06, w * 0.06 + px_per_5cm], [h * 0.95, h * 0.95], color="k", lw=1.4)
+        ax.text(w * 0.06, h * 0.93, "5 cm", fontsize=6.5, va="bottom")
+        ax.set_xticks([]); ax.set_yticks([])
+        for sp in ax.spines.values():
+            sp.set_visible(False)
+        ax.set_title(caption.replace("--", "–"), fontsize=7.5)
 
-    # the vertebral BODY is the anterior part; take the anterior 60% of the A-P span of the
-    # pair as "body column", which is where a cage must live
-    a_lo = min(ref[23]["min"][1], ref[24]["min"][1])
-    a_hi = max(ref[23]["max"][1], ref[24]["max"][1])
-    body_front = a_hi - 0.60 * (a_hi - a_lo)             # anterior of this = body column
-    mid_x = (ref[23]["centre"][0] + ref[24]["centre"][0]) / 2
-    print(f"  A-P range of L4+L5: {a_lo:.0f}..{a_hi:.0f} mm; "
-          f"body column is anterior of {body_front:.0f} mm; midline x={mid_x:.0f}")
-
-    cc, ncc = ndimage.label(hw > 0)
-    rows = []
-    for i in range(1, ncc + 1):
-        m = cc == i
-        if m.sum() < 40:
-            continue
-        idx = np.argwhere(m)
-        w = world_of(idx, aff)
-        c = w.mean(0)
-        q = w - c
-        u, s, vt = np.linalg.svd(q, full_matrices=False)
-        # TRUE PHYSICAL EXTENT along each principal direction, not a singular value:
-        # a singular value scales with the number of voxels and says nothing in mm
-        ext = [float((q @ vt[k]).max() - (q @ vt[k]).min()) for k in range(3)]
-        rows.append({
-            "component": i, "voxels": int(m.sum()),
-            "length_mm": round(ext[0], 1), "width_mm": round(ext[1], 1),
-            "thick_mm": round(ext[2], 1),
-            "aspect": round(ext[0] / max(ext[1], 1e-6), 2),
-            "centre_world": [round(float(x), 1) for x in c],
-            "off_midline_mm": round(float(c[0] - mid_x), 1),
-            "anterior_mm": round(float(c[1]), 1),
-            "in_body_column": bool(c[1] > body_front),
-            "principal_axis": [round(float(x), 2) for x in vt[0]],
-            "touches": sorted({VERT_NAME.get(int(v), str(int(v)))
-                               for v in np.unique(lab[ndimage.binary_dilation(m, iterations=4)])
-                               if int(v) in VERT_NAME}),
-        })
-    rows.sort(key=lambda r: -r["voxels"])
-
-    print(f"\n{len(rows)} component(s):")
-    for r in rows:
-        where = "in the body column (disc/body)" if r["in_body_column"] else \
-                "POSTERIOR to the body column (pedicle/lamina territory)"
-        print(f"  #{r['component']}  {r['voxels']:>6,} vox   "
-              f"{r['length_mm']:>5.1f} x {r['width_mm']:>4.1f} x {r['thick_mm']:>4.1f} mm "
-              f"(aspect {r['aspect']:.1f})")
-        print(f"        {r['off_midline_mm']:+.0f} mm off midline, {where}, "
-              f"touches {','.join(r['touches'])}")
-
-    (out / f"{a.case}_hardware_geometry.json").write_text(
-        json.dumps({"case": a.case, "body_column_anterior_of": round(body_front, 1),
-                    "midline_x": round(mid_x, 1), "components": rows}, indent=1) + "\n")
-
-    # ---- pictures --------------------------------------------------------------------
-    # crop to the hardware plus a generous margin of context
-    idx = np.argwhere(hw > 0)
-    pad = (np.array([45.0, 45.0, 45.0]) / sp).astype(int)
-    lo = np.maximum(idx.min(0) - pad, 0)
-    hi = np.minimum(idx.max(0) + pad + 1, np.array(lab.shape))
-    sl = tuple(slice(int(l), int(h)) for l, h in zip(lo, hi))
-    ct_c, hw_c, lab_c = ct[sl], hw[sl], lab[sl]
-
-    (rax, rsg), (aax, asg), (sax, ssg) = axes_of(aff)
-    fig, ax = plt.subplots(2, 3, figsize=(15, 9), dpi=140)
-    views = [("sagittal", rax), ("coronal", aax), ("axial", sax)]
-    for col, (name, axis) in enumerate(views):
-        ct_p = ct_c.max(axis=axis)
-        hw_p = hw_c.max(axis=axis)
-        # put superior (or anterior for the axial) at the top
-        if axis != sax:
-            k = sax if sax < axis else sax - 1
-            ct_p, hw_p = np.moveaxis(ct_p, k, 0), np.moveaxis(hw_p, k, 0)
-            if ssg > 0:
-                ct_p, hw_p = ct_p[::-1], hw_p[::-1]
-        for row, over in enumerate((False, True)):
-            A = ax[row, col]
-            A.imshow(ct_p, cmap="gray", vmin=200, vmax=2200, aspect="equal")
-            if over:
-                A.imshow(np.ma.masked_where(hw_p == 0, hw_p), cmap="autumn_r",
-                         vmin=70, vmax=80, alpha=0.85, aspect="equal")
-            A.set_title(f"{name}{' — hardware' if over else ' — bone MIP'}", fontsize=9)
-            A.axis("off")
-    fig.suptitle(f"{a.case}: instrumentation, maximum-intensity projections", fontsize=12)
-    fig.tight_layout()
-    fig.savefig(out / f"{a.case}_hardware_mip.png", bbox_inches="tight")
-    print(f"\nwrote {out / f'{a.case}_hardware_mip.png'}")
-
-    # ---- the hardware ALONE, in 3-D --------------------------------------------------
-    # THE 3-D VIEW IS THE OPTIONAL HALF. The projections are what a reviewer reads a case
-    # from; marching cubes on a handful of voxels can fail on a degenerate component, and
-    # over a batch that must cost one picture rather than the whole case.
-    try:
-        sys.path.insert(0, str(Path(__file__).resolve().parent))
-        from render3d import surface_mesh, fit_camera, render
-        verts, normals = surface_mesh(hw_c > 0, sp, step=1, smooth=0.6)
-    except Exception as exc:                                        # noqa: BLE001
-        print(f"  ! no 3-D view: {type(exc).__name__}: {exc}")
-        verts = np.zeros((0, 3))
-    # surface_mesh RETURNS None on a degenerate mask rather than raising, so the
-    # try/except above never fires and len(None) is what actually crashed six cases.
-    if verts is not None and len(verts):
-        cams = [("from the left", (1, 0, 0)), ("from the front", (0, -1, 0)),
-                ("from above", (0, 0, -1))]
-        fig, ax = plt.subplots(1, 3, figsize=(15, 6), dpi=140)
-        for k, (name, d) in enumerate(cams):
-            up = (0, 0, 1) if k < 2 else (0, 1, 0)
-            cam = fit_camera(verts, d, up, 620, 620)
-            img, _ = render([(verts, normals, (232, 106, 92))], cam, bg=(250, 249, 246))
-            ax[k].imshow(img)
-            ax[k].set_title(name, fontsize=10)
-            ax[k].axis("off")
-        fig.suptitle(f"{a.case}: the instrumentation alone", fontsize=12)
-        fig.tight_layout()
-        fig.savefig(out / f"{a.case}_hardware_3d.png", bbox_inches="tight")
-        print(f"wrote {out / f'{a.case}_hardware_3d.png'}")
+    handles = [mp.Patch(color=C_HW[i] / 255, label=f"{i} {HW[i]}")
+               for i in (80, 82, 81, 77) if i in present]
+    handles.append(mp.Patch(color=C_BONE / 255, label="bone (metal drawn through it)"))
+    fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False, fontsize=7,
+               bbox_to_anchor=(0.5, 0.0))
+    out = Path(a.out) / f"{a.name}.pdf"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, bbox_inches="tight", dpi=200)
+    fig.savefig(out.with_suffix(".png"), bbox_inches="tight", dpi=150)
+    print(f"wrote {out}")
     return 0
 
 

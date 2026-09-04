@@ -100,9 +100,9 @@ def v3_label_dict() -> Dict[str, int]:
     """The full {name: id} legend (background..ignore), for dataset.json.
 
     Single source of truth: scripts/label_scheme.py. VerSe-native spine (verbatim),
-    S1/pelvis/femurs/ribs/soft-tissue appended above 28, ignore = 255. The v4
-    soft-tissue block (iliolumbar / LS nerve roots / psoas / great vessels) is
-    RESERVED-but-empty in v3 and populated by later annotation passes.
+    S1/pelvis/femurs/ribs appended above 28, ignore = 255. (A soft-tissue block was
+    once reserved at 58-73 for later passes; it was never populated and is retired --
+    label_scheme.RETIRED_IDS. The scheme is bone and hardware only.)
     """
     return LS.label_dict()
 

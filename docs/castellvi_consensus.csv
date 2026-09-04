@@ -1,0 +1,35 @@
+volume_id,token,read_1_NA,read_2_MI,agreement,consensus,comment
+0005,4,IV,IV,True,IV,IIa on right and IIIa on left
+0008,6,IV,IV,True,IV,b/l Rudimentary Ribs at T12 or hypoplastic ribs
+0016,10,0,,False,0,
+0021,15,IV,IV,True,IV,
+0033,22,IIa,IIIa,False,IIa,"Rudimentary right rib at T12, agreed on IIA"
+0049,32,IIIb,IIIb,True,IIIb,
+0094,64,IIIb,IIIb,True,IIIb,
+0097,67,IIb,IIb,True,IIb,
+0151,104,IIIb,IIIb,True,IIIb,
+0156,107,IIIb,IIIb,True,IIIb,
+0158,110,IIIb,IIIb,True,IIIb,lubmarization
+0170,120,IIa,IIa,True,IIa,left Ia trasverse process
+0176,123,IIb,IIIb,False,IIb,S1 lumbarazation. agreed on IIB
+0179,125,IIb,IIIb,False,IIb,agreed on IIB
+0196,140,IIa,IIIa,False,IIa,agreed on IIA
+0208,149,IIIa,IIIa,True,IIIa,complete fusion of the left transverse process with formed disc space between L5/L6. The right side process is a normal lumbar type.
+0234,167,IIIb,IIIb,True,IIIb,complete lumbarization of L6
+0244,175,Ib,Ib,True,Ib,complete lumbarization of L6
+0268,189,IIIb,IIb,False,IIIb,agreed on IIIB
+0302,215,Ib,IIb,False,Ib,agreed on I B
+0366,261,IIb,IIb,True,IIb,
+0376,267,IV,IV,True,IV,IIa on right and IIIa on left
+0486,344,IIb,IIb,True,IIb,
+0565,401,IIa,IIa,True,IIa,"Ia on the left side, IIa on the right"
+0760,537,IIIb,IIIb,True,IIIb,hypoplastic 12 rib.
+0785,554,IIIb,IIIb,True,IIIb,Possible unilateral right Rudimentary Rib at L1
+0787,555,IIIb,IIIb,True,IIIb,Possible b/l Rudimentary Ribs at L1 or hypoplastic ribs
+0831,587,IIIb,IIIb,True,IIIb,complete lumbarization of L6
+0875,615,IIIb,IIIb,True,IIIb,Possible b/l Rudimentary Ribs at L1 or hypoplastic ribs
+0950,666,IIIb,IIIb,True,IIIb,complete lumbarization of L6
+0960,672,IIIb,IIIb,True,IIIb,complete lumbarization of L6
+0999,699,IIIb,IIIb,True,IIIb,complete lumbarization of L6
+1031,721,IIIb,IIIb,True,IIIb,Possible b/l Rudimentary Ribs at L1 or hypoplastic ribs
+1053,737,IIb,IIb,True,IIb,

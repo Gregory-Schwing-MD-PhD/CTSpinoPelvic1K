@@ -108,7 +108,6 @@ every non-VerSe structure gets a fixed id above the VerSe range. Source of truth
 | 32 / 33 | femur_left / femur_right | TS                                       |
 | 34–45 | rib_left_1 … rib_left_12 | RibSeg (numbered off GT thoracic)            |
 | 46–57 | rib_right_1 … rib_right_12 | RibSeg (numbered off GT thoracic)           |
-| 58–73 | soft tissue | TS — iliolumbar, psoas, quadratus, gluteus, aorta, kidneys, iliac vessels |
 | 74 / 75 | **rib_left_lumbar / rib_right_lumbar** | a rib on a lumbar body, kept as its own class |
 | 76–79 | hardware / cage / screw-rod / plate | **declared, not yet populated** — see below |
 | 255 | **ignore**            | partial-annotation only — un-traced region, NOT bg |
