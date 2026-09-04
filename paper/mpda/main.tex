@@ -22,9 +22,10 @@
 \usepackage[table]{xcolor}
 \definecolor{has}{RGB}{28,107,115}
 \definecolor{qual}{RGB}{184,121,31}
-\newcommand{\has}{\cellcolor{has}\hspace{9mm}}
-\newcommand{\qual}{\cellcolor{qual}\hspace{9mm}}
-\newcommand{\no}{\hspace{9mm}}
+\newcommand{\has}{{\color{has}\rule[-0.55ex]{12mm}{2.3ex}}}
+\newcommand{\qual}{{\color{qual}\rule[-0.55ex]{12mm}{2.3ex}}}
+\newcommand{\no}{\hspace{12mm}}
+\newcommand{\hd}[1]{\makebox[12mm]{#1}}
 \usepackage{booktabs}
 \usepackage{siunitx}
 \usepackage{tikz}
@@ -43,8 +44,8 @@
 % should land on the release this manuscript describes rather than a superseded one.
 \newcommand{\datasetdoi}{10.5281/zenodo.22139642}
 % The exact version this manuscript describes, for reproducibility.
-\newcommand{\datasetversiondoi}{10.5281/zenodo.22242745}
-\newcommand{\datasetversion}{v7}
+\newcommand{\datasetversiondoi}{10.5281/zenodo.22293878}
+\newcommand{\datasetversion}{v8}
 % DOUBLE-ANONYMIZED REVIEW. \reviewtrue redacts every identifier that names the authors:
 % the Zenodo DOIs (the record's creators are the author list) and the consortium's name.
 % Flip to \reviewfalse for the camera-ready copy; nothing else changes.
@@ -174,7 +175,7 @@ vertebra, a separate first sacral segment, and lumbar ribs make the set expressi
 CTSpine1K~\cite{ctspine1k} vertebral and CTPelvic1K~\cite{ctpelvic1k} pelvic labels on the acquisition with highest bone coverage, under a VerSe-native scheme. Validation: geometric invariants (802/802 pass); rib--vertebra incidence across 5{,}749 evaluable ribs (2 offsets,
 0.035\%); and agreement of spinopelvic measures with published values.
 
-\textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs sharing one affine, canonicalized to PIR, with frozen patient-grouped LSTV-stratified five-fold splits and a reference loader; archived at \datasetdoi.
+\textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs sharing one affine, canonicalized to PIR, with frozen patient-grouped LSTV-stratified five-fold splits and a reference loader; archived under a persistent identifier, \doiurl{\datasetdoi}.
 
 \textbf{Potential Applications:} Testing whether a network can classify a vertebra from
 local features alone; updating textbook morphometry drawn from small cadaveric series;
@@ -281,24 +282,20 @@ information needed to settle these variants is present locally.
 
 
 \begin{table*}[t]
-\caption{Public CT collections at the lumbosacral junction: size, and what each published
-label scheme can represent. Teal: class present. Amber: Castellvi anatomy is graded, but
-only to exclude it --- vertebrae partially fused to the sacrum are left
-unsegmented~\cite{versedata2021}, 21 of the 33 graded records here. Three comparators carry
-more scans and RibSeg~v2~\cite{ribsegv2} labels more ribs; the claim is the class set, not
-the size.}
+\caption{Public CT collections at the lumbosacral junction. Teal, class present; amber,
+graded only to exclude it~\cite{versedata2021}.}
 \label{tab:priorart}
 \begin{ruledtabular}
 \maxwidth{%
 % the class columns carry no intercolumn space, so adjacent coloured cells abut
-\begin{tabular}{lr@{\hspace{8pt}}*{9}{@{}c}@{}}
-Collection & Scans & Count & L6 & Sacrum & S1 & Pelvis & Ribs & Lumbar rib & Femora & Grade \\ \colrule
-CTSpine1K~\cite{ctspine1k} & 1{,}005 & \has & \has & \no & \no & \no & \no & \no & \no & \no \\
-CTPelvic1K~\cite{ctpelvic1k} & 1{,}184 & \no & \no & \has & \no & \has & \no & \no & \no & \no \\
-VerSe~\cite{verse2021} & 374 & \has & \has & \no & \no & \no & \no & \no & \no & \qual \\
-RibSeg~v2~\cite{ribsegv2} & 660 & \no & \no & \no & \no & \no & \has & \no & \no & \no \\
-TotalSegmentator~\cite{totalsegmentator} & 1{,}204 & \has & \no & \has & \has & \has & \has & \no & \has & \no \\
-\textbf{CTSpinoPelvic1K} & 802 & \has & \has & \has & \has & \has & \has & \has & \has & \has \\
+\begin{tabular}{lrl}
+Collection & Scans & \hd{Count}\hd{L6}\hd{Sacrum}\hd{S1}\hd{Pelvis}\hd{Ribs}\hd{L.\,rib}\hd{Femora}\hd{Grade} \\ \colrule
+CTSpine1K~\cite{ctspine1k} & 1{,}005 & \has\has\no\no\no\no\no\no\no \\
+CTPelvic1K~\cite{ctpelvic1k} & 1{,}184 & \no\no\has\no\has\no\no\no\no \\
+VerSe~\cite{verse2021} & 374 & \has\has\no\no\no\no\no\no\qual \\
+RibSeg~v2~\cite{ribsegv2} & 660 & \no\no\no\no\no\has\no\no\no \\
+TotalSegmentator~\cite{totalsegmentator} & 1{,}204 & \has\no\has\has\has\has\no\has\no \\
+\textbf{CTSpinoPelvic1K} & 802 & \has\has\has\has\has\has\has\has\has \\
 \end{tabular}
 }
 \end{ruledtabular}
@@ -306,82 +303,74 @@ TotalSegmentator~\cite{totalsegmentator} & 1{,}204 & \has & \no & \has & \has & 
 
 \section{Acquisition and Validation Methods}
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
-\resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[
   x=1mm, y=1mm, font=\footnotesize,
   every node/.style={inner sep=0pt},
   bx/.style={draw, rounded corners=1.5pt, align=center, text width=#1,
-             minimum height=9mm, inner sep=2pt},
-  src/.style={bx=25mm, fill=black!5},
-  proc/.style={bx=84mm, fill=blue!7},
-  rec/.style={bx=19mm, fill=black!3},
-  ver/.style={bx=11mm, fill=green!14, minimum height=8mm},
-  det/.style={align=left, text width=68mm, anchor=west},
-  gate/.style={bx=84mm, fill=orange!14},
-  fin/.style={bx=84mm, fill=green!22},
+             minimum height=8mm, inner sep=1.8pt},
+  src/.style={bx=23mm, fill=black!5},
+  proc/.style={bx=74mm, fill=blue!7},
+  rec/.style={bx=17mm, fill=black!3},
+  ver/.style={bx=9mm, fill=green!14, minimum height=7mm},
+  det/.style={align=left, text width=61mm, anchor=west},
+  gate/.style={bx=74mm, fill=orange!14},
+  fin/.style={bx=74mm, fill=green!22},
   ar/.style={-{Stealth[length=4pt]}, semithick, black!70},
   ln/.style={semithick, black!70},
 ]
-% ---- left column: sources to a dense corpus
-\node[src] (tcia)   at (-75, 0) {\textbf{TCIA CT Colonography}\\CT volumes};
-\node[src] (spine)  at (-46, 0) {\textbf{CTSpine1K}\\vertebral labels};
-\node[src] (pelvic) at (-17, 0) {\textbf{CTPelvic1K}\\sacrum + hip labels};
-\draw[ln] (tcia.south) -- (-75,-7) -- (-17,-7) -- (pelvic.south);
-\draw[ln] (spine.south) -- (-46,-7);
-\draw[ar] (-46,-7) -- (-46,-10);
-\node[proc] (cross) at (-46,-16) {\textbf{match each label set to the series it was drawn on}\\
-  every patient was scanned prone \emph{and} supine; neither source published the series it used};
-\node[rec] (fused) at (-77.5,-33) {\textbf{fused}\\both on one series\\$n{=}342$};
-\node[rec] (sep)   at (-56.5,-33) {\textbf{separate}\\pelvis: other series\\$n{=}351$};
-\node[rec] (sonly) at (-35.5,-33) {\textbf{spine only}\\no pelvic label\\$n{=}89$};
-\node[rec] (ponly) at (-14.5,-33) {\textbf{pelvis only}\\held back\\$n{=}20$};
-\draw[ln] (cross.south) -- (-46,-24.5);
-\draw[ln] (-77.5,-24.5) -- (-14.5,-24.5);
-\foreach \x in {-77.5,-56.5,-35.5,-14.5} \draw[ar] (\x,-24.5) -- (\x,-27.5);
-\node[proc] (fix) at (-46,-50) {\textbf{correct errors in the source ground truth}\\
+\node[src] (tcia)   at (-26, 0) {\textbf{TCIA CT Colonography}\\CT volumes};
+\node[src] (spine)  at (  0, 0) {\textbf{CTSpine1K}\\vertebral labels};
+\node[src] (pelvic) at ( 26, 0) {\textbf{CTPelvic1K}\\sacrum + hip labels};
+\draw[ln] (tcia.south) -- (-26,-6.5) -- (26,-6.5) -- (pelvic.south);
+\draw[ln] (spine.south) -- (0,-6.5);
+\draw[ar] (0,-6.5) -- (0,-9.5);
+\node[proc] (cross) at (0,-15.5) {\textbf{match each label set to the series it was drawn on}\\
+  every patient was scanned prone \emph{and} supine; neither source published which};
+\node[rec] (fused) at (-28.5,-31) {\textbf{fused}\\one series\\$n{=}342$};
+\node[rec] (sep)   at ( -9.5,-31) {\textbf{separate}\\two series\\$n{=}351$};
+\node[rec] (sonly) at (  9.5,-31) {\textbf{spine only}\\no pelvis\\$n{=}89$};
+\node[rec] (ponly) at ( 28.5,-31) {\textbf{pelvis only}\\held back\\$n{=}20$};
+\draw[ln] (cross.south) -- (0,-23);
+\draw[ln] (-28.5,-23) -- (28.5,-23);
+\foreach \x in {-28.5,-9.5,9.5,28.5} \draw[ar] (\x,-23) -- (\x,-26);
+\node[proc] (fix) at (0,-47) {\textbf{correct errors in the source ground truth}\\
   split vertebrae, skipped levels, levels unlabeled inside the FOV:
   $n{=}112$ spine fixes / 103 cases, $n{=}13$ pelvic fixes / 12 cases};
-\foreach \x in {-77.5,-56.5,-35.5,-14.5} \draw[ln] (\x,-38.5) -- (\x,-41.5);
-\draw[ln] (-77.5,-41.5) -- (-14.5,-41.5);
-\draw[ar] (-46,-41.5) -- (fix.north);
-\node[proc] (dense) at (-46,-67) {\textbf{pseudolabel the missing half --- asymmetrically, by design}\\
+\foreach \x in {-28.5,-9.5,9.5,28.5} \draw[ln] (\x,-36) -- (\x,-38.5);
+\draw[ln] (-28.5,-38.5) -- (28.5,-38.5);
+\draw[ar] (0,-38.5) -- (fix.north);
+\node[proc] (dense) at (0,-63) {\textbf{pseudolabel the missing half --- asymmetrically, by design}\\
   a pelvis has no enumeration to get wrong; a spine does, so the 20 pelvis-only spines
   were corrected \emph{by hand}};
 \draw[ar] (fix.south) -- (dense.north);
-% ---- gutter: the corpus goes up into the version column
-\draw[ar] (dense.east) -- (0,-67) -- (0,0) -- (4,0);
-% ---- right column: versions, gates, release
-\node[ver] (v3) at (10,0)   {\textbf{v3}};
-\node[ver] (v4) at (10,-13) {\textbf{v4}};
-\node[ver] (v5) at (10,-26) {\textbf{v5}};
-\node[ver] (v6) at (10,-39) {\textbf{v6}};
+\node[ver] (v3) at (-32,-76)  {\textbf{v3}};
+\node[ver] (v4) at (-32,-87)  {\textbf{v4}};
+\node[ver] (v5) at (-32,-98)  {\textbf{v5}};
+\node[ver] (v6) at (-32,-109) {\textbf{v6}};
+\draw[ar] (dense.south) -- (0,-70) -- (-32,-70) -- (v3.north);
 \draw[ar] (v3.south) -- (v4.north); \draw[ar] (v4.south) -- (v5.north); \draw[ar] (v5.south) -- (v6.north);
-\foreach \y in {0,-13,-26,-39} \draw[ln, black!35] (16,\y) -- (19,\y);
-\node[det] at (20,0)   {added \textbf{femora} and the lower thoracic levels; carved \textbf{S1}
+\foreach \y in {-76,-87,-98,-109} \draw[ln, black!35] (-27.5,\y) -- (-25.5,\y);
+\node[det] at (-25,-76)  {added \textbf{femora} and the lower thoracic levels; carved \textbf{S1}
   out of the sacrum as its own class, the caudal anchor};
-\node[det] at (20,-13) {added \textbf{ribs}: M\"oller's binary rib net unioned with TotalSegmentator,
-  numbered from TotalSegmentator; $n{=}152$ cases to human review};
-\node[det] at (20,-26) {\textbf{lumbar ribs} relabeled to their own class rather than forced to be
-  rib~12 ($n{=}16$ cases)};
-\node[det] at (20,-39) {added \textbf{surgical instrumentation} as its own classes ($n{=}11$ cases);
-  renumbered 0068 against the twelfth rib; corrected hip laterality ($n{=}22$)};
-\node[gate] (qc) at (46,-55) {\textbf{release gates, in order --- a failure stops the chain}\\
-  label shares its CT's affine and structures are correctly sided $\rightarrow$ each rib
-  articulates with the vertebra its number implies $\rightarrow$ measures in physiological range};
-\draw[ar] (v6.south) -- (10,-46) -- (46,-46) -- (qc.north);
-\node[fin] (rel) at (46,-70) {\textbf{802 released records}\\spine, pelvis, per-level ribs and
+\node[det] at (-25,-87)  {added \textbf{ribs}: M\"oller's binary rib net unioned with
+  TotalSegmentator, numbered from it; $n{=}152$ cases to human review};
+\node[det] at (-25,-98)  {\textbf{lumbar ribs} relabeled to their own class rather than
+  forced to be rib~12 ($n{=}16$ cases)};
+\node[det] at (-25,-109) {added \textbf{surgical instrumentation} as its own classes
+  ($n{=}11$ cases); renumbered 0068; corrected hip laterality ($n{=}22$)};
+\node[gate] (qc) at (0,-124) {\textbf{release gates, in order --- a failure stops the chain}\\
+  label shares its CT's affine, structures correctly sided $\rightarrow$ each rib
+  articulates with the vertebra its number implies $\rightarrow$ measures in range};
+\draw[ar] (v6.south) -- (-32,-115.5) -- (0,-115.5) -- (qc.north);
+\node[fin] (rel) at (0,-138) {\textbf{802 released records}\\spine, pelvis, per-level ribs and
   femora in one frame; 34 carry a consensus Castellvi grade};
 \draw[ar] (qc.south) -- (rel.north);
-\end{tikzpicture}}
-\caption{How the dataset was built. Three public collections are combined patient by
-patient; neither annotation source published the CT series its labels were drawn on, so each
-label set is matched to the series whose bone agrees with it, and in 351 patients the two
-sources had drawn on different scans of the same person. $n$ counts scans, or corrections,
-at that step.}
+\end{tikzpicture}
+\caption{How the dataset was built. $n$ counts scans, or corrections, at each step.}
 \label{fig:pipeline}
-\end{figure*}
+\end{figure}
 
 \subsection{Sources, and why a crosswalk was necessary}
 
@@ -391,56 +380,37 @@ the vertebral and pelvic annotations in both were produced under
 board-certified radiologist supervision. Neither released the mapping from an
 annotation to the specific CT series it was drawn on.
 
-That mapping is not a bookkeeping detail. Every patient in CT~COLONOGRAPHY was scanned
-\emph{twice}, prone and supine, often with more than one kernel, so one patient identifier
-resolves to several volumes differing in posture, position, field of view and noise --- and
-an annotation carries a patient identifier and nothing finer.
-
-Placing it on the wrong volume of the same patient is not merely a displacement. The spine is
-mildly deformable, and turning a patient from supine to prone alters lumbar lordosis and the
-alignment of each segment against the next, so a vertebra moves by a different amount, and in
-a different direction, from the one above it. Outlines drawn on one series are the wrong
-\emph{shape} for the other, and no rigid realignment recovers them. In isolation such a mask
-looks like competent work; it reveals itself only when overlaid on the image.
-
-The crosswalk (Fig.~\ref{fig:pipeline}) therefore resolves each annotation first to a
-patient and then, within that patient's volumes only, to the series whose bone \emph{agrees}
-with it: candidates are thresholded at bone attenuation and scored by overlap with the
-annotation mask. Bone rather than image similarity, because bone is what the annotation
-describes --- two acquisitions of one abdomen resemble each other everywhere except in where
-the skeleton sits.
+That mapping matters because every patient in CT~COLONOGRAPHY was scanned \emph{twice},
+prone and supine, and an annotation carries a patient identifier and nothing finer. Turning
+a patient from supine to prone alters lumbar lordosis and the alignment of each segment
+against the next, so outlines drawn on one series are the wrong \emph{shape} for the other
+and no rigid realignment recovers them; such a mask looks competent in isolation and reveals
+itself only overlaid on the image. The crosswalk (Fig.~\ref{fig:pipeline}) therefore
+resolves each annotation to a patient and then, within that patient's volumes, to the series
+whose bone \emph{agrees} with it: candidates are thresholded at bone attenuation and scored
+by overlap with the mask.
 
 \subsection{Fused and split records}
 
-The two annotation sets were placed independently, so they do not always land on the same
-series. Of 802 records, 342 carry spine and pelvic annotations on the same volume
-(\emph{fused}), 351 are \emph{separate}, 89 are \emph{spine\_only} with no pelvic
-annotation for that patient, and 20 are \emph{pelvic\_only}. The split is the crosswalk's
-main finding rather than bookkeeping: in those separate records --- nearly half of all
-patients --- the two public collections annotated \emph{different volumes of the same
-person}, and
-neither recorded which. A pelvic annotation placed on the other acquisition of a
-prone/supine pair cannot be combined with the spine annotation without resampling across a
-change of posture. Those records are retained rather than discarded, and held out of the
-postural analyses, because two acquisitions of one patient differing in spinal alignment are
-a resource for a mobility study rather than a defect.
+The two annotation sets were placed independently and do not always land on the same
+series (Fig.~\ref{fig:pipeline}). The split is the crosswalk's main finding: in the 351
+separate records --- nearly half of all patients --- the two public collections annotated
+\emph{different volumes of the same person}, and neither recorded which. A pelvic annotation
+on the other acquisition of a prone/supine pair cannot be combined with the spine annotation
+without resampling across a change of posture, so those records are retained and held out of
+the postural analyses: two acquisitions of one patient differing in alignment are a resource
+for a mobility study, not a defect.
 
 \subsection{Densification, and why it is asymmetric}
 
-A corpus in which half the records lack a pelvis is not usable as a spinopelvic dataset, so
-the missing structures were pseudolabeled --- asymmetrically (Fig.~\ref{fig:pipeline}),
-because the two directions are not equivalent.
-
-Pelvis onto spine-only records is the safe direction. The sacrum and innominate bones are
-single objects with no enumeration: no count to get wrong, no naming convention to choose,
-no analog of a transitional vertebra. Quality is reported as held-out performance on the
-\emph{pelvic\_only} records, withheld from training for exactly this purpose.
-
-The reverse direction carries the whole problem this dataset exists to address, since a
-pseudolabeled spine must commit to a vertebral count and on a transitional vertebra will
-commit to the commoner reading. Those 20 records were therefore corrected by hand rather
-than densified automatically --- tractable at twenty cases, which is the practical reason
-the asymmetry runs the way it does.
+A corpus in which half the records lack a pelvis is not a spinopelvic dataset, so the
+missing structures were pseudolabeled --- asymmetrically (Fig.~\ref{fig:pipeline}). Pelvis
+onto spine-only records is the safe direction: the sacrum and innominate bones carry no
+enumeration to get wrong, and quality is reported as held-out performance on the
+\emph{pelvic\_only} records, withheld from training for that purpose. The reverse direction
+carries the whole problem this dataset addresses, since a pseudolabeled spine must commit to
+a count and on a transitional vertebra commits to the commoner reading; those 20 records were
+corrected by hand, which is tractable at twenty.
 
 \subsection{Ribs}
 
@@ -490,7 +460,7 @@ T1--T12 = 8--19, L1--L6 = 20--25, sacrum 26), and every non-VerSe structure take
 identifier above that range --- S1 carved from the sacrum (29), hips (30--31), femora
 (32--33), ribs (34--45 left, 46--57 right), lumbar ribs (74--75) and surgical hardware
 (76--82). Identifiers 58--73 are unassigned: a soft-tissue block once reserved there was
-never populated, and the v7 descriptor still carries its names.
+never populated and is retired.
 
 Two anchors make the count decidable, and Fig.~\ref{fig:anchors} shows both: the lowest
 rib-bearing vertebra above, \textbf{S1} carved from the sacrum below. Each earns its place
@@ -526,11 +496,8 @@ carry an L6.
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_anchors.pdf}
-\caption{The two anchors and the interval between them, from the released labels
-(posterior view). Red: the lowest rib-bearing vertebra with its rib. Blue: S1. Yellow: the
-rib-free vertebrae counted between. Colors follow role, not identifier. Panels (b) and (c)
-both count four and are indistinguishable by it. One millimeter scale, aligned at the
-sacral base.}
+\caption{The two anchors, from the released labels. Red, lowest rib-bearing vertebra and
+its rib; blue, S1; yellow, the rib-free vertebrae between. (b) and (c) both count four.}
 \label{fig:anchors}
 \end{figure*}
 
@@ -646,10 +613,8 @@ articulation without it~\cite{koninwalz2010} --- is the one carrying clinical we
 it is where the disagreements lay: four of the seven were III against II.
 
 \begin{table*}[t]
-\caption{Derived measures against a standing asymptomatic reference
-($n=260$)~\cite{vialle2005}. This cohort is supine: sacral slope is 4.1\si{\degree} lower
-and pelvic tilt 4.3\si{\degree} higher, one discrepancy rather than two, since
-$PI = PT + SS$.}
+\caption{Derived measures against a standing reference ($n=260$)~\cite{vialle2005}; this
+cohort is supine.}
 \label{tab:spinopelvic}
 \begin{ruledtabular}
 \maxwidth{%
@@ -700,12 +665,9 @@ from them was measured on metal.
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_hardware.pdf}
-\caption{The four instrumentation types in the release, one exemplar each, rendered from
-the released labels. (a) Hip arthroplasty, identifier 80, $n=8$ records (this one
-bilateral). (b) Femoral-neck osteosynthesis, 82, $n=1$. (c) Sacroiliac screws, 81, $n=1$.
-(d) Interbody cages at L5--L6, 77, $n=1$, oblique view. The implant is drawn through the
-bone that would otherwise hide it. Each panel is framed on its implant; the bar is
-5\,cm.}
+\caption{Instrumentation in the release, one exemplar each, drawn through bone. (a) Hip
+arthroplasty, 80, $n=8$. (b) Femoral-neck screws, 82, $n=1$. (c) Sacroiliac screws, 81,
+$n=1$. (d) Interbody cages, 77, $n=1$. Bar, 5\,cm.}
 \label{fig:hardware}
 \end{figure*}
 
@@ -731,11 +693,8 @@ guarantee, and it is why a fold-level metric on the rare classes carries an erro
 wider than its own decimal places.
 
 \begin{table*}[t]
-\caption{\label{tab:completeness}Key data types and metadata, and the fraction of the 802
-records populating each, counted from the released manifest. Below 100\% is not an error:
-age and sex are absent where the source did not publish them, a pelvic series identifier
-exists only where a pelvic annotation was placed, and a Castellvi grade only for graded
-records.}
+\caption{\label{tab:completeness}Data types and metadata, and the records populating
+each, from the released manifest.}
 \begin{ruledtabular}
 \begin{tabular}{lrr}
 Field & Records & Available \\
@@ -759,7 +718,7 @@ Castellvi grade (consensus of two readers) & 34 & 4.2\% \\
 Table~\ref{tab:completeness} lists the key data types and metadata against the fraction of
 records for which each is populated.
 
-The archive of record is Zenodo (\datasetdoi). Code and documentation are on GitHub at
+The archive of record is Zenodo (\doiurl{\datasetdoi}). Code and documentation are on GitHub at
 the tagged release commit; any model-hub copy is a convenience mirror, not the archive.
 
 % ---------------------------------------------------------------------------
@@ -770,9 +729,8 @@ the tagged release commit; any model-hub copy is a convenience mirror, not the a
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_countfree.pdf}
 \caption{Count-free measures. (a) Vertebrae between the lowest rib and the sacrum.
-(b) Lowest rib length as a fraction of the rib above: two populations, near 0.33 and 0.69.
-(c) Lowest lumbar transverse span against its gap to the sacral ala; source transitional
-labels marked.}
+(b) Lowest rib length over the rib above. (c) Lowest lumbar transverse span against its gap
+to the ala; transitional labels marked.}
 \label{fig:countfree}
 \end{figure*}
 
@@ -800,8 +758,7 @@ pelvis retroverting as a spine ages.
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_validation.pdf}
 \caption{Spinopelvic measures against standing reference bands (mean $\pm$
-SD)~\cite{vialle2005}. Sacral slope is postural and this cohort is supine; pelvic incidence
-is not, and its agreement is the strongest check.}
+SD)~\cite{vialle2005}.}
 \label{fig:validation}
 \end{figure*}
 
@@ -839,12 +796,9 @@ enumeration, a model trained on them is not learning the convention that fails.
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_levelatlas.pdf}
-\caption{Lumbar and lower thoracic morphometry by level. Marker, median; bar,
-interquartile range; line, 5th--95th percentile; $n$ at right. (a) Body height, ventral and
-dorsal. (b) Superior endplate width. (c) Canal width and depth. (d) Pedicle width. (e) Disc
-height at its interspace. (f) Trabecular attenuation at the opportunistic-screening site.
-Canal depth and pedicle width rest on 330--656 records, the others on 720--784. Intervals
-are dispersion; no comparison between levels is implied.}
+\caption{Morphometry by level: median, interquartile range, 5th--95th percentile, $n$ at
+right. (a) Body height. (b) Endplate width. (c) Canal. (d) Pedicle width. (e) Disc height.
+(f) Trabecular attenuation.}
 \label{fig:levelatlas}
 \end{figure*}
 
@@ -872,9 +826,8 @@ need to catch them independently.
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_fov.pdf}
-\caption{Records carrying each vertebral level, of 802, cranial to caudal: the field of
-view of the cohort as the labels see it. The thoracic spine enters the abdominal field of
-view from below. Per-identifier counts are in Table~S1.}
+\caption{Records carrying each vertebral level, cranial to caudal. Counts per identifier
+in Table~S1.}
 \label{fig:fov}
 \end{figure}
 
