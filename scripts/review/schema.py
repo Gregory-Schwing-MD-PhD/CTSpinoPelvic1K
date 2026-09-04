@@ -47,25 +47,20 @@ RIB_ANCHOR_CLASSES = frozenset({11, 12})
 #     matching label_scheme / build_v3_totalseg). The rib NUMBER is read off the
 #     adjacent GT thoracic vertebra (costovertebral joint), not guessed — so on
 #     FOV-limited scans students paint only the visible ribs at true number.
-#   * Iliolumbar (58/59) + LS-nerve roots (60–65) take their dataset ids, above the
-#     bone block so they never clash with the editable base.
+#   * The soft-tissue overlays once planned here (iliolumbar 58/59, LS-nerve roots 60-65)
+#     are RETIRED with the ids: the dataset scheme is bone and hardware only and 58-73 is
+#     an unassigned gap (label_scheme.RETIRED_IDS). No ledger ever carried either task.
 # Dataset ignore is 255 (label_scheme). The review-space ignore is separate
 # (IGNORE_LABEL=10). Reviewers for a task load ONLY that task's palette
 # (labels_descriptor.descriptor_text(task=...)). See docs/annotation/.
 RIBS_CLASSES = {33 + n: f"rib_left_{n}" for n in range(1, 13)}     # 34–45
 RIBS_CLASSES.update({45 + n: f"rib_right_{n}" for n in range(1, 13)})  # 46–57
-ILIOLUMBAR_CLASSES = {58: "iliolumbar_left", 59: "iliolumbar_right"}
-LS_NERVE_CLASSES = {60: "nerve_L4_left", 61: "nerve_L4_right",
-                    62: "nerve_L5_left", 63: "nerve_L5_right",
-                    64: "nerve_S1_left", 65: "nerve_S1_right"}
 # task -> {review-space id: name}. "rib_anchor" is the original minimal LSTV
-# rostral anchor (kept for back-compat); ribs/ls_nerve/iliolumbar are the new v4
-# overlays. All are "add structures onto a good v3 label" passes.
+# rostral anchor (kept for back-compat); "ribs" is the v4 overlay. Both are "add
+# structures onto a good v3 label" passes.
 OVERLAY_CLASSES: Dict[str, Dict[int, str]] = {
     "rib_anchor": {11: "last_rib_vertebra", 12: "rib"},
     "ribs": RIBS_CLASSES,
-    "ls_nerve": LS_NERVE_CLASSES,
-    "iliolumbar": ILIOLUMBAR_CLASSES,
 }
 OVERLAY_TASKS = tuple(OVERLAY_CLASSES)          # the v4 add-an-overlay passes
 
@@ -139,7 +134,7 @@ def provenance_after(prov_before: Dict[str, Optional[str]],
                 out[r] = "pseudo_corrected"
         return out
     if region in OVERLAY_TASKS:
-        # An overlay pass (rib_anchor / ribs / ls_nerve / iliolumbar) ADDS new
+        # An overlay pass (rib_anchor / ribs) ADDS new
         # structures and may tidy class-mixing, but it is not a re-correction of
         # the spine/pelvis source provenance — those axes are unchanged. The
         # addition itself is recorded in the decision + label diff (the overlay

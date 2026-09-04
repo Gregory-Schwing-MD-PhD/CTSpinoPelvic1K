@@ -30,7 +30,7 @@ Open a case with:
 | 0188 | arthroplasty | 182,906 vox | femur_right |
 | 0485 | arthroplasty | 116,137 vox | femur_left |
 | 1128 | arthroplasty | 111,872 vox | femur_left |
-| 0247 | arthroplasty | 23,204 vox | femur_left — **an order of magnitude smaller than the rest; worth a look** |
+| 0247 | osteosynthesis (82) | 23,204 vox | femur_left — three cannulated screws in the femoral neck, confirmed by a reader; not an arthroplasty |
 | 1035 | SI screw | 8,881 vox | sacrum, S1, both hips |
 | 0068 | cage | 5,296 vox | L5, L6 — verified separately in ITK-SNAP |
 
@@ -80,7 +80,8 @@ did, 41 are artefact. The real count is **11**.
 
 ## Still open
 
-- 0247 is 23,204 voxels against 111,000–271,000 for the other eight arthroplasties. Either a
-  partial or resurfacing implant, or a different object. Needs a look.
+- ~~0247 is 23,204 voxels against 111,000–271,000 for the other eight arthroplasties.~~ Resolved:
+  it is not an arthroplasty. A reader confirmed three parallel cannulated screws in the left
+  femoral neck (osteosynthesis, id 82); see `hardware_manifest.csv`.
 - Whether the L5–L6 fusion on 0068 is surgical only, or surgical on top of a pre-existing
   transitional vertebra. No measurement separates those.

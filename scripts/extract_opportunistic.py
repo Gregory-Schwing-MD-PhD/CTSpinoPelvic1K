@@ -54,9 +54,6 @@ sys.path.insert(0, str(_HERE))
 import label_scheme as LS                                          # noqa: E402
 
 L1, L2, L3, L4 = 20, 21, 22, 23
-PSOAS_L, PSOAS_R = 60, 61
-AORTA = 66
-CALC_HU = 130.0            # the conventional threshold for calcified plaque
 MIN_VOX = 3000
 
 
@@ -165,33 +162,10 @@ def one(args) -> dict:
         r[f"{name}_trabecular_hu"] = round(float(v.mean()), 1)
         r[f"{name}_roi_voxels"] = int(core.sum())
 
-    # ---- psoas at mid-L3, and the aorta ------------------------------------------
-    # NOTE: v5 carries bone only. The soft-tissue classes (58-73) are declared in the
-    # scheme but no case populates them, so these two blocks find nothing and are kept
-    # for when they do rather than deleted.
-    l3 = lab == L3
-    if l3.sum() >= MIN_VOX and ((lab == PSOAS_L).any() or (lab == PSOAS_R).any()):
-        zc = int(np.median(np.argwhere(l3)[:, 2]))
-        areas, hus = 0.0, []
-        for pid in (PSOAS_L, PSOAS_R):
-            sl = (lab[:, :, zc] == pid)
-            if sl.sum() < 20:
-                continue
-            areas += float(sl.sum()) * sp[0] * sp[1]
-            hus.append(ct[:, :, zc][sl])
-        if areas > 0 and hus:
-            allhu = np.concatenate(hus)
-            r["psoas_area_mm2"] = round(areas, 1)
-            r["psoas_hu"] = round(float(np.median(allhu)), 1)
-
-    # ---- aortic calcification ------------------------------------------------------
-    ao = lab == AORTA
-    if ao.sum() > 500:
-        vox_mm3 = float(np.prod(sp))
-        calc = ao & (ct >= CALC_HU)
-        r["aorta_voxels"] = int(ao.sum())
-        r["aortic_calc_mm3"] = round(float(calc.sum()) * vox_mm3, 1)
-        r["aortic_calc_frac"] = round(float(calc.sum()) / float(ao.sum()), 5)
+    # Psoas area and aortic calcification once had blocks here that read soft-tissue ids
+    # 60/61 and 66. The scheme is bone and hardware only and those ids are a retired gap
+    # (label_scheme.RETIRED_IDS); a soft-tissue measure needs its own segmentation, not a
+    # label lookup that can never hit.
     return r
 
 

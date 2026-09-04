@@ -244,7 +244,7 @@ released manifest and splits. None of it is visible from the working copy on the
 | **no held-out test set** | `splits_5fold.json` is five disjoint folds whose union is the cohort | either ship a test split or keep the release as-is and let the paper say so, which it now does |
 | **`castellvi_type`** | **done** — populated on `v5` and `main`, 33 grades, 5 second reads | — |
 | **structures not universally present** | 1 record without sacrum/hips/femora, 2 without S1, 2 without T12, 9 without L5 | expected (field of view, or the lowest segment labelled L6/absorbed). Documented in the paper's limitations; no action unless a case is genuinely defective |
-| **soft tissue 58–73, hardware 76–79** | confirmed empty in all 802 | none. The paper's claim is now verified rather than asserted |
+| **ids 58–73** | confirmed empty in all 802; block retired 2026-09-03 (bone + hardware scheme only) | none — `label_scheme.RETIRED_IDS` keeps the gap unassigned |
 | **`tp_height` in the morphometrics** | was the tip-slab extent, so speckle set it; 169 values overstated by >5 mm, several by >25 mm | **fixed** — largest connected component, spliced in by `merge_tp_height.py`, old values kept as `*_prefix_mm`. Any analysis run before 2026-08-23 that used `tp_height_*` needs re-running |
 
 ### Still blocking
@@ -287,3 +287,16 @@ released manifest and splits. None of it is visible from the working copy on the
 - **`0787`** — the working copy calls its rib a lumbar rib, the released volume numbers it
   rib 12. One is wrong. The paper follows the release and says 15 records.
 - **Neuroradiologist confirmation** of the 33 Castellvi grades.
+
+## v8 — staged, not published (2026-09-03)
+
+The manuscript cites v7 and must keep citing it. These changes are staged locally in
+`data/zenodo_deposit/` (the labels there are the published v7, SHA-256 verified) and go out
+together as v8 when Greg says so:
+
+| change | where staged | why |
+|---|---|---|
+| drop the 58–73 soft-tissue names from `dataset_labels.json`; note the gap is unassigned | `data/zenodo_deposit/dataset_labels.json`, `README.md` | the scheme is bone and hardware only; v7's descriptor still lists names no record uses |
+| same on the HuggingFace card | `data/hf_export_v5/dataset_labels.json` (card text on HF not yet edited) | one scheme everywhere |
+| `pelvic_native` → `pelvic_only` in the manifest `config` field | not yet | one name for the 20 pelvis-only records |
+| Castellvi second-read reconciliation | not yet | title page / manuscript / CSV disagree on who read what |

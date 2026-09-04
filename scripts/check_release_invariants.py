@@ -45,11 +45,14 @@ def allowed_ids() -> set:
     ok = {0, LS.IGNORE_LABEL}
     ok |= set(range(1, 34))                     # C1..L6, sacrum, coccyx, T13, S1, hips, femurs
     ok |= set(RIB_L) | set(RIB_R)
-    ok |= set(range(58, 76))                    # soft tissue + lumbar ribs
-    for name in ("HARDWARE", "HARDWARE_CAGE", "HARDWARE_SCREW_ROD", "HARDWARE_PLATE"):
+    ok |= {LS.LUMBAR_RIB_LEFT, LS.LUMBAR_RIB_RIGHT}      # 74, 75
+    # 58..73 is a retired gap and is NOT allowed: a voxel there is a defect, not a class
+    for name in ("HARDWARE", "HARDWARE_CAGE", "HARDWARE_SCREW_ROD", "HARDWARE_PLATE",
+                 "HARDWARE_ARTHROPLASTY", "HARDWARE_SI_SCREW", "HARDWARE_OSTEOSYNTHESIS"):
         v = getattr(LS, name, None)
         if v is not None:
             ok.add(int(v))
+    assert not (ok & set(LS.RETIRED_IDS))
     return ok
 
 

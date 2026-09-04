@@ -1,3 +1,7 @@
+> **RETIRED (September 2026).** This annotation task was never performed on any released
+> volume (0 cases in the annotation ledger) and the soft-tissue label block (ids 58–73) has
+> been removed from the scheme: CTSpinoPelvic1K is a bone dataset. Kept for the record only.
+
 # Annotation guide — Iliolumbar ligament (`TASK=iliolumbar`)
 
 **Difficulty: moderate** · paints ids **58/59** · Space `…/CTSpinoPelvic1K-review-ili`
