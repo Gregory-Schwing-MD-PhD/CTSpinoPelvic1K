@@ -1,6 +1,6 @@
 ---
 title: "Automated fracture detection and level identification on trauma radiographs"
-subtitle: "Analysis plan under the DMC Trauma QI protocol (PI: Rahul Vaidya, MD)"
+subtitle: "Analysis plan under WSU IRB-21-10-4123, Improving Outcome in Orthopaedics Trauma Care (PI: Rahul Vaidya, MD)"
 author: "Gregory Schwing, MD, PhD — Department of Surgery, Detroit Medical Center / Wayne State University"
 date: "September 2026"
 ---
@@ -116,12 +116,44 @@ under the protocol.
 What gets published is model weights and aggregate numbers, not images. If a figure needs an
 example radiograph we use a public-dataset case.
 
+# What the protocol covers, and what it does not
+
+We read IRB-21-10-4123 ("Improving Outcome in Orthopaedics Trauma Care", expedited,
+approved June 2022, DMC Research Review RR#19981) against this plan.
+
+**Already covered.** A retrospective secondary analysis of DMC orthopaedic trauma records
+from the trauma registry and EMR, adults 18–99, under an approved waiver of consent and
+waiver of HIPAA authorization, at DMC, with the author listed as an investigator. The
+protocol's stated aims include identifying new orthopaedic injury patterns, which is where
+this work sits.
+
+**Not in the protocol as written, and needing an amendment before we pull anything:**
+
+1. *Imaging as a data source.* The approved data instrument is the "Orthopaedic Trauma
+   Patient Variables" sheet. Radiographs, CT, and PACS do not appear anywhere in the
+   protocol, and at the 2022 DMC review the team was asked to deselect "DMC
+   Radiology/Imaging Services" unless it would be used beyond reading records. Pulling
+   images from Radiology is a new data source.
+2. *Where data is stored.* The protocol states data is coded and kept on DMC Citrix and is
+   not shared outside the research team. Storing de-identified images on Wayne State
+   research computing is a change of location and needs to be written in, with the
+   de-identification step described.
+3. *What is done with it.* Procedures describe chart review. Model training is a new
+   analysis and should be named as such.
+4. *Record count.* 2,000 charts are approved. The imaging cohort may exceed that.
+
+None of this is out of the ordinary for this protocol — it has carried 46 approved
+amendments since 2022, most turning around within two weeks. We would rather file the
+amendment up front than discover mid-project that an imaging pull was not covered.
+
 # What we are asking of the lab
 
 - A query of the trauma log for encounters with spine radiographs and the corresponding CT
   reports, and an imaging pull for those encounters.
-- Confirmation from the IRB manager that this analysis sits within the protocol's scope as
-  written, or what would need to be added if it does not.
+- An amendment to IRB-21-10-4123 covering the four items under "What the protocol
+  covers, and what it does not" below. The author's addition to personnel (Amendment 47,
+  created 9/2/2026) is still pending; the scope items can ride on the same amendment or the
+  next one.
 - A point of contact for questions about the log's fields.
 
 Radiology reads for label adjudication are already covered by two radiology residents who
