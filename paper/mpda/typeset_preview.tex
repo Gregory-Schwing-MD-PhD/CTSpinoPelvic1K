@@ -238,13 +238,19 @@ separate it from the sacrum, a lowest rib by its length as a fraction of the rib
 transverse process by its span and its distance from the ala. None of these changes according
 to whether a reader would have said L5 or S1, so cases that disagree about the name remain
 comparable. Where the junction is in view the count is determined and the conventional name
-follows, and the two descriptions agree.
+follows, and the two descriptions agree. The positional description is, by construction,
+blind to the ambiguity: an L1 bearing a lumbar rib and an L5 assimilated to the sacrum both
+leave four rib-free vertebrae above the sacrum, and a true sixth lumbar vertebra and a T12
+with aplastic ribs both leave six. The count alone cannot separate the readings.
 
-\emph{And the morphology may be local rather than global.} Counting is not the only route to
-an identity. A thoracic vertebra differs in shape from a lumbar one --- in the span of its
-transverse processes relative to its body, in the proportions of its endplates and canal ---
-and if that difference holds at the boundary itself, the phenotype is decidable from the
-vertebra in front of the reader without any global count. On this corpus it does hold:
+\emph{But the vertebrae themselves are known to differ.} Counting is not the only route to
+an identity. Level-specific morphometry is long established: pedicle width and height change
+systematically from the thoracic to the lumbar spine,\cite{zindrick1987} vertebral body,
+endplate and canal dimensions differ by level,\cite{panjabi1991,panjabi1992,benzel2015} and
+the transverse process and the iliolumbar ligament mark the last lumbar vertebra
+independently of any count.\cite{hughes2006,koninwalz2010} If those differences hold at the
+boundary itself, the phenotype is decidable from the vertebra in front of the reader without
+any global count. On this corpus it does hold:
 separating T12 from L1 on shape alone, with each patient's own size divided out and
 cross-validation grouped by case, gives an area under the curve of 0.990 and 97.3\%
 accuracy over 1485 vertebrae. Size is deliberately removed, because a classifier given raw
@@ -922,6 +928,35 @@ H.~Liebl et~al.,
 \newblock Sci. Data {\bf 8}, 284 (2021),
 \newblock doi:10.1038/s41597-021-01060-0.
 
+\bibitem{zindrick1987}
+M.~R. Zindrick et~al.,
+\newblock Analysis of the morphometric characteristics of the thoracic and lumbar pedicles,
+\newblock Spine (Phila. Pa. 1976) {\bf 12}, 160--166 (1987),
+\newblock doi:10.1097/00007632-198703000-00012.
+
+\bibitem{panjabi1991}
+M.~M. Panjabi et~al.,
+\newblock Thoracic human vertebrae: quantitative three-dimensional anatomy,
+\newblock Spine (Phila. Pa. 1976) {\bf 16}, 888--901 (1991),
+\newblock doi:10.1097/00007632-199108000-00006.
+
+\bibitem{panjabi1992}
+M.~M. Panjabi et~al.,
+\newblock Human lumbar vertebrae: quantitative three-dimensional anatomy,
+\newblock Spine (Phila. Pa. 1976) {\bf 17}, 299--306 (1992),
+\newblock doi:10.1097/00007632-199203000-00010.
+
+\bibitem{benzel2015}
+E.~C. Benzel,
+\newblock {\em Biomechanics of Spine Stabilization},
+\newblock Thieme, New York, 3rd edition, 2015.
+
+\bibitem{hughes2006}
+R.~J. Hughes and A.~Saifuddin,
+\newblock Numbering of lumbosacral transitional vertebrae on {MRI}: role of the iliolumbar ligaments,
+\newblock AJR Am. J. Roentgenol. {\bf 187}, W59--W65 (2006),
+\newblock doi:10.2214/AJR.05.0415.
+
 \bibitem{ribsegv2}
 L.~Jin et~al.,
 \newblock {RibSeg} v2: a large-scale benchmark for rib labeling and anatomical centerline extraction,
@@ -986,11 +1021,6 @@ N.~E. Epstein,
 \newblock A perspective on wrong level, wrong side, and wrong site spine surgery,
 \newblock Surg. Neurol. Int. {\bf 12}, 286 (2021),
 \newblock doi:10.25259/SNI\_402\_2021.
-
-\bibitem{benzel2015}
-E.~C. Benzel,
-\newblock {\em Biomechanics of Spine Stabilization},
-\newblock Thieme, New York, 3rd edition, 2015.
 
 \bibitem{fea2026}
 E.~Beaulieu et~al.,
