@@ -36,6 +36,35 @@ H.~Liebl et~al.,
 \newblock Sci. Data {\bf 8}, 284 (2021),
 \newblock doi:10.1038/s41597-021-01060-0.
 
+\bibitem{zindrick1987}
+M.~R. Zindrick et~al.,
+\newblock Analysis of the morphometric characteristics of the thoracic and lumbar pedicles,
+\newblock Spine (Phila. Pa. 1976) {\bf 12}, 160--166 (1987),
+\newblock doi:10.1097/00007632-198703000-00012.
+
+\bibitem{panjabi1991}
+M.~M. Panjabi et~al.,
+\newblock Thoracic human vertebrae: quantitative three-dimensional anatomy,
+\newblock Spine (Phila. Pa. 1976) {\bf 16}, 888--901 (1991),
+\newblock doi:10.1097/00007632-199108000-00006.
+
+\bibitem{panjabi1992}
+M.~M. Panjabi et~al.,
+\newblock Human lumbar vertebrae: quantitative three-dimensional anatomy,
+\newblock Spine (Phila. Pa. 1976) {\bf 17}, 299--306 (1992),
+\newblock doi:10.1097/00007632-199203000-00010.
+
+\bibitem{benzel2015}
+E.~C. Benzel,
+\newblock {\em Biomechanics of Spine Stabilization},
+\newblock Thieme, New York, 3rd edition, 2015.
+
+\bibitem{hughes2006}
+R.~J. Hughes and A.~Saifuddin,
+\newblock Numbering of lumbosacral transitional vertebrae on {MRI}: role of the iliolumbar ligaments,
+\newblock AJR Am. J. Roentgenol. {\bf 187}, W59--W65 (2006),
+\newblock doi:10.2214/AJR.05.0415.
+
 \bibitem{ribsegv2}
 L.~Jin et~al.,
 \newblock {RibSeg} v2: a large-scale benchmark for rib labeling and anatomical centerline extraction,
@@ -100,11 +129,6 @@ N.~E. Epstein,
 \newblock A perspective on wrong level, wrong side, and wrong site spine surgery,
 \newblock Surg. Neurol. Int. {\bf 12}, 286 (2021),
 \newblock doi:10.25259/SNI\_402\_2021.
-
-\bibitem{benzel2015}
-E.~C. Benzel,
-\newblock {\em Biomechanics of Spine Stabilization},
-\newblock Thieme, New York, 3rd edition, 2015.
 
 \bibitem{fea2026}
 E.~Beaulieu et~al.,
