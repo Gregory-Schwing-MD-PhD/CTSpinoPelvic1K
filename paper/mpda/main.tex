@@ -199,13 +199,14 @@ unavailable in any spine-limited acquisition. LSTV is common,
 reported between 4\% and 30\% depending on definition, and wrong-level surgery is its most
 serious consequence.
 
-Existing public collections do not make this tractable, and not because they are small
-(Fig.~\ref{fig:priorart}): the spine collections omit the pelvis, the pelvic ones carry no
-vertebral count, and the whole-body scheme, TotalSegmentator, has neither an L6 class nor a class for a rib
-borne by a lumbar vertebra, so a six-lumbar spine cannot be written down in them at any
-segmentation quality. VerSe~\cite{verse2021,versedata2021} is the instructive case, and
-Fig.~\ref{fig:priorart}(b) gives it: a collection can enrich for anatomical variants
-deliberately, grade them, and still be unable to represent the ones it grades.
+Existing public collections cannot address this, and size is not the reason
+(Fig.~\ref{fig:priorart}). Spine datasets omit the pelvis; pelvic datasets do not number the
+vertebrae; and TotalSegmentator, the whole-body scheme, has no class for a sixth lumbar
+vertebra or for a rib on a lumbar vertebra. A six-lumbar spine therefore cannot be recorded
+in any of them, however good the segmentation. VerSe~\cite{verse2021,versedata2021} makes the
+point most clearly (Fig.~\ref{fig:priorart}b): it deliberately enriched for anatomical
+variants and graded them by Castellvi, yet left the graded vertebrae fused to the sacrum
+unsegmented.
 
 CTSpinoPelvic1K places the spine, pelvis, ribs and femora in one coordinate frame and gives
 a class to each structure an enumeration anomaly produces: a sixth lumbar vertebra, and a
