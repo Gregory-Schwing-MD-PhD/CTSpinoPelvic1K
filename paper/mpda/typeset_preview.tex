@@ -342,18 +342,24 @@ the asymmetry runs the way it does.
 No public rib annotation covers this cohort, and the two available automatic sources fail
 in complementary ways.
 
-Möller's binary rib network~\cite{moller2026} is a detection model of high reported
-accuracy, but it segments ribs that lie \emph{entirely within} the field of view; a rib
-clipped by the edge of an abdominal acquisition is liable to be missed altogether. Since
-this is a colonography cohort, the lower ribs are routinely clipped, and those are
-precisely the ribs the count depends on.
+Möller's binary rib network~\cite{moller2026} reports high accuracy, and its authors show
+that stump ribs can be classified from a partial field of view; that result concerns the
+morphological features computed on a rib once segmented. On this corpus the segmentation
+itself failed on ribs that were \emph{partially outside} the field of view: a rib crossing
+the boundary of an abdominal acquisition was liable to be missed altogether rather than
+segmented to the edge. This is not a limitation its authors report --- their evaluation
+excluded subjects in which the last rib was not visible, and their failure analysis
+attributes errors to costal-process fusion --- so it is recorded here as an observation
+from this cohort. Since this is a colonography cohort, the lower ribs are routinely
+clipped, and those are precisely the ribs the count depends on.
 
 TotalSegmentator~\cite{totalsegmentator} does segment clipped ribs and supplies the
 per-rib numbering that a binary network cannot. Its characteristic failure is at the other
 end of the bone: the most medial portion of the rib --- roughly the last tenth to sixth
 approaching the costovertebral joint --- is frequently absent. A rib truncated at its
-medial end never reaches the vertebra it articulates with, so the incidence test that
-assigns a rib to its level has nothing to test.
+medial end never reaches the vertebra it articulates with, so the rib--vertebra incidence
+check of Table~\ref{tab:qc} --- the quality-control gate on the rib class labels, which
+matches each rib to the vertebra its number implies --- has nothing to test.
 
 The two were therefore unioned (Fig.~S1): TotalSegmentator supplies
 numbering and the medial-clipped cases, Möller supplies detection where its output is more
