@@ -16,7 +16,7 @@ To be added, by **Friday Sept 12**:
 
 Reply when done. If you can't make the 12th, say so and you'll go on the next amendment.
 
-Nishaan — you're not WSU-affiliated, so you need a sponsored WSU AccessID first; Andreea's office can request it. Do CITI under that ID once you have it.
+Nishaan — you're not WSU-affiliated, so you need a guest WSU AccessID first. Request it here: https://services.wayne.edu/TDClient/277/Portal/Requests/ServiceOffering/208/Single-guest-ID-account-request/Request — then do CITI under that ID.
 
 Ashley leads the student side. Work questions to her or me; eProtocol questions to Andreea.
 

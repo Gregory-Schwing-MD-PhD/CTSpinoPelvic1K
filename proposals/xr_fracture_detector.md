@@ -129,7 +129,7 @@ Role for each: Other Investigator, Student/Resident/Fellow, unless noted.
 | Michael McLellan | — | |
 | Jerick Kim | — | |
 | Emi Ueda-Martinez | hv3612@wayne.edu | |
-| Nishaan Makim | naahsin@gmail.com | **Not WSU-affiliated.** Every personnel entry in this protocol carries a WSU AccessID, and Obligations and COI are signed in eProtocol. He will need a sponsored/guest WSU AccessID before he can be listed; CITI must then be completed under that WSU affiliation so the protocol can pull his record. |
+| Nishaan Makim | naahsin@gmail.com | **Not WSU-affiliated.** Every personnel entry in this protocol carries a WSU AccessID, and Obligations and COI are signed in eProtocol. He will need a guest WSU AccessID before he can be listed (Single guest ID account request: https://services.wayne.edu/TDClient/277/Portal/Requests/ServiceOffering/208/Single-guest-ID-account-request/Request); CITI must then be completed under that WSU affiliation so the protocol can pull his record. |
 | Miraziz Ismoilov, MD; Nizar Alnabahneh, MD | — | Radiology. **Add only if they will adjudicate DMC images**; omit if their role stays on public data. |
 
 Each must complete before submission: CITI *Biomedical Investigators*, *HIPS for Students
@@ -158,7 +158,7 @@ deselected in 2022 at the CRO reviewer's request.
 - A labeling tool on WSU compute (ITK-SNAP or 3D Slicer on a WSU machine, or self-hosted
   CVAT on the cluster). The Colab server used for the CT work is commercial cloud and is
   excluded by the storage text above.
-- A sponsored WSU AccessID for Nishaan Makim.
+- A guest WSU AccessID for Nishaan Makim (form linked in the personnel table).
 
 # References
 
