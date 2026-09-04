@@ -288,15 +288,15 @@ released manifest and splits. None of it is visible from the working copy on the
   rib 12. One is wrong. The paper follows the release and says 15 records.
 - **Neuroradiologist confirmation** of the 33 Castellvi grades.
 
-## v8 — staged, not published (2026-09-03)
+## v8 — published 2026-09-04 (10.5281/zenodo.22293878)
 
-The manuscript cites v7 and must keep citing it. These changes are staged locally in
-`data/zenodo_deposit/` (the labels there are the published v7, SHA-256 verified) and go out
-together as v8 when Greg says so:
+Published from `data/zenodo_deposit/` (labels = v7's `labels.zip`, byte-identical; loose files
+replaced via `zenodo/new_version.py`). The manuscript now cites v8. Pushed to HF
+`OpenSpineConsortium/CTSpinoPelvic1K` and `anonymous-mlhc/CTSpinoPelvic1K` the same day.
 
 | change | where staged | why |
 |---|---|---|
 | drop the 58–73 soft-tissue names from `dataset_labels.json`; note the gap is unassigned | `data/zenodo_deposit/dataset_labels.json`, `README.md` | the scheme is bone and hardware only; v7's descriptor still lists names no record uses |
 | same on the HuggingFace card | `data/hf_export_v5/dataset_labels.json` (card text on HF not yet edited) | one scheme everywhere |
 | `pelvic_native` → `pelvic_only` in the manifest `config` field | not yet | one name for the 20 pelvis-only records |
-| Castellvi second-read reconciliation | not yet | title page / manuscript / CSV disagree on who read what |
+| Castellvi consensus (both readers read all 34; `docs/castellvi_consensus.csv`) | **in v8** | `castellvi_read_1/_2`, `castellvi_agreement`, `castellvi_consensus`; `castellvi_second_read` retired |
