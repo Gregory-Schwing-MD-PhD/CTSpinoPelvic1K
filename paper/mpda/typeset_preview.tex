@@ -307,8 +307,14 @@ TotalSegmentator~\cite{totalsegmentator} & 1{,}204 & \has\no\has\has\has\has\no\
 
 \begin{figure}[t]
 \centering
+% Single-spaced inside the chart whatever the document does: in the double-spaced preprint
+% the boxes inherited the stretch, the float grew past the page, and every later figure
+% queued behind it to the end of the paper.
+\linespread{1}\selectfont
 \begin{tikzpicture}[
-  x=1mm, y=1mm, font=\footnotesize, node distance=3.5mm,
+  % absolute 8 pt: the boxes are sized in millimetres, so the type must not follow the
+  % document size (\footnotesize is 10 pt in the preprint and wrapped every box)
+  x=1mm, y=1mm, font=\fontsize{8}{9.6}\selectfont, node distance=3.5mm,
   bx/.style={draw, rounded corners=1.5pt, align=center, text width=#1, inner sep=3.5pt},
   src/.style={bx=22mm, fill=black!5, minimum height=9.5mm},
   proc/.style={bx=71mm, fill=blue!7},
