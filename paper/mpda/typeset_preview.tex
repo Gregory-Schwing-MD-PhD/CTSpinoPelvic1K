@@ -1,5 +1,5 @@
 % ============================================================================
-%  CTSpinoPelvic1K — Medical Physics Dataset Article
+%  CTSpinoPelvic1K - Medical Physics Dataset Article
 %
 %  REVTeX 4.2 with the AAPM substyle, which is what Medical Physics expects.
 %  Overleaf: "Template for Medical Physics Journal" (RevTeX + aapm).
@@ -158,7 +158,7 @@
 \date{\today}
 
 % ---------------------------------------------------------------------------
-%  STRUCTURED ABSTRACT — four named sections, under 300 words.
+%  STRUCTURED ABSTRACT - four named sections, under 300 words.
 % ---------------------------------------------------------------------------
 \begin{abstract}
 \textbf{Purpose:} A lumbar vertebra is named by counting down from C2, the reference standard
@@ -195,14 +195,14 @@ Castellvi grades are a two-reader consensus.
 
 The spine commonly carries seven cervical, twelve thoracic and five lumbar vertebrae, and a
 vertebra is identified by where it falls in that sequence. Transitional variants sit at the
-two ends of the lumbar column --- the thoracolumbar transitional vertebra (TLTV) above, the
-lumbosacral transitional vertebra (LSTV) below --- and they disturb identification in two
+two ends of the lumbar column, the thoracolumbar transitional vertebra (TLTV) above and the
+lumbosacral transitional vertebra (LSTV) below, and they disturb identification in two
 ways at once. They change what the border vertebra and its ribs \emph{look like}: a
 thoracolumbar border vertebra may carry a full rib, a hypoplastic stump, or none at all, and
 a lumbosacral one may be partly or completely assimilated to the sacrum, with an anteriorly
 wedged body, a reduced disc beneath it and hypoplastic facet joints, or conversely separated
 from it with a squared body, lumbar-type facets and a full-height disc~\cite{koninwalz2010}.
-They also change \emph{how many} vertebrae each region contains --- eleven or thirteen
+They also change \emph{how many} vertebrae each region contains: eleven or thirteen
 thoracic, four or six lumbar.
 
 Either change alone would be tractable. Together they make it difficult to state definitively
@@ -212,7 +212,7 @@ vertebra, a T12 whose ribs are aplastic, or an S1 lumbarized away from the sacru
 set yields the same count, and the morphology that would separate the readings is not
 decisive to a human reader in every case. Whether it nonetheless differs enough for a learned classifier to separate them, or at
 least to assign each reading a probability, is the question this release is built to
-support. Absent that, what remains is the sequence --- conventionally established by
+support. Absent that, what remains is the sequence, conventionally established by
 counting downward from C2, the reference standard for numeration~\cite{lian2018}, and
 unavailable in any spine-limited acquisition. LSTV is common,
 reported between 4\% and 30\% depending on definition, and wrong-level surgery is its most
@@ -246,12 +246,12 @@ and are described in Sec.~\ref{sec:format}.
 cervical spine, so the conventional count cannot be performed. That is a property of
 abdominal imaging rather than of the annotation, and it means a variant at the thoracolumbar
 junction cannot be \emph{resolved by counting} here at all: a thirteenth thoracic vertebra, a
-lumbar rib, and a \emph{stump rib} --- a hypoplastic twelfth rib, one of the cardinal
-indicators of a thoracolumbar transitional vertebra --- produce overlapping appearances.
+lumbar rib, and a \emph{stump rib} (a hypoplastic twelfth rib, one of the cardinal
+indicators of a thoracolumbar transitional vertebra) produce overlapping appearances.
 
 \emph{What the release does instead.} No vertebral label is asserted where it cannot be
 supported. Every quantity is expressed against the two landmarks present in essentially
-every abdominal scan --- the sacrum below and the lowest rib-bearing vertebra above --- so
+every abdominal scan, the sacrum below and the lowest rib-bearing vertebra above, so
 the description is positional rather than nominal: a vertebra by how many rib-free vertebrae
 separate it from the sacrum, a lowest rib by its length as a fraction of the rib above it, a
 transverse process by its span and its distance from the ala. None of these changes according
@@ -451,14 +451,14 @@ Sec.~\ref{sec:validation} are the independent check on what the rule missed.
 
 The scheme is VerSe-native: vertebrae keep their VerSe identifiers (C1--C7 = 1--7,
 T1--T12 = 8--19, L1--L6 = 20--25, sacrum 26), and every non-VerSe structure takes a fixed
-identifier above that range --- S1 carved from the sacrum (29), hips (30--31), femora
+identifier above that range: S1 carved from the sacrum (29), hips (30--31), femora
 (32--33), ribs (34--45 left, 46--57 right), lumbar ribs (74--75) and surgical hardware
 (76--82). Identifiers 58--73 are unassigned: a soft-tissue block once reserved there was
 never populated and is retired.
 
 Two anchors make the count decidable, and Fig.~\ref{fig:anchors} shows both: the lowest
 rib-bearing vertebra above, \textbf{S1} carved from the sacrum below. Each earns its place
-by what it supports rather than by being an endpoint --- S1 supplies the sacral endplate
+by what it supports rather than by being an endpoint. S1 supplies the sacral endplate
 landmark that sacral slope and pelvic incidence are measured from, and with both brackets
 present L5 and L6 are distinguishable where a spine-limited view alone would not be.
 
@@ -481,8 +481,8 @@ six-lumbar spine at all, and must renumber the column or drop a level to fit.
 no published counterpart. A lumbar rib and a stump rib are the same object under two counts,
 so assigning it a number would commit the label to one reading of an enumeration anomaly. A
 scheme that numbers every rib 1--12 has nowhere to put a thirteenth: the annotator must
-either call it rib~12 --- asserting the vertebra beneath it is thoracic, the very question at
-issue --- or discard it. TotalSegmentator carries ribs 1--12 per side and no such class, and
+either call it rib~12, asserting the vertebra beneath it is thoracic, the very question at
+issue, or discard it. TotalSegmentator carries ribs 1--12 per side and no such class, and
 VerSe's T13 is a vertebra rather than a rib. 16 released records carry a lumbar rib and 18
 carry an L6.
 
@@ -501,7 +501,7 @@ here only because rib presence is itself labeled.
 
 Sixteen records carry a lumbar rib in the released volumes: thirteen bilateral and three
 unilateral, all three on the right. That laterality is reported because it is what the
-release contains and not as a finding --- sixteen records cannot support a statement about
+release contains and not as a finding: sixteen records cannot support a statement about
 side preference, and none is made.
 
 Eighteen records carry an L6. Fourteen are labeled lumbarization, two sacralization, one
@@ -539,8 +539,8 @@ throughout used NiBabel and SciPy; no image is resampled or reoriented when a la
 written, so every label shares its image's grid and affine exactly.
 
 \emph{Generative artificial intelligence.} Assistance from large language models was used
-for manuscript preparation --- drafting and editing of text, and generation of analysis and
-figure code --- under author review. It was not used to generate, annotate or interpret any
+for manuscript preparation (drafting and editing of text, and generation of analysis and
+figure code) under author review. It was not used to generate, annotate or interpret any
 imaging data, and no scientific claim in this manuscript originates from it. All numbers
 reported here are computed by the released code from the released volumes.
 
@@ -572,14 +572,14 @@ because the expected vertebra lies outside the field of view and 11 have no vert
 the anchor distance; of the 5{,}749 evaluable, 5{,}747 match, two (0.035\%) are offset by one
 level, and no case is misnumbered. The denominator is stated because quoting the two
 residual offsets against all 11{,}548 ribs would halve the rate by counting ribs the check never
-examined --- and because more than half the ribs in a screening abdominal CT being
+examined, and because more than half the ribs in a screening abdominal CT being
 unevaluable is itself a fact about the corpus worth reporting. Both offsets are
 field-of-view truncations on individually characterized cases, one at $+1$ level and one at
 $-1$, and are reported rather than suppressed: a threshold tuned until the count reaches
 zero yields a cleaner number and a less informative one.
 
 The same check carries an invariant that reads as a null result. Of the 5{,}749 evaluable
-ribs, \emph{zero} are assigned to a lumbar vertebra --- not because no lumbar ribs exist,
+ribs, \emph{zero} are assigned to a lumbar vertebra, not because no lumbar ribs exist,
 since 16 records carry one, but because such a rib takes class 74 or 75 and never enters the
 numbered set the test examines. A numbered rib landing on a lumbar vertebra would be a
 counting error of exactly the kind this dataset exists to expose.
@@ -601,8 +601,8 @@ corpus that recorded only the count would describe those seven as unremarkable.
 
 Two radiology resident physicians graded every case independently and resolved their six
 disagreements by consensus; both reads and the consensus are in the manifest. The distinction
-the classification turns on --- bony fusion against articulation without
-it~\cite{koninwalz2010} --- is the one carrying clinical weight, and it is where the
+the classification turns on, bony fusion against articulation without
+it~\cite{koninwalz2010}, is the one carrying clinical weight, and it is where the
 disagreements lay: four of the six were III against II.
 
 \begin{table*}[t]
@@ -742,7 +742,7 @@ is present does not by itself determine what to call it. The lowest-rib length r
 
 \emph{Level gradients and spinopelvic measures} (Fig.~\ref{fig:validation}). Vertebral
 dimensions increase caudally in step with the load each level carries. Pelvic incidence
-does not vary with age, while pelvic tilt increases --- the descriptive signature of a
+does not vary with age, while pelvic tilt increases, the descriptive signature of a
 pelvis retroverting as a spine ages.
 
 % Left full-width deliberately: narrowing this one to a column saved no page and cost
@@ -766,7 +766,7 @@ reported at the published standard site.
 
 The principal use is the \emph{spinopelvic interface}. Spine and pelvis carry
 radiologist-sourced annotation on one coordinate frame in 802 records, making sacral
-morphology measurable against the lumbar column rather than in isolation --- the sacral
+morphology measurable against the lumbar column rather than in isolation: the sacral
 endplate and its slope, the alar corridors constraining S2-alar-iliac and iliac screw
 trajectories, and the L5--S1 geometry a lumbosacral fusion must cross. Pelvic incidence is
 derived from the segmented sacrum and femoral heads rather than from landmarks placed on a
@@ -801,8 +801,8 @@ specimens, plotted as single values with no indication of spread.\cite{benzel201
 cannot tell a reader whether the patient in front of them is unusual, because they never
 show what usual looks like. The same measures are given here from 802 records with the
 distribution attached (Fig.~\ref{fig:levelatlas}), reproducing two properties of the
-classical figures --- body height crosses over, dorsal exceeding ventral at T11--T12 and
-reversing by L4--L5, and pedicle width widens steeply into the lower lumbar spine --- and
+classical figures (body height crosses over, dorsal exceeding ventral at T11--T12 and
+reversing by L4--L5, and pedicle width widens steeply into the lower lumbar spine) and
 adding the width of each distribution, which is the part needed to judge an individual. A
 larger $n$ sharpens a distribution without changing the population it came from, and this
 one is a screening cohort aged 50 and over.
@@ -831,7 +831,7 @@ cohort is a colorectal screening population aged 50 and over, so its distributio
 not be read as representative of a surgical one.
 
 \emph{Declared but empty, and confirmed so.} The partial-annotation sentinel (255) is
-declared in the scheme and occurs in no record --- established by counting identifiers
+declared in the scheme and occurs in no record, established by counting identifiers
 across all 802 released volumes rather than asserted. It is retained because the protocol
 is part of the scheme and a later release may ship a partially traced record. The hardware
 identifiers were in this position until v6 and are no longer: 76--82 are populated in the
@@ -843,8 +843,8 @@ where those sources were wrong. Pelvic labels on records that lacked one are
 pseudolabeled. The rib layer is a pseudolabel whose human review was triaged by an
 automated rule rather than exhaustive, so its guarantee is the absence of the failure modes
 that rule detects. Transitional labels derive from two independent sources and are not
-uniformly adjudicated --- which is precisely why the measures reported here are count-free
---- and the Castellvi grades are a consensus of two radiology resident physicians.
+uniformly adjudicated, which is precisely why the measures reported here are count-free,
+and the Castellvi grades are a consensus of two radiology resident physicians.
 The sacral sub-division inherits its level from an automatic method, and in 100 records that
 level places S1 above half the sacrum or below fifteen percent of it, which no first sacral
 segment is; those records are flagged in the released quality-control table and should be
@@ -852,7 +852,7 @@ filtered before any measurement depending on the sacral endplate.
 
 \emph{Structures are not universally present.} The same census shows the release is not
 uniformly complete. Sacrum, hips and femora are present in all 802 records. One record
-carries no S1, one lacks T12, and nine lack an L5 identifier --- in every case because the
+carries no S1, one lacks T12, and nine lack an L5 identifier, in every case because the
 structure lies outside the field of view or, for L5, because the lowest lumbar segment is
 labeled L6 or incorporated into the sacrum. Users filtering on the presence of the caudal anchor should filter explicitly rather
 than assume it.
