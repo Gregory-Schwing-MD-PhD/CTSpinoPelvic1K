@@ -234,10 +234,7 @@ them inherits the gap: faced with an enumeration anomaly it must shift the whole
 level or absorb a vertebra into its neighbor. The size of that problem has now been measured
 on CT, where prior labeling methods assigned every vertebra correctly in 77\% of subjects and
 an anomaly-aware extension of SPINEPS~\cite{spineps2025} raised that to
-99\%~\cite{veridah2026}. Its weights label L6 and T13 on CT, but its 1{,}536 training scans are in-house and unreleased: the capability exists as weights, not as data. VerSe~\cite{verse2021,versedata2021}
-makes the point most clearly (Table~\ref{tab:priorart}): it deliberately enriched for
-anatomical variants and graded them by Castellvi, yet left the graded vertebrae fused to the
-sacrum unsegmented.
+99\%~\cite{veridah2026}. Its weights label L6 and T13 on CT, but its 1{,}536 training scans are in-house and unreleased: the capability exists as weights, not as data. 
 
 The intraoperative side of the problem has prior art of its own. LevelCheck registers the
 intraoperative radiograph to the preoperative CT and projects the CT's vertebral labels onto
@@ -508,8 +505,7 @@ per-record geometry ships with the archive.
 
 Neither anchor is novel on its own: TotalSegmentator~\cite{totalsegmentator} carries a
 separate S1 class and per-level ribs, and VerSe~\cite{verse2021} carries L6, whose
-identifier this release keeps, so its L6 \emph{is} VerSe's. L6 is retained because a scheme
-without it cannot record a six-lumbar spine at all.
+identifier this release keeps, so its L6 \emph{is} VerSe's.
 
 \textbf{A rib on a lumbar body receives its own class}, and this is the one class here with
 no published counterpart. A lumbar rib and a stump rib are the same object under two counts,
@@ -790,13 +786,13 @@ The transitional layer serves that use rather than competing with it: no traject
 planned across a junction whose segments cannot be named.
 
 \emph{A proxy for the preoperative view.} We know of no public, labeled preoperative lumbar
-CT cohort. In its absence this release is the closest available proxy for the field of view
-a lumbar case is planned on: it holds the T12-to-S1 span with the lowest ribs and the
-pelvis; 377 of its 802 records were acquired prone, the position of posterior lumbar
-surgery, and the manifest records each record's position; and it labels the anomalies that
-make level identification fail. It is a screening population imaged at colonography dose,
-not a surgical series, so it supports method development for level identification and
-instrumentation geometry rather than validation of a planning decision.
+CT cohort. In its absence this release is the closest available proxy for the view a lumbar case
+is planned on: the T12-to-S1 span with the lowest ribs and the pelvis; 377 of 802 records
+acquired prone, the position of posterior lumbar surgery, with position recorded per
+record; and classes for the anomalies that make level identification fail. It is a
+screening population at colonography dose, not a surgical series: it supports method
+development for level identification and instrumentation geometry, not validation of a
+planning decision.
 
 \subsection{Three uses the released measurements support}
 
@@ -869,22 +865,17 @@ level places S1 above half the sacrum or below fifteen percent of it, which no f
 segment is; those records are flagged in the released quality-control table and should be
 filtered before any measurement depending on the sacral endplate.
 
-\emph{Structures are not universally present.} The same census shows the release is not
-uniformly complete. Sacrum, hips and femora are present in all 802 records. One record
-carries no S1, one lacks T12, and nine lack an L5 identifier, in every case because the
-structure lies outside the field of view or, for L5, because the lowest lumbar segment is
-labeled L6 or incorporated into the sacrum. Users filtering on the presence of the caudal anchor should filter explicitly rather
-than assume it.
+\emph{Structures are not universally present.} Sacrum, hips and femora are present in all 802 records; one record carries no S1, one lacks T12, and nine lack an L5 identifier, because the structure lies outside the field of view or, for L5, because the lowest lumbar segment is labeled L6 or incorporated into the sacrum. Users needing the caudal anchor should filter on it explicitly.
 
 \section{Discussion}
 
 \emph{Comparison with related material.} Against the collections in
 Table~\ref{tab:priorart}, the contribution is the crosswalk placing spine and pelvis on the
-same series, together with classes for the anatomy an enumeration anomaly actually produces. VerSe~\cite{verse2021} comes closest in intent: it also enriched its cohort for transitional anatomy and graded each case by Castellvi. The difference is what a graded case leaves behind. VerSe names the anomaly but does not segment the sacrum, so the fused or articulating structure the grade describes has no mask to go with it. This release segments that structure directly, as L6 or as a separately carved S1, so a user has the anatomy itself to measure rather than only a grade that describes it. TotalSegmentator~\cite{totalsegmentator} segments far more of the body than any source used here but has no class for a sixth lumbar vertebra or a rib on a lumbar body; what this release adds is not more anatomy per scan but the classes an enumeration anomaly needs in order to be recorded accurately. 
+same series, together with classes for the anatomy an enumeration anomaly actually produces. VerSe~\cite{verse2021,versedata2021} comes closest in intent, enriching for transitional anatomy and grading by Castellvi, but it does not segment the sacrum, so the structure a grade describes has no mask; this release segments it, as L6 or as a separately carved S1. TotalSegmentator~\cite{totalsegmentator} segments far more of the body but cannot record a sixth lumbar vertebra or a lumbar rib; what this release adds is not more anatomy per scan but the classes an anomaly needs to be recorded accurately. 
 
 \emph{Limitations.} The cohort comes from one acquisition protocol of a colorectal-screening population aged 50 and over, so how well it generalizes to a pathologic population is untested. The rib layer's human review was triaged by an automated rule rather than performed on every bone, so it guarantees only the absence of the failure modes that rule detects. 
 
-\emph{Future directions.} The version history shows the scheme being extended more than once: femora and the S1 anchor, then per-level ribs, then lumbar ribs and surgical hardware, were each folded into the existing release rather than requiring a new dataset. Imaging beyond this cohort's protocol, and the C2 anchor it cannot supply, are the natural next additions.
+\emph{Future directions.} The scheme has been extended in place more than once (femora and S1, per-level ribs, lumbar ribs, hardware); imaging beyond this protocol, and the C2 anchor it cannot supply, are the natural next additions.
 
 \section{Conclusion}
 
@@ -987,18 +978,6 @@ H.~M{\"o}ller, H.~Schoen, R.~Graf, et~al.,
 \newblock {VERIDAH}: solving enumeration anomaly aware vertebra labeling across imaging sequences, 2026,
 \newblock arXiv:2601.14066. doi:10.48550/arXiv.2601.14066.
 
-\bibitem{verse2021}
-A.~Sekuboyina et~al.,
-\newblock {VerSe}: a vertebrae labelling and segmentation benchmark for multi-detector {CT} images,
-\newblock Med. Image Anal. {\bf 73}, 102166 (2021),
-\newblock doi:10.1016/j.media.2021.102166.
-
-\bibitem{versedata2021}
-H.~Liebl et~al.,
-\newblock A computed tomography vertebral segmentation dataset with anatomical variations and multi-vendor scanner data,
-\newblock Sci. Data {\bf 8}, 284 (2021),
-\newblock doi:10.1038/s41597-021-01060-0.
-
 \bibitem{otake2012}
 Y.~Otake, S.~Schafer, J.~W. Stayman, et~al.,
 \newblock Automatic localization of vertebral levels in x-ray fluoroscopy using {3D-2D} registration: a tool to reduce wrong-site surgery,
@@ -1068,6 +1047,18 @@ R.~J. Hughes and A.~Saifuddin,
 \newblock Numbering of lumbosacral transitional vertebrae on {MRI}: role of the iliolumbar ligaments,
 \newblock AJR Am. J. Roentgenol. {\bf 187}, W59--W65 (2006),
 \newblock doi:10.2214/AJR.05.0415.
+
+\bibitem{versedata2021}
+H.~Liebl et~al.,
+\newblock A computed tomography vertebral segmentation dataset with anatomical variations and multi-vendor scanner data,
+\newblock Sci. Data {\bf 8}, 284 (2021),
+\newblock doi:10.1038/s41597-021-01060-0.
+
+\bibitem{verse2021}
+A.~Sekuboyina et~al.,
+\newblock {VerSe}: a vertebrae labelling and segmentation benchmark for multi-detector {CT} images,
+\newblock Med. Image Anal. {\bf 73}, 102166 (2021),
+\newblock doi:10.1016/j.media.2021.102166.
 
 \bibitem{ribsegv2}
 L.~Jin et~al.,
