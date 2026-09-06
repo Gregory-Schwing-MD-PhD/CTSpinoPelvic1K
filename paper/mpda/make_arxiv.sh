@@ -24,8 +24,13 @@ OUT="$HERE/arxiv"
 TAR="$HERE/CTSpinoPelvic1K_arxiv.tar.gz"
 
 rm -rf "$OUT" && mkdir -p "$OUT/figures"
-cp "$HERE/main.tex" "$OUT/main.tex"
+# arXiv posts the authors' own manuscript: names in, redactions out, no caption list,
+# no line numbers. The three switches are single words, so no escaping is needed.
+sed -e 's/,preprint,linenumbers]{revtex4-2}/,preprint]{revtex4-2}/' \
+    -e 's/reviewtrue/reviewfalse/' -e 's/captionlisttrue/captionlistfalse/' \
+    "$HERE/main.tex" > "$OUT/main.tex"
 
+cp "$HERE/figure_captions.tex" "$OUT/" 2>/dev/null || true
 # only the figures main.tex actually includes
 grep -o 'figures/[A-Za-z0-9_.-]*\.pdf' "$HERE/main.tex" | sort -u > /tmp/figs.txt
 while read -r f; do

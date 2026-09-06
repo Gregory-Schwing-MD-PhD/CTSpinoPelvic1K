@@ -148,8 +148,28 @@
 %\author{Michael McLellan}
 %\author{Jerick Kim}
 %\affiliation{Wayne State University School of Medicine, Detroit, Michigan, USA}
+\ifreview
 \author{[Author names removed for double-anonymized review]}
 \affiliation{[Affiliations removed for double-anonymized review]}
+\else
+\author{Gregory Schwing}\email{gregory.schwing@med.wayne.edu}
+\affiliation{Department of Surgery, Detroit Medical Center and Wayne State University, Detroit, Michigan, USA}
+\author{Ashley Schehr}
+\author{Annika Tekumulla}
+\author{Margret Khoushi}
+\author{Ryan Christian}
+\author{Dane Hubers}
+\author{Faris Mahjoub}
+\author{Hassan Saad}
+\author{Mia Sooch}
+\author{Sathya Siddapureddy}
+\author{Michael McLellan}
+\author{Jerick Kim}
+\affiliation{School of Medicine, Wayne State University, Detroit, Michigan, USA}
+\author{Miraziz Ismoilov}
+\author{Nizar Alnabahneh}
+\affiliation{Department of Radiology, Detroit Medical Center and Wayne State University, Detroit, Michigan, USA}
+\fi
 % [CO-AUTHOR] every author must supply their own conflict-of-interest statement;
 % the declaration below covers all of them and only the first author has been asked.
 % Affiliations were confirmed by the corresponding author: the annotators are School
@@ -893,8 +913,10 @@ The release described here is \datasetversion{}, permanently archived at
 \doiurl{\datasetversiondoi}; the concept DOI \doiurl{\datasetdoi} resolves to the
 current version.
 The archive carries the loader, the label scheme, the quality-control tables and the
-analysis code under an open-source licence. The repository URL identifies the authors; it
-is on the title page and will be restored here for the camera-ready version.
+analysis code under an open-source licence. \ifreview The repository URL identifies the authors; it
+is on the title page and will be restored here for the camera-ready version.\else Code:
+\url{https://github.com/OpenSpineConsortium/CTSpinoPelvic1K}; convenience mirror:
+\url{https://huggingface.co/datasets/OpenSpineConsortium/CTSpinoPelvic1K}.\fi
 
 \section*{Acknowledgements}
 % The guidelines want the COI statement below an Acknowledgements section, and the
