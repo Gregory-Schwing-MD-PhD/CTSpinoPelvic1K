@@ -214,7 +214,7 @@ def main() -> int:
     fig.tight_layout(rect=(0, 0.13 if a.legend_cols == 1 else 0.08, 1, 1))
     out = Path(a.out) / f"{a.name}.pdf"
     out.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out, bbox_inches="tight", dpi=200)
+    fig.savefig(out, bbox_inches="tight", dpi=300)
     print(f"wrote {out}")
     return 0
 

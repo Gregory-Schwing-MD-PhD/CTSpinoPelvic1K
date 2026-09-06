@@ -186,7 +186,7 @@ def main() -> int:
                bbox_to_anchor=(0.5, 0.0))
     out = Path(a.out) / f"{a.name}.pdf"
     out.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out, bbox_inches="tight", dpi=200)
+    fig.savefig(out, bbox_inches="tight", dpi=300)
     fig.savefig(out.with_suffix(".png"), bbox_inches="tight", dpi=150)
     print(f"wrote {out}")
     return 0
