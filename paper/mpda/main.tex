@@ -223,15 +223,28 @@ Existing public collections cannot address this, and size is not the reason
 (Table~\ref{tab:priorart}). Spine datasets omit the pelvis; pelvic datasets do not number the
 vertebrae; and TotalSegmentator, the whole-body scheme, has no class for a sixth lumbar
 vertebra or for a rib on a lumbar vertebra. A six-lumbar spine therefore cannot be recorded
-in any of them, however good the segmentation. VerSe~\cite{verse2021,versedata2021} makes the
-point most clearly (Table~\ref{tab:priorart}): it deliberately enriched for anatomical
-variants and graded them by Castellvi, yet left the graded vertebrae fused to the sacrum
-unsegmented.
+in any of them, however good the segmentation, and a segmenter trained on them inherits the
+gap: faced with an enumeration anomaly it must shift the whole column by a level or absorb a
+vertebra into its neighbor. The size of that problem has now been measured on CT, where
+prior labeling methods assigned every vertebra correctly in 77\% of subjects and an
+anomaly-aware method raised that to 99\%~\cite{veridah2026}. VerSe~\cite{verse2021,versedata2021}
+makes the point most clearly (Table~\ref{tab:priorart}): it deliberately enriched for
+anatomical variants and graded them by Castellvi, yet left the graded vertebrae fused to the
+sacrum unsegmented.
+
+The intraoperative side of the problem has prior art of its own. LevelCheck registers the
+intraoperative radiograph to the preoperative CT and projects the CT's vertebral labels onto
+it, localizing the target level in a limited field of view to within a few percent of cases
+in clinical use~\cite{otake2012,lo2015,desilva2016}. The labels it projects are placed by
+hand on the CT, by a skilled operator and verified by the surgeon~\cite{otake2012}: the
+method assumes a correctly labeled CT and does not supply one. Automating that step, and
+getting it right precisely where the anatomy is anomalous, is what a dataset carrying the
+classes those anomalies produce is for.
 
 CTSpinoPelvic1K places the spine, pelvis, ribs and femora in one coordinate frame and gives
 a class to each structure an enumeration anomaly produces: a sixth lumbar vertebra, and a
-rib borne by a lumbar vertebra. A scheme without those classes must record such anatomy as
-something it is not.
+rib borne by a lumbar vertebra. A scheme without those classes lacks a class vocabulary
+expressive enough to describe anatomic anomalies.
 
 \emph{Where the material is.} Everything described here is \datasetversion{} of a single
 archived dataset, deposited at \doiurl{\datasetversiondoi}. Citations should
@@ -243,12 +256,11 @@ and are described in Sec.~\ref{sec:format}.
 
 \subsection{Vertebra labeling when the scan cannot settle the count}
 
-\emph{The limitation, stated plainly.} No scan in this corpus contains C2 or the whole
-cervical spine, so the conventional count cannot be performed. That is a property of
-abdominal imaging rather than of the annotation, and it means a variant at the thoracolumbar
-junction cannot be \emph{resolved by counting} here at all: a thirteenth thoracic vertebra, a
-lumbar rib, and a \emph{stump rib} (a hypoplastic twelfth rib, one of the cardinal
-indicators of a thoracolumbar transitional vertebra) produce overlapping appearances.
+\emph{The limitation, stated plainly.} No scan in this corpus contains C2, so the
+conventional count cannot be performed: a property of abdominal imaging, not of the
+annotation. A thirteenth thoracic vertebra, a lumbar rib and a \emph{stump rib} (a
+hypoplastic twelfth rib, a cardinal indicator of a thoracolumbar transitional vertebra)
+produce overlapping appearances that counting cannot resolve here.
 
 \emph{What the release does instead.} No vertebral label is asserted where it cannot be
 supported. Every quantity is expressed against the two landmarks present in essentially
@@ -257,12 +269,8 @@ the description is positional rather than nominal: a vertebra by how many rib-fr
 separate it from the sacrum, a lowest rib by its length as a fraction of the rib above it, a
 transverse process by its span and its distance from the ala. None of these changes according
 to whether a reader would have said L5 or S1, so cases that disagree about the name remain
-comparable. Where the junction is in view the count is determined and the conventional name
-follows, and the two descriptions agree. The positional description is, by construction,
-blind to the ambiguity: an L1 bearing a lumbar rib and an L5 assimilated to the sacrum both
-leave four rib-free vertebrae above the sacrum, and a true sixth lumbar vertebra, a T12
-with aplastic ribs and a lumbarized S1 all leave six. The count alone cannot separate the
-readings.
+comparable, and where the junction is in view the count is determined and the two
+descriptions agree.
 
 \emph{But the vertebrae themselves are known to differ.} Counting is not the only route to
 an identity. Level-specific morphometry is long established: pedicle width and height change
@@ -274,9 +282,9 @@ boundary itself, the phenotype is decidable from the vertebra in front of the re
 any global count. On this corpus it does hold:
 separating T12 from L1 on shape alone, with each patient's own size divided out and
 cross-validation grouped by case, gives an area under the curve of 0.990 and 97.3\%
-accuracy over 1485 vertebrae. Size is deliberately removed, because a classifier given raw
-millimeters separates thoracic from lumbar immediately and has learned nothing that helps at
-the junction, where the two are nearly the same size.
+accuracy over 1485 vertebrae. Size is removed because raw millimeters separate thoracic
+from lumbar trivially and teach nothing about the junction, where the two are nearly the
+same size.
 
 That is reported as a property of the released measurements rather than as a method: the
 information needed to settle these variants is present locally.
@@ -731,9 +739,8 @@ to the ala; transitional labels marked.}
 The cohort is a colorectal cancer screening population of 802 records. 738 are recorded
 female (393) or male (345); 11 carry DICOM's \emph{other} value, a recorded value and not a
 missing one, and 53 carry no sex field. Age is present for 709 (median 59, range 50--89).
-All 802 are counted in totals, and records outside the female/male dichotomy are excluded
-from sex-stratified measures (a limitation of those measures rather than of the cohort),
-stated because folding eleven people into ``unrecorded'' would misdescribe the source. The lower age bound is the screening guideline
+All 802 are counted in totals; the eleven records outside the female/male dichotomy are
+excluded from sex-stratified measures rather than folded into ``unrecorded''. The lower age bound is the screening guideline
 rather than a selection applied here, and it is why the measures below sit closer to a
 reference range than a surgical series would.
 
@@ -947,6 +954,11 @@ P.~Liu et~al.,
 \newblock Int. J. Comput. Assist. Radiol. Surg. {\bf 16}, 749--756 (2021),
 \newblock doi:10.1007/s11548-021-02363-8.
 
+\bibitem{veridah2026}
+H.~M{\"o}ller, H.~Schoen, R.~Graf, et~al.,
+\newblock {VERIDAH}: solving enumeration anomaly aware vertebra labeling across imaging sequences, 2026,
+\newblock arXiv:2601.14066. doi:10.48550/arXiv.2601.14066.
+
 \bibitem{verse2021}
 A.~Sekuboyina et~al.,
 \newblock {VerSe}: a vertebrae labelling and segmentation benchmark for multi-detector {CT} images,
@@ -958,6 +970,24 @@ H.~Liebl et~al.,
 \newblock A computed tomography vertebral segmentation dataset with anatomical variations and multi-vendor scanner data,
 \newblock Sci. Data {\bf 8}, 284 (2021),
 \newblock doi:10.1038/s41597-021-01060-0.
+
+\bibitem{otake2012}
+Y.~Otake, S.~Schafer, J.~W. Stayman, et~al.,
+\newblock Automatic localization of vertebral levels in x-ray fluoroscopy using {3D-2D} registration: a tool to reduce wrong-site surgery,
+\newblock Phys. Med. Biol. {\bf 57}, 5485--5508 (2012),
+\newblock doi:10.1088/0031-9155/57/17/5485.
+
+\bibitem{lo2015}
+S.-F.~L. Lo, Y.~Otake, V.~Puvanesarajah, et~al.,
+\newblock Automatic localization of target vertebrae in spine surgery: clinical evaluation of the {LevelCheck} registration algorithm,
+\newblock Spine (Phila. Pa. 1976) {\bf 40}, E476--E483 (2015),
+\newblock doi:10.1097/BRS.0000000000000814.
+
+\bibitem{desilva2016}
+T.~De~Silva, S.-F.~L. Lo, N.~Aygun, et~al.,
+\newblock Utility of the {LevelCheck} algorithm for decision support in vertebral localization,
+\newblock Spine (Phila. Pa. 1976) {\bf 41}, E1249--E1256 (2016),
+\newblock doi:10.1097/BRS.0000000000001589.
 
 \bibitem{zindrick1987}
 M.~R. Zindrick et~al.,
