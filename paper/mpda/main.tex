@@ -52,6 +52,9 @@
 % The DOIs are NOT redacted: PUB 3-C requires the dataset DOI to exist and be cited in the
 % text, and a referee is instructed to verify it. Flip to \reviewfalse for camera-ready.
 \newif\ifreview \reviewtrue
+% The submission form wants the figure captions listed again after the references (the
+% submitted preprint). The ten-page typeset check sets this false so they are counted once.
+\newif\ifcaptionlist \captionlisttrue
 \newcommand{\doiurl}[1]{\url{https://doi.org/#1}}
 \newcommand{\consortium}{\ifreview a student research consortium\else OpenSpineConsortium\fi}
 
@@ -564,10 +567,11 @@ data (\ifreview\url{https://huggingface.co/anonymous-mlhc/spinopelvic-seg-checkp
 throughout used NiBabel and SciPy; no image is resampled or reoriented when a label is
 written, so every label shares its image's grid and affine exactly.
 
-\emph{Generative artificial intelligence.} Large language models assisted with drafting
-and editing text and with analysis and figure code, under author review. They were not
-used to generate, annotate or interpret imaging data; every number reported here is
-computed by the released code from the released volumes.
+\emph{Generative artificial intelligence.} A large language model (Claude, Anthropic)
+assisted with drafting and editing the manuscript text and with writing the analysis and
+figure code, all under author review. It was not used to generate, annotate or interpret
+imaging data; every number reported here is computed by the released code from the
+released volumes.
 
 \subsection{Validation}
 \label{sec:validation}
@@ -1105,5 +1109,7 @@ E.~Beaulieu et~al.,
 \newblock doi:10.3390/jcm15072584.
 
 \end{thebibliography}
+
+\ifcaptionlist\input{figure_captions}\fi
 
 \end{document}
