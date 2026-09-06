@@ -71,7 +71,7 @@ def main() -> int:
               + [(f"L{i}", 19 + i) for i in range(1, 7)])
     x = np.arange(len(levels))
     vert = np.array([n.get(i, 0) for _, i in levels], float)
-    fig, ax = plt.subplots(figsize=(COL1, 1.25))
+    fig, ax = plt.subplots(figsize=(COL1, 1.15))
     # FREQUENCY, ON A LOG AXIS. Linear, C1 (2 of 802) and T4 (9) sit on the zero line and
     # read as absent; the point of the figure is that they are not. The floor is one
     # tenth of a percent (below one record); levels with no record at all are drawn as

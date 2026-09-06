@@ -159,7 +159,7 @@ def kde(v, lo, hi, n=200):
 # ---------------------------------------------------------------- fig 3
 def fig_countfree(out):
     tr = load("transition_morphometrics.csv")
-    fig = plt.figure(figsize=(COL2, 2.2), constrained_layout=True)
+    fig = plt.figure(figsize=(COL2, 2.05), constrained_layout=True)
     gs = gridspec.GridSpec(1, 3, figure=fig)
 
     # (a) the interval count

@@ -167,29 +167,30 @@
 \textbf{Purpose:} A vertebra at the lumbosacral junction is named by counting. The gold
 standard counts caudally from C2 on whole-spine imaging~\cite{lian2018}; however, a lumbar
 case is planned on a lumbar study~\cite{acr2021,acrmri2023}, T12 to S1, without C2.
-Abdominopelvic computed tomography (CT) holds that span, the lowest ribs and the pelvis,
-and stands in for the preoperative view. Where a
+Abdominopelvic computed tomography (CT) holds that span plus the lowest ribs and pelvis,
+standing in for the preoperative view. Where a
 lumbosacral transitional vertebra (LSTV) alters the count, the local anatomy is ambiguous:
-four rib-free vertebrae may be an L1 bearing a lumbar rib or an
-L5 assimilated to the sacrum, and six may be a sixth lumbar vertebra, a T12 whose ribs are
-aplastic, or an S1 lumbarized from the sacrum~\cite{koninwalz2010}. CTSpinoPelvic1K exists
-to ask whether local morphology resolves that ambiguity without the count. It provides
-802 CT records with radiologist-sourced spine and pelvic annotation on one frame, per-level
-ribs and femora, lumbar levels anchored on the lowest rib-bearing vertebra and S1, and classes for a
-sixth lumbar vertebra, a thirteenth thoracic vertebra, a separate S1 and lumbar ribs, so anomalies are recorded as themselves.
+four rib-free vertebrae may be an L1 with a lumbar rib or an
+L5 assimilated to the sacrum, and six may be a sixth lumbar vertebra, a T12 with aplastic
+ribs, or a lumbarized S1~\cite{koninwalz2010}. CTSpinoPelvic1K asks whether local morphology
+resolves that ambiguity without the count. Two public label sets already covered
+this imaging, CTSpine1K's vertebrae and CTPelvic1K's pelvis, on the same colonography
+patients, never joined; this release joins them on one series and annotates the bones
+neither had. It provides 802 CT records with per-level ribs and femora, lumbar levels
+anchored on the lowest rib-bearing vertebra and S1, and classes for L6, T13, a separate S1
+and lumbar ribs, so anomalies are recorded as themselves.
 
-\textbf{Acquisition and Validation Methods:} Records pair TCIA CT~COLONOGRAPHY with
-CTSpine1K~\cite{ctspine1k} vertebral and CTPelvic1K~\cite{ctpelvic1k} pelvic labels on the bone-richest acquisition, under a VerSe-native scheme. Validation: geometric invariants (802/802 pass); rib--vertebra incidence across 5{,}749 evaluable ribs (0.035\% offset); and spinopelvic measures matching published values.
+\textbf{Acquisition and Validation Methods:} Records pair CTSpine1K~\cite{ctspine1k} and CTPelvic1K~\cite{ctpelvic1k} labels on each patient's bone-richest acquisition under a VerSe-native scheme. Validation: geometric invariants (802/802 pass); rib--vertebra incidence across 5{,}749 evaluable ribs (0.035\% offset); and spinopelvic measures matching published values.
 
-\textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs with patient-grouped LSTV-stratified five-fold splits and a reference loader; archived at \doiurl{\datasetdoi}.
+\textbf{Data Format and Usage Notes:} NIfTI image/label pairs with patient-grouped LSTV-stratified five-fold splits and a reference loader; archived at \doiurl{\datasetdoi}.
 
 \textbf{Potential Applications:} Classifying a vertebra from local features;
-updating cadaveric textbook morphometry;
-spinopelvic assessment; variant studies; opportunistic screening; and, absent a public
+updating cadaveric morphometry;
+spinopelvic assessment; opportunistic screening; and, absent a public
 preoperative lumbar CT cohort, planning research (377 records prone).
 \emph{Limitations:} thoracic ground truth is field-of-view limited; postural
 angles recumbent; no held-out test set; ribs are triaged-review pseudolabels;
-Castellvi grades are a two-reader consensus.
+Castellvi grades are two-reader consensus.
 \end{abstract}
 
 \maketitle
@@ -267,11 +268,20 @@ many protocols (TotalSegmentator). With the protocol held fixed, scanner effects
 model become measurable rather than confounded. The price is the field of view: abdominal,
 so the thoracic spine enters from below and C2 is never present (Sec.~\ref{sec:applications}).
 
-\emph{Where the material is.} Everything described here is \datasetversion{} of a single
-archived dataset, deposited at \doiurl{\datasetversiondoi}. Citations should
-use \doiurl{\datasetdoi}, the permanent identifier for the dataset across all
-of its versions, which resolves to whichever version is current; the version identifier
-above pins the exact release measured in this manuscript (Sec.~\ref{sec:format}).
+The gap was in plain sight. CTPelvic1K~\cite{ctpelvic1k} and CTSpine1K~\cite{ctspine1k},
+released months apart by an overlapping author group, each annotated the COLONOG
+collection under radiologist supervision, one the pelvis and the other the vertebrae, on the
+same patients, and no one joined them, although the join needs no new imaging and no new
+radiologist. It is not a file merge: every patient was scanned prone and supine and neither
+source recorded which series it drew on, so each annotation had to be traced back to its
+own series (Sec.~\ref{sec:sources}). Done once, that crosswalk yields a spine-and-pelvis
+frame at 802 patients for the cost of the crosswalk, and the bones neither set had, ribs, femora,
+S1 and hardware, could then be annotated against it rather than from scratch. Two of the
+most-used public bone annotation sets were halves of one dataset; this release is the whole.
+
+\emph{Where the material is.} Everything described here is \datasetversion{} of one archived
+dataset, \doiurl{\datasetversiondoi}; cite the concept DOI \doiurl{\datasetdoi}, which
+resolves to the current version (Sec.~\ref{sec:format}).
 
 \subsection{Vertebra labeling when the scan cannot settle the count}
 
@@ -405,12 +415,10 @@ TotalSegmentator~\cite{totalsegmentator} & 1{,}204 & \has\no\has\has\has\has\no\
 \label{fig:pipeline}
 \end{figure}
 
-\subsection{Sources, and why a crosswalk was necessary}
+\subsection{Sources, and why a crosswalk was necessary}\label{sec:sources}
 
-Both CTSpine1K~\cite{ctspine1k} and CTPelvic1K~\cite{ctpelvic1k} draw part of
-their imaging from the TCIA CT colonography collection~\cite{colonog,tcia}, and
-the vertebral and pelvic annotations in both were produced under
-board-certified radiologist supervision. CTSpine1K's 1{,}005 volumes come from four
+Both sources draw part of their imaging from the TCIA CT colonography
+collection~\cite{colonog,tcia}. CTSpine1K's 1{,}005 volumes come from four
 collections and CTPelvic1K's 1{,}184 from seven; COLONOG is the only collection common to
 both and the only one acquired under a single protocol, so this release is its COLONOG
 subset: 782 patients with a CTSpine1K vertebral annotation and 20 with a CTPelvic1K pelvic
@@ -421,8 +429,7 @@ That mapping matters because every patient in CT~COLONOGRAPHY was scanned \emph{
 prone and supine, and an annotation carries a patient identifier and nothing finer. Turning
 a patient from supine to prone alters lumbar lordosis and the alignment of each segment
 against the next, so outlines drawn on one series are the wrong \emph{shape} for the other
-and no rigid realignment recovers them. Such a mask looks competent in isolation and reveals
-itself only overlaid on the image. The crosswalk (Fig.~\ref{fig:pipeline}) therefore
+and no rigid realignment recovers them. The crosswalk (Fig.~\ref{fig:pipeline}) therefore
 resolves each annotation to a patient and then, within that patient's volumes, to the series
 whose bone \emph{agrees} with it: candidates are thresholded at bone attenuation and scored
 by overlap with the mask.
@@ -866,7 +873,7 @@ filtered before any measurement depending on the sacral endplate.
 
 \emph{Comparison with related material.} Against the collections in
 Table~\ref{tab:priorart}, the contribution is the crosswalk placing spine and pelvis on the
-same series, together with classes for the anatomy an enumeration anomaly actually produces. VerSe~\cite{verse2021,versedata2021} comes closest in intent, enriching for transitional anatomy and grading by Castellvi, but it does not segment the sacrum, so the structure a grade describes has no mask; this release segments it, as L6 or as a separately carved S1. TotalSegmentator~\cite{totalsegmentator} segments far more of the body but cannot record a sixth lumbar vertebra or a lumbar rib; what this release adds is not more anatomy per scan but the classes an anomaly needs to be recorded accurately. 
+same series, together with classes for the anatomy an enumeration anomaly actually produces. VerSe~\cite{verse2021,versedata2021} comes closest in intent, enriching for transitional anatomy and grading by Castellvi, but it does not segment the sacrum, so the structure a grade describes has no mask; this release segments it, as L6 or as a separately carved S1.  What this release adds over TotalSegmentator~\cite{totalsegmentator} is not more anatomy per scan but the classes an anomaly needs to be recorded accurately. 
 
 \emph{Limitations.} The cohort comes from one acquisition protocol of a colorectal-screening population aged 50 and over, so how well it generalizes to a pathologic population is untested. The rib layer's human review was triaged by an automated rule rather than performed on every bone, so it guarantees only the absence of the failure modes that rule detects. 
 
