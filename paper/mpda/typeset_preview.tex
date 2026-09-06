@@ -161,19 +161,19 @@
 %  STRUCTURED ABSTRACT - four named sections, under 300 words.
 % ---------------------------------------------------------------------------
 \begin{abstract}
-\textbf{Purpose:} For transitional anatomy the gold standard for numeration remains
-whole-spine imaging and counting caudally from C2~\cite{lian2018}. The imaging a lumbar
-case is planned on is regional by guideline~\cite{acr2021} and never contains C2, and where
-a lumbosacral
-transitional vertebra (LSTV) alters the count the local anatomy is ambiguous: four rib-free lumbar
-vertebrae may mean an L1 bearing a lumbar rib or an L5 assimilated to the sacrum, and six
-may mean a sixth lumbar vertebra, a T12 whose ribs are aplastic, or an S1 lumbarized from
-the sacrum~\cite{koninwalz2010}. CTSpinoPelvic1K is built so that this can be
-asked of the data: whether local morphology resolves them without counting from C2. It provides 802 CT records anchoring each lumbar level on
-the lowest rib-bearing vertebra above and the first sacral segment below, with
-radiologist-sourced spine \emph{and} pelvic annotation on one frame, per-level ribs and
-femora. Classes for a sixth lumbar vertebra, a thirteenth thoracic vertebra, a separate first
-sacral segment and lumbar ribs cover the anomalies.
+\textbf{Purpose:} A vertebra at the lumbosacral junction is named by counting. The gold
+standard counts caudally from C2 on whole-spine imaging~\cite{lian2018}; the imaging a lumbar
+case is planned on is regional~\cite{acr2021}, and an abdominal field of view never contains
+C2. Where a lumbosacral transitional vertebra (LSTV) alters the count, the local anatomy is
+ambiguous: four rib-free vertebrae above the sacrum may be an L1 bearing a lumbar rib or an
+L5 assimilated to the sacrum, and six may be a sixth lumbar vertebra, a T12 whose ribs are
+aplastic, or an S1 lumbarized from the sacrum~\cite{koninwalz2010}. CTSpinoPelvic1K exists
+to ask whether local morphology can resolve that ambiguity without the count. It provides
+802 CT records with radiologist-sourced spine and pelvic annotation on one frame, per-level
+ribs and femora, each lumbar level anchored on the lowest rib-bearing vertebra above and the
+first sacral segment below, and classes for a sixth lumbar vertebra, a thirteenth thoracic
+vertebra, a separate first sacral segment and lumbar ribs, so that the anomalies are
+recorded as themselves.
 
 \textbf{Acquisition and Validation Methods:} Records pair TCIA CT~COLONOGRAPHY imaging with
 CTSpine1K~\cite{ctspine1k} vertebral and CTPelvic1K~\cite{ctpelvic1k} pelvic labels on the acquisition with highest bone coverage, under a VerSe-native scheme. Validation: geometric invariants (802/802 pass); rib--vertebra incidence across 5{,}749 evaluable ribs (2 offsets,
