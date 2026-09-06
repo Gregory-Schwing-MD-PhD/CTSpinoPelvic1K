@@ -227,13 +227,17 @@ serious consequence.
 
 Existing public collections cannot address this, and size is not the reason
 (Table~\ref{tab:priorart}). Spine datasets omit the pelvis; pelvic datasets do not number the
-vertebrae; and TotalSegmentator, the whole-body scheme, has no class for a sixth lumbar
-vertebra or for a rib on a lumbar vertebra. A six-lumbar spine therefore cannot be recorded
-in any of them, however good the segmentation, and a segmenter trained on them inherits the
-gap: faced with an enumeration anomaly it must shift the whole column by a level or absorb a
-vertebra into its neighbor. The size of that problem has now been measured on CT, where
-prior labeling methods assigned every vertebra correctly in 77\% of subjects and an
-anomaly-aware method raised that to 99\%~\cite{veridah2026}. VerSe~\cite{verse2021,versedata2021}
+vertebrae; TotalSegmentator, the whole-body scheme, has no class for a sixth lumbar vertebra
+or for a rib on a lumbar vertebra; and VerSe, the one collection with an L6 class, stops at
+the sacrum and carries no ribs. No public collection can therefore record a six-lumbar spine
+together with both of its borders, however good the segmentation, and a segmenter trained on
+them inherits the gap: faced with an enumeration anomaly it must shift the whole column by a
+level or absorb a vertebra into its neighbor. The size of that problem has now been measured
+on CT, where prior labeling methods assigned every vertebra correctly in 77\% of subjects and
+an anomaly-aware extension of SPINEPS~\cite{spineps2025} raised that to
+99\%~\cite{veridah2026}. Its released weights label L6 and T13 on CT, but the 1{,}536 CT
+scans they were trained on are an in-house cohort that is not released, so the capability
+exists as weights and not as a labeled dataset. VerSe~\cite{verse2021,versedata2021}
 makes the point most clearly (Table~\ref{tab:priorart}): it deliberately enriched for
 anatomical variants and graded them by Castellvi, yet left the graded vertebrae fused to the
 sacrum unsegmented.
@@ -958,6 +962,12 @@ P.~Liu et~al.,
 \newblock Deep learning to segment pelvic bones: large-scale {CT} datasets and baseline models,
 \newblock Int. J. Comput. Assist. Radiol. Surg. {\bf 16}, 749--756 (2021),
 \newblock doi:10.1007/s11548-021-02363-8.
+
+\bibitem{spineps2025}
+H.~M{\"o}ller, R.~Graf, J.~Schmitt, et~al.,
+\newblock {SPINEPS}: automatic whole spine segmentation of {T2}-weighted {MR} images using a two-phase approach to multi-class semantic and instance segmentation,
+\newblock Eur. Radiol. {\bf 35}, 1178--1189 (2025),
+\newblock doi:10.1007/s00330-024-11155-y.
 
 \bibitem{veridah2026}
 H.~M{\"o}ller, H.~Schoen, R.~Graf, et~al.,
