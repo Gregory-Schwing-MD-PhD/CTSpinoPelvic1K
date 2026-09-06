@@ -458,9 +458,9 @@ medial end never reaches the vertebra it articulates with, so the rib--vertebra 
 check (the quality-control gate on the rib class labels, which matches each rib to the
 vertebra its number implies) has nothing to test.
 
-The two were therefore unioned (Fig.~\ref{fig:pipeline}): TotalSegmentator supplies
-numbering and the medial-clipped cases, Möller supplies detection where its output is more
-complete, and the union carries TotalSegmentator's per-level identities.
+The two were therefore unioned (Fig.~\ref{fig:pipeline}), TotalSegmentator supplying the
+numbering and the medial-clipped cases, Möller the detection where its output is more
+complete.
 
 The result is a pseudolabel whose review was triaged rather than exhaustive. A label-based
 rule flagged every record in which one rib
@@ -647,8 +647,7 @@ PI $-$ LL mismatch & 2.6\si{\degree} & centered near 0 \\
 Metal is trivial to detect and hard to interpret, and the difference matters here because
 \textbf{an iatrogenic fusion is indistinguishable from a congenital one to a distance
 measurement}: a cage-bridged interspace reads as ``no gap'' exactly as a fused transitional
-vertebra does. An unrecorded instrumented case is therefore a false positive on the central
-measure.
+vertebra does.
 
 \paragraph{Detection over-calls by a factor of five.} A 2500\,HU threshold inside a shell
 around the labeled skeleton flags 52\ of the 802\ records. One of the two radiology
@@ -685,9 +684,7 @@ $n=1$. (d) Interbody cages, 77, $n=1$. Bar, 5\,cm.}
 \section{Data Format and Usage Notes}\label{sec:format}
 
 Each record is a gzipped NIfTI image/label pair sharing an identical $4\times4$ affine,
-canonicalized to PIR, requiring no resampling. Masks are NIfTI rather than DICOM: the
-policy prefers DICOM where applicable, and for volumetric segmentation masks NIfTI is
-what the downstream tooling expects.
+canonicalized to PIR, requiring no resampling. Masks are NIfTI rather than DICOM, which is what volumetric segmentation tooling expects.
 
 Splits are patient-grouped and LSTV-stratified five-fold, frozen and shipped with the data
 as \texttt{splits\_5fold.json}. The five validation folds partition all 802 records, so the
