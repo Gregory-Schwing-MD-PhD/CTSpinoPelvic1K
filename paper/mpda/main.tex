@@ -247,13 +247,24 @@ a class to each structure an enumeration anomaly produces: a sixth lumbar verteb
 rib borne by a lumbar vertebra. A scheme without those classes lacks a class vocabulary
 expressive enough to describe anatomic anomalies.
 
+The project began as a surgeon's question: whether a vertebra can be named from the
+anatomy in front of the reader, on the abdominal and spine-limited images a surgeon actually
+has, in the patients where counting fails. The cohort suits that question. Every record
+comes from one prospective trial protocol, ACRIN 6664~\cite{colonog,tcia}: 802 patients aged
+50 and over, scanned supine and prone on multidetector CT at 15 centers, on five scanner
+vendors and nine models, with manufacturer, model and reconstruction kernel recorded per
+record. To our knowledge it is the largest spine-and-pelvis annotated CT cohort acquired
+under a single protocol; the comparators pool several collections (CTSpine1K four,
+CTPelvic1K seven), are multi-site by design (VerSe), or are routine clinical scans under
+many protocols (TotalSegmentator). With the protocol held fixed, scanner effects on a
+model become measurable rather than confounded. The price is the field of view: abdominal,
+so the thoracic spine enters from below and C2 is never present (Sec.~\ref{sec:applications}).
+
 \emph{Where the material is.} Everything described here is \datasetversion{} of a single
 archived dataset, deposited at \doiurl{\datasetversiondoi}. Citations should
 use \doiurl{\datasetdoi}, the permanent identifier for the dataset across all
 of its versions, which resolves to whichever version is current; the version identifier
-above pins the exact release measured in this manuscript. Documentation, the label scheme, the
-reference loader and the per-record quality-control tables are distributed with the archive
-and are described in Sec.~\ref{sec:format}.
+above pins the exact release measured in this manuscript (Sec.~\ref{sec:format}).
 
 \subsection{Vertebra labeling when the scan cannot settle the count}
 
@@ -430,10 +441,9 @@ that stump ribs can be classified from a partial field of view; that result conc
 morphological features computed on a rib once segmented. On this corpus the segmentation
 itself failed on ribs that were \emph{partially outside} the field of view: a rib crossing
 the boundary of an abdominal acquisition was liable to be missed altogether rather than
-segmented to the edge. This is not a limitation reported by its authors: their evaluation
-excluded subjects in which the last rib was not visible, and their failure analysis
-attributes errors to costal-process fusion, so it is recorded here as an observation
-from this cohort. Since this is a colonography cohort, the lower ribs are routinely
+segmented to the edge. Its authors do not report this: their evaluation excluded subjects
+whose last rib was not visible, so it is recorded here as an observation from this
+cohort. Since this is a colonography cohort, the lower ribs are routinely
 clipped, and those are precisely the ribs the count depends on.
 
 TotalSegmentator~\cite{totalsegmentator} does segment clipped ribs and supplies the
@@ -448,9 +458,8 @@ The two were therefore unioned (Fig.~\ref{fig:pipeline}): TotalSegmentator suppl
 numbering and the medial-clipped cases, Möller supplies detection where its output is more
 complete, and the union carries TotalSegmentator's per-level identities.
 
-The result is a pseudolabel whose review was triaged rather than exhaustive, which is worth
-stating plainly because a layer described only as ``human-corrected'' invites the reader to
-assume every bone was looked at. A label-based rule flagged every record in which one rib
+The result is a pseudolabel whose review was triaged rather than exhaustive. A label-based
+rule flagged every record in which one rib
 bone carried more than one identifier, or in which a rib failed to reach the vertebra it
 articulates with, since a single bone carrying two numbers is a numbering error by construction,
 whatever the anatomy. The rule selected 152 records; 148 were reviewed and corrected, and 4
@@ -533,10 +542,9 @@ are rebuilt for this release by counting identifiers 25 and 74--75 in each volum
 
 \subsection{Computational tools}
 
-\emph{Access.} Every processing step described above is performed by code released under an
-open-source licence and archived with the dataset; no step depends on software that is not
-publicly obtainable. The release archive carries the reference loader, the label-scheme
-definition and the quality-control scripts that generated the tables in this manuscript.
+\emph{Access.} Every step is performed by open-source code archived with the dataset,
+together with the reference loader, the label scheme and the quality-control scripts that
+generated the tables in this manuscript.
 
 \emph{Versions and parameters.} Segmentation of femora, the sacral sub-division and the
 per-level rib numbering used TotalSegmentator~\cite{totalsegmentator} (\texttt{total} task,
@@ -602,8 +610,7 @@ grade~\cite{castellvi1984} in the released manifest: 33 cases, typed I--IV with 
 unilateral--bilateral qualifier. This is released as an
 annotation layer because the grade and the count are \emph{different axes} and the dataset
 is built to show that they are: grade IIIb occurs here at rib-free counts of four, five and
-six alike, and seven of the 33 graded cases carry a perfectly normal count of five. A
-corpus that recorded only the count would describe those seven as unremarkable.
+six alike, and seven of the 33 graded cases carry a normal count of five.
 
 Two radiology resident physicians graded every case independently and resolved their six
 disagreements by consensus; both reads and the consensus are in the manifest. The distinction
@@ -781,8 +788,7 @@ variant studies and opportunistic screening follow from the same annotation.
 
 \emph{Naming a level from its own geometry.} Wrong-level spine surgery runs at roughly one in
 3{,}110 spinal procedures, and the cause most often cited is the transitional anatomy this
-cohort was assembled around.\cite{epstein2021} The failure is structural rather than careless:
-the count is ambiguous exactly where the variant sits. Per-level body height, canal width,
+cohort was assembled around.\cite{epstein2021} Per-level body height, canal width,
 endplate width, transverse-process span and wedge ratio are released for T11--L5 across all
 802 records, and because the labels were assigned against the twelfth rib rather than by
 enumeration, a model trained on them is not learning the convention that fails.
@@ -862,7 +868,7 @@ than assume it.
 
 \emph{Comparison with related material.} Against the collections in
 Table~\ref{tab:priorart}, the contribution is the crosswalk placing spine and pelvis on the
-same series, together with classes for the anatomy an enumeration anomaly actually produces. VerSe~\cite{verse2021} comes closest in intent: it also enriched its cohort for transitional anatomy and graded each case by Castellvi. The difference is what a graded case leaves behind. VerSe names the anomaly but does not segment the sacrum, so the fused or articulating structure the grade describes has no mask to go with it. This release segments that structure directly, as L6 or as a separately carved S1, so a user has the anatomy itself to measure rather than only a grade that describes it. TotalSegmentator~\cite{totalsegmentator} invites a different comparison, since it segments far more of the body than any single source used here. But its label scheme simply has no class for a sixth lumbar vertebra or for a rib on a lumbar body. A six-lumbar spine cannot be recorded in it: the column must be renumbered or a level dropped to fit. What this release adds, then, is not more anatomy per scan (TotalSegmentator already covers more), but the specific classes an enumeration anomaly needs in order to be recorded accurately. 
+same series, together with classes for the anatomy an enumeration anomaly actually produces. VerSe~\cite{verse2021} comes closest in intent: it also enriched its cohort for transitional anatomy and graded each case by Castellvi. The difference is what a graded case leaves behind. VerSe names the anomaly but does not segment the sacrum, so the fused or articulating structure the grade describes has no mask to go with it. This release segments that structure directly, as L6 or as a separately carved S1, so a user has the anatomy itself to measure rather than only a grade that describes it. TotalSegmentator~\cite{totalsegmentator} segments far more of the body than any source used here but has no class for a sixth lumbar vertebra or a rib on a lumbar body; what this release adds is not more anatomy per scan but the classes an enumeration anomaly needs in order to be recorded accurately. 
 
 \emph{Limitations.} The cohort comes from one acquisition protocol of a colorectal-screening population aged 50 and over, so how well it generalizes to a pathologic population is untested. The rib layer's human review was triaged by an automated rule rather than performed on every bone, so it guarantees only the absence of the failure modes that rule detects. 
 
@@ -982,6 +988,18 @@ T.~De~Silva, S.-F.~L. Lo, N.~Aygun, et~al.,
 \newblock Spine (Phila. Pa. 1976) {\bf 41}, E1249--E1256 (2016),
 \newblock doi:10.1097/BRS.0000000000001589.
 
+\bibitem{colonog}
+K.~Smith et~al.,
+\newblock Data from {CT COLONOGRAPHY},
+\newblock The Cancer Imaging Archive, 2015,
+\newblock doi:10.7937/K9/TCIA.2015.NWTESAY1.
+
+\bibitem{tcia}
+K.~Clark et~al.,
+\newblock The {Cancer Imaging Archive} ({TCIA}): maintaining and operating a public information repository,
+\newblock J. Digit. Imaging {\bf 26}, 1045--1057 (2013),
+\newblock doi:10.1007/s10278-013-9622-7.
+
 \bibitem{zindrick1987}
 M.~R. Zindrick et~al.,
 \newblock Analysis of the morphometric characteristics of the thoracic and lumbar pedicles,
@@ -1016,18 +1034,6 @@ L.~Jin et~al.,
 \newblock {RibSeg} v2: a large-scale benchmark for rib labeling and anatomical centerline extraction,
 \newblock IEEE Trans. Med. Imaging {\bf 43}, 570--581 (2024),
 \newblock doi:10.1109/TMI.2023.3313627.
-
-\bibitem{colonog}
-K.~Smith et~al.,
-\newblock Data from {CT COLONOGRAPHY},
-\newblock The Cancer Imaging Archive, 2015,
-\newblock doi:10.7937/K9/TCIA.2015.NWTESAY1.
-
-\bibitem{tcia}
-K.~Clark et~al.,
-\newblock The {Cancer Imaging Archive} ({TCIA}): maintaining and operating a public information repository,
-\newblock J. Digit. Imaging {\bf 26}, 1045--1057 (2013),
-\newblock doi:10.1007/s10278-013-9622-7.
 
 \bibitem{moller2026}
 H.~M{\"o}ller et~al.,
