@@ -570,7 +570,8 @@ framework~\cite{nnunet}. The pelvic completion for records whose pelvis was abse
 five-fold nnU-Net v2 ensemble, applied out-of-fold: each record is completed by the fold that
 never trained on it, so no record is completed by a model that has seen it. The five fold
 checkpoints, with their nnU-Net plans and dataset descriptor, are released alongside the
-data (\ifreview\url{https://huggingface.co/anonymous-mlhc/spinopelvic-seg-checkpoints}\else\url{https://huggingface.co/OpenSpineConsortium/spinopelvic-seg-checkpoints}\fi). Image handling
+data (\ifreview the repository URL identifies the authors; it is on the title page and will be
+restored here for the camera-ready version\else\url{https://huggingface.co/OpenSpineConsortium/spinopelvic-seg-checkpoints}\fi). Image handling
 throughout used NiBabel and SciPy; no image is resampled or reoriented when a label is
 written, so every label shares its image's grid and affine exactly.
 
