@@ -386,7 +386,7 @@ That mapping matters because every patient in CT~COLONOGRAPHY was scanned \emph{
 prone and supine, and an annotation carries a patient identifier and nothing finer. Turning
 a patient from supine to prone alters lumbar lordosis and the alignment of each segment
 against the next, so outlines drawn on one series are the wrong \emph{shape} for the other
-and no rigid realignment recovers them; such a mask looks competent in isolation and reveals
+and no rigid realignment recovers them. Such a mask looks competent in isolation and reveals
 itself only overlaid on the image. The crosswalk (Fig.~\ref{fig:pipeline}) therefore
 resolves each annotation to a patient and then, within that patient's volumes, to the series
 whose bone \emph{agrees} with it: candidates are thresholded at bone attenuation and scored
@@ -394,25 +394,18 @@ by overlap with the mask.
 
 \subsection{Fused and split records}
 
-The two annotation sets were placed independently and do not always land on the same
-series (Fig.~\ref{fig:pipeline}). The split is the crosswalk's main finding: in the 351
-separate records --- nearly half of all patients --- the two public collections annotated
-\emph{different volumes of the same person}, and neither recorded which. A pelvic annotation
-on the other acquisition of a prone/supine pair cannot be combined with the spine annotation
-without resampling across a change of posture, so those records are retained and held out of
-the postural analyses: two acquisitions of one patient differing in alignment are a resource
-for a mobility study, not a defect.
+CTSpine1K and CTPelvic1K each annotated a patient independently, so their labels are not guaranteed to come from the same CT series (Fig.~\ref{fig:pipeline}). This turned out to matter for 351 patients, nearly half the cohort: the two collections had labeled different acquisitions of the same person, one prone and one supine, with neither recording which. Because posture changes spinal alignment, a spine label from one acquisition cannot simply be paired with a pelvic label from the other. These 351 records are released but held out of any analysis that assumes a single posture. Two labeled acquisitions of the same patient in different postures are, instead, a resource for studying postural alignment, not a defect. 
 
 \subsection{Densification, and why it is asymmetric}
 
 A corpus in which half the records lack a pelvis is not a spinopelvic dataset, so the
-missing structures were pseudolabeled --- asymmetrically (Fig.~\ref{fig:pipeline}). Pelvis
+missing structures were pseudolabeled, asymmetrically (Fig.~\ref{fig:pipeline}). Pelvis
 onto spine-only records is the safe direction: the sacrum and innominate bones carry no
 enumeration to get wrong, and quality is reported as held-out performance on the
 \emph{pelvic\_only} records, withheld from training for that purpose. The reverse direction
 carries the whole problem this dataset addresses, since a pseudolabeled spine must commit to
 a count and on a transitional vertebra commits to the commoner reading; those 20 records were
-corrected by hand, which is tractable at twenty.
+corrected by hand, tractable at that scale.
 
 \subsection{Ribs}
 
@@ -424,19 +417,19 @@ that stump ribs can be classified from a partial field of view; that result conc
 morphological features computed on a rib once segmented. On this corpus the segmentation
 itself failed on ribs that were \emph{partially outside} the field of view: a rib crossing
 the boundary of an abdominal acquisition was liable to be missed altogether rather than
-segmented to the edge. This is not a limitation its authors report --- their evaluation
+segmented to the edge. This is not a limitation reported by its authors: their evaluation
 excluded subjects in which the last rib was not visible, and their failure analysis
-attributes errors to costal-process fusion --- so it is recorded here as an observation
+attributes errors to costal-process fusion, so it is recorded here as an observation
 from this cohort. Since this is a colonography cohort, the lower ribs are routinely
 clipped, and those are precisely the ribs the count depends on.
 
 TotalSegmentator~\cite{totalsegmentator} does segment clipped ribs and supplies the
 per-rib numbering that a binary network cannot. Its characteristic failure is at the other
-end of the bone: the most medial portion of the rib --- roughly the last tenth to sixth
-approaching the costovertebral joint --- is frequently absent. A rib truncated at its
+end of the bone: the most medial portion of the rib (roughly the last tenth to sixth
+approaching the costovertebral joint) is frequently absent. A rib truncated at its
 medial end never reaches the vertebra it articulates with, so the rib--vertebra incidence
-check --- the quality-control gate on the rib class labels, which matches each rib to the
-vertebra its number implies --- has nothing to test.
+check (the quality-control gate on the rib class labels, which matches each rib to the
+vertebra its number implies) has nothing to test.
 
 The two were therefore unioned (Fig.~\ref{fig:pipeline}): TotalSegmentator supplies
 numbering and the medial-clipped cases, Möller supplies detection where its output is more
@@ -446,13 +439,12 @@ The result is a pseudolabel whose review was triaged rather than exhaustive, whi
 stating plainly because a layer described only as ``human-corrected'' invites the reader to
 assume every bone was looked at. A label-based rule flagged every record in which one rib
 bone carried more than one identifier, or in which a rib failed to reach the vertebra it
-articulates with --- a single bone with two numbers being a numbering error by construction,
+articulates with, since a single bone carrying two numbers is a numbering error by construction,
 whatever the anatomy. The rule selected 152 records; 148 were reviewed and corrected, and 4
 were not and are identified in the release. Reviewers were medical students working through
 \consortium~\cite{osc2026}, trained against a written labeling protocol, with every
 correction recorded against the annotator who made it. Records passing the rule were not
-individually inspected, so the layer's guarantee is that it is free of the failure modes the
-rule detects, and no stronger. The residual rib--vertebra offsets reported in
+individually inspected, so the layer only guarantees freedom from the failure modes the rule detects, no more. The residual rib--vertebra offsets reported in
 Sec.~\ref{sec:validation} are the independent check on what the rule missed.
 
 \subsection{Label scheme and counting anchors}
@@ -472,15 +464,14 @@ present L5 and L6 are distinguishable where a spine-limited view alone would not
 
 \emph{How S1 is cut.} The sacrum's outer boundary is the source annotation and is never
 altered; S1 is the cranial part of that same bone, separated by a plane. The plane's normal
-is the sacrum's own cranio-caudal axis, made orthogonal to a left--right axis that is
-measured rather than assumed --- the normal of the reflection plane best mapping the sacrum
-onto itself, which removes the patient's rotation within the scanner. That rotation is not
+is the sacrum's own cranio-caudal axis, made orthogonal to a left--right axis
+measured directly rather than assumed, so as to remove the patient's rotation within the scanner. That rotation is not
 negligible: median 4.5\textdegree{}, maximum 16.1\textdegree{}, and 508 of 801 records above
 3\textdegree{}. The level of the cut preserves the sub-division volume of the preceding
 release, so the plane changes the shape and orientation of the S1/S2 boundary and not how
 much of the sacrum is called S1. Per-record geometry ships with the archive.
 
-Neither anchor is novel: TotalSegmentator~\cite{totalsegmentator} carries a separate S1
+Neither anchor is novel on its own: TotalSegmentator~\cite{totalsegmentator} carries a separate S1
 class and per-level ribs, and VerSe~\cite{verse2021} carries L6. Because this release uses
 the VerSe identifiers, its L6 \emph{is} VerSe's, interoperable rather than local to this
 work. L6 is retained not for novelty but because a scheme without it cannot record a
@@ -740,7 +731,7 @@ The cohort is a colorectal cancer screening population of 802 records. 738 are r
 female (393) or male (345); 11 carry DICOM's \emph{other} value, a recorded value and not a
 missing one, and 53 carry no sex field. Age is present for 709 (median 59, range 50--89).
 All 802 are counted in totals, and records outside the female/male dichotomy are excluded
-from sex-stratified measures --- a limitation of those measures rather than of the cohort,
+from sex-stratified measures (a limitation of those measures rather than of the cohort),
 stated because folding eleven people into ``unrecorded'' would misdescribe the source. The lower age bound is the screening guideline
 rather than a selection applied here, and it is why the measures below sit closer to a
 reference range than a surgical series would.
@@ -773,8 +764,8 @@ reported at the published standard site.
 % ---------------------------------------------------------------------------
 \section{Potential Applications and Limitations}\label{sec:applications}
 
-The principal use is the \emph{spinopelvic interface}: spine and pelvis carry
-radiologist-sourced annotation on one coordinate frame in 802 records, which makes sacral
+The principal use is the \emph{spinopelvic interface}. Spine and pelvis carry
+radiologist-sourced annotation on one coordinate frame in 802 records, making sacral
 morphology measurable against the lumbar column rather than in isolation --- the sacral
 endplate and its slope, the alar corridors constraining S2-alar-iliac and iliac screw
 trajectories, and the L5--S1 geometry a lumbosacral fusion must cross. Pelvic incidence is
@@ -818,11 +809,11 @@ one is a screening cohort aged 50 and over.
 
 \emph{Patient-specific models.} Planning is moving toward patient-specific biomechanical
 models rather than population norms.\cite{fea2026} Such a model needs spine, pelvis and
-femoral heads in one frame, which is this release's construction; in 351 patients the
+femoral heads in one frame, which is this release's construction. In 351 patients the
 annotation sits on two acquisitions in different positions, giving a within-patient change in
 alignment against which a predicted postural response can be checked.
 
-Its limitations are part of it, and they are stated at the level of detail a reader would
+Its limitations are stated at the level of detail a reader would
 need to catch them independently.
 
 \begin{figure}[t]
@@ -870,7 +861,11 @@ than assume it.
 
 \emph{Comparison with related material.} Against the collections in
 Table~\ref{tab:priorart}, the contribution is the crosswalk placing spine and pelvis on the
-same series, together with classes for the anatomy an enumeration anomaly actually produces.
+same series, together with classes for the anatomy an enumeration anomaly actually produces. VerSe~\cite{verse2021} comes closest in intent: it also enriched its cohort for transitional anatomy and graded each case by Castellvi. The difference is what a graded case leaves behind. VerSe names the anomaly but does not segment the sacrum, so the fused or articulating structure the grade describes has no mask to go with it. This release segments that structure directly, as L6 or as a separately carved S1, so a user has the anatomy itself to measure rather than only a grade that describes it. TotalSegmentator~\cite{totalsegmentator} invites a different comparison, since it segments far more of the body than any single source used here. But its label scheme simply has no class for a sixth lumbar vertebra or for a rib on a lumbar body. A six-lumbar spine cannot be recorded in it: the column must be renumbered or a level dropped to fit. What this release adds, then, is not more anatomy per scan (TotalSegmentator already covers more), but the specific classes an enumeration anomaly needs in order to be recorded accurately. 
+
+\emph{Limitations.} The cohort comes from one acquisition protocol of a colorectal-screening population aged 50 and over, so how well it generalizes to a pathologic population is untested. The rib layer's human review was triaged by an automated rule rather than performed on every bone, so it guarantees only the absence of the failure modes that rule detects. 
+
+\emph{Future directions.} The version history shows the scheme being extended more than once: femora and the S1 anchor, then per-level ribs, then lumbar ribs and surgical hardware, were each folded into the existing release rather than requiring a new dataset. The same path is open going forward: imaging from beyond this cohort's single protocol, and the C2 anchor this acquisition cannot supply, are the natural next additions.
 
 \section{Conclusion}
 
@@ -878,7 +873,7 @@ CTSpinoPelvic1K places spine, pelvis, per-level ribs and femora on one coordinat
 802 records, and gives the anatomy that makes lumbar numbering ambiguous a class of its own
 rather than recording it as something it is not. Because both counting anchors are explicit,
 a level can be identified from a field of view that cannot support the conventional count
-downward from C2 --- which is every record here.
+downward from C2, which is every record here.
 
 \section*{Data Availability}
 The release described here is \datasetversion{}, permanently archived at
