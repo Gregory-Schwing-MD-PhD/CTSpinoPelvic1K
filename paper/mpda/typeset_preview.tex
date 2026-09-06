@@ -166,8 +166,8 @@
 \begin{abstract}
 \textbf{Purpose:} A vertebra at the lumbosacral junction is named by counting. The gold
 standard counts caudally from C2 on whole-spine imaging~\cite{lian2018}; the imaging a lumbar
-case is planned on is regional~\cite{acr2021}, and abdominal computed tomography (CT) never
-contains C2. Where a
+case is planned on is a lumbar study, T12 to S1~\cite{acr2021,acrmri2023}, and abdominal
+computed tomography (CT) never contains C2. Where a
 lumbosacral transitional vertebra (LSTV) alters the count, the local anatomy is ambiguous:
 four rib-free vertebrae may be an L1 bearing a lumbar rib or an
 L5 assimilated to the sacrum, and six may be a sixth lumbar vertebra, a T12 whose ribs are
@@ -186,7 +186,7 @@ CTSpine1K~\cite{ctspine1k} vertebral and CTPelvic1K~\cite{ctpelvic1k} pelvic lab
 \textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs sharing one affine, canonicalized to PIR, with frozen patient-grouped LSTV-stratified five-fold splits and a reference loader; archived at \doiurl{\datasetdoi}.
 
 \textbf{Potential Applications:} Classifying a vertebra from local features alone;
-updating textbook morphometry from small cadaveric series;
+updating cadaveric textbook morphometry;
 spinopelvic assessment; variant studies; opportunistic screening.
 \emph{Limitations:} thoracic ground truth is field-of-view limited; postural
 angles supine; no held-out test set; the rib layer is a triaged-review pseudolabel;
@@ -256,7 +256,8 @@ expressive enough to describe anatomic anomalies.
 
 The project began as a surgeon's question: whether a vertebra can be named from the
 anatomy in front of the reader, on the images a lumbar case is actually planned on: by
-guideline those are regional lumbar studies~\cite{acr2021,nass2013}, and whole-spine
+guideline those are lumbar studies covering T12 to S1~\cite{acr2021,nass2013,acrmri2023},
+and whole-spine
 coverage is reserved for trauma with an identified injury~\cite{tqip2018} and for deformity
 radiographs. The cohort suits that question. Every record
 comes from one prospective trial protocol, ACRIN 6664~\cite{colonog,tcia}: 802 patients aged
@@ -942,6 +943,11 @@ Expert Panel on Neurological Imaging, T.~A. Hutchins, M.~Peckham, et~al.,
 \newblock {ACR} {Appropriateness} {Criteria} low back pain: 2021 update,
 \newblock J. Am. Coll. Radiol. {\bf 18}, S361--S379 (2021),
 \newblock doi:10.1016/j.jacr.2021.08.002.
+
+\bibitem{acrmri2023}
+American College of Radiology,
+\newblock {ACR--ASNR--SABI--SSR} practice parameter for the performance of magnetic resonance imaging ({MRI}) of the adult spine, revised 2023 (Resolution 6),
+\newblock American College of Radiology, Reston, VA, 2023.
 
 \bibitem{koninwalz2010}
 G.~P. Konin and D.~M. Walz,
