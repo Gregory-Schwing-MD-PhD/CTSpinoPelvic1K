@@ -48,11 +48,11 @@
 % The exact version this manuscript describes, for reproducibility.
 \newcommand{\datasetversiondoi}{10.5281/zenodo.22293878}
 \newcommand{\datasetversion}{v8}
-% DOUBLE-ANONYMIZED REVIEW. \reviewtrue redacts every identifier that names the authors:
-% the Zenodo DOIs (the record's creators are the author list) and the consortium's name.
-% Flip to \reviewfalse for the camera-ready copy; nothing else changes.
+% DOUBLE-ANONYMIZED REVIEW. \reviewtrue redacts the consortium's name and the self-citation.
+% The DOIs are NOT redacted: PUB 3-C requires the dataset DOI to exist and be cited in the
+% text, and a referee is instructed to verify it. Flip to \reviewfalse for camera-ready.
 \newif\ifreview \reviewtrue
-\newcommand{\doiurl}[1]{\ifreview[DOI redacted for review]\else\url{https://doi.org/#1}\fi}
+\newcommand{\doiurl}[1]{\url{https://doi.org/#1}}
 \newcommand{\consortium}{\ifreview a student research consortium\else OpenSpineConsortium\fi}
 
 % Fit content to the text block WITHOUT enlarging it. \resizebox{\linewidth}{!}
