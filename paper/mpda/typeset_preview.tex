@@ -162,8 +162,9 @@
 % ---------------------------------------------------------------------------
 \begin{abstract}
 \textbf{Purpose:} For transitional anatomy the gold standard for numeration remains
-whole-spine imaging and counting caudally from C2~\cite{lian2018}. Abdominal CT does not
-contain C2, and where a lumbosacral
+whole-spine imaging and counting caudally from C2~\cite{lian2018}. The imaging a lumbar
+case is planned on is regional by guideline~\cite{acr2021} and never contains C2, and where
+a lumbosacral
 transitional vertebra (LSTV) alters the count the local anatomy is ambiguous: four rib-free lumbar
 vertebrae may mean an L1 bearing a lumbar rib or an L5 assimilated to the sacrum, and six
 may mean a sixth lumbar vertebra, a T12 whose ribs are aplastic, or an S1 lumbarized from
@@ -178,10 +179,10 @@ sacral segment and lumbar ribs cover the anomalies.
 CTSpine1K~\cite{ctspine1k} vertebral and CTPelvic1K~\cite{ctpelvic1k} pelvic labels on the acquisition with highest bone coverage, under a VerSe-native scheme. Validation: geometric invariants (802/802 pass); rib--vertebra incidence across 5{,}749 evaluable ribs (2 offsets,
 0.035\%); and agreement of spinopelvic measures with published values.
 
-\textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs sharing one affine, canonicalized to PIR, with frozen patient-grouped LSTV-stratified five-fold splits and a reference loader; archived under a persistent identifier, \doiurl{\datasetdoi}.
+\textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs sharing one affine, canonicalized to PIR, with frozen patient-grouped LSTV-stratified five-fold splits and a reference loader; archived at \doiurl{\datasetdoi}.
 
-\textbf{Potential Applications:} Testing whether a network can classify a vertebra from
-local features alone; updating textbook morphometry drawn from small cadaveric series;
+\textbf{Potential Applications:} Classifying a vertebra from local features alone;
+updating textbook morphometry from small cadaveric series;
 spinopelvic assessment; variant studies; opportunistic screening.
 \emph{Limitations:} thoracic ground truth is field-of-view limited; postural
 angles supine; no held-out test set; the rib layer is a triaged-review pseudolabel;
@@ -248,8 +249,10 @@ rib borne by a lumbar vertebra. A scheme without those classes lacks a class voc
 expressive enough to describe anatomic anomalies.
 
 The project began as a surgeon's question: whether a vertebra can be named from the
-anatomy in front of the reader, on the abdominal and spine-limited images a surgeon actually
-has, in the patients where counting fails. The cohort suits that question. Every record
+anatomy in front of the reader, on the images a lumbar case is actually planned on: by
+guideline those are regional lumbar studies~\cite{acr2021,nass2013}, and whole-spine
+coverage is reserved for trauma with an identified injury~\cite{tqip2018} and for deformity
+radiographs. The cohort suits that question. Every record
 comes from one prospective trial protocol, ACRIN 6664~\cite{colonog,tcia}: 802 patients aged
 50 and over, scanned supine and prone on multidetector CT at 15 centers, on five scanner
 vendors and nine models, with manufacturer, model and reconstruction kernel recorded per
@@ -446,9 +449,8 @@ morphological features computed on a rib once segmented. On this corpus the segm
 itself failed on ribs that were \emph{partially outside} the field of view: a rib crossing
 the boundary of an abdominal acquisition was liable to be missed altogether rather than
 segmented to the edge. Its authors do not report this: their evaluation excluded subjects
-whose last rib was not visible, so it is recorded here as an observation from this
-cohort. Since this is a colonography cohort, the lower ribs are routinely
-clipped, and those are precisely the ribs the count depends on.
+whose last rib was not visible, so it is recorded here as an observation from this cohort. In a colonography cohort the lower ribs are routinely clipped, and
+those are the ribs the count depends on.
 
 TotalSegmentator~\cite{totalsegmentator} does segment clipped ribs and supplies the
 per-rib numbering that a binary network cannot. Its characteristic failure is at the other
@@ -493,9 +495,9 @@ altered; S1 is the cranial part of that same bone, separated by a plane. The pla
 is the sacrum's own cranio-caudal axis, made orthogonal to a left--right axis
 measured directly rather than assumed, so as to remove the patient's rotation within the scanner. That rotation is not
 negligible: median 4.5\textdegree{}, maximum 16.1\textdegree{}, and 508 of 801 records above
-3\textdegree{}. The level of the cut preserves the sub-division volume of the preceding
-release, so the plane changes the shape and orientation of the S1/S2 boundary and not how
-much of the sacrum is called S1. Per-record geometry ships with the archive.
+3\textdegree{}. The cut preserves the sub-division volume of the preceding release,
+changing the orientation of the S1/S2 boundary and not how much sacrum is called S1;
+per-record geometry ships with the archive.
 
 Neither anchor is novel on its own: TotalSegmentator~\cite{totalsegmentator} carries a
 separate S1 class and per-level ribs, and VerSe~\cite{verse2021} carries L6, whose
@@ -571,8 +573,8 @@ computed by the released code from the released volumes.
 \label{sec:validation}
 
 
-Validation is layered, and the ordering matters: measurements computed on a corpus that
-has not established internal consistency do not look broken, they look finished.
+Validation is layered: measurements on a corpus that has not established internal
+consistency do not look broken, they look finished.
 
 \emph{Geometric invariants.} Every case is checked for label geometry agreeing with its CT
 in shape, affine and voxel spacing; for identifiers within the published scheme; for a
@@ -611,9 +613,8 @@ than a posture, and so is directly comparable to a standing reference cohort.
 
 Every record whose vertebral count departs from five carries a Castellvi
 grade~\cite{castellvi1984} in the released manifest: 33 cases, typed I--IV with the $a$/$b$
-unilateral--bilateral qualifier. This is released as an
-annotation layer because the grade and the count are \emph{different axes} and the dataset
-is built to show that they are: grade IIIb occurs here at rib-free counts of four, five and
+unilateral--bilateral qualifier. The grade and the count are \emph{different axes}: grade
+IIIb occurs here at rib-free counts of four, five and
 six alike, and seven of the 33 graded cases carry a normal count of five.
 
 Two radiology resident physicians graded every case independently and resolved their six
@@ -654,8 +655,7 @@ around the labeled skeleton flags 52\ of the 802\ records. One of the two radiol
 resident physicians read all 52\ and confirmed 11, rejecting 41\ (79\%) as contrast,
 calcification and reconstruction artefact. Attenuation does not separate the two groups
 (both saturate); site and volume do, every confirmed implant at 2,586\,mm$^3$ or above and
-every rejection at 1,768\,mm$^3$ or below. Instrumentation prevalence is 1.4\%, not the
-6.5\% the threshold alone reports.
+every rejection at 1,768\,mm$^3$ or below.
 
 \paragraph{The subtype block had to be extended.} Identifiers 76--79 name spinal
 instrumentation (generic, cage, screw-and-rod, plate) and cannot describe what this cohort
@@ -667,9 +667,8 @@ interbody cages (Fig.~\ref{fig:hardware}).
 
 \paragraph{Metal outranks bone, and that is a subtraction.} In every confirmed case the
 implant was already inside a bone label, so naming it reclaims 1,538,852\ voxels rather
-than adding them. Pelvic incidence and tilt are measured from the femoral head center, and
-in 8\ of these cases that head is an implant: any spinopelvic parameter previously computed
-from them was measured on metal.
+than adding them. In 8\ of these cases the femoral head that pelvic incidence and tilt are
+measured from is an implant.
 
 \begin{figure*}[t]
 \centering
@@ -739,8 +738,7 @@ to the ala; transitional labels marked.}
 \end{figure*}
 
 The cohort is a colorectal cancer screening population of 802 records. 738 are recorded
-female (393) or male (345); 11 carry DICOM's \emph{other} value, a recorded value and not a
-missing one, and 53 carry no sex field. Age is present for 709 (median 59, range 50--89).
+female (393) or male (345); 11 carry DICOM's \emph{other} value and 53 no sex field. Age is present for 709 (median 59, range 50--89).
 All 802 are counted in totals; the eleven records outside the female/male dichotomy are
 excluded from sex-stratified measures rather than folded into ``unrecorded''. The lower
 age bound is the screening guideline, not a selection applied here.
@@ -750,9 +748,8 @@ sacrum is typical; four and six are where transitional anatomy sits, and which o
 is present does not by itself determine what to call it. The lowest-rib length ratio is bimodal.
 
 \emph{Level gradients and spinopelvic measures} (Fig.~\ref{fig:validation}). Vertebral
-dimensions increase caudally in step with the load each level carries. Pelvic incidence
-does not vary with age, while pelvic tilt increases, the descriptive signature of a
-pelvis retroverting as a spine ages.
+dimensions increase caudally; pelvic incidence does not vary with age while pelvic tilt
+does, the signature of a pelvis retroverting as a spine ages.
 
 % Left full-width deliberately: narrowing this one to a column saved no page and cost
 % legibility in a five-panel figure. The hardware figure was worth narrowing; this is not.
@@ -810,15 +807,13 @@ show what usual looks like. The same measures are given here from 802 records wi
 distribution attached (Fig.~\ref{fig:levelatlas}), reproducing two properties of the
 classical figures (body height crosses over, dorsal exceeding ventral at T11--T12 and
 reversing by L4--L5, and pedicle width widens steeply into the lower lumbar spine) and
-adding the width of each distribution, which is the part needed to judge an individual. A
-larger $n$ sharpens a distribution without changing the population it came from, and this
-one is a screening cohort aged 50 and over.
+adding the width of each distribution, which is the part needed to judge an individual.
 
 \emph{Patient-specific models.} Planning is moving toward patient-specific biomechanical
 models rather than population norms.\cite{fea2026} Such a model needs spine, pelvis and
-femoral heads in one frame, which is this release's construction. In 351 patients the
-annotation sits on two acquisitions in different positions, giving a within-patient change in
-alignment against which a predicted postural response can be checked.
+femoral heads in one frame, which is this release's construction; in 351 patients two
+postures give a within-patient change in alignment against which a predicted postural
+response can be checked.
 
 Its limitations are stated at the level of detail a reader would
 need to catch them independently.
@@ -872,7 +867,7 @@ same series, together with classes for the anatomy an enumeration anomaly actual
 
 \emph{Limitations.} The cohort comes from one acquisition protocol of a colorectal-screening population aged 50 and over, so how well it generalizes to a pathologic population is untested. The rib layer's human review was triaged by an automated rule rather than performed on every bone, so it guarantees only the absence of the failure modes that rule detects. 
 
-\emph{Future directions.} The version history shows the scheme being extended more than once: femora and the S1 anchor, then per-level ribs, then lumbar ribs and surgical hardware, were each folded into the existing release rather than requiring a new dataset. The same path is open going forward: imaging from beyond this cohort's single protocol, and the C2 anchor this acquisition cannot supply, are the natural next additions.
+\emph{Future directions.} The version history shows the scheme being extended more than once: femora and the S1 anchor, then per-level ribs, then lumbar ribs and surgical hardware, were each folded into the existing release rather than requiring a new dataset. Imaging beyond this cohort's protocol, and the C2 anchor it cannot supply, are the natural next additions.
 
 \section{Conclusion}
 
@@ -935,6 +930,12 @@ J.~Lian, N.~Levine, and W.~Cho,
 \newblock Eur. Spine J. {\bf 27}, 995--1004 (2018),
 \newblock doi:10.1007/s00586-018-5554-8.
 
+\bibitem{acr2021}
+Expert Panel on Neurological Imaging, T.~A. Hutchins, M.~Peckham, et~al.,
+\newblock {ACR} {Appropriateness} {Criteria} low back pain: 2021 update,
+\newblock J. Am. Coll. Radiol. {\bf 18}, S361--S379 (2021),
+\newblock doi:10.1016/j.jacr.2021.08.002.
+
 \bibitem{koninwalz2010}
 G.~P. Konin and D.~M. Walz,
 \newblock Lumbosacral transitional vertebrae: classification, imaging findings, and clinical relevance,
@@ -988,6 +989,17 @@ T.~De~Silva, S.-F.~L. Lo, N.~Aygun, et~al.,
 \newblock Spine (Phila. Pa. 1976) {\bf 41}, E1249--E1256 (2016),
 \newblock doi:10.1097/BRS.0000000000001589.
 
+\bibitem{nass2013}
+D.~S. Kreiner, W.~O. Shaffer, J.~L. Baisden, et~al.,
+\newblock An evidence-based clinical guideline for the diagnosis and treatment of degenerative lumbar spinal stenosis (update),
+\newblock Spine J. {\bf 13}, 734--743 (2013),
+\newblock doi:10.1016/j.spinee.2012.11.059.
+
+\bibitem{tqip2018}
+American College of Surgeons Committee on Trauma,
+\newblock {ACS} {TQIP} best practices guidelines in imaging,
+\newblock American College of Surgeons, Chicago, 2018.
+
 \bibitem{colonog}
 K.~Smith et~al.,
 \newblock Data from {CT COLONOGRAPHY},
@@ -1035,16 +1047,16 @@ L.~Jin et~al.,
 \newblock IEEE Trans. Med. Imaging {\bf 43}, 570--581 (2024),
 \newblock doi:10.1109/TMI.2023.3313627.
 
-\bibitem{moller2026}
-H.~M{\"o}ller et~al.,
-\newblock Automated thoracolumbar stump rib detection and analysis in a large {CT} cohort, 2025,
-\newblock arXiv:2505.05004. doi:10.48550/arXiv.2505.05004.
-
 \bibitem{totalsegmentator}
 J.~Wasserthal et~al.,
 \newblock {TotalSegmentator}: robust segmentation of 104 anatomic structures in {CT} images,
 \newblock Radiol. Artif. Intell. {\bf 5}, e230024 (2023),
 \newblock doi:10.1148/ryai.230024.
+
+\bibitem{moller2026}
+H.~M{\"o}ller et~al.,
+\newblock Automated thoracolumbar stump rib detection and analysis in a large {CT} cohort, 2025,
+\newblock arXiv:2505.05004. doi:10.48550/arXiv.2505.05004.
 
 \bibitem{osc2026}
 \ifreview
