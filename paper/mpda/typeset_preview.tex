@@ -260,7 +260,8 @@ and are described in Sec.~\ref{sec:format}.
 conventional count cannot be performed: a property of abdominal imaging, not of the
 annotation. A thirteenth thoracic vertebra, a lumbar rib and a \emph{stump rib} (a
 hypoplastic twelfth rib, a cardinal indicator of a thoracolumbar transitional vertebra)
-produce overlapping appearances that counting cannot resolve here.
+leave the same number of rib-free vertebrae between the two borders of the lumbar spine, the
+last rib-bearing vertebra and the sacrum.
 
 \emph{What the release does instead.} No vertebral label is asserted where it cannot be
 supported. Every quantity is expressed against the two landmarks present in essentially
@@ -547,11 +548,10 @@ data (\ifreview\url{https://huggingface.co/anonymous-mlhc/spinopelvic-seg-checkp
 throughout used NiBabel and SciPy; no image is resampled or reoriented when a label is
 written, so every label shares its image's grid and affine exactly.
 
-\emph{Generative artificial intelligence.} Assistance from large language models was used
-for manuscript preparation (drafting and editing of text, and generation of analysis and
-figure code) under author review. It was not used to generate, annotate or interpret any
-imaging data, and no scientific claim in this manuscript originates from it. All numbers
-reported here are computed by the released code from the released volumes.
+\emph{Generative artificial intelligence.} Large language models assisted with drafting
+and editing text and with analysis and figure code, under author review. They were not
+used to generate, annotate or interpret imaging data; every number reported here is
+computed by the released code from the released volumes.
 
 \subsection{Validation}
 \label{sec:validation}
@@ -567,13 +567,11 @@ axis read from the affine rather than assumed. The check exists because a renumb
 once wrote a reoriented array under a canonical affine and transposed a label away from its
 image, a failure invisible downstream.
 
-The check compares \emph{each sided pair separately}, and both simpler alternatives miss
-cases it catches. Testing the ribs alone passed all 802 records while four of them carried
-\texttt{left\_hip} on the patient's right. Pooling all sided structures into one test
-recovered three of those four and missed the fourth, because hips and femora outweigh the
-ribs by voxel count, so a large correctly-sided structure masks a smaller transposed one. A
-gate that passes everything is not evidence of a clean corpus until it has been shown capable
-of failing.
+The check compares \emph{each sided pair separately}: testing the ribs alone passed all
+802 records while four carried \texttt{left\_hip} on the patient's right, and pooling all
+sided structures into one test still missed one of those four, because a large
+correctly-sided structure masks a smaller transposed one. A gate that passes everything is
+not evidence of a clean corpus until it has been shown capable of failing.
 
 \emph{Rib--vertebra incidence.} Each rib is matched to its nearest vertebra and compared
 against the vertebra its number implies. Of 11{,}548 ribs, 5{,}788 are not evaluable
@@ -686,13 +684,10 @@ as \texttt{splits\_5fold.json}. The five validation folds partition all 802 reco
 release provides cross-validation and \emph{not} a held-out test set. Users reporting a single held-out number should carve one out and state which records
 it holds, because the folds shipped here will not do that job.
 
-Stratification is on the transitional subtype rather than on a binary LSTV flag, and it
-enforces a minimum of each rare subtype in every validation fold: each fold's validation
-set carries three sacralization and three lumbarization records, so no fold is evaluated on
-a cohort missing the class the dataset exists for. With 15 lumbarization and 15
-sacralization records across 802, that is the practical limit of what stratification can
-guarantee, and it is why a fold-level metric on the rare classes carries an error bar far
-wider than its own decimal places.
+Stratification is on the transitional subtype rather than a binary LSTV flag: every
+validation fold carries three sacralization and three lumbarization records. With 15 of
+each across 802 that is the most stratification can guarantee, and it is why a fold-level
+metric on the rare classes carries an error bar far wider than its own decimal places.
 
 \begin{table*}[t]
 \caption{\label{tab:completeness}Data types and metadata, and the records populating
