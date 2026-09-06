@@ -299,4 +299,4 @@ replaced via `zenodo/new_version.py`). The manuscript now cites v8. Pushed to HF
 | drop the 58–73 soft-tissue names from `dataset_labels.json`; note the gap is unassigned | `data/zenodo_deposit/dataset_labels.json`, `README.md` | the scheme is bone and hardware only; v7's descriptor still lists names no record uses |
 | same on the HuggingFace card | `data/hf_export_v5/dataset_labels.json` (card text on HF not yet edited) | one scheme everywhere |
 | `pelvic_native` → `pelvic_only` in the manifest `config` field | not yet | one name for the 20 pelvis-only records |
-| Castellvi consensus (both readers read all 34; `docs/castellvi_consensus.csv`) | **in v8** | `castellvi_read_1/_2`, `castellvi_agreement`, `castellvi_consensus`; `castellvi_second_read` retired |
+| Castellvi consensus (both readers read all 33; `docs/castellvi_consensus.csv`) | **in v8** | `castellvi_read_1/_2`, `castellvi_agreement`, `castellvi_consensus`; `castellvi_second_read` retired |

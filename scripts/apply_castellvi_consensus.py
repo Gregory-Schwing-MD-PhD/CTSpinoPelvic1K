@@ -6,7 +6,8 @@ agreed on. Names are "Token N" / "token N" / "token_N" and casing of the grades 
 (IIb / IIB); both are normalised here. Token 10 is a normal reference read (NL).
 
 WHAT IS WRITTEN. For each graded record, in every manifest this repo stages:
-    castellvi_type        the CONSENSUS grade (Ia..IV, or "0" for the normal reference)
+    castellvi_type        the CONSENSUS grade (Ia..IV); the sheet's one normal reference
+                          row (token 10) is kept in the CSV and never written to a manifest
     castellvi_read_1      reader NA's independent call
     castellvi_read_2      reader MI's independent call
     castellvi_agreement   True where the two independent calls matched
@@ -106,7 +107,7 @@ def main() -> int:
                 tok = int(str(tok).replace("Token", "").replace("token", "").strip("_ "))
             except (TypeError, ValueError):
                 continue
-            if tok not in cons:
+            if tok not in cons or cons[tok]["consensus"] == "0":   # the normal reference row is not a grade
                 if rec.get("castellvi_type") not in (None, ""):
                     print(f"  ! {mp.name}: {rec['volume_id']} has a grade but is not in the consensus file")
                 continue
