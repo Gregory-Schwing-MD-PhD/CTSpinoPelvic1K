@@ -100,6 +100,7 @@ def mp_ticks(ax):
     """Major ticks outward, minor ticks inward, grey grid behind the data."""
     ax.tick_params(which="major", direction="out")
     ax.tick_params(which="minor", direction="in")
+    ax.grid(True, which="major", axis="both")      # grey gridlines both ways (journal figure style)
     ax.set_axisbelow(True)
     return ax
 
@@ -173,8 +174,11 @@ def fig_countfree(out):
     for i, k in enumerate(ks):
         ax.text(i, c[k], f"{c[k]}", ha="center", va="bottom", fontsize=7)
     ax.set_yscale("log")
+    from matplotlib.ticker import NullFormatter
+    ax.set_yticks([30, 100, 300, 1000]); ax.set_yticklabels(["30", "100", "300", "1000"])
+    ax.yaxis.set_minor_formatter(NullFormatter())
     ax.set_xlabel("rib-free vertebrae above the sacrum")
-    ax.set_ylabel("cases (log)")
+    ax.set_ylabel("cases")
     ax.set_title("(a) Rib-free vertebral count", loc="left", fontsize=8.5)
 
     # (b) the bimodal rib ratio
@@ -211,6 +215,7 @@ def fig_countfree(out):
     ax.set_title("(c) Span against gap to the ala", loc="left", fontsize=8.5)
 
     for ax in fig.axes:
+        mp_ticks(ax)
         ax.spines[["top", "right"]].set_visible(False)
     fig.savefig(out / "fig_countfree.pdf")
     plt.close(fig)
@@ -247,11 +252,12 @@ def fig_validation(out):
         ax.axvline(ref, color=OCHRE, ls="--", lw=1.0)
         ax.fill_between(xs, ys, color=TEAL, alpha=0.18, lw=0)
         ax.plot(xs, ys, color=TEAL, lw=1.3)
-        ax.set_xlabel(f"{title} (deg)")
+        ax.set_xlabel(f"{title} (°)")
         ax.set_ylabel("density" if i == 0 else "")
         ax.set_title(f"({'abc'[i]}) {title.capitalize()}", loc="left", fontsize=8.5)
 
     for ax in fig.axes:
+        mp_ticks(ax)
         ax.spines[["top", "right"]].set_visible(False)
     fig.savefig(out / "fig_validation.pdf")
     plt.close(fig)
@@ -327,6 +333,7 @@ def fig_opportunistic(out):
     ax.set_title("(c) Lowest lumbar wedge ratio", loc="left", fontsize=8.5)
 
     for ax in fig.axes:
+        mp_ticks(ax)
         ax.spines[["top", "right"]].set_visible(False)
     fig.savefig(out / "fig_opportunistic.pdf")
     plt.close(fig)

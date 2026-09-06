@@ -1,4 +1,5 @@
 \documentclass[border=2pt]{standalone}
+\usepackage{helvet}\renewcommand{\familydefault}{\sfdefault}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, fit, backgrounds, calc}
 \begin{document}
@@ -6,7 +7,7 @@
 \begin{tikzpicture}[
   % absolute 8 pt: the boxes are sized in millimetres, so the type must not follow the
   % document size (\footnotesize is 10 pt in the preprint and wrapped every box)
-  x=1mm, y=1mm, font=\fontsize{8}{9.6}\selectfont, node distance=3.5mm,
+  x=1mm, y=1mm, font=\sffamily\fontsize{8}{9.6}\selectfont, node distance=3.5mm,
   bx/.style={draw, rounded corners=1.5pt, align=center, text width=#1, inner sep=3.5pt},
   src/.style={bx=22mm, fill=black!5, minimum height=9.5mm},
   proc/.style={bx=71mm, fill=blue!7},
@@ -27,10 +28,10 @@
 \draw[ln] (tcia.south) -- ($(tcia.south)+(0,-2.5mm)$) -- ($(pelvic.south)+(0,-2.5mm)$) -- (pelvic.south);
 \draw[ar] (spine.south) -- (cross.north);
 % record types, on a bus
-\node[rec, anchor=north] (fused) at ($(cross.south)+(-27.45mm,-5mm)$) {\textbf{fused}\\$n{=}342$};
-\node[rec, anchor=north] (sep)   at ($(cross.south)+(-9.15mm,-5mm)$)  {\textbf{separate}\\$n{=}351$};
-\node[rec, anchor=north] (sonly) at ($(cross.south)+(9.15mm,-5mm)$)   {\mbox{\textbf{spine only}}\\$n{=}89$};
-\node[rec, anchor=north] (ponly) at ($(cross.south)+(27.45mm,-5mm)$)  {\mbox{\textbf{pelvis only}}\\$n{=}20$};
+\node[rec, anchor=north] (fused) at ($(cross.south)+(-27.45mm,-5mm)$) {\textbf{fused}\\\textit{n}\,=\,342};
+\node[rec, anchor=north] (sep)   at ($(cross.south)+(-9.15mm,-5mm)$)  {\textbf{separate}\\\textit{n}\,=\,351};
+\node[rec, anchor=north] (sonly) at ($(cross.south)+(9.15mm,-5mm)$)   {\mbox{\textbf{spine only}}\\\textit{n}\,=\,89};
+\node[rec, anchor=north] (ponly) at ($(cross.south)+(27.45mm,-5mm)$)  {\mbox{\textbf{pelvis only}}\\\textit{n}\,=\,20};
 \draw[ln] (cross.south) -- ($(cross.south)+(0,-2.5mm)$);
 \draw[ln] ($(fused.north)+(0,2.5mm)$) -- ($(ponly.north)+(0,2.5mm)$);
 \foreach \n in {fused,sep,sonly,ponly} \draw[ar] ($(\n.north)+(0,2.5mm)$) -- (\n.north);
@@ -56,8 +57,8 @@
 \draw[ar] (v3.south) -- (v4.north); \draw[ar] (v4.south) -- (v5.north); \draw[ar] (v5.south) -- (v6.north);
 % gates and release
 \node[gate, anchor=north] (qc) at ($(dense.south |- d6.south)+(0,-5mm)$) {\textbf{release gates, in order}\\
-  affine and sidedness $\rightarrow$ each rib articulates with the vertebra its number implies
-  $\rightarrow$ measures in physiological range};
+  affine and sidedness \textrightarrow\ each rib articulates with the vertebra its number implies
+  \textrightarrow\ measures in physiological range};
 \draw[ar] (v6.south) -- ($(v6.south)+(0,-2.5mm)$) -| (qc.north);
 \node[fin, below=of qc] (rel) {\textbf{802 released records}\\33 with a consensus Castellvi grade};
 \draw[ar] (qc.south) -- (rel.north);

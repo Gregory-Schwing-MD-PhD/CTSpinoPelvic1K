@@ -119,7 +119,7 @@ def build(out: Path):
         MF.mp_ticks(ax)
         ax.set_yticks([y_of[l] for l in LEVELS])
         ax.set_ylim(-len(LEVELS) + 0.4, 0.6)
-        ax.grid(axis="x", lw=0.6)
+        ax.grid(axis="both", lw=0.6)
         ax.spines[["top", "right"]].set_visible(False)
 
     # Only the left column carries level labels; the discs panel names interspaces instead,

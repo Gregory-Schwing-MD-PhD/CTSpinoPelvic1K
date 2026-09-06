@@ -41,7 +41,8 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 from render_turntable import render                                # noqa: E402
 
-plt.rcParams.update({"font.family": "serif", "font.size": 9})
+plt.rcParams.update({"font.family": "sans-serif",
+                     "font.sans-serif": ["Arial", "Helvetica", "Calibri", "DejaVu Sans"], "font.size": 9})
 
 SACRUM, S1 = 26, 29
 LUMBAR = list(range(20, 26))

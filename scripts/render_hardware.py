@@ -39,7 +39,8 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 from render_turntable import render, BG                              # noqa: E402
 
-plt.rcParams.update({"font.family": "serif", "font.size": 9})
+plt.rcParams.update({"font.family": "sans-serif",
+                     "font.sans-serif": ["Arial", "Helvetica", "Calibri", "DejaVu Sans"], "font.size": 9})
 
 HW = {76: "hardware", 77: "cage", 78: "screw / rod", 79: "plate",
       80: "arthroplasty", 81: "sacroiliac screw", 82: "osteosynthesis"}

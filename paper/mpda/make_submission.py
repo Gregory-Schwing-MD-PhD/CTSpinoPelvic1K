@@ -49,6 +49,7 @@ tikz = re.search(r"(\\begin\{tikzpicture\}\[\n  % absolute 8 pt.*?\\end\{tikzpic
 if not tikz:
     tikz = re.search(r"(\\begin\{tikzpicture\}\[.*?\\end\{tikzpicture\})", src, re.S)
 standalone = r"""\documentclass[border=2pt]{standalone}
+\usepackage{helvet}\renewcommand{\familydefault}{\sfdefault}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, fit, backgrounds, calc}
 \begin{document}
@@ -75,7 +76,16 @@ for s_, d_ in copies.items():
     shutil.copy(HERE / s_, out / d_)
 for k, rel in enumerate(order, 1):
     shutil.copy(HERE / rel, out / "figures" / f"Figure_{k}.pdf")
+# the Overleaf project: sources, the six included figures (Fig. 1 is TikZ inside main.tex),
+# the caption list, and the README that says how to set the main document
 z = ROOT / "dist" / "CTSpinoPelvic1K_overleaf.zip"
-if z.exists():
-    shutil.copy(z, out / "LaTeX_source_CTSpinoPelvic1K.zip")
+with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as zf:
+    for name in ["main.tex", "title_page.tex", "supplementary.tex", "census_table.tex",
+                 "figure_captions.tex"]:
+        zf.write(HERE / name, name)
+    zf.write(HERE / "overleaf_README.md", "README.md")
+    for rel in order[1:]:
+        zf.write(HERE / rel, rel)
+shutil.copy(z, out / "LaTeX_source_CTSpinoPelvic1K.zip")
+shutil.copy(HERE / "cover_letter.md", out / "Cover_Letter.md")
 print("assembled:", sorted(p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file()))

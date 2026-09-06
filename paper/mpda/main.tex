@@ -166,7 +166,8 @@
 \begin{abstract}
 \textbf{Purpose:} A vertebra at the lumbosacral junction is named by counting. The gold
 standard counts caudally from C2 on whole-spine imaging~\cite{lian2018}; the imaging a lumbar
-case is planned on is regional~\cite{acr2021}, and abdominal CT never contains C2. Where a
+case is planned on is regional~\cite{acr2021}, and abdominal computed tomography (CT) never
+contains C2. Where a
 lumbosacral transitional vertebra (LSTV) alters the count, the local anatomy is ambiguous:
 four rib-free vertebrae may be an L1 bearing a lumbar rib or an
 L5 assimilated to the sacrum, and six may be a sixth lumbar vertebra, a T12 whose ribs are
@@ -179,7 +180,7 @@ vertebra, a separate first sacral segment and lumbar ribs, so that the anomalies
 recorded as themselves.
 
 \textbf{Acquisition and Validation Methods:} Records pair TCIA CT~COLONOGRAPHY imaging with
-CTSpine1K~\cite{ctspine1k} vertebral and CTPelvic1K~\cite{ctpelvic1k} pelvic labels on the acquisition with highest bone coverage, under a VerSe-native scheme. Validation: geometric invariants (802/802 pass); rib--vertebra incidence across 5{,}749 evaluable ribs (2 offsets,
+CTSpine1K~\cite{ctspine1k} vertebral and CTPelvic1K~\cite{ctpelvic1k} pelvic labels on the acquisition with highest bone coverage, under a VerSe-native scheme. Validation: geometric invariants (802/802 pass); rib--vertebra incidence across 5{,}749 evaluable ribs (two offsets,
 0.035\%); and agreement of spinopelvic measures with published values.
 
 \textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs sharing one affine, canonicalized to PIR, with frozen patient-grouped LSTV-stratified five-fold splits and a reference loader; archived at \doiurl{\datasetdoi}.
@@ -344,7 +345,7 @@ TotalSegmentator~\cite{totalsegmentator} & 1{,}204 & \has\no\has\has\has\has\no\
 \begin{tikzpicture}[
   % absolute 8 pt: the boxes are sized in millimetres, so the type must not follow the
   % document size (\footnotesize is 10 pt in the preprint and wrapped every box)
-  x=1mm, y=1mm, font=\fontsize{8}{9.6}\selectfont, node distance=3.5mm,
+  x=1mm, y=1mm, font=\sffamily\fontsize{8}{9.6}\selectfont, node distance=3.5mm,
   bx/.style={draw, rounded corners=1.5pt, align=center, text width=#1, inner sep=3.5pt},
   src/.style={bx=22mm, fill=black!5, minimum height=9.5mm},
   proc/.style={bx=71mm, fill=blue!7},
@@ -365,10 +366,10 @@ TotalSegmentator~\cite{totalsegmentator} & 1{,}204 & \has\no\has\has\has\has\no\
 \draw[ln] (tcia.south) -- ($(tcia.south)+(0,-2.5mm)$) -- ($(pelvic.south)+(0,-2.5mm)$) -- (pelvic.south);
 \draw[ar] (spine.south) -- (cross.north);
 % record types, on a bus
-\node[rec, anchor=north] (fused) at ($(cross.south)+(-27.45mm,-5mm)$) {\textbf{fused}\\$n{=}342$};
-\node[rec, anchor=north] (sep)   at ($(cross.south)+(-9.15mm,-5mm)$)  {\textbf{separate}\\$n{=}351$};
-\node[rec, anchor=north] (sonly) at ($(cross.south)+(9.15mm,-5mm)$)   {\mbox{\textbf{spine only}}\\$n{=}89$};
-\node[rec, anchor=north] (ponly) at ($(cross.south)+(27.45mm,-5mm)$)  {\mbox{\textbf{pelvis only}}\\$n{=}20$};
+\node[rec, anchor=north] (fused) at ($(cross.south)+(-27.45mm,-5mm)$) {\textbf{fused}\\\textit{n}\,=\,342};
+\node[rec, anchor=north] (sep)   at ($(cross.south)+(-9.15mm,-5mm)$)  {\textbf{separate}\\\textit{n}\,=\,351};
+\node[rec, anchor=north] (sonly) at ($(cross.south)+(9.15mm,-5mm)$)   {\mbox{\textbf{spine only}}\\\textit{n}\,=\,89};
+\node[rec, anchor=north] (ponly) at ($(cross.south)+(27.45mm,-5mm)$)  {\mbox{\textbf{pelvis only}}\\\textit{n}\,=\,20};
 \draw[ln] (cross.south) -- ($(cross.south)+(0,-2.5mm)$);
 \draw[ln] ($(fused.north)+(0,2.5mm)$) -- ($(ponly.north)+(0,2.5mm)$);
 \foreach \n in {fused,sep,sonly,ponly} \draw[ar] ($(\n.north)+(0,2.5mm)$) -- (\n.north);
@@ -394,8 +395,8 @@ TotalSegmentator~\cite{totalsegmentator} & 1{,}204 & \has\no\has\has\has\has\no\
 \draw[ar] (v3.south) -- (v4.north); \draw[ar] (v4.south) -- (v5.north); \draw[ar] (v5.south) -- (v6.north);
 % gates and release
 \node[gate, anchor=north] (qc) at ($(dense.south |- d6.south)+(0,-5mm)$) {\textbf{release gates, in order}\\
-  affine and sidedness $\rightarrow$ each rib articulates with the vertebra its number implies
-  $\rightarrow$ measures in physiological range};
+  affine and sidedness \textrightarrow\ each rib articulates with the vertebra its number implies
+  \textrightarrow\ measures in physiological range};
 \draw[ar] (v6.south) -- ($(v6.south)+(0,-2.5mm)$) -| (qc.north);
 \node[fin, below=of qc] (rel) {\textbf{802 released records}\\33 with a consensus Castellvi grade};
 \draw[ar] (qc.south) -- (rel.north);
@@ -471,7 +472,7 @@ The result is a pseudolabel whose review was triaged rather than exhaustive. A l
 rule flagged every record in which one rib
 bone carried more than one identifier, or in which a rib failed to reach the vertebra it
 articulates with, since a single bone carrying two numbers is a numbering error by construction,
-whatever the anatomy. The rule selected 152 records; 148 were reviewed and corrected, and 4
+whatever the anatomy. The rule selected 152 records; 148 were reviewed and corrected, and four
 were not and are identified in the release. Reviewers were medical students working through
 \consortium~\cite{osc2026}, trained against a written labeling protocol, with every
 correction recorded against the annotator who made it. Records passing the rule were not
@@ -666,12 +667,12 @@ instrumentation (generic, cage, screw-and-rod, plate) and cannot describe what t
 holds, so \textbf{80 arthroplasty}, \textbf{81 sacroiliac screw} and \textbf{82
 osteosynthesis} were added: osteosynthesis holds parts of one bone together where
 arthroplasty replaces a joint, and a shape rule calls a femoral stem a rod. The confirmed
-cases are 8\ arthroplasties, one osteosynthesis, one sacroiliac fixation and one pair of
+cases are eight arthroplasties, one osteosynthesis, one sacroiliac fixation and one pair of
 interbody cages (Fig.~\ref{fig:hardware}).
 
 \paragraph{Metal outranks bone, and that is a subtraction.} In every confirmed case the
 implant was already inside a bone label, so naming it reclaims 1,538,852\ voxels rather
-than adding them. In 8\ of these cases the femoral head that pelvic incidence and tilt are
+than adding them. In eight of these cases the femoral head that pelvic incidence and tilt are
 measured from is an implant.
 
 \begin{figure*}[t]
