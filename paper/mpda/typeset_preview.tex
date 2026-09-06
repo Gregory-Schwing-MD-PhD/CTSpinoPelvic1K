@@ -483,11 +483,10 @@ negligible: median 4.5\textdegree{}, maximum 16.1\textdegree{}, and 508 of 801 r
 release, so the plane changes the shape and orientation of the S1/S2 boundary and not how
 much of the sacrum is called S1. Per-record geometry ships with the archive.
 
-Neither anchor is novel on its own: TotalSegmentator~\cite{totalsegmentator} carries a separate S1
-class and per-level ribs, and VerSe~\cite{verse2021} carries L6. Because this release uses
-the VerSe identifiers, its L6 \emph{is} VerSe's, interoperable rather than local to this
-work. L6 is retained not for novelty but because a scheme without it cannot record a
-six-lumbar spine at all, and must renumber the column or drop a level to fit.
+Neither anchor is novel on its own: TotalSegmentator~\cite{totalsegmentator} carries a
+separate S1 class and per-level ribs, and VerSe~\cite{verse2021} carries L6, whose
+identifier this release keeps, so its L6 \emph{is} VerSe's. L6 is retained because a scheme
+without it cannot record a six-lumbar spine at all.
 
 \textbf{A rib on a lumbar body receives its own class}, and this is the one class here with
 no published counterpart. A lumbar rib and a stump rib are the same object under two counts,
@@ -525,14 +524,11 @@ axes disagreeing in the open: a record can carry six lumbar-type vertebrae and s
 as a sacralization, or as unremarkable, depending on where the reader started the count.
 
 Both counts are derived from the released label volumes, and so are the manifest fields
-that report them. That is a correction rather than a design note: through v5 the
-\texttt{has\_l6} flag was true for exactly one record, which contains no L6, and false for
-all eighteen that do, while \texttt{has\_lumbar\_rib} was false everywhere and
-\texttt{n\_lumbar\_labels} read zero in 799 of 802 records. A reader selecting the six-lumbar
-cases on those fields would have received one record that is not one, and a reader selecting
-lumbar ribs an empty set, with nothing to indicate either. The fields are rebuilt for this
-release by counting identifiers 25 and 74--75 in each volume, and
-\texttt{lumbar\_rib\_side} is added alongside them.
+that report them. That is a correction: through v5, \texttt{has\_l6} was true for one
+record that contains no L6 and false for all eighteen that do, \texttt{has\_lumbar\_rib} was
+false everywhere, and \texttt{n\_lumbar\_labels} read zero in 799 of 802 records. The fields
+are rebuilt for this release by counting identifiers 25 and 74--75 in each volume, with
+\texttt{lumbar\_rib\_side} added alongside them.
 
 \subsection{Computational tools}
 
