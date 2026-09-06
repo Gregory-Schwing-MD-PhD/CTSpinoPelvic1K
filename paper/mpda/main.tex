@@ -403,8 +403,12 @@ TotalSegmentator~\cite{totalsegmentator} & 1{,}204 & \has\no\has\has\has\has\no\
 Both CTSpine1K~\cite{ctspine1k} and CTPelvic1K~\cite{ctpelvic1k} draw part of
 their imaging from the TCIA CT colonography collection~\cite{colonog,tcia}, and
 the vertebral and pelvic annotations in both were produced under
-board-certified radiologist supervision. Neither released the mapping from an
-annotation to the specific CT series it was drawn on.
+board-certified radiologist supervision. CTSpine1K's 1{,}005 volumes come from four
+collections and CTPelvic1K's 1{,}184 from seven; COLONOG is the only collection common to
+both and the only one acquired under a single protocol, so this release is its COLONOG
+subset: 782 patients with a CTSpine1K vertebral annotation and 20 with a CTPelvic1K pelvic
+annotation only, 802 in all. Neither source released the mapping from an annotation to the
+specific CT series it was drawn on.
 
 That mapping matters because every patient in CT~COLONOGRAPHY was scanned \emph{twice},
 prone and supine, and an annotation carries a patient identifier and nothing finer. Turning
@@ -418,7 +422,7 @@ by overlap with the mask.
 
 \subsection{Fused and split records}
 
-CTSpine1K and CTPelvic1K each annotated a patient independently, so their labels are not guaranteed to come from the same CT series (Fig.~\ref{fig:pipeline}). This turned out to matter for 351 patients, nearly half the cohort: the two collections had labeled different acquisitions of the same person, one prone and one supine, with neither recording which. Because posture changes spinal alignment, a spine label from one acquisition cannot simply be paired with a pelvic label from the other. These 351 records are released but held out of any analysis that assumes a single posture. Two labeled acquisitions of the same patient in different postures are, instead, a resource for studying postural alignment, not a defect. 
+CTSpine1K and CTPelvic1K each annotated a patient independently, so their labels are not guaranteed to come from the same CT series (Fig.~\ref{fig:pipeline}). This turned out to matter for 351 patients, nearly half the cohort: the two collections had labeled different acquisitions of the same person, one prone and one supine, with neither recording which. Because posture changes spinal alignment, a spine label from one acquisition cannot simply be paired with a pelvic label from the other. These 351 records are released but held out of any analysis that assumes a single posture; two labeled postures of one patient are a resource for studying alignment, not a defect. 
 
 \subsection{Densification, and why it is asymmetric}
 
@@ -781,8 +785,7 @@ derived from the segmented sacrum and femoral heads rather than from landmarks p
 radiograph, so it is reproducible from the labels themselves.
 
 The transitional layer serves that use rather than competing with it: no trajectory can be
-planned across a junction whose segments cannot be named. Level-numbering benchmarks,
-variant studies and opportunistic screening follow from the same annotation.
+planned across a junction whose segments cannot be named.
 
 \subsection{Three uses the released measurements support}
 
