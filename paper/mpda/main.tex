@@ -165,9 +165,10 @@
 % ---------------------------------------------------------------------------
 \begin{abstract}
 \textbf{Purpose:} A vertebra at the lumbosacral junction is named by counting. The gold
-standard counts caudally from C2 on whole-spine imaging~\cite{lian2018}; the imaging a lumbar
-case is planned on is a lumbar study~\cite{acr2021,acrmri2023}, T12 to S1, and abdominal
-computed tomography (CT) never contains C2. Where a
+standard counts caudally from C2 on whole-spine imaging~\cite{lian2018}; however, a lumbar
+case is planned on a lumbar study~\cite{acr2021,acrmri2023}, T12 to S1, without C2.
+Abdominopelvic computed tomography (CT) holds that span with the lowest ribs and the pelvis,
+and stands in for the preoperative view. Where a
 lumbosacral transitional vertebra (LSTV) alters the count, the local anatomy is ambiguous:
 four rib-free vertebrae may be an L1 bearing a lumbar rib or an
 L5 assimilated to the sacrum, and six may be a sixth lumbar vertebra, a T12 whose ribs are
@@ -176,20 +177,18 @@ to ask whether local morphology resolves that ambiguity without the count. It pr
 802 CT records with radiologist-sourced spine and pelvic annotation on one frame, per-level
 ribs and femora, each lumbar level anchored on the lowest rib-bearing vertebra and the first
 sacral segment, and classes for a sixth lumbar vertebra, a thirteenth thoracic
-vertebra, a separate first sacral segment and lumbar ribs, so that the anomalies are
-recorded as themselves.
+vertebra, a separate first sacral segment and lumbar ribs, so anomalies are recorded as themselves.
 
 \textbf{Acquisition and Validation Methods:} Records pair TCIA CT~COLONOGRAPHY imaging with
-CTSpine1K~\cite{ctspine1k} vertebral and CTPelvic1K~\cite{ctpelvic1k} pelvic labels on the acquisition with highest bone coverage, under a VerSe-native scheme. Validation: geometric invariants (802/802 pass); rib--vertebra incidence across 5{,}749 evaluable ribs (two offsets,
-0.035\%); and agreement of spinopelvic measures with published values.
+CTSpine1K~\cite{ctspine1k} vertebral and CTPelvic1K~\cite{ctpelvic1k} pelvic labels on the acquisition with most bone, under a VerSe-native scheme. Validation: geometric invariants (802/802 pass); rib--vertebra incidence across 5{,}749 evaluable ribs (0.035\% offset); and agreement of spinopelvic measures with published values.
 
-\textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs sharing one affine, canonicalized to PIR, with frozen patient-grouped LSTV-stratified five-fold splits and a reference loader; archived at \doiurl{\datasetdoi}.
+\textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs canonicalized to PIR, with patient-grouped LSTV-stratified five-fold splits and a reference loader; archived at \doiurl{\datasetdoi}.
 
-\textbf{Potential Applications:} Classifying a vertebra from local features alone;
+\textbf{Potential Applications:} Classifying a vertebra from local features;
 updating cadaveric textbook morphometry;
 spinopelvic assessment; variant studies; opportunistic screening.
 \emph{Limitations:} thoracic ground truth is field-of-view limited; postural
-angles supine; no held-out test set; the rib layer is a triaged-review pseudolabel;
+angles supine; no held-out test set; ribs are triaged-review pseudolabels;
 Castellvi grades are a two-reader consensus.
 \end{abstract}
 
@@ -258,7 +257,9 @@ The project began as a surgeon's question: whether a vertebra can be named from 
 anatomy in front of the reader, on the images a lumbar case is actually planned on: by
 guideline those are lumbar studies~\cite{acr2021,nass2013,acrmri2023}, T12 to S1, and whole-spine
 coverage is reserved for trauma with an identified injury~\cite{tqip2018} and for deformity
-radiographs. The cohort suits that question. Every record
+radiographs. The cohort suits that question: an abdominopelvic CT runs from the diaphragm to the pelvic
+floor, so it holds the T12-to-S1 span of the planning study together with the lowest ribs
+and the whole pelvis, and it lacks C2 exactly as that study does. Every record
 comes from one prospective trial protocol, ACRIN 6664~\cite{colonog,tcia}: 802 patients aged
 50 and over, scanned supine and prone on multidetector CT at 15 centers, on five scanner
 vendors and nine models, with manufacturer, model and reconstruction kernel recorded per
