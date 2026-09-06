@@ -167,7 +167,7 @@
 \textbf{Purpose:} A vertebra at the lumbosacral junction is named by counting. The gold
 standard counts caudally from C2 on whole-spine imaging~\cite{lian2018}; however, a lumbar
 case is planned on a lumbar study~\cite{acr2021,acrmri2023}, T12 to S1, without C2.
-Abdominopelvic computed tomography (CT) holds that span with the lowest ribs and the pelvis,
+Abdominopelvic computed tomography (CT) holds that span, the lowest ribs and the pelvis,
 and stands in for the preoperative view. Where a
 lumbosacral transitional vertebra (LSTV) alters the count, the local anatomy is ambiguous:
 four rib-free vertebrae may be an L1 bearing a lumbar rib or an
@@ -175,20 +175,20 @@ L5 assimilated to the sacrum, and six may be a sixth lumbar vertebra, a T12 whos
 aplastic, or an S1 lumbarized from the sacrum~\cite{koninwalz2010}. CTSpinoPelvic1K exists
 to ask whether local morphology resolves that ambiguity without the count. It provides
 802 CT records with radiologist-sourced spine and pelvic annotation on one frame, per-level
-ribs and femora, each lumbar level anchored on the lowest rib-bearing vertebra and the first
-sacral segment, and classes for a sixth lumbar vertebra, a thirteenth thoracic
-vertebra, a separate first sacral segment and lumbar ribs, so anomalies are recorded as themselves.
+ribs and femora, lumbar levels anchored on the lowest rib-bearing vertebra and S1, and classes for a
+sixth lumbar vertebra, a thirteenth thoracic vertebra, a separate S1 and lumbar ribs, so anomalies are recorded as themselves.
 
-\textbf{Acquisition and Validation Methods:} Records pair TCIA CT~COLONOGRAPHY imaging with
-CTSpine1K~\cite{ctspine1k} vertebral and CTPelvic1K~\cite{ctpelvic1k} pelvic labels on the acquisition with most bone, under a VerSe-native scheme. Validation: geometric invariants (802/802 pass); rib--vertebra incidence across 5{,}749 evaluable ribs (0.035\% offset); and agreement of spinopelvic measures with published values.
+\textbf{Acquisition and Validation Methods:} Records pair TCIA CT~COLONOGRAPHY with
+CTSpine1K~\cite{ctspine1k} vertebral and CTPelvic1K~\cite{ctpelvic1k} pelvic labels on the bone-richest acquisition, under a VerSe-native scheme. Validation: geometric invariants (802/802 pass); rib--vertebra incidence across 5{,}749 evaluable ribs (0.035\% offset); and spinopelvic measures matching published values.
 
-\textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs canonicalized to PIR, with patient-grouped LSTV-stratified five-fold splits and a reference loader; archived at \doiurl{\datasetdoi}.
+\textbf{Data Format and Usage Notes:} Gzipped NIfTI image/label pairs with patient-grouped LSTV-stratified five-fold splits and a reference loader; archived at \doiurl{\datasetdoi}.
 
 \textbf{Potential Applications:} Classifying a vertebra from local features;
 updating cadaveric textbook morphometry;
-spinopelvic assessment; variant studies; opportunistic screening.
+spinopelvic assessment; variant studies; opportunistic screening; and, absent a public
+preoperative lumbar CT cohort, planning research (377 records prone).
 \emph{Limitations:} thoracic ground truth is field-of-view limited; postural
-angles supine; no held-out test set; ribs are triaged-review pseudolabels;
+angles recumbent; no held-out test set; ribs are triaged-review pseudolabels;
 Castellvi grades are a two-reader consensus.
 \end{abstract}
 
@@ -788,6 +788,15 @@ radiograph, so it is reproducible from the labels themselves.
 
 The transitional layer serves that use rather than competing with it: no trajectory can be
 planned across a junction whose segments cannot be named.
+
+\emph{A proxy for the preoperative view.} We know of no public, labeled preoperative lumbar
+CT cohort. In its absence this release is the closest available proxy for the field of view
+a lumbar case is planned on: it holds the T12-to-S1 span with the lowest ribs and the
+pelvis; 377 of its 802 records were acquired prone, the position of posterior lumbar
+surgery, and the manifest records each record's position; and it labels the anomalies that
+make level identification fail. It is a screening population imaged at colonography dose,
+not a surgical series, so it supports method development for level identification and
+instrumentation geometry rather than validation of a planning decision.
 
 \subsection{Three uses the released measurements support}
 
