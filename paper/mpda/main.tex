@@ -578,12 +578,9 @@ against the vertebra its number implies. Of 11{,}548 ribs, 5{,}788 are not evalu
 because the expected vertebra lies outside the field of view and 11 have no vertebra within
 the anchor distance; of the 5{,}749 evaluable, 5{,}747 match, two (0.035\%) are offset by one
 level, and no case is misnumbered. The denominator is stated because quoting the two
-residual offsets against all 11{,}548 ribs would halve the rate by counting ribs the check never
-examined, and because more than half the ribs in a screening abdominal CT being
-unevaluable is itself a fact about the corpus worth reporting. Both offsets are
-field-of-view truncations on individually characterized cases, one at $+1$ level and one at
-$-1$, and are reported rather than suppressed: a threshold tuned until the count reaches
-zero yields a cleaner number and a less informative one.
+offsets against all 11{,}548 ribs would halve the rate by counting ribs the check never
+examined. Both offsets are field-of-view truncations on individually characterized cases,
+one at $+1$ level and one at $-1$, reported rather than suppressed.
 
 The same check carries an invariant that reads as a null result. Of the 5{,}749 evaluable
 ribs, \emph{zero} are assigned to a lumbar vertebra, not because no lumbar ribs exist,
@@ -681,8 +678,8 @@ what the downstream tooling expects.
 
 Splits are patient-grouped and LSTV-stratified five-fold, frozen and shipped with the data
 as \texttt{splits\_5fold.json}. The five validation folds partition all 802 records, so the
-release provides cross-validation and \emph{not} a held-out test set. Users reporting a single held-out number should carve one out and state which records
-it holds, because the folds shipped here will not do that job.
+release provides cross-validation and \emph{not} a held-out test set; users reporting a
+single held-out number should carve one out and state which records it holds.
 
 Stratification is on the transitional subtype rather than a binary LSTV flag: every
 validation fold carries three sacralization and three lumbarization records. With 15 of
@@ -735,9 +732,8 @@ The cohort is a colorectal cancer screening population of 802 records. 738 are r
 female (393) or male (345); 11 carry DICOM's \emph{other} value, a recorded value and not a
 missing one, and 53 carry no sex field. Age is present for 709 (median 59, range 50--89).
 All 802 are counted in totals; the eleven records outside the female/male dichotomy are
-excluded from sex-stratified measures rather than folded into ``unrecorded''. The lower age bound is the screening guideline
-rather than a selection applied here, and it is why the measures below sit closer to a
-reference range than a surgical series would.
+excluded from sex-stratified measures rather than folded into ``unrecorded''. The lower
+age bound is the screening guideline, not a selection applied here.
 
 \emph{Count-free measures} (Fig.~\ref{fig:countfree}). Five rib-free vertebrae above the
 sacrum is typical; four and six are where transitional anatomy sits, and which of the two
