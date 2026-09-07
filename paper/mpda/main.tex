@@ -47,7 +47,7 @@
 \newcommand{\datasetdoi}{10.5281/zenodo.22139642}
 % The exact version this manuscript describes, for reproducibility.
 \newcommand{\datasetversiondoi}{10.5281/zenodo.22642578}
-\newcommand{\datasetversion}{v8}
+\newcommand{\datasetversion}{v10}
 % DOUBLE-ANONYMIZED REVIEW. \reviewtrue redacts the consortium's name and the self-citation.
 % The DOIs are NOT redacted: PUB 3-C requires the dataset DOI to exist and be cited in the
 % text, and a referee is instructed to verify it. Flip to \reviewfalse for camera-ready.
@@ -195,21 +195,20 @@ ribs, or a lumbarized S1~\cite{koninwalz2010}. CTSpinoPelvic1K asks whether loca
 resolves that ambiguity without the count. Two public label sets already covered
 this imaging, CTSpine1K's vertebrae and CTPelvic1K's pelvis, on the same colonography
 patients, never joined; this release joins them on one series and annotates the bones
-neither had. It provides 802 CT records with per-level ribs and femora, lumbar levels
+neither had. It provides 802 CT records, per-level ribs and femora, lumbar levels
 anchored on the lowest rib-bearing vertebra and S1, and classes for L6, T13, a separate S1
 and lumbar ribs, so anomalies are recorded as themselves.
 
-\textbf{Acquisition and Validation Methods:} Records pair CTSpine1K~\cite{ctspine1k} and CTPelvic1K~\cite{ctpelvic1k} labels on each patient's bone-richest acquisition under a VerSe-native scheme. Validation covered geometric invariants (802/802 pass), rib--vertebra incidence across 5{,}749 evaluable ribs (0.035\% offset), and spinopelvic measures matching published values.
+\textbf{Acquisition and Validation Methods:} Records pair CTSpine1K~\cite{ctspine1k} and CTPelvic1K~\cite{ctpelvic1k} labels on each patient's bone-richest acquisition under a VerSe-native scheme. Validation covered geometric invariants (802/802 pass), rib--vertebra incidence across 5{,}749 ribs (0.035\% offset), and spinopelvic measures matching published values.
 
-\textbf{Data Format and Usage Notes:} NIfTI image/label pairs with patient-grouped LSTV-stratified five-fold splits and a reference loader; archived at \doiurl{\datasetdoi}.
+\textbf{Data Format and Usage Notes:} NIfTI image/label pairs with patient-grouped LSTV-stratified five-fold splits and a loader; archived at \doiurl{\datasetdoi}.
 
 \textbf{Potential Applications:} Classifying a vertebra from local features;
 updating cadaveric morphometry;
-spinopelvic assessment; opportunistic screening; and, absent a public
-preoperative lumbar CT cohort, planning research (377 records prone).
+spinopelvic assessment; opportunistic screening; and, absent a public preoperative lumbar cohort, planning research (377 records prone).
 \emph{Limitations:} thoracic ground truth is field-of-view limited; postural
 angles recumbent; no held-out test set; ribs are triaged-review pseudolabels;
-Castellvi grades are two-reader consensus.
+Castellvi grades are two-reader consensus on 33 records.
 \end{abstract}
 
 \maketitle
@@ -498,7 +497,7 @@ The scheme is VerSe-native. Vertebrae keep their VerSe identifiers (C1--C7 = 1--
 T1--T12 = 8--19, L1--L6 = 20--25, sacrum 26, coccyx 27, T13 = 28), and every non-VerSe
 structure takes a fixed identifier above that range, S1 carved from the sacrum (29), hips (30--31), femora (32--33), thirteen ribs per side (34--46 left, 47--59 right), lumbar ribs (60--61) and surgical hardware (62--68). The space is contiguous. Rib 13 is the true rib of a T13 and is empty in this release, so a thirteenth thoracic vertebra and a lumbar rib are recorded as the distinct phenotypes they are.
 
-Two anchors make the count decidable, and Fig.~\ref{fig:anchors} shows both, the lowest rib-bearing vertebra above, \textbf{S1} carved from the sacrum below.  S1 supplies the sacral endplate
+Two anchors give every record the same positional frame, and Fig.~\ref{fig:anchors} shows both, the lowest rib-bearing vertebra above, \textbf{S1} carved from the sacrum below.  S1 supplies the sacral endplate
 landmark that sacral slope and pelvic incidence are measured from, and with both brackets
 present L5 and L6 are distinguishable where a spine-limited view alone would not be.
 
