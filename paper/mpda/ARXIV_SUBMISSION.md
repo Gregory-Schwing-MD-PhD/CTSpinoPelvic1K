@@ -58,10 +58,12 @@ abstract field takes plain text; the four bold section labels are kept as words.
 
 ## Licence
 
-**CC BY-NC-SA 4.0**, to match the dataset. ShareAlike is inherited from CTSpine1K, from which
-the vertebral annotations derive, and is not ours to drop; keeping the preprint under the same
-terms avoids a preprint more permissive than the data it describes. Medical Physics (Wiley)
-permits posting the submitted manuscript on a preprint server.
+**arXiv.org perpetual, non-exclusive license** (chosen 2026-09-07). It grants arXiv only the
+right to distribute; every other right stays with the authors, so nothing conflicts with what
+Medical Physics (Wiley) asks on acceptance, and Wiley permits posting the submitted manuscript
+on a preprint server. The dataset's CC BY-NC-SA terms travel with the labels on Zenodo, not
+with the text describing them, so the paper does not need to match them. Not CC Zero
+(attribution given up) and not CC BY-NC-ND (blocks reuse of the figures, including our own).
 
 ## Journal reference and DOI
 
