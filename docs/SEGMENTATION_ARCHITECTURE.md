@@ -145,11 +145,15 @@ rib-bearing flag cannot express that, which is why side is segmented separately 
 rib-bearing status is computed *per side* in stage 3. Unilateral is then a first-class
 output, and it maps onto the Castellvi a/b distinction.
 
-**The lumbar rib.** A rib on a lumbar body is the same object as a hypoplastic twelfth
-rib under a different count. Any rule that says "rib-bearing means thoracic" gets this
-wrong. The dataset already gives lumbar ribs their own class for this reason, and the
-counting stage must treat a small rib on the first rib-free candidate as *ambiguous* and
-report both counts rather than choose.
+**The lumbar rib.** A rib on a lumbar body is not a hypoplastic twelfth rib under a
+different count. They are distinct anomalies. A stump twelfth rib sits on a thoracic-shaped
+vertebra with a costal facet, and a lumbar rib sits on a lumbar-shaped vertebra and
+articulates with its transverse process. A thirteenth rib on a T13 is a third object again,
+with a true costovertebral joint. Any rule that says "rib-bearing means thoracic" gets
+all three wrong. The dataset gives lumbar ribs (60, 61) and thirteenth ribs (46, 59) their
+own classes for this reason, and the counting stage must decide which of the three a short
+rib is from the vertebra it sits on, not from the rib alone, and report the count as
+*ambiguous* with both readings wherever the vertebra call is not confident.
 
 **Fusion and bridging.** DISH or a bony bridge merges two vertebrae into one component.
 The disc-space class helps but will not always save it. Detect it as an outlier in
