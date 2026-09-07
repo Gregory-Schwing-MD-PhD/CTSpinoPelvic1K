@@ -27,7 +27,10 @@ set -euo pipefail
 cd "${SLURM_SUBMIT_DIR:-$PWD}"
 module load singularity 2>/dev/null || true
 SIF="${SIF_PATH:-containers/ctspinopelvic1k.sif}"
-RUN=(singularity exec --bind "$(pwd)":/w --pwd /w --env PYTHONPATH=/w/scripts,PYTHONUNBUFFERED=1 "$SIF")
+# singularity 3.5 has no --env; SINGULARITYENV_* is the portable spelling
+export SINGULARITYENV_PYTHONPATH=/w/scripts SINGULARITYENV_PYTHONUNBUFFERED=1
+RUN=(singularity exec --bind "$(pwd)":/w --pwd /w "$SIF")
+SKIP_TO="${SKIP_TO:-1}"     # rerun from a given step (1..5) after a partial failure
 HFPY="$HOME/mambaforge/envs/hfup/bin/python"
 A="${ARCHIVE_DIR:-$HOME/build_archive}"
 S="${STAGE_DIR:-$HOME/build_archive_stage}"
@@ -52,6 +55,7 @@ pack() {
   ls -la "$A/$name.tar.zst"
 }
 
+if [ "$SKIP_TO" -le 3 ]; then
 echo "### 1. v10 working copy at $W  ($(date))"
 if [ ! -s "$S/labels_v10.zip" ]; then
   curl -sSL --retry 5 -o "$S/labels_v10.zip" "$ZEN/labels.zip/content"
@@ -82,10 +86,13 @@ echo "### 3. student reviews  ($(date))"
 "$HFPY" scripts/archive_reviews.py --out "$S/04_reviews" \
     --private-map "$HOME/build_archive_private/annotator_map.json"
 pack 04_reviews -C "$S" 04_reviews
+fi
 
+if [ "$SKIP_TO" -le 4 ]; then
 echo "### 4. v5, v6 inputs, v7  ($(date))"
-pack 05_v5 -C "$D" v5_final thoracic_fix fix_0816/labels fix_0816/manifest.json fix_0816/manifest.csv \
-     fix_0816/splits_5fold.json fix_0816/0816_completion_report.json fix_0816_v4/labels fix_0816_pseudo \
+pack 05_v5 -C "$D" v5_final thoracic_fix fix_0816/labels fix_0816/manifest.json \
+     fix_0816/splits_5fold.json fix_0816_v3/0816_completion_report.json fix_0816_v3/labels \
+     fix_0816_v4/labels fix_0816_pseudo fix_0816_pseudo/manifest.csv \
      0816_label_v4.nii.gz detached_pieces_final.json detached_pieces_v6.json l6_audit.json l6_truth.json \
      itksnap_v4_labels.txt itksnap_v5_labels.txt itksnap_v6_labels.txt \
      -C "$PWD" qc_speckle/speckle_report.json final_build_report.csv qc_final qc_hardware
@@ -96,6 +103,7 @@ pack 07_v7 -C "$D" s1_recarve -C "$D/zenodo_v7" manifest.json dataset_labels.jso
      README.md KNOWN_ISSUES.md splits_5fold.json
 pack 08_grid_worktree -C "$S" 08_grid_worktree
 if [ -d "$S/09_nnunet_meta" ]; then pack 09_nnunet_meta -C "$S" 09_nnunet_meta; fi
+fi
 
 echo "### 5. chain check: v7 -> v9 -> v10 against the published v10  ($(date))"
 rm -rf "$S/verify"; mkdir -p "$S/verify"
