@@ -57,7 +57,17 @@ def main() -> int:
     ap.add_argument("--out", default=str(HERE / "results/six_lumbar_readings"))
     ap.add_argument("--sacral-threshold", type=float, default=1.5,
                     help="mean sacral-type z above which the bottom body reads as a lumbarized S1")
+    ap.add_argument("--shift", default=str(HERE / "results/six_lumbar_readings/shift_hypothesis.csv"),
+                    help="output of shift_hypothesis_test.py; a record whose column fits better with every "
+                         "name shifted up reads as B whatever its ribs say")
+    ap.add_argument("--shift-threshold", type=float, default=-5.0,
+                    help="delta(A-B) at or below this reads as B; normal controls bottom out near -4")
     a = ap.parse_args()
+    shift = {}
+    if Path(a.shift).exists():
+        for r in csv.DictReader(open(a.shift, encoding="utf-8")):
+            if r.get("group") == "six-lumbar":
+                shift[r["case"]] = fnum(r.get("delta_A_minus_B"))
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -98,9 +108,20 @@ def main() -> int:
         # (docs/CASTELLVI_SCREEN_BLIND_SPOT.md). There the sacrum's own height is the evidence:
         # a sacrum that has lost its first segment is short.
         short_sacrum = z["sacrum_height_mm"] is not None and z["sacrum_height_mm"] <= -2.0
+        # The rib check cannot see an APLASTIC twelfth rib (the labels define the lowest
+        # rib-bearing body as T12, so a rib-less T12 is labelled L1 and every rib ratio looks
+        # normal). The column-wide shape test (shift_hypothesis_test.py) can: it asks whether
+        # the labelled L1 is a better T12 than L1, with the whole column scored both ways.
+        d_shift = shift.get(c)
+        top_thoracic_by_shape = d_shift is not None and d_shift <= a.shift_threshold
+        bottom_sacral = (sacral_score is not None and sacral_score >= a.sacral_threshold) or short_sacrum
         if top_thoracic:
-            reading = "B: T12 with an aplastic or stump twelfth rib"
-        elif (sacral_score is not None and sacral_score >= a.sacral_threshold) or short_sacrum:
+            reading = "B: T12 with a stump twelfth rib"
+        elif top_thoracic_by_shape and bottom_sacral:
+            reading = "B or C: top body thoracic-type AND bottom body sacral-type; needs a reader"
+        elif top_thoracic_by_shape:
+            reading = "B: T12 with aplastic ribs (column fits shifted up)"
+        elif bottom_sacral:
             reading = "C: lumbarized S1"
         elif sacral_score is not None:
             reading = "A: true L6"
@@ -111,6 +132,7 @@ def main() -> int:
                       "rib_pairs_in_fov": int(rib_pairs), "rib12_11_ratio_min": ratio,
                       **{f"z_{f}": (None if z[f] is None else round(z[f], 2)) for f in FEATURES},
                       "sacral_type_score": None if sacral_score is None else round(sacral_score, 2),
+                      "shift_delta_A_minus_B": d_shift,
                       "reading": reading})
 
     with open(out / "six_lumbar_readings.csv", "w", newline="", encoding="utf-8") as fh:
@@ -124,13 +146,14 @@ def main() -> int:
              f"six-lumbar records: {len(table)}",
              "reference medians: " + ", ".join(f"{k} {ref[k][0]:.1f}" for k in FEATURES),
              "", "readings:"] + [f"  {k}: {v}" for k, v in sorted(counts.items())] + [
-             "", f"{'case':5s} {'Castellvi':9s} {'ribs':4s} {'r12/11':6s} {'TPh':6s} {'gap':6s} {'disc':6s} {'sacH':6s} {'score':6s}  reading"]
+             "", f"{'case':5s} {'Castellvi':9s} {'ribs':4s} {'r12/11':6s} {'TPh':6s} {'gap':6s} {'disc':6s} {'sacH':6s} {'score':6s} {'shift':6s}  reading"]
     for t in table:
         zz = [t[f"z_{f}"] for f in FEATURES]
         lines.append(f"{t['case']:5s} {t['castellvi']:9s} {t['rib_pairs_in_fov']:<4d} "
                      f"{'' if t['rib12_11_ratio_min'] is None else f'{t['rib12_11_ratio_min']:.2f}':6s} "
                      + " ".join(f"{'' if v is None else f'{v:+.1f}':6s}" for v in zz)
-                     + f" {'' if t['sacral_type_score'] is None else f'{t['sacral_type_score']:+.2f}':6s}  {t['reading']}")
+                     + f" {'' if t['sacral_type_score'] is None else f'{t['sacral_type_score']:+.2f}':6s}"
+                     + f" {'' if t['shift_delta_A_minus_B'] is None else f'{t['shift_delta_A_minus_B']:+.0f}':6s}  {t['reading']}")
     (out / "report.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
 
