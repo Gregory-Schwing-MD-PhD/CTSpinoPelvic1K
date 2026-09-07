@@ -37,8 +37,8 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 import label_scheme as LS                                          # noqa: E402
 
-RIB_L = range(LS.RIB_LEFT_OFFSET + 1, LS.RIB_LEFT_OFFSET + 13)
-RIB_R = range(LS.RIB_RIGHT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 13)
+RIB_L = range(LS.RIB_LEFT_OFFSET + 1, LS.RIB_LEFT_OFFSET + LS.N_RIBS + 1)
+RIB_R = range(LS.RIB_RIGHT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + LS.N_RIBS + 1)
 
 
 def allowed_ids() -> set:

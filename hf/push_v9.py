@@ -42,13 +42,13 @@ def main() -> int:
         return 0
     api.upload_folder(repo_id=a.repo, repo_type="dataset", folder_path=str(labels),
                       path_in_repo="labels", allow_patterns=["*_label.nii.gz"],
-                      commit_message="v9: contiguous label identifiers 0-66 (lumbar ribs 58/59, hardware 60-66)")
+                      commit_message="v10: thirteen rib identifiers per side (34-46, 47-59); lumbar ribs 60-61, hardware 62-68")
     for f in files:
         api.upload_file(repo_id=a.repo, repo_type="dataset", path_or_fileobj=str(DEPOSIT / f),
-                        path_in_repo=f, commit_message=f"v9: {f}")
+                        path_in_repo=f, commit_message=f"v10: {f}")
     if a.card:
         api.upload_file(repo_id=a.repo, repo_type="dataset", path_or_fileobj=a.card,
-                        path_in_repo="README.md", commit_message="v9: dataset card")
+                        path_in_repo="README.md", commit_message="v10: dataset card")
     print("done")
     return 0
 

@@ -15,10 +15,27 @@ every abdominal scan contains: the lowest rib-bearing vertebra and S1.
 
 ---
 
-## v9 — contiguous identifiers
+## v10 — thirteen ribs per side, in sequence
 
-**The identifier space is contiguous, 0–68.** Lumbar ribs are 58 (left) and 59 (right);
-surgical hardware is 60–66. Through v8 those classes sat at 74–75 and 76–82 above a block
+**The identifier space is contiguous, 0–68.** Each side carries thirteen rib identifiers,
+34–46 left and 47–59 right, so rib 13 (the true rib of a thirteenth thoracic vertebra, VerSe
+28) follows rib 12 in sequence and is distinct from a lumbar rib; lumbar ribs are 60 (left)
+and 61 (right) and surgical hardware 62–68. Rib 13 occurs in no released record. The v9
+release (58–59, 60–66) and v8 (74–75, 76–82) carry earlier identifiers:
+
+| v8 | v9 | v10 | class |
+|---|---|---|---|
+| 46–57 | 46–57 | 47–58 | right ribs 1–12 |
+| — | — | 46, 59 | rib 13, left and right (empty) |
+| 74, 75 | 58, 59 | 60, 61 | lumbar rib, left and right |
+| 76–82 | 60–66 | 62–68 | hardware, in the same order |
+
+`scripts/label_scheme.py` carries both remaps (`OLD_TO_NEW_V9`, `OLD_TO_NEW_V10`) and
+`scripts/renumber_labels.py` applies them. Every label volume is remapped; no voxel changed
+class.
+
+**v9 had closed the gap.** Lumbar ribs were 58 (left) and 59 (right);
+surgical hardware was 60–66. Through v8 those classes sat at 74–75 and 76–82 above a block
 (58–73) that had been reserved for soft tissue and never populated, and a partial-annotation
 sentinel (255) was declared and never used. Both are gone. Every label volume is remapped;
 no voxel changed class. Volumes from v8 and earlier carry the old identifiers:
@@ -236,14 +253,13 @@ fixed identifier above that range.
 | 29 | **S1**, carved from the sacrum |
 | 30–31 | hips (left, right) |
 | 32–33 | femurs (left, right) |
-| 34–45 | ribs, left 1–12 |
-| 46–57 | ribs, right 1–12 |
-| 58–59 | **lumbar rib** (left, right) |
-| 60–66 | surgical hardware: generic, cage, screw/rod, plate, arthroplasty, sacroiliac screw, osteosynthesis |
-| 67–68 | thirteenth rib pair (left, right): true ribs on a T13, distinct from a lumbar rib; declared, empty in this release |
+| 34–46 | ribs, left 1–13 (46 = rib 13, the true rib of a T13; empty in this release) |
+| 47–59 | ribs, right 1–13 (59 = rib 13; empty in this release) |
+| 60–61 | **lumbar rib** (left, right) |
+| 62–68 | surgical hardware: generic, cage, screw/rod, plate, arthroplasty, sacroiliac screw, osteosynthesis |
 
 Identifiers 27 (coccyx) and 28 (T13) are VerSe identifiers the scheme keeps; no released
-record carries either. A thirteenth thoracic vertebra (28) with its rib pair (67–68) and a lumbar rib (58–59) are
+record carries either. A thirteenth thoracic vertebra (28) with its rib pair (46, 59) and a lumbar rib (60–61) are
 distinct phenotypes and have distinct identifiers.
 
 Two classes distinguish this scheme from a whole-body label map, and only one of them is
@@ -255,7 +271,7 @@ unusual:
   What matters is that a scheme *without* an L6 cannot record a six-lumbar spine at all and
   must renumber the column or drop a level to fit — which the widely used whole-body schemes
   do, since TotalSegmentator stops at L5. **18 records carry an L6.**
-- **Lumbar rib (58/59).** This one has no counterpart in the public schemes. A scheme that
+- **Lumbar rib (60/61).** This one has no counterpart in the public schemes. A scheme that
   numbers every rib 1–12 has nowhere to put a thirteenth: the annotator must either call it
   rib 12 — which asserts the vertebra beneath it is thoracic, the very question at issue —
   or discard it. TotalSegmentator has `rib_left_1`–`12` and `rib_right_1`–`12` and no lumbar
@@ -334,6 +350,7 @@ Stated at the level of detail needed to catch them independently.
 | v7 | manifest counts recomputed from the volumes |
 | v8 | Castellvi grades as a two-reader consensus; soft-tissue block retired |
 | v9 | contiguous identifiers 0–66; sentinel removed; record 0016 reference row removed |
+| v10 | thirteen ribs per side in sequence; lumbar ribs 60–61, hardware 62–68 |
 
 ## Sources and licence
 
@@ -352,16 +369,16 @@ clinical decision-making.
 
 | id | name | note |
 |---|---|---|
-| 58 | `rib_left_lumbar` | A rib articulating with a LUMBAR vertebra. Given its own class rather than being forced to be 'rib 12': a 13th rib is a finding, and numbering it as the twelfth consumed the id the T12 rib needed. |
-| 59 | `rib_right_lumbar` | As 58, right side. |
-| 60 | `hardware` | Surgical instrumentation whose subtype is not distinguished. Neither bone nor any anatomical class; labelled rather than ignored because a cage bridging a disc space makes two vertebrae look fused to any distance measurement, and that must stay separable from congenital fusion. |
-| 61 | `hardware_cage` | Interbody cage or spacer. |
-| 62 | `hardware_screw_rod` | Pedicle screws and rods. |
-| 63 | `hardware_plate` | Plates and other fixation. |
-| 64 | `hardware_arthroplasty` | Joint replacement: femoral stem, head and acetabular cup. |
-| 65 | `hardware_si_screw` | Iliosacral screw fixation crossing the sacroiliac joint. |
-| 66 | `hardware_osteosynthesis` | Fracture fixation holding parts of one bone together. |
-| 67 | `rib_left_13` | A true rib on a thirteenth thoracic vertebra (T13, identifier 28), left. Distinct from a lumbar rib (58), which is a rudimentary rib on a lumbar-type L1. No released record carries one. |
-| 68 | `rib_right_13` | As 67, right side. |
+| 46 | `rib_left_13` | A true rib on a thirteenth thoracic vertebra (T13, identifier 28), left, in sequence after rib_left_12. Distinct from a lumbar rib (60), a rudimentary rib on a lumbar-type L1. No released record carries one. |
+| 59 | `rib_right_13` | As 46, right side. |
+| 60 | `rib_left_lumbar` | A rib articulating with a LUMBAR vertebra. Given its own class rather than being forced to be 'rib 12': a 13th rib is a finding, and numbering it as the twelfth consumed the id the T12 rib needed. |
+| 61 | `rib_right_lumbar` | As 60, right side. |
+| 62 | `hardware` | Surgical instrumentation whose subtype is not distinguished. Neither bone nor any anatomical class; labelled rather than ignored because a cage bridging a disc space makes two vertebrae look fused to any distance measurement, and that must stay separable from congenital fusion. |
+| 63 | `hardware_cage` | Interbody cage or spacer. |
+| 64 | `hardware_screw_rod` | Pedicle screws and rods. |
+| 65 | `hardware_plate` | Plates and other fixation. |
+| 66 | `hardware_arthroplasty` | Joint replacement: femoral stem, head and acetabular cup. |
+| 67 | `hardware_si_screw` | Iliosacral screw fixation crossing the sacroiliac joint. |
+| 68 | `hardware_osteosynthesis` | Fracture fixation holding parts of one bone together. |
 
 The full id-to-name map is `dataset_labels.json`, generated from `scripts/label_scheme.py`, which is the single source of truth.

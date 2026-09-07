@@ -36,10 +36,11 @@ def test_id_space_is_contiguous():
     assert sorted(d.values()) == list(range(0, LS.MAX_ID + 1))
     assert not hasattr(LS, "SOFT_TISSUE"), "the soft-tissue map is retired; do not reintroduce it"
     assert not hasattr(LS, "RETIRED_IDS")
-    assert (d["rib_left_lumbar"], d["rib_right_lumbar"]) == (58, 59)
-    assert d["hardware"] == 60 and d["hardware_osteosynthesis"] == 66
-    assert (d["rib_left_13"], d["rib_right_13"]) == (67, 68) and LS.MAX_ID == 68
-    assert LS.OLD_TO_NEW_V9[74] == 58 and LS.OLD_TO_NEW_V9[82] == 66
+    assert (d["rib_left_13"], d["rib_right_13"]) == (46, 59)
+    assert (d["rib_right_1"], d["rib_right_12"]) == (47, 58)
+    assert (d["rib_left_lumbar"], d["rib_right_lumbar"]) == (60, 61)
+    assert d["hardware"] == 62 and d["hardware_osteosynthesis"] == 68 and LS.MAX_ID == 68
+    assert LS.OLD_TO_NEW_V10[46] == 47 and LS.OLD_TO_NEW_V10[58] == 60 and LS.OLD_TO_NEW_V10[66] == 68
 
 
 def test_specific_ids():
@@ -48,7 +49,7 @@ def test_specific_ids():
     assert (d["left_hip"], d["right_hip"]) == (30, 31)
     assert (d["femur_left"], d["femur_right"]) == (32, 33)
     assert (d["rib_left_1"], d["rib_left_12"]) == (34, 45)
-    assert (d["rib_right_1"], d["rib_right_12"]) == (46, 57)
+    assert (d["rib_right_1"], d["rib_right_12"]) == (47, 58)
     assert "ignore" not in d
 
 

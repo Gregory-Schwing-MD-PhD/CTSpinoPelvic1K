@@ -106,11 +106,10 @@ every non-VerSe structure gets a fixed id above the VerSe range. Source of truth
 | 30  | left hip              | CTPelvic1K (dataset2 2 → 30)                       |
 | 31  | right hip             | CTPelvic1K (dataset2 3 → 31)                       |
 | 32 / 33 | femur_left / femur_right | TS                                       |
-| 34–45 | rib_left_1 … rib_left_12 | RibSeg (numbered off GT thoracic)            |
-| 46–57 | rib_right_1 … rib_right_12 | RibSeg (numbered off GT thoracic)           |
-| 58 / 59 | **rib_left_lumbar / rib_right_lumbar** | a rib on a lumbar body, kept as its own class |
-| 60–66 | hardware / cage / screw-rod / plate / arthroplasty / si_screw / osteosynthesis | 11 records carry 61, 64, 65 or 66 |
-| 67 / 68 | **rib_left_13 / rib_right_13** | true ribs on a T13 (28), distinct from a lumbar rib; declared, empty |
+| 34–46 | rib_left_1 … rib_left_13 | RibSeg (numbered off GT thoracic); 46 = rib 13 of a T13, empty |
+| 47–59 | rib_right_1 … rib_right_13 | RibSeg (numbered off GT thoracic); 59 = rib 13, empty |
+| 60 / 61 | **rib_left_lumbar / rib_right_lumbar** | a rudimentary rib on a lumbar-type L1, kept as its own class |
+| 62–68 | hardware / cage / screw-rod / plate / arthroplasty / si_screw / osteosynthesis | 11 records carry 63, 66, 67 or 68 |
 
 CTPelvic1K's sacrum takes priority over CTSpine1K's sacrum (VerSe label 26)
 to avoid the two labelling conventions colliding on lumbosacral transitional
@@ -118,12 +117,12 @@ vertebrae. The vertebral column is VerSe-native (C1–C7 = 1–7, T1–T12 = 8�
 L1–L6 = 20–25, sacrum = 26, coccyx = 27, T13 = 28); the rostral counting anchor
 is the last thoracic vertebra (T12 = 19), not a stored class.
 
-**Why a lumbar rib gets its own class (58/59).** A rib on a lumbar body and a hypoplastic
+**Why a lumbar rib gets its own class (60/61).** A rib on a lumbar body and a hypoplastic
 twelfth rib are the same object under two counts, and forcing it to be "rib 12" would
 bake one reading of the count into the label. Keeping it separate lets a user apply
 either convention. 16 cases carry one.
 
-**The hardware classes.** Ids 60–66 exist in
+**The hardware classes.** Ids 62–68 exist in
 [`scripts/label_scheme.py`](scripts/label_scheme.py) and in the ITK-SNAP descriptor, and
 no case in v5 carries them. The first candidate — an interbody cage bridging a lumbar
 interspace — is deferred to hand annotation, because dense metal leaves no image gradient

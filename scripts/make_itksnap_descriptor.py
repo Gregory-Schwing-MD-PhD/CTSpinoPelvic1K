@@ -57,11 +57,11 @@ def _rib(n: int, light: bool):
 NAMES = {
     0: "Clear Label", 26: "sacrum", 27: "coccyx", 28: "T13", 29: "S1",
     30: "left_hip", 31: "right_hip", 32: "femur_left", 33: "femur_right",
-    # v9 ids: contiguous after rib_right_12 (57)
-    58: "rib_left_lumbar", 59: "rib_right_lumbar",
-    60: "hardware", 61: "hardware_cage", 62: "hardware_screw_rod",
-    63: "hardware_plate", 64: "hardware_arthroplasty", 65: "hardware_si_screw",
-    66: "hardware_osteosynthesis", 67: "rib_left_13", 68: "rib_right_13",
+    # v10 ids: thirteen ribs per side (34-46, 47-59), then lumbar ribs and hardware
+    60: "rib_left_lumbar", 61: "rib_right_lumbar",
+    62: "hardware", 63: "hardware_cage", 64: "hardware_screw_rod",
+    65: "hardware_plate", 66: "hardware_arthroplasty", 67: "hardware_si_screw",
+    68: "hardware_osteosynthesis",
 }
 for i in range(1, 8):
     NAMES[i] = f"C{i}"
@@ -69,9 +69,9 @@ for i in range(1, 13):
     NAMES[7 + i] = f"T{i}"
 for i in range(1, 7):
     NAMES[19 + i] = f"L{i}"
-for i in range(1, 13):
+for i in range(1, 14):
     NAMES[33 + i] = f"rib_left_{i}"
-    NAMES[45 + i] = f"rib_right_{i}"
+    NAMES[46 + i] = f"rib_right_{i}"
 
 FIXED = {
     0: (0, 0, 0),
@@ -87,15 +87,15 @@ FIXED = {
     # was the wrong one: metal on CT is already the brightest thing in the image, so a
     # white label is invisible against exactly the voxels it is marking. These are
     # saturated hues no bone takes.
-    58: (255, 60, 200), 59: (120, 255, 220),
-    60: (255, 0, 255),      # generic hardware: magenta, nothing anatomical is magenta
-    61: (0, 255, 255),      # cage: cyan
-    62: (80, 255, 0),       # screws and rods: acid green
-    63: (255, 140, 0),      # plate: orange
-    64: (255, 40, 40),      # arthroplasty: red -- the one that replaces the femoral head
-    65: (40, 120, 255),     # sacroiliac screw: blue
-    66: (255, 200, 0),      # osteosynthesis: yellow, kept apart from the orange plate
-    67: (200, 60, 255), 68: (60, 200, 255),   # thirteenth rib pair: loud, like the lumbar ribs
+    46: (200, 60, 255), 59: (60, 200, 255),   # thirteenth rib pair: loud, like the lumbar ribs
+    60: (255, 60, 200), 61: (120, 255, 220),
+    62: (255, 0, 255),      # generic hardware: magenta, nothing anatomical is magenta
+    63: (0, 255, 255),      # cage: cyan
+    64: (80, 255, 0),       # screws and rods: acid green
+    65: (255, 140, 0),      # plate: orange
+    66: (255, 40, 40),      # arthroplasty: red -- the one that replaces the femoral head
+    67: (40, 120, 255),     # sacroiliac screw: blue
+    68: (255, 200, 0),      # osteosynthesis: yellow, kept apart from the orange plate
     255: (40, 40, 40),
 }
 

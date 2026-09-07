@@ -1,4 +1,4 @@
-# Known issues — CTSpinoPelvic1K v9
+# Known issues — CTSpinoPelvic1K v10
 
 What a user will run into, measured rather than estimated. Nothing here is a reason not to
 use the dataset; all of it is a reason to filter before a particular analysis.
@@ -34,7 +34,7 @@ on it.
 
 ## 3. Instrumented cases must be excluded from gap-based measurements
 
-**11 records carry surgical hardware** (ids 60–66; see the README). This matters for one
+**11 records carry surgical hardware** (ids 62–68; see the README). This matters for one
 specific reason: **an iatrogenic fusion is indistinguishable from a congenital one to a
 distance measurement.** A cage-bridged interspace reads as "no gap" exactly as a
 congenitally fused transitional vertebra does.
@@ -47,7 +47,7 @@ the eight are bilateral. Pelvic incidence and pelvic tilt are taken from the mid
 two femoral head centres, so in all eight that midpoint is derived from metal rather than
 bone, whether one head was replaced or both. Usable if you know it, misleading if you do not.
 The eight are `0188`, `0443`, `0485`, `0515`, `0671`, `0974`, `1003`, `1128`; `hardware_label_ids`
-contains 64 for each.
+contains 66 for each.
 
 ---
 
@@ -117,7 +117,7 @@ inference wherever the upper thorax is out of view** — the same failure this d
 to document for vertebrae.
 
 The *lowest* rib is reliable: the last rib is the last rib whether or not the first eleven
-are in frame. Numbers above it are less so. Lumbar ribs have their own classes (58, 59)
+are in frame. Numbers above it are less so. Lumbar ribs have their own classes (60, 61)
 rather than being forced to be rib 12.
 
 ---
@@ -166,5 +166,5 @@ Twenty-two records had hip laterality wrong before v6 (`0027`, `0107`, `0790`, `
 swapped outright; eighteen more with most of one hip under the other's label). Laterality is
 now re-derived per voxel from the side of the spine midline, computed through the affine.
 The manifest fields `has_l6`, `has_lumbar_rib`, `n_lumbar_labels` and `lumbar_rib_side` are
-counted from the label volumes (identifiers 25 and 58–59). If you hold a copy from v5 or
+counted from the label volumes (identifiers 25 and 60–61). If you hold a copy from v5 or
 earlier, re-run anything measured from the hips or filtered on those fields.

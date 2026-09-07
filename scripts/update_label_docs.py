@@ -1,7 +1,7 @@
 """scripts/update_label_docs.py — put the new classes into the release's own label docs.
 
 Five classes are live in label_scheme.py and absent from everything the release actually
-ships: rib_left_lumbar (58), rib_right_lumbar (59), and the hardware block (60-66).
+ships: rib_left_lumbar (60), rib_right_lumbar (61), and the hardware block (62-68).
 Downstream code reads dataset_labels.json and dataset_interface.py, not label_scheme.py, so
 a class missing from those is a class that silently does not exist -- voxels carrying it get
 dropped, or worse, treated as an unknown index.
@@ -23,23 +23,23 @@ sys.path.insert(0, str(_HERE))
 import label_scheme as LS                                          # noqa: E402
 
 NEW_NOTES = {
-    58: ("A rib articulating with a LUMBAR vertebra. Given its own class rather than being "
+    60: ("A rib articulating with a LUMBAR vertebra. Given its own class rather than being "
          "forced to be 'rib 12': a 13th rib is a finding, and numbering it as the twelfth "
          "consumed the id the T12 rib needed."),
-    59: "As 58, right side.",
-    60: ("Surgical instrumentation whose subtype is not distinguished. Neither bone nor any "
+    61: "As 60, right side.",
+    62: ("Surgical instrumentation whose subtype is not distinguished. Neither bone nor any "
          "anatomical class; labelled rather than ignored because a cage bridging a disc "
          "space makes two vertebrae look fused to any distance measurement, and that must "
          "stay separable from congenital fusion."),
-    61: "Interbody cage or spacer.",
-    62: "Pedicle screws and rods.",
-    63: "Plates and other fixation.",
-    64: "Joint replacement: femoral stem, head and acetabular cup.",
-    65: "Iliosacral screw fixation crossing the sacroiliac joint.",
-    66: "Fracture fixation holding parts of one bone together.",
-    67: ("A true rib on a thirteenth thoracic vertebra (T13, identifier 28), left. Distinct from a "
-         "lumbar rib (58), which is a rudimentary rib on a lumbar-type L1. No released record carries one."),
-    68: "As 67, right side.",
+    63: "Interbody cage or spacer.",
+    64: "Pedicle screws and rods.",
+    65: "Plates and other fixation.",
+    66: "Joint replacement: femoral stem, head and acetabular cup.",
+    67: "Iliosacral screw fixation crossing the sacroiliac joint.",
+    68: "Fracture fixation holding parts of one bone together.",
+    46: ("A true rib on a thirteenth thoracic vertebra (T13, identifier 28), left, in sequence after "
+         "rib_left_12. Distinct from a lumbar rib (60), a rudimentary rib on a lumbar-type L1. No released record carries one."),
+    59: "As 46, right side.",
 }
 
 
@@ -67,7 +67,7 @@ def main() -> int:
                 break
 
     payload = {
-        "scheme": "CTSpinoPelvic1K v9 (VerSe-native, contiguous 0-68)",
+        "scheme": "CTSpinoPelvic1K v10 (VerSe-native, contiguous 0-68)",
         "source_of_truth": "scripts/label_scheme.py",
         "id_to_name": {str(i): by_id[i] for i in sorted(by_id)},
         "name_to_id": {by_id[i]: i for i in sorted(by_id)},

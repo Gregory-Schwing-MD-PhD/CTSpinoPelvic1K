@@ -55,6 +55,7 @@ def main() -> int:
     print("identifiers above the scheme:", stray or "none")
     print("lumbar ribs:", {int(v): int(counts[v]) for v in (LS.LUMBAR_RIB_LEFT, LS.LUMBAR_RIB_RIGHT)})
     print("hardware:", {int(v): int(counts[v]) for v in range(LS.HARDWARE, LS.MAX_ID + 1) if counts[v]})
+    print("thirteenth ribs:", {int(v): int(counts[v]) for v in (LS.RIB13_LEFT, LS.RIB13_RIGHT)})
     return 0
 
 

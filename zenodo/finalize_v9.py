@@ -1,6 +1,6 @@
 """zenodo/finalize_v9.py -- turn the remapped labels into the v9 deposit.
 
-    python zenodo/finalize_v9.py --deposit data/zenodo_deposit
+    python zenodo/finalize_v9.py --deposit data/zenodo_deposit --new labels_v10 --old labels_v9_old
 
 Steps, in order:
   1. `labels_v9/` (from scripts/renumber_v9.py) replaces `labels/`; the v8 labels move to
@@ -22,7 +22,7 @@ import zipfile
 from pathlib import Path
 
 LOOSE_SKIP = {"SHA256SUMS.txt", "labels.zip"}
-MAX_ID = 66
+MAX_ID = 68
 
 
 def sha256(p: Path) -> str:
@@ -36,9 +36,12 @@ def sha256(p: Path) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--deposit", default="data/zenodo_deposit")
+    ap.add_argument("--new", default="labels_v9", help="remapped directory to promote")
+    ap.add_argument("--old", default="labels_v8", help="name for the directory being replaced")
+    ap.add_argument("--max-id", type=int, default=MAX_ID)
     a = ap.parse_args()
     D = Path(a.deposit)
-    new, cur, old = D / "labels_v9", D / "labels", D / "labels_v8"
+    new, cur, old = D / a.new, D / "labels", D / a.old
 
     # 1. swap
     if new.exists():
@@ -52,15 +55,15 @@ def main() -> int:
         sys.exit(f"expected 802 label volumes, found {len(files)}")
 
     # 2. presence check from the remap's own record
-    pres = D / "labels_v9_presence.json"
+    pres = D / (a.new + "_presence.json")
     if pres.exists():
         p = json.loads(pres.read_text(encoding="utf-8"))
-        bad = {k: [i for i in v if i > MAX_ID] for k, v in p.items()}
+        bad = {k: [i for i in v if i > a.max_id] for k, v in p.items()}
         bad = {k: v for k, v in bad.items() if v}
         if bad:
-            sys.exit(f"identifiers above {MAX_ID}: {list(bad.items())[:5]}")
+            sys.exit(f"identifiers above {a.max_id}: {list(bad.items())[:5]}")
         print(f"  presence: {len(p)} records, max identifier "
-              f"{max(max(v) for v in p.values())}, none above {MAX_ID}")
+              f"{max(max(v) for v in p.values())}, none above {a.max_id}")
 
     # 3. labels.zip
     z = D / "labels.zip"

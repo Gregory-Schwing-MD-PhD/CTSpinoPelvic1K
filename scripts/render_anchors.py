@@ -47,8 +47,10 @@ plt.rcParams.update({"font.family": "sans-serif",
 SACRUM, S1 = 26, 29
 LUMBAR = list(range(20, 26))
 THORACIC = list(range(8, 20))
-RIB_L, RIB_R = 34, 46            # rib_left_1 .. rib_left_12 = 34..45; right = 46..57
-LUM_RIB = (74, 75)
+import label_scheme as LS  # noqa: E402
+RIB_L, RIB_R = LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 1   # first rib id per side
+N_RIBS = LS.N_RIBS
+LUM_RIB = (LS.LUMBAR_RIB_LEFT, LS.LUMBAR_RIB_RIGHT)
 
 C_ANCHOR_TOP = np.array([214, 69, 65], np.float32)     # rostral: lowest rib-bearing + rib
 C_ANCHOR_BOT = np.array([48, 110, 190], np.float32)    # caudal: S1
@@ -59,9 +61,9 @@ C_SACRUM = np.array([150, 150, 148], np.float32)
 
 def rib_level(rib_id):
     """-> 1..12 for a numbered rib id, else None."""
-    if RIB_L <= rib_id <= RIB_L + 11:
+    if RIB_L <= rib_id <= RIB_L + N_RIBS - 1:
         return rib_id - RIB_L + 1
-    if RIB_R <= rib_id <= RIB_R + 11:
+    if RIB_R <= rib_id <= RIB_R + N_RIBS - 1:
         return rib_id - RIB_R + 1
     return None
 
@@ -103,7 +105,7 @@ def colours_for(lab):
     col = {}
     for v in THORACIC + LUMBAR:
         col[v] = C_MUTED
-    for r in list(range(RIB_L, RIB_L + 12)) + list(range(RIB_R, RIB_R + 12)):
+    for r in list(range(RIB_L, RIB_L + N_RIBS)) + list(range(RIB_R, RIB_R + N_RIBS)):
         col[r] = C_MUTED
     col[SACRUM] = C_SACRUM
     for v in between:

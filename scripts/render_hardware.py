@@ -42,15 +42,15 @@ from render_turntable import render, BG                              # noqa: E40
 plt.rcParams.update({"font.family": "sans-serif",
                      "font.sans-serif": ["Arial", "Helvetica", "Calibri", "DejaVu Sans"], "font.size": 9})
 
-HW = {60: "hardware", 61: "cage", 62: "screw / rod", 63: "plate",
-      64: "arthroplasty", 65: "sacroiliac screw", 66: "osteosynthesis"}
-C_HW = {64: np.array([214, 69, 65], np.float32),      # arthroplasty
-        66: np.array([232, 140, 40], np.float32),     # osteosynthesis
-        65: np.array([48, 110, 190], np.float32),     # SI screw
-        61: np.array([60, 160, 90], np.float32),      # cage
-        60: np.array([160, 60, 180], np.float32),
+HW = {62: "hardware", 63: "cage", 64: "screw / rod", 65: "plate",
+      66: "arthroplasty", 67: "sacroiliac screw", 68: "osteosynthesis"}
+C_HW = {66: np.array([214, 69, 65], np.float32),      # arthroplasty
+        68: np.array([232, 140, 40], np.float32),     # osteosynthesis
+        67: np.array([48, 110, 190], np.float32),     # SI screw
+        63: np.array([60, 160, 90], np.float32),      # cage
         62: np.array([160, 60, 180], np.float32),
-        63: np.array([160, 60, 180], np.float32)}
+        64: np.array([160, 60, 180], np.float32),
+        65: np.array([160, 60, 180], np.float32)}
 C_BONE = np.array([200, 200, 196], np.float32)
 C_SACRUM = np.array([160, 160, 158], np.float32)
 
@@ -181,7 +181,7 @@ def main() -> int:
         ax.set_title(caption.replace("--", "–"), fontsize=7.5)
 
     handles = [mp.Patch(color=C_HW[i] / 255, label=f"{i} {HW[i]}")
-               for i in (64, 66, 65, 61) if i in present]
+               for i in (66, 68, 67, 63) if i in present]
     handles.append(mp.Patch(color=C_BONE / 255, label="bone (metal drawn through it)"))
     # one row, anchored to the figure's bottom edge and clear of the panels above it
     fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False,

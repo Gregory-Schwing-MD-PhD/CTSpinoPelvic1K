@@ -47,7 +47,7 @@ def main() -> int:
         r"\begin{table*}[p]",
         r"\caption{\label{tab:census}Every identifier populated in the release and the",
         r"number of the 802 records carrying it, counted from the released label volumes.",
-        r"The identifier space is contiguous, 0--68; 67--68 (thirteenth rib pair) occur in no record.}",
+        r"The identifier space is contiguous, 0--68; 46 and 59 (thirteenth rib pair) occur in no record.}",
         r"\centering\small",
         tabular(rows[:half]),
         r"\hspace{2em}",

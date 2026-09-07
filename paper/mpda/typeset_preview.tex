@@ -46,7 +46,7 @@
 % should land on the release this manuscript describes rather than a superseded one.
 \newcommand{\datasetdoi}{10.5281/zenodo.22139642}
 % The exact version this manuscript describes, for reproducibility.
-\newcommand{\datasetversiondoi}{10.5281/zenodo.22639598}
+\newcommand{\datasetversiondoi}{10.5281/zenodo.22642578}
 \newcommand{\datasetversion}{v8}
 % DOUBLE-ANONYMIZED REVIEW. \reviewtrue redacts the consortium's name and the self-citation.
 % The DOIs are NOT redacted: PUB 3-C requires the dataset DOI to exist and be cited in the
@@ -328,7 +328,7 @@ accuracy over 1485 vertebrae. Size is removed because raw millimeters separate t
 from lumbar trivially and teach nothing about the junction, where the two are nearly the
 same size.
 
-That is reported as a property of the released measurements rather than as a method, because the information needed to settle these variants is present locally.
+
 
 % ---------------------------------------------------------------------------
 
@@ -444,7 +444,7 @@ by overlap with the mask.
 
 \subsection{Fused and split records}
 
-CTSpine1K and CTPelvic1K each annotated a patient independently, so their labels are not guaranteed to come from the same CT series (Fig.~\ref{fig:pipeline}). This turned out to matter for 351 patients, nearly half the cohort, because the two collections had labeled different acquisitions of the same person, one prone and one supine, with neither recording which. Because posture changes spinal alignment, a spine label from one acquisition cannot simply be paired with a pelvic label from the other. These 351 records are released but held out of any analysis that assumes a single posture; two labeled postures of one patient are a resource for studying alignment, not a defect. 
+CTSpine1K and CTPelvic1K each annotated a patient independently, so their labels are not guaranteed to come from the same CT series (Fig.~\ref{fig:pipeline}). This turned out to matter for 351 patients, nearly half the cohort, because the two collections had labeled different acquisitions of the same person, one prone and one supine, with neither recording which. Because posture changes spinal alignment, a spine label from one acquisition cannot simply be paired with a pelvic label from the other. These 351 records are released but held out of any analysis that assumes a single posture; two labeled postures of one patient are a resource, not a defect. 
 
 \subsection{Densification, and why it is asymmetric}
 
@@ -467,8 +467,7 @@ that stump ribs can be classified from a partial field of view; that result conc
 morphological features computed on a rib once segmented. On this corpus the segmentation
 itself failed on ribs that were \emph{partially outside} the field of view. A rib crossing
 the boundary of an abdominal acquisition was liable to be missed altogether rather than
-segmented to the edge. Its authors do not report this, because their evaluation excluded subjects
-whose last rib was not visible, so it is recorded here as an observation from this cohort. In a colonography cohort the lower ribs are routinely clipped, and
+segmented to the edge.  In a colonography cohort the lower ribs are routinely clipped, and
 those are the ribs the count depends on.
 
 TotalSegmentator~\cite{totalsegmentator} does segment clipped ribs and supplies the
@@ -497,14 +496,9 @@ Sec.~\ref{sec:validation} are the independent check on what the rule missed.
 
 The scheme is VerSe-native. Vertebrae keep their VerSe identifiers (C1--C7 = 1--7,
 T1--T12 = 8--19, L1--L6 = 20--25, sacrum 26, coccyx 27, T13 = 28), and every non-VerSe
-structure takes a fixed identifier above that range, S1 carved from the sacrum (29), hips
-(30--31), femora (32--33), ribs (34--45 left, 46--57 right), lumbar ribs (58--59),
-surgical hardware (60--66) and a thirteenth rib pair (67--68). The space is contiguous. The
-last pair is declared for the true ribs of a T13 and is empty in this release, so a
-thirteenth thoracic vertebra and a lumbar rib are recorded as the distinct phenotypes they are.
+structure takes a fixed identifier above that range, S1 carved from the sacrum (29), hips (30--31), femora (32--33), thirteen ribs per side (34--46 left, 47--59 right), lumbar ribs (60--61) and surgical hardware (62--68). The space is contiguous. Rib 13 is the true rib of a T13 and is empty in this release, so a thirteenth thoracic vertebra and a lumbar rib are recorded as the distinct phenotypes they are.
 
-Two anchors make the count decidable, and Fig.~\ref{fig:anchors} shows both, the lowest rib-bearing vertebra above, \textbf{S1} carved from the sacrum below. Each earns its place
-by what it supports rather than by being an endpoint. S1 supplies the sacral endplate
+Two anchors make the count decidable, and Fig.~\ref{fig:anchors} shows both, the lowest rib-bearing vertebra above, \textbf{S1} carved from the sacrum below.  S1 supplies the sacral endplate
 landmark that sacral slope and pelvic incidence are measured from, and with both brackets
 present L5 and L6 are distinguishable where a spine-limited view alone would not be.
 
@@ -516,9 +510,7 @@ measured directly rather than assumed, so as to remove the patient's rotation wi
 changing the orientation of the S1/S2 boundary and not how much sacrum is called S1;
 per-record geometry ships with the archive.
 
-Neither anchor is novel on its own. TotalSegmentator~\cite{totalsegmentator} carries a
-separate S1 class and per-level ribs, and VerSe~\cite{verse2021} carries L6, whose
-identifier this release keeps, so its L6 \emph{is} VerSe's.
+VerSe~\cite{verse2021} carries L6, whose identifier this release keeps, so its L6 \emph{is} VerSe's.
 
 \textbf{A rib on a lumbar body receives its own class}, and this is the one class here with
 no published counterpart. A lumbar rib and a stump rib are the same object under two counts,
@@ -526,7 +518,7 @@ so assigning it a number would commit the label to one reading of an enumeration
 scheme that numbers every rib 1--12 has nowhere to put a thirteenth, so the annotator must
 either call it rib~12, asserting the vertebra beneath it is thoracic, the very question at
 issue, or discard it. TotalSegmentator carries ribs 1--12 per side and no such class, and
-VerSe's T13 is a vertebra rather than a rib. This scheme can record both, VerSe's T13 (28) with its rib pair (67--68) for a thoracic-type thirteenth vertebra, and 58/59 for a lumbar-type body bearing a rudimentary rib, so either reading is recorded as itself. No record here carries
+VerSe's T13 is a vertebra rather than a rib. This scheme can record both, VerSe's T13 (28) with its rib pair (46, 59) for a thoracic-type thirteenth vertebra, and 60/61 for a lumbar-type body bearing a rudimentary rib, so either reading is recorded as itself. No record here carries
 a T13; the sixteen lumbar-rib cases were read as lumbar-type bodies. Where a border vertebra
 could not be settled by its readers the label stands as read, and reclassifying those
 records with a classifier trained on local vertebral morphology
@@ -550,7 +542,7 @@ the eighteenth was not graded. The source transitional label (pelvic where CTPel
 
 Both counts, and the manifest fields that report them (\texttt{has\_l6},
 \texttt{has\_lumbar\_rib}, \texttt{n\_lumbar\_labels}, \texttt{lumbar\_rib\_side}), are
-computed from the released label volumes by counting identifiers 25 and 58--59.
+computed from the released label volumes by counting identifiers 25 and 60--61.
 
 \subsection{Computational tools}
 
@@ -605,7 +597,7 @@ one at $+1$ level and one at $-1$, reported rather than suppressed.
 
 The same check carries an invariant that reads as a null result. Of the 5{,}749 evaluable
 ribs, \emph{zero} are assigned to a lumbar vertebra, not because no lumbar ribs exist,
-since 16 records carry one, but because such a rib takes class 58 or 59 and never enters the
+since 16 records carry one, but because such a rib takes class 60 or 61 and never enters the
 numbered set the test examines. A numbered rib landing on a lumbar vertebra would be a
 counting error of exactly the kind this dataset exists to expose.
 
@@ -660,10 +652,7 @@ calcification and reconstruction artefact. Attenuation does not separate the two
 (both saturate); site and volume do, every confirmed implant at 2,586\,mm$^3$ or above and
 every rejection at 1,768\,mm$^3$ or below.
 
-\paragraph{The subtype block had to be extended.} Identifiers 60--63 name spinal
-instrumentation (generic, cage, screw-and-rod, plate) and cannot describe what this cohort
-holds, so \textbf{64 arthroplasty}, \textbf{65 sacroiliac screw} and \textbf{66
-osteosynthesis} were added. Osteosynthesis holds parts of one bone together where
+\paragraph{The subtype block had to be extended.} Identifiers 62--65 name spinal instrumentation (generic, cage, screw-and-rod, plate) and cannot describe what this cohort holds, so \textbf{66 arthroplasty}, \textbf{67 sacroiliac screw} and \textbf{68 osteosynthesis} were added. Osteosynthesis holds parts of one bone together where
 arthroplasty replaces a joint, and a shape rule calls a femoral stem a rod. The confirmed
 cases are eight arthroplasties, one osteosynthesis, one sacroiliac fixation and one pair of
 interbody cages (Fig.~\ref{fig:hardware}).
@@ -676,9 +665,7 @@ measured from is an implant.
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_hardware.pdf}
-\caption{Instrumentation in the release, one exemplar each, drawn through bone. (a) Hip
-arthroplasty, 64, $n=8$. (b) Femoral-neck screws, 66, $n=1$. (c) Sacroiliac screws, 65,
-$n=1$. (d) Interbody cages, 61, $n=1$. Bar, 5\,cm.}
+\caption{Instrumentation in the release, one exemplar each, drawn through bone. (a) Hip arthroplasty, 66, $n=8$. (b) Femoral-neck screws, 68, $n=1$. (c) Sacroiliac screws, 67, $n=1$. (d) Interbody cages, 63, $n=1$. Bar, 5\,cm.}
 \label{fig:hardware}
 \end{figure*}
 
@@ -745,7 +732,7 @@ All 802 are counted in totals; the eleven outside the female/male dichotomy are 
 
 \emph{Count-free measures} (Fig.~\ref{fig:countfree}). Five rib-free vertebrae above the
 sacrum is typical; four and six are where transitional anatomy sits, and which of the two
-is present does not by itself determine what to call it. The lowest-rib length ratio is bimodal.
+is present does not by itself determine what to call it. The lowest-rib length ratio is bimodal, and its lower mode, below 0.33 of the rib above, marks a stump twelfth rib in 98 of the 788 records with a measurable pair (12.4\%), against 12.6\% on whole-spine CT~\cite{nagata2025}; 16 records carry a lumbar rib (2.0\%, against 1.5\%). The co-occurrence reported there, stump ribs with sacralization and lumbar ribs with lumbarization, is testable here only where the junction was read; stump ribs accompany four of the 14 source-labeled sacralizations and 94 of the other 758 records (odds ratio 2.8, $p=0.09$, Fisher's exact test), and no lumbarization carries a lumbar rib.
 
 \emph{Level gradients and spinopelvic measures} (Fig.~\ref{fig:validation}). Vertebral
 dimensions increase caudally; pelvic incidence does not vary with age while pelvic tilt
@@ -856,7 +843,7 @@ same series, together with classes for the anatomy an enumeration anomaly actual
 
 \emph{Limitations.} The cohort comes from one acquisition protocol of a colorectal-screening population aged 50 and over, so how well it generalizes to a pathologic population is untested. Human review of the rib layer was triaged by an automated rule, so it guarantees only the absence of the failures that rule detects. 
 
-\emph{Future directions.} Imaging beyond this protocol, and the C2 anchor it cannot supply, are the natural next additions; applying the released weights to VerSe would add the S1 anchor and the anomaly classes to a bone-kernel collection. The S1 carve should be replaced by one that follows the anatomy, so that the caudal anchor lands consistently across normal and sacralized junctions, and whether the fused segment in the nine four-lumbar records is a lumbar-type body is a question of pelvic morphology, for deep-learning morphometrics of the pelves read in isolation.
+\emph{Future directions.} Imaging beyond this protocol, and the C2 anchor it cannot supply, are the natural next additions; applying the released weights to VerSe would add the S1 anchor and the anomaly classes to a bone-kernel collection. A Castellvi read of the whole cohort, rather than of the 33 flagged records, would test the co-occurrence of rib and lumbosacral anomalies at full power. The S1 carve should be replaced by one that follows the anatomy, so that the caudal anchor lands consistently across normal and sacralized junctions, and whether the fused segment in the nine four-lumbar records is a lumbar-type body is a question of pelvic morphology, for deep-learning morphometrics of the pelves read in isolation.
 
 \section{Conclusion}
 
