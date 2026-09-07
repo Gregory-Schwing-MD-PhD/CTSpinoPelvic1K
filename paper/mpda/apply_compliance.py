@@ -76,7 +76,7 @@ sub(r"""\author{Gregory Schwing}""",
 
 for nm in ["Ashley Schehr", "Annika Tekumulla", "Margret Khoushi", "Ryan Christian",
            "Dane Hubers", "Faris Mahjoub", "Hassan Saad", "Mia Sooch",
-           "Sathya Siddapureddy", "Michael McLellan", "Jerick Kim"]:
+           "Sathyagopal Siddapureddy", "Michael McLellan", "Jerick Kim"]:
     sub("\\author{%s}" % nm, "%%\\author{%s}" % nm, f"blind: {nm}")
 
 sub(r""" \affiliation{Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA}""",

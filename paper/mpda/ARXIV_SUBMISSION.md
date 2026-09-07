@@ -23,7 +23,7 @@ transitional anatomy
 ## Authors, in order
 
 Gregory Schwing, Ashley Schehr, Annika Tekumulla, Margret Khoushi, Ryan Christian,
-Dane Hubers, Faris Mahjoub, Hassan Saad, Mia Sooch, Sathya Siddapureddy, Michael McLellan,
+Dane Hubers, Faris Mahjoub, Hassan Saad, Mia Sooch, Sathyagopal Siddapureddy, Michael McLellan,
 Jerick Kim, Miraziz Ismoilov, Nizar Alnabahneh
 
 Affiliations as set in the manuscript: Schwing is Department of Surgery, Detroit Medical

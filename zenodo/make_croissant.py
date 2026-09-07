@@ -52,7 +52,7 @@ AUTHORS = [
     ("Mahjoub, Faris", SOM),
     ("Saad, Hassan", SOM),
     ("Sooch, Mia", SOM),
-    ("Siddapureddy, Sathya", SOM),
+    ("Siddapureddy, Sathyagopal", SOM),
     ("McLellan, Michael", SOM),
     ("Kim, Jerick", SOM),
     ("Ismoilov, Miraziz", RADIOLOGY),
