@@ -69,7 +69,7 @@ def build(out: Path):
     y_disc = {d: (y_of[d[:2]] + (y_of.get(d[2:], y_of["L5"] - 1))) / 2.0 for d in DISCS}
     y_hu = {k: y_of[k.upper()] for k in ["l1", "l2", "l3", "l4"]}
 
-    fig, axes = plt.subplots(2, 3, figsize=(MF.COL2, 92 * MF.MM))
+    fig, axes = plt.subplots(2, 3, figsize=(MF.COL2, 86 * MF.MM))
     TEAL, OCHRE, INK, FAINT = MF.TEAL, MF.OCHRE, MF.INK, MF.FAINT
     ax_a, ax_b, ax_c, ax_d, ax_e, ax_f = axes.ravel()
 

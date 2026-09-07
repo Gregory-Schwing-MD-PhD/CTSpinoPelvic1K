@@ -37,6 +37,9 @@ NEW_NOTES = {
     64: "Joint replacement: femoral stem, head and acetabular cup.",
     65: "Iliosacral screw fixation crossing the sacroiliac joint.",
     66: "Fracture fixation holding parts of one bone together.",
+    67: ("A true rib on a thirteenth thoracic vertebra (T13, identifier 28), left. Distinct from a "
+         "lumbar rib (58), which is a rudimentary rib on a lumbar-type L1. No released record carries one."),
+    68: "As 67, right side.",
 }
 
 
@@ -64,7 +67,7 @@ def main() -> int:
                 break
 
     payload = {
-        "scheme": "CTSpinoPelvic1K v9 (VerSe-native, contiguous 0-66)",
+        "scheme": "CTSpinoPelvic1K v9 (VerSe-native, contiguous 0-68)",
         "source_of_truth": "scripts/label_scheme.py",
         "id_to_name": {str(i): by_id[i] for i in sorted(by_id)},
         "name_to_id": {by_id[i]: i for i in sorted(by_id)},

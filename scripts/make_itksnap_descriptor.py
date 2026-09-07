@@ -61,7 +61,7 @@ NAMES = {
     58: "rib_left_lumbar", 59: "rib_right_lumbar",
     60: "hardware", 61: "hardware_cage", 62: "hardware_screw_rod",
     63: "hardware_plate", 64: "hardware_arthroplasty", 65: "hardware_si_screw",
-    66: "hardware_osteosynthesis",
+    66: "hardware_osteosynthesis", 67: "rib_left_13", 68: "rib_right_13",
 }
 for i in range(1, 8):
     NAMES[i] = f"C{i}"
@@ -95,6 +95,7 @@ FIXED = {
     64: (255, 40, 40),      # arthroplasty: red -- the one that replaces the femoral head
     65: (40, 120, 255),     # sacroiliac screw: blue
     66: (255, 200, 0),      # osteosynthesis: yellow, kept apart from the orange plate
+    67: (200, 60, 255), 68: (60, 200, 255),   # thirteenth rib pair: loud, like the lumbar ribs
     255: (40, 40, 40),
 }
 

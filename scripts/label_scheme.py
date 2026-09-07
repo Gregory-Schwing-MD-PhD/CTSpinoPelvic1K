@@ -2,7 +2,7 @@
 
 VerSe-native: the spine keeps its VerSe ids VERBATIM (no remap — that was the v3 bug),
 and every structure NOT in VerSe gets a fixed id ABOVE the VerSe range, so no two
-structures can ever share an id. The space is contiguous: 0..66, plus the two VerSe ids
+structures can ever share an id. The space is contiguous: 0..68, plus the two VerSe ids
 27 (coccyx) and 28 (T13) that no released record uses.
 
     spine   (VerSe, from CTSpine1K) : 1–7 C1–C7 · 8–19 T1–T12 · 20–25 L1–L6 · 26 sacrum
@@ -13,6 +13,7 @@ structures can ever share an id. The space is contiguous: 0..66, plus the two Ve
     lumbar ribs                     : 58 left · 59 right
     hardware                        : 60 generic · 61 cage · 62 screw_rod · 63 plate
                                        · 64 arthroplasty · 65 si_screw · 66 osteosynthesis
+    thirteenth rib pair             : 67 left · 68 right (a true rib on a T13; empty so far)
 
 The scheme is BONE AND HARDWARE ONLY. There is no soft-tissue class and no sentinel.
 
@@ -74,7 +75,14 @@ HARDWARE_PLATE = 63                 # plates and other fixation
 HARDWARE_ARTHROPLASTY = 64          # joint replacement (hip in this cohort)
 HARDWARE_SI_SCREW = 65              # sacroiliac screw fixation
 HARDWARE_OSTEOSYNTHESIS = 66        # fracture fixation within one bone
-MAX_ID = HARDWARE_OSTEOSYNTHESIS    # the highest identifier in the scheme
+
+# ── thirteenth rib pair ──────────────────────────────────────────────────────
+# A thirteenth thoracic vertebra (VerSe 28) is an additional rib-bearing segment, a phenotype
+# distinct from a lumbar rib (a rudimentary rib on a lumbar-type L1). Its ribs are true ribs
+# and need their own ids; 58/59 would record them as lumbar ribs and erase the distinction.
+# Declared here so the alphabet can express the phenotype; no released record carries one.
+RIB13_LEFT, RIB13_RIGHT = 67, 68
+MAX_ID = RIB13_RIGHT                # the highest identifier in the scheme
 
 # v8 -> v9 remap (see HISTORY above). Applied by scripts/renumber_v9.py.
 OLD_TO_NEW_V9: Dict[int, int] = {74: 58, 75: 59, 76: 60, 77: 61, 78: 62, 79: 63,
@@ -113,6 +121,8 @@ def label_dict() -> Dict[str, int]:
     d["hardware_arthroplasty"] = HARDWARE_ARTHROPLASTY       # 64
     d["hardware_si_screw"] = HARDWARE_SI_SCREW               # 65
     d["hardware_osteosynthesis"] = HARDWARE_OSTEOSYNTHESIS   # 66
+    d["rib_left_13"] = RIB13_LEFT                              # 67
+    d["rib_right_13"] = RIB13_RIGHT                            # 68
     return d
 
 

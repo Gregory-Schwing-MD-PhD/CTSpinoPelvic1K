@@ -38,6 +38,7 @@ def test_id_space_is_contiguous():
     assert not hasattr(LS, "RETIRED_IDS")
     assert (d["rib_left_lumbar"], d["rib_right_lumbar"]) == (58, 59)
     assert d["hardware"] == 60 and d["hardware_osteosynthesis"] == 66
+    assert (d["rib_left_13"], d["rib_right_13"]) == (67, 68) and LS.MAX_ID == 68
     assert LS.OLD_TO_NEW_V9[74] == 58 and LS.OLD_TO_NEW_V9[82] == 66
 
 

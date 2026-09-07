@@ -110,6 +110,7 @@ every non-VerSe structure gets a fixed id above the VerSe range. Source of truth
 | 46–57 | rib_right_1 … rib_right_12 | RibSeg (numbered off GT thoracic)           |
 | 58 / 59 | **rib_left_lumbar / rib_right_lumbar** | a rib on a lumbar body, kept as its own class |
 | 60–66 | hardware / cage / screw-rod / plate / arthroplasty / si_screw / osteosynthesis | 11 records carry 61, 64, 65 or 66 |
+| 67 / 68 | **rib_left_13 / rib_right_13** | true ribs on a T13 (28), distinct from a lumbar rib; declared, empty |
 
 CTPelvic1K's sacrum takes priority over CTSpine1K's sacrum (VerSe label 26)
 to avoid the two labelling conventions colliding on lumbosacral transitional

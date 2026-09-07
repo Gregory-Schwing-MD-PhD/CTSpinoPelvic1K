@@ -17,7 +17,7 @@ every abdominal scan contains: the lowest rib-bearing vertebra and S1.
 
 ## v9 — contiguous identifiers
 
-**The identifier space is contiguous, 0–66.** Lumbar ribs are 58 (left) and 59 (right);
+**The identifier space is contiguous, 0–68.** Lumbar ribs are 58 (left) and 59 (right);
 surgical hardware is 60–66. Through v8 those classes sat at 74–75 and 76–82 above a block
 (58–73) that had been reserved for soft tissue and never populated, and a partial-annotation
 sentinel (255) was declared and never used. Both are gone. Every label volume is remapped;
@@ -240,10 +240,11 @@ fixed identifier above that range.
 | 46–57 | ribs, right 1–12 |
 | 58–59 | **lumbar rib** (left, right) |
 | 60–66 | surgical hardware: generic, cage, screw/rod, plate, arthroplasty, sacroiliac screw, osteosynthesis |
+| 67–68 | thirteenth rib pair (left, right): true ribs on a T13, distinct from a lumbar rib; declared, empty in this release |
 
 Identifiers 27 (coccyx) and 28 (T13) are VerSe identifiers the scheme keeps; no released
-record carries either. There is no class for a thirteenth rib: a rib on the vertebra below
-T12 is a lumbar rib whatever that vertebra is called.
+record carries either. A thirteenth thoracic vertebra (28) with its rib pair (67–68) and a lumbar rib (58–59) are
+distinct phenotypes and have distinct identifiers.
 
 Two classes distinguish this scheme from a whole-body label map, and only one of them is
 unusual:
@@ -347,7 +348,7 @@ the source collections alongside this one.
 **Research use only.** These labels are not a medical device and are not validated for
 clinical decision-making.
 
-## The lumbar-rib and hardware classes
+## The lumbar-rib, hardware and thirteenth-rib classes
 
 | id | name | note |
 |---|---|---|
@@ -360,5 +361,7 @@ clinical decision-making.
 | 64 | `hardware_arthroplasty` | Joint replacement: femoral stem, head and acetabular cup. |
 | 65 | `hardware_si_screw` | Iliosacral screw fixation crossing the sacroiliac joint. |
 | 66 | `hardware_osteosynthesis` | Fracture fixation holding parts of one bone together. |
+| 67 | `rib_left_13` | A true rib on a thirteenth thoracic vertebra (T13, identifier 28), left. Distinct from a lumbar rib (58), which is a rudimentary rib on a lumbar-type L1. No released record carries one. |
+| 68 | `rib_right_13` | As 67, right side. |
 
 The full id-to-name map is `dataset_labels.json`, generated from `scripts/label_scheme.py`, which is the single source of truth.
