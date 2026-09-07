@@ -21,7 +21,18 @@ mistaken for a consensus.
 
 ---
 
-## 2. Instrumented cases must be excluded from gap-based measurements
+## 2. In nine four-lumbar records the S1 identifier is the fused transitional vertebra
+
+`0094`, `0151`, `0156`, `0158`, `0760`, `0785`, `0787`, `0875`, `1031` carry four lumbar
+identifiers and no L5 (`n_lumbar_labels` = 4). Their source annotation counted four lumbar
+vertebrae and gave the next segment to the sacrum; the S1 carve then labelled that segment
+S1 because it is the first sacral-type segment. The radiologists graded all nine
+Castellvi IIIb, bilateral bony fusion, which is the same bone read as an L5 fused to the
+sacrum. The masks contain no separate L5. If you follow the Castellvi reading, treat
+identifier 29 in these nine records as the transitional L5; if you follow the source count,
+it is S1. The count-free measures do not depend on the choice.
+
+## 3. Instrumented cases must be excluded from gap-based measurements
 
 **11 records carry surgical hardware** (ids 60–66; see the README). This matters for one
 specific reason: **an iatrogenic fusion is indistinguishable from a congenital one to a
@@ -40,7 +51,7 @@ contains 64 for each.
 
 ---
 
-## 3. Prone and supine must not be pooled
+## 4. Prone and supine must not be pooled
 
 Every patient was scanned twice. **Position changes lumbar lordosis and segmental
 alignment**, so a value from a prone series and one from a supine series are not the same
@@ -53,7 +64,7 @@ measurable.
 
 ---
 
-## 4. Detached label pieces are mostly specks, and a few are real
+## 5. Detached label pieces are mostly specks, and a few are real
 
 Counted on the labels in this deposit, with **no minimum size**: **27,738 detached pieces
 across 741 of the 802 records**. That number is large because it includes single voxels.
@@ -88,7 +99,7 @@ the extent of it.
 
 ---
 
-## 5. The thoracic column is FOV-limited, and the top vertebra is usually cut
+## 6. The thoracic column is FOV-limited, and the top vertebra is usually cut
 
 **553 of 802 records (69%)** have their topmost labelled vertebra cut by the edge of the
 field of view, with a median labelled height of 13.6 mm and a range down to 0.8 mm.
@@ -98,7 +109,7 @@ whole vertebrae, check the extent rather than assuming a labelled level is compl
 
 ---
 
-## 6. Rib numbering comes from a count that cannot always be made
+## 7. Rib numbering comes from a count that cannot always be made
 
 Ribs are numbered by TotalSegmentator, which counts down from the top of what it can see. On
 an abdominal scan the top of the field is not the top of the thorax, so **rib numbers are an
@@ -111,7 +122,7 @@ rather than being forced to be rib 12.
 
 ---
 
-## 7. Open questions, recorded rather than resolved
+## 8. Open questions, recorded rather than resolved
 
 **0068 — the fusion is surgical; whether it is *only* surgical is not answerable.**
 Two threaded cylindrical interbody cages sit in the L5–L6 interspace, 1,277 mm³ and
@@ -149,7 +160,7 @@ It is also 18 disconnected specks rather than a body. Recorded as artefact.
 single 473 mm³ crumb, right hip one component, sacrum one component, S1 one component. The
 sacroiliac screws are two components because there are two screws.
 
-## 8. Corrections carried from earlier versions
+## 9. Corrections carried from earlier versions
 
 Twenty-two records had hip laterality wrong before v6 (`0027`, `0107`, `0790`, `0935`
 swapped outright; eighteen more with most of one hip under the other's label). Laterality is

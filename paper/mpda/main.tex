@@ -557,12 +557,12 @@ records with a classifier trained on local vertebral morphology
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_anchors.pdf}
 \caption{The two anchors, from the released labels. Red, lowest rib-bearing vertebra and
-its rib; blue, S1; yellow, the rib-free vertebrae between. (b) and (c) both count four: in (b) the last rib is on L1, in (c) on T12 with L5 assimilated to the sacrum.}
+its rib; blue, S1; yellow, the rib-free vertebrae between. (b) and (c) both count four: a long rib on L1 in (b); in (c) the twelfth ribs are stumps and the segment below the fourth lumbar body is fused to the sacrum (Castellvi IIIb) and carries the S1 identifier.}
 \label{fig:anchors}
 \end{figure*}
 
 Figure~\ref{fig:anchors} shows why the interval is the primitive and the label is derived.
-Among the records with four rib-free vertebrae, some reach that count from above, through a rib on L1, and some from below, through an L5 assimilated to the sacrum; the count alone cannot tell them apart, and the release can because the rib and the S1 boundary are both labeled.
+Among the records with four rib-free vertebrae, some reach that count from above, through a rib on L1, and some from below, through a lumbosacral segment fused to the sacrum, in Fig.~\ref{fig:anchors}(c) together with stump twelfth ribs; the count alone cannot tell them apart, and the release can because ribs, rib lengths and the S1 boundary are all labeled.
 
 Sixteen records carry a lumbar rib: thirteen bilateral and three unilateral, all on the
 right, a count too small to support any statement about side preference.
@@ -884,13 +884,13 @@ S1 is carved from the sacrum by an automatic estimate of the S1--S2 boundary, an
 less than fifteen percent of it. Those records are flagged in the released quality-control
 table and should be excluded from any measurement that depends on the sacral endplate.
 
-\emph{Structures are not universally present.} Sacrum, hips and femora are present in all 802 records; one record carries no S1, one lacks T12, and nine lack an L5 identifier, because the structure lies outside the field of view or, for L5, because the lowest lumbar segment is labeled L6 or incorporated into the sacrum. Users needing the caudal anchor should filter on it explicitly.
+\emph{Structures are not universally present.} Sacrum, hips and femora are present in all 802 records; one record carries no S1 and one no T12, each outside the field of view. Nine records carry no L5 identifier: their source annotation counted four lumbar vertebrae, all nine are Castellvi IIIb, and the fused transitional segment carries the S1 identifier as the caudal anchor. A user who follows the Castellvi reading should treat that segment as L5 in those nine; the manifest names them.
 
 \section{Discussion}
 
 \emph{Comparison with related material.} Against the collections in
 Table~\ref{tab:priorart}, the contribution is the crosswalk placing spine and pelvis on the
-same series, together with classes for the anatomy an enumeration anomaly actually produces. VerSe~\cite{verse2021,versedata2021} comes closest in intent, enriching for transitional anatomy and grading by Castellvi, but it does not segment the sacrum, so the structure a grade describes has no mask; this release segments it, as L6 or as a separately carved S1. Adding a sacrum to VerSe would not have supplied the pelvis, the femora or a prone acquisition, and here both label sets already existed: the join cost a crosswalk, not an annotation campaign.  What this release adds over TotalSegmentator~\cite{totalsegmentator} is not more anatomy per scan but the classes an anomaly needs to be recorded accurately. 
+same series, together with classes for the anatomy an enumeration anomaly actually produces. VerSe~\cite{verse2021,versedata2021} comes closest in intent, enriching for transitional anatomy and grading by Castellvi, but it does not segment the sacrum, so the structure a grade describes has no mask; this release segments it, as L6 or as a separately carved S1. Extending VerSe with a sacrum would not have supplied the pelvis, femora or prone acquisitions, and here both label sets already existed.  What this release adds over TotalSegmentator~\cite{totalsegmentator} is not more anatomy per scan but the classes an anomaly needs to be recorded accurately. 
 
 \emph{Limitations.} The cohort comes from one acquisition protocol of a colorectal-screening population aged 50 and over, so how well it generalizes to a pathologic population is untested. The rib layer's human review was triaged by an automated rule rather than performed on every bone, so it guarantees only the absence of the failure modes that rule detects. 
 
