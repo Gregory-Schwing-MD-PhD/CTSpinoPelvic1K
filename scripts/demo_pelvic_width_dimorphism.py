@@ -162,6 +162,8 @@ def main() -> int:
     ap_.add_argument("--out", default="examples/pelvic_width_dimorphism/results")
     ap_.add_argument("--workers", type=int, default=8)
     ap_.add_argument("--limit", type=int, default=0, help="measure only the first N records (development)")
+    ap_.add_argument("--from-csv", action="store_true",
+                     help="skip the measurement and rebuild the report and figure from results/pelvic_width.csv")
     a = ap_.parse_args()
     data, out = Path(a.data), Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -174,7 +176,19 @@ def main() -> int:
     print(f"{len(files)} label volumes")
 
     rows = []
-    with Pool(a.workers) as pool:
+    if a.from_csv:
+        # the measurement is the slow part; the comparison and the figure are seconds
+        with open(out / "pelvic_width.csv", newline="") as fh:
+            for r in csv.DictReader(fh):
+                for k in ("biiliac_mm", "femoral_head_distance_mm", "bicoxofemoral_outer_width_mm",
+                          "body_width_mm", "relative_separation"):
+                    r[k] = float(r[k]) if r[k] not in ("", "nan") else float("nan")
+                r["hardware"] = r["hardware"] == "True"
+                rows.append(r)
+        print(f"{len(rows)} rows read from {out / 'pelvic_width.csv'}")
+    with Pool(a.workers if not a.from_csv else 1) as pool:
+        if a.from_csv:
+            files = []
         for k, (case, biiliac, heads, outer, width, vid) in enumerate(pool.imap_unordered(measure, files), 1):
             r = man.get(case, {})
             rel = heads / width if width == width and width > 0 else float("nan")
