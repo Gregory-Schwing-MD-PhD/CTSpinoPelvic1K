@@ -13,9 +13,11 @@
 # than BibTeX, so there is no .bbl to ship -- which is the usual arXiv failure and is avoided
 # here by construction.
 #
-# WHICH DOCUMENTCLASS: preprint, not reprint. arXiv posts the author's manuscript, and the
-# reprint option exists here only to measure the published page count against the journal's
-# ten-page limit.
+# WHICH DOCUMENTCLASS: reprint (two-column, ten pages), decided 2026-09-07. arXiv posts the
+# authors' own manuscript, and the two-column form is the one a reader expects and the one
+# the journal will typeset; the double-spaced preprint form exists for the review PDF only.
+# Authors and affiliations come from the \else branch of \ifreview in main.tex, which must
+# match title_page.tex.
 set -euo pipefail
 export PATH=$HOME/.TinyTeX/bin/x86_64-linux:$PATH
 
@@ -26,7 +28,7 @@ TAR="$HERE/CTSpinoPelvic1K_arxiv.tar.gz"
 rm -rf "$OUT" && mkdir -p "$OUT/figures"
 # arXiv posts the authors' own manuscript: names in, redactions out, no caption list,
 # no line numbers. The three switches are single words, so no escaping is needed.
-sed -e 's/,preprint,linenumbers]{revtex4-2}/,preprint]{revtex4-2}/' \
+sed -e 's/,preprint,linenumbers]{revtex4-2}/,reprint]{revtex4-2}/' \
     -e 's/reviewtrue/reviewfalse/' -e 's/captionlisttrue/captionlistfalse/' \
     "$HERE/main.tex" > "$OUT/main.tex"
 
@@ -57,7 +59,11 @@ echo "  undefined: $(grep -ci 'undefined' a2.log || true) line(s)"
 python3 -c "
 import pymupdf
 d = pymupdf.open('main.pdf')
-print(f'  compiles clean: {d.page_count} pages (preprint form)')
+print(f'  compiles clean: {d.page_count} pages (reprint, two-column form)')
+t = d[0].get_text()
+for must in ('Gregory Schwing', 'Nizar Alnabahneh', 'OpenSpineConsortium'):
+    print(f'  page 1 carries {must!r}: {must in t}')
+print(f'  any redaction marker left: {\"removed for double-anonymized\" in \" \".join(p.get_text() for p in d)}')
 "
 
 cd "$HERE"

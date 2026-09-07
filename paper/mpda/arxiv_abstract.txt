@@ -1,25 +1,7 @@
-Lumbar levels cannot be numbered reliably when a lumbosacral transitional vertebra is
-present. Sacralisation and lumbarisation leave different traces, but those traces are not
-decisive in every case, and the count that would arbitrate is taken downward from C2 - the one
-landmark present in every spine and never duplicated. An abdominal field of view contains no
-such landmark, so the name rests on morphology exactly where morphology is least certain.
-Existing public collections either omit the pelvis or omit the classes a transitional vertebra
-requires: the largest whole-body collection provides no sixth lumbar vertebra and no class for
-a rib arising from a lumbar level, and VerSe excludes vertebrae fused to the sacrum by design.
+Purpose: A vertebra at the lumbosacral junction is named by counting. The gold standard counts caudally from C2 on whole-spine imaging; however, a lumbar surgical case is planned on a lumbar study, T12 to S1, without C2. Abdominopelvic computed tomography (CT) holds that span plus the lowest ribs and pelvis, standing in for the preoperative view. Where a lumbosacral transitional vertebra (LSTV) alters the count, the local anatomy is ambiguous. Four rib-free vertebrae may be an L1 with a lumbar rib or an L5 assimilated to the sacrum, and six may be a sixth lumbar vertebra, a T12 with aplastic ribs, or a lumbarized S1. CTSpinoPelvic1K asks whether local morphology resolves that ambiguity without the count. Two public label sets covered this imaging, CTSpine1K's vertebrae and CTPelvic1K's pelvis, on the same colonography patients, never joined; this release joins them on one series and annotates the bones neither had. It provides 802 CT records, per-level ribs and femora, lumbar levels anchored on the lowest rib-bearing vertebra and S1, and classes for L6, T13, a separate S1 and lumbar ribs, so anomalies are recorded as themselves.
 
-CTSpinoPelvic1K provides 802 abdominal CT records carrying radiologist-sourced spine and
-pelvic annotation on one coordinate frame, with per-level ribs, femora and surgical
-instrumentation. Classes exist so that a variant need not be forced into an ordinary level: a
-sixth lumbar vertebra, a thirteenth thoracic vertebra, the first sacral segment held separate
-from the sacrum, and left and right lumbar ribs. What the source collections never published,
-and what this release adds, is the mapping from each annotation to the CT series it was drawn
-on. Validation is threefold: per-case geometric invariants (802/802 pass), rib-vertebra
-incidence across 5,749 evaluable ribs (2 residual offsets, 0.035%), and agreement of derived
-spinopelvic measures with published reference values.
+Acquisition and Validation Methods: Records pair CTSpine1K and CTPelvic1K labels on each patient's bone-richest acquisition under a VerSe-native scheme. Validation covered geometric invariants (802/802 pass), rib-vertebra incidence across 5,749 ribs (0.035% offset), and spinopelvic measures matching published values.
 
-Limitations: thoracic ground truth is field-of-view limited; postural angles are supine; the
-splits are cross-validation folds with no held-out test set; the rib layer is a reviewed
-pseudolabel whose review was triaged automatically rather than exhaustively; and the Castellvi
-grades are one reader's.
+Data Format and Usage Notes: NIfTI image/label pairs with patient-grouped LSTV-stratified five-fold splits and a loader; archived at https://doi.org/10.5281/zenodo.22139642.
 
-Archived at https://doi.org/10.5281/zenodo.22139643 under CC BY-NC-SA 4.0.
+Potential Applications: Classifying a vertebra from local features; updating cadaveric morphometry; spinopelvic assessment; opportunistic screening; and, absent a public preoperative lumbar cohort, planning research (377 records prone). Limitations: thoracic ground truth is field-of-view limited; postural angles recumbent; no held-out test set; ribs are triaged-review pseudolabels; Castellvi grades are two-reader consensus on 33 records.
