@@ -185,15 +185,13 @@
 % ---------------------------------------------------------------------------
 \begin{abstract}
 \textbf{Purpose:} A vertebra at the lumbosacral junction is named by counting. The gold
-standard counts caudally from C2 on whole-spine imaging~\cite{lian2018}; however, a lumbar
-case is planned on a lumbar study~\cite{acr2021,acrmri2023}, T12 to S1, without C2.
+standard counts caudally from C2 on whole-spine imaging~\cite{lian2018}; however, a lumbar surgical case is planned on a lumbar study~\cite{acr2021,acrmri2023}, T12 to S1, without C2.
 Abdominopelvic computed tomography (CT) holds that span plus the lowest ribs and pelvis,
 standing in for the preoperative view. Where a
 lumbosacral transitional vertebra (LSTV) alters the count, the local anatomy is ambiguous. Four rib-free vertebrae may be an L1 with a lumbar rib or an
 L5 assimilated to the sacrum, and six may be a sixth lumbar vertebra, a T12 with aplastic
 ribs, or a lumbarized S1~\cite{koninwalz2010}. CTSpinoPelvic1K asks whether local morphology
-resolves that ambiguity without the count. Two public label sets already covered
-this imaging, CTSpine1K's vertebrae and CTPelvic1K's pelvis, on the same colonography
+resolves that ambiguity without the count. Two public label sets covered this imaging, CTSpine1K's vertebrae and CTPelvic1K's pelvis, on the same colonography
 patients, never joined; this release joins them on one series and annotates the bones
 neither had. It provides 802 CT records, per-level ribs and femora, lumbar levels
 anchored on the lowest rib-bearing vertebra and S1, and classes for L6, T13, a separate S1
@@ -264,7 +262,7 @@ CTSpinoPelvic1K places the spine, pelvis, ribs and femora in one coordinate fram
 a class to each structure an enumeration anomaly produces, a sixth lumbar vertebra and a rib borne by a lumbar vertebra. A scheme without those classes lacks a class vocabulary
 expressive enough to describe anatomic anomalies.
 
-The project began with a surgeon's question, whether a vertebra can be named from the anatomy in front of the reader, on the images a lumbar case is actually planned on. By guideline those are lumbar studies~\cite{acr2021,nass2013,acrmri2023}, T12 to S1, and whole-spine
+The project began with a surgeon's question, whether a vertebra can be named from the anatomy in front of the reader, on the images a lumbar surgical case is actually planned on. By guideline those are lumbar studies~\cite{acr2021,nass2013,acrmri2023}, T12 to S1, and whole-spine
 coverage is reserved for trauma with an identified injury~\cite{tqip2018} and for deformity
 radiographs. The cohort suits that question. An abdominopelvic CT runs from the diaphragm to the pelvic
 floor, so it holds the T12-to-S1 span of the planning study together with the lowest ribs
@@ -764,7 +762,7 @@ trajectories, and the L5--S1 geometry a lumbosacral fusion must cross. Pelvic in
 The transitional layer serves that use rather than competing with it, since no trajectory can be
 planned across a junction whose segments cannot be named.
 
-\emph{A proxy for the preoperative view.} No public preoperative lumbar CT cohort exists that we know of, and VerSe lacks the sacrum and pelvis (Table~\ref{tab:priorart}), so this release is the closest available stand-in for the view a lumbar case is planned on. It holds the T12-to-S1 span with the lowest ribs and the pelvis, 377 of its 802 records were acquired prone, the position of posterior lumbar surgery, and it carries classes for the anomalies that make level identification fail. It is a screening population at colonography dose with standard soft-tissue kernels, not a surgical series, and it supports method
+\emph{A proxy for the preoperative view.} No public preoperative lumbar CT cohort exists that we know of, and VerSe lacks the sacrum and pelvis (Table~\ref{tab:priorart}), so this release is the closest available stand-in for the view a lumbar surgical case is planned on. It holds the T12-to-S1 span with the lowest ribs and the pelvis, 377 of its 802 records were acquired prone, the position of posterior lumbar surgery, and it carries classes for the anomalies that make level identification fail. It is a screening population at colonography dose with standard soft-tissue kernels, not a surgical series, and it supports method
 development for level identification and instrumentation geometry, not validation of a
 planning decision.
 
