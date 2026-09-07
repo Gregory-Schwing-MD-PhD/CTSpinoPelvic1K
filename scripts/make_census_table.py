@@ -47,7 +47,7 @@ def main() -> int:
         r"\begin{table*}[p]",
         r"\caption{\label{tab:census}Every identifier populated in the release and the",
         r"number of the 802 records carrying it, counted from the released label volumes.",
-        r"Identifiers 58--73 are unassigned and occur nowhere.}",
+        r"The identifier space is contiguous, 0--66.}",
         r"\centering\small",
         tabular(rows[:half]),
         r"\hspace{2em}",

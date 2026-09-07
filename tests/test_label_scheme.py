@@ -30,16 +30,15 @@ def test_new_structures_above_28():
         assert d[nm] >= 29, f"{nm}={d[nm]} must be appended above the VerSe range"
 
 
-def test_retired_soft_tissue_block_is_unassigned():
-    """58..73 once reserved a soft-tissue overlay block that no released volume ever carried.
-    The dataset is a bone dataset; the block is retired and the ids must stay empty, because
-    reusing them would collide with third-party tooling still carrying the old names."""
+def test_id_space_is_contiguous():
+    """v9: no gap and no sentinel. Lumbar ribs follow rib_right_12, hardware follows them."""
     d = LS.label_dict()
-    assert not (set(d.values()) & set(LS.RETIRED_IDS))
+    assert sorted(d.values()) == list(range(0, LS.MAX_ID + 1))
     assert not hasattr(LS, "SOFT_TISSUE"), "the soft-tissue map is retired; do not reintroduce it"
-    # the ids above the gap are published and must not have been renumbered down into it
-    assert (d["rib_left_lumbar"], d["rib_right_lumbar"]) == (74, 75)
-    assert d["hardware"] == 76
+    assert not hasattr(LS, "RETIRED_IDS")
+    assert (d["rib_left_lumbar"], d["rib_right_lumbar"]) == (58, 59)
+    assert d["hardware"] == 60 and d["hardware_osteosynthesis"] == 66
+    assert LS.OLD_TO_NEW_V9[74] == 58 and LS.OLD_TO_NEW_V9[82] == 66
 
 
 def test_specific_ids():
@@ -49,7 +48,7 @@ def test_specific_ids():
     assert (d["femur_left"], d["femur_right"]) == (32, 33)
     assert (d["rib_left_1"], d["rib_left_12"]) == (34, 45)
     assert (d["rib_right_1"], d["rib_right_12"]) == (46, 57)
-    assert d["ignore"] == 255
+    assert "ignore" not in d
 
 
 def test_pelvic_remap_drops_l5():

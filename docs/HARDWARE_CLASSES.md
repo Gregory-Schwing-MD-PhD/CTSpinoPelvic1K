@@ -17,15 +17,15 @@ metal. Any spinopelvic parameter computed from them was measured on an implant.
 
 | id | name | what it is |
 |---|---|---|
-| 76 | `hardware` | metal that no rule could name; a placeholder, not an answer |
-| 77 | `hardware_cage` | interbody cage or spacer, in the disc space |
-| 78 | `hardware_screw_rod` | pedicle screws and rods — spinal posterior instrumentation |
-| 79 | `hardware_plate` | plates and other flat fixation |
-| 80 | `hardware_arthroplasty` | joint **replacement**: femoral stem, head, acetabular cup |
-| 81 | `hardware_si_screw` | iliosacral fixation crossing the sacroiliac joint |
-| 82 | `hardware_osteosynthesis` | metal holding parts of the **same bone** together |
+| 60 | `hardware` | metal that no rule could name; a placeholder, not an answer |
+| 61 | `hardware_cage` | interbody cage or spacer, in the disc space |
+| 62 | `hardware_screw_rod` | pedicle screws and rods — spinal posterior instrumentation |
+| 63 | `hardware_plate` | plates and other flat fixation |
+| 64 | `hardware_arthroplasty` | joint **replacement**: femoral stem, head, acetabular cup |
+| 65 | `hardware_si_screw` | iliosacral fixation crossing the sacroiliac joint |
+| 66 | `hardware_osteosynthesis` | metal holding parts of the **same bone** together |
 
-### 80 against 82 — the distinction that matters most
+### 64 against 66 — the distinction that matters most
 
 These are the two arms of the same clinical decision, and the femoral-neck literature is
 written as exactly that dichotomy — meta-analyses are titled
@@ -38,7 +38,7 @@ Getting it wrong inverts a measurement rather than merely mislabelling a voxel: 
 leaves the patient's own femoral head**, a prosthesis does not, and the femoral head centre
 is the landmark PI and PT are taken from.
 
-82 was briefly named `hardware_fracture_fix`, which was a description rather than a term.
+66 (82 in v8) was briefly named `hardware_fracture_fix`, which was a description rather than a term.
 
 ## What is in the cohort
 

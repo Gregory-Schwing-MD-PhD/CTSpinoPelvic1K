@@ -1,42 +1,48 @@
 # CTSpinoPelvic1K
 
-Spine, pelvis, per-level ribs and femurs in one coordinate frame, for 802 abdominal CT
+Spine, pelvis, per-level ribs and femora in one coordinate frame, for 802 abdominal CT
 records — built so that a lumbar vertebra can be identified when the count itself is in
 doubt.
 
-Vertebral numbering is conventionally established by counting down from C2. No abdominal CT
-contains C2, so at the thoracolumbar junction a thirteenth thoracic vertebra, a rib borne by
-a lumbar vertebra, and a stump rib all produce overlapping appearances, and which label is
-correct depends on a count the field of view does not support. This release is annotated to
-make that decidable where it can be, and to say so plainly where it cannot.
+A vertebra at the lumbosacral junction is named by counting. The gold standard counts
+caudally from C2 on whole-spine imaging; a lumbar case is planned on a lumbar study, T12 to
+S1, without C2, and no abdominal CT contains C2 either. Where a transitional vertebra alters
+the count, the local anatomy is ambiguous: four rib-free vertebrae may be an L1 with a
+lumbar rib or an L5 assimilated to the sacrum, and six may be a sixth lumbar vertebra, a T12
+with aplastic ribs, or a lumbarized S1. This release is annotated so that the anomalies are
+recorded as themselves, and every measurement is also expressed against the two anchors
+every abdominal scan contains: the lowest rib-bearing vertebra and S1.
 
 ---
 
-## v6 — surgical hardware
+## v9 — contiguous identifiers
 
-Identifiers 76-82 were declared in every previous release and populated in none. In v6 they
-are. 11 of the 802 records carry instrumentation:
+**The identifier space is contiguous, 0–66.** Lumbar ribs are 58 (left) and 59 (right);
+surgical hardware is 60–66. Through v8 those classes sat at 74–75 and 76–82 above a block
+(58–73) that had been reserved for soft tissue and never populated, and a partial-annotation
+sentinel (255) was declared and never used. Both are gone. Every label volume is remapped;
+no voxel changed class. Volumes from v8 and earlier carry the old identifiers:
 
-| id | class | n |
+| v8 | v9 | class |
 |---|---|---|
-| 80 | `hardware_arthroplasty` | 8 |
-| 82 | `hardware_osteosynthesis` | 1 |
-| 81 | `hardware_si_screw` | 1 |
-| 77 | `hardware_cage` | 1 |
+| 74, 75 | 58, 59 | lumbar rib, left and right |
+| 76 | 60 | hardware, subtype not distinguished |
+| 77 | 61 | interbody cage |
+| 78 | 62 | pedicle screws and rods |
+| 79 | 63 | plate |
+| 80 | 64 | arthroplasty |
+| 81 | 65 | sacroiliac screw |
+| 82 | 66 | osteosynthesis |
 
-**Metal outranks bone.** Where an implant lay inside a vertebra, hip or femur label, the
-voxel now belongs to the implant, so naming the hardware reclaimed 1,538,852 voxels rather
-than adding them. 80 and 82 are the two arms of one clinical decision and must not be
-confused: arthroplasty *replaces a joint*, osteosynthesis holds parts of *the same bone*
-together. Pelvic incidence and pelvic tilt are measured from the femoral head, which a
-prosthesis replaces and fixation does not.
-
-Case 0068 is also corrected: six lumbar bodies where the pseudolabel had five, renumbered
-against the twelfth rib, with T10-T12 added and the vertebral-body mixing resolved.
+`scripts/label_scheme.py` carries the remap as `OLD_TO_NEW_V9` and `scripts/renumber_v9.py`
+applies it. The v8 manifest's `castellvi_type` `"0"` on record `0016` (a single reader's
+reference row, not a grade) is removed; 33 records carry a consensus Castellvi grade.
 
 **Read `KNOWN_ISSUES.md` before analysing.** In particular: a null Castellvi field means
 ungraded rather than negative, prone and supine must not be pooled, and instrumented cases
 must be excluded from any measurement of the gap between bones.
+
+---
 
 ## What is in this deposit, and what is not
 
@@ -232,10 +238,12 @@ fixed identifier above that range.
 | 32–33 | femurs (left, right) |
 | 34–45 | ribs, left 1–12 |
 | 46–57 | ribs, right 1–12 |
-| 58–73 | soft tissue — *declared, empty in this release* |
-| 74–75 | **lumbar rib** (left, right) |
-| 76–79 | hardware — *declared, empty in this release* |
-| 255 | ignore |
+| 58–59 | **lumbar rib** (left, right) |
+| 60–66 | surgical hardware: generic, cage, screw/rod, plate, arthroplasty, sacroiliac screw, osteosynthesis |
+
+Identifiers 27 (coccyx) and 28 (T13) are VerSe identifiers the scheme keeps; no released
+record carries either. There is no class for a thirteenth rib: a rib on the vertebra below
+T12 is a lumbar rib whatever that vertebra is called.
 
 Two classes distinguish this scheme from a whole-body label map, and only one of them is
 unusual:
@@ -246,7 +254,7 @@ unusual:
   What matters is that a scheme *without* an L6 cannot record a six-lumbar spine at all and
   must renumber the column or drop a level to fit — which the widely used whole-body schemes
   do, since TotalSegmentator stops at L5. **18 records carry an L6.**
-- **Lumbar rib (74/75).** This one has no counterpart in the public schemes. A scheme that
+- **Lumbar rib (58/59).** This one has no counterpart in the public schemes. A scheme that
   numbers every rib 1–12 has nowhere to put a thirteenth: the annotator must either call it
   rib 12 — which asserts the vertebra beneath it is thoracic, the very question at issue —
   or discard it. TotalSegmentator has `rib_left_1`–`12` and `rib_right_1`–`12` and no lumbar
@@ -291,10 +299,11 @@ Stated at the level of detail needed to catch them independently.
 
 - **Thoracic coverage is field-of-view limited** and does not extend to T1. Two records
   (0068, 1106) carry no thoracic vertebra at all.
-- **Structures are not universally present.** One record has no sacrum, hips or femurs; two
-  have no S1; nine lack an L5 identifier — in each case because the structure is outside the
-  field of view, or because the lowest lumbar segment is labelled L6 or incorporated into
-  the sacrum. Filter explicitly rather than assuming.
+- **Structures are not universally present.** Sacrum, hips and femora are in all 802
+  records; one record has no S1, one has no T12, and nine lack an L5 identifier — because
+  the structure is outside the field of view, the S1 carve found no boundary, or the lowest
+  lumbar segment is labelled L6 or incorporated into the sacrum. Filter explicitly rather
+  than assuming.
 - **The splits are cross-validation folds covering the whole cohort. There is no held-out
   test set.** Carve one and state which records it holds.
 - **Label strength varies by structure and the release does not average over it.** Vertebral
@@ -305,14 +314,25 @@ Stated at the level of detail needed to catch them independently.
   with TotalSegmentator, keeping only voxels connected to a numbered rib. A stump rib that
   the binary network segments but TotalSegmentator never *numbers* has nothing to attach to
   and is dropped — and quality control cannot see it, because an absent rib flags nothing.
-- **Soft-tissue (58–73) and hardware (76–79) identifiers are declared and populated by no
-  record.** Their absence is absence of annotation, not absence of the structure.
-- **Postural angles are supine.** Pelvic incidence is a morphological property and needs no
+- **Postural angles are recumbent** (377 records prone, 422 supine, 3 decubitus). Pelvic incidence is a morphological property and needs no
   such caveat; sacral slope and pelvic tilt do.
 - **The cohort is a colorectal screening population aged 50 and over.** Its distributions
   should not be read as representative of a surgical one.
 
 ---
+
+
+## Version history
+
+| version | change |
+|---|---|
+| v1–v3 | spine and pelvis joined on one series; femora and S1 added |
+| v4 | per-level ribs |
+| v5 | lumbar ribs as their own class |
+| v6 | surgical hardware; 22 hip-laterality corrections; five hand-corrected records |
+| v7 | manifest counts recomputed from the volumes |
+| v8 | Castellvi grades as a two-reader consensus; soft-tissue block retired |
+| v9 | contiguous identifiers 0–66; sentinel removed; record 0016 reference row removed |
 
 ## Sources and licence
 
@@ -326,3 +346,19 @@ the source collections alongside this one.
 
 **Research use only.** These labels are not a medical device and are not validated for
 clinical decision-making.
+
+## The lumbar-rib and hardware classes
+
+| id | name | note |
+|---|---|---|
+| 58 | `rib_left_lumbar` | A rib articulating with a LUMBAR vertebra. Given its own class rather than being forced to be 'rib 12': a 13th rib is a finding, and numbering it as the twelfth consumed the id the T12 rib needed. |
+| 59 | `rib_right_lumbar` | As 58, right side. |
+| 60 | `hardware` | Surgical instrumentation whose subtype is not distinguished. Neither bone nor any anatomical class; labelled rather than ignored because a cage bridging a disc space makes two vertebrae look fused to any distance measurement, and that must stay separable from congenital fusion. |
+| 61 | `hardware_cage` | Interbody cage or spacer. |
+| 62 | `hardware_screw_rod` | Pedicle screws and rods. |
+| 63 | `hardware_plate` | Plates and other fixation. |
+| 64 | `hardware_arthroplasty` | Joint replacement: femoral stem, head and acetabular cup. |
+| 65 | `hardware_si_screw` | Iliosacral screw fixation crossing the sacroiliac joint. |
+| 66 | `hardware_osteosynthesis` | Fracture fixation holding parts of one bone together. |
+
+The full id-to-name map is `dataset_labels.json`, generated from `scripts/label_scheme.py`, which is the single source of truth.

@@ -42,17 +42,10 @@ RIB_R = range(LS.RIB_RIGHT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 13)
 
 
 def allowed_ids() -> set:
-    ok = {0, LS.IGNORE_LABEL}
-    ok |= set(range(1, 34))                     # C1..L6, sacrum, coccyx, T13, S1, hips, femurs
-    ok |= set(RIB_L) | set(RIB_R)
-    ok |= {LS.LUMBAR_RIB_LEFT, LS.LUMBAR_RIB_RIGHT}      # 74, 75
-    # 58..73 is a retired gap and is NOT allowed: a voxel there is a defect, not a class
-    for name in ("HARDWARE", "HARDWARE_CAGE", "HARDWARE_SCREW_ROD", "HARDWARE_PLATE",
-                 "HARDWARE_ARTHROPLASTY", "HARDWARE_SI_SCREW", "HARDWARE_OSTEOSYNTHESIS"):
-        v = getattr(LS, name, None)
-        if v is not None:
-            ok.add(int(v))
-    assert not (ok & set(LS.RETIRED_IDS))
+    # v9: the scheme is contiguous, 0..MAX_ID; anything else (including the training
+    # ignore label 255 and the v8 ids 74..82) is a defect, not a class
+    ok = set(LS.label_dict().values())
+    assert ok == set(range(0, LS.MAX_ID + 1))
     return ok
 
 

@@ -57,14 +57,11 @@ def _rib(n: int, light: bool):
 NAMES = {
     0: "Clear Label", 26: "sacrum", 27: "coccyx", 28: "T13", 29: "S1",
     30: "left_hip", 31: "right_hip", 32: "femur_left", 33: "femur_right",
-    # 58..73 deliberately absent: the soft-tissue block is retired (label_scheme.RETIRED_IDS).
-    # This file had carried a DIFFERENT name list for those ids than label_scheme.py did --
-    # quadratus and kidneys here, nerve roots there -- which is exactly what an unused block
-    # invites and the reason it is gone rather than left declared.
-    74: "rib_left_lumbar", 75: "rib_right_lumbar",
-    76: "hardware", 77: "hardware_cage", 78: "hardware_screw_rod",
-    79: "hardware_plate", 80: "hardware_arthroplasty", 81: "hardware_si_screw",
-    82: "hardware_osteosynthesis", 255: "ignore",
+    # v9 ids: contiguous after rib_right_12 (57)
+    58: "rib_left_lumbar", 59: "rib_right_lumbar",
+    60: "hardware", 61: "hardware_cage", 62: "hardware_screw_rod",
+    63: "hardware_plate", 64: "hardware_arthroplasty", 65: "hardware_si_screw",
+    66: "hardware_osteosynthesis",
 }
 for i in range(1, 8):
     NAMES[i] = f"C{i}"
@@ -90,14 +87,14 @@ FIXED = {
     # was the wrong one: metal on CT is already the brightest thing in the image, so a
     # white label is invisible against exactly the voxels it is marking. These are
     # saturated hues no bone takes.
-    74: (255, 60, 200), 75: (120, 255, 220),
-    76: (255, 0, 255),      # generic hardware: magenta, nothing anatomical is magenta
-    77: (0, 255, 255),      # cage: cyan
-    78: (80, 255, 0),       # screws and rods: acid green
-    79: (255, 140, 0),      # plate: orange
-    80: (255, 40, 40),      # arthroplasty: red -- the one that replaces the femoral head
-    81: (40, 120, 255),     # sacroiliac screw: blue
-    82: (255, 200, 0),      # osteosynthesis: yellow, kept apart from the orange plate
+    58: (255, 60, 200), 59: (120, 255, 220),
+    60: (255, 0, 255),      # generic hardware: magenta, nothing anatomical is magenta
+    61: (0, 255, 255),      # cage: cyan
+    62: (80, 255, 0),       # screws and rods: acid green
+    63: (255, 140, 0),      # plate: orange
+    64: (255, 40, 40),      # arthroplasty: red -- the one that replaces the femoral head
+    65: (40, 120, 255),     # sacroiliac screw: blue
+    66: (255, 200, 0),      # osteosynthesis: yellow, kept apart from the orange plate
     255: (40, 40, 40),
 }
 

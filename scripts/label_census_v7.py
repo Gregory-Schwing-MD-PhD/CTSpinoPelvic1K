@@ -51,9 +51,10 @@ def main() -> int:
         for v in np.nonzero(counts)[0]:
             w.writerow([int(v), name.get(int(v), "UNNAMED"), int(counts[v]), f"{100 * counts[v] / n:.2f}"])
     print(f"wrote {out}: {int((counts > 0).sum())} ids across {n} volumes in {time.time() - t0:.0f}s")
-    retired = [int(v) for v in np.nonzero(counts)[0] if 58 <= v <= 73]
-    print("retired 58-73 present:", retired or "none", "| sentinel 255:", int(counts[255]))
-    print("hardware:", {int(v): int(counts[v]) for v in range(76, 83) if counts[v]})
+    stray = [int(v) for v in np.nonzero(counts)[0] if v > LS.MAX_ID]
+    print("identifiers above the scheme:", stray or "none")
+    print("lumbar ribs:", {int(v): int(counts[v]) for v in (LS.LUMBAR_RIB_LEFT, LS.LUMBAR_RIB_RIGHT)})
+    print("hardware:", {int(v): int(counts[v]) for v in range(LS.HARDWARE, LS.MAX_ID + 1) if counts[v]})
     return 0
 
 

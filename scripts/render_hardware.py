@@ -42,15 +42,15 @@ from render_turntable import render, BG                              # noqa: E40
 plt.rcParams.update({"font.family": "sans-serif",
                      "font.sans-serif": ["Arial", "Helvetica", "Calibri", "DejaVu Sans"], "font.size": 9})
 
-HW = {76: "hardware", 77: "cage", 78: "screw / rod", 79: "plate",
-      80: "arthroplasty", 81: "sacroiliac screw", 82: "osteosynthesis"}
-C_HW = {80: np.array([214, 69, 65], np.float32),      # arthroplasty
-        82: np.array([232, 140, 40], np.float32),     # osteosynthesis
-        81: np.array([48, 110, 190], np.float32),     # SI screw
-        77: np.array([60, 160, 90], np.float32),      # cage
-        76: np.array([160, 60, 180], np.float32),
-        78: np.array([160, 60, 180], np.float32),
-        79: np.array([160, 60, 180], np.float32)}
+HW = {60: "hardware", 61: "cage", 62: "screw / rod", 63: "plate",
+      64: "arthroplasty", 65: "sacroiliac screw", 66: "osteosynthesis"}
+C_HW = {64: np.array([214, 69, 65], np.float32),      # arthroplasty
+        66: np.array([232, 140, 40], np.float32),     # osteosynthesis
+        65: np.array([48, 110, 190], np.float32),     # SI screw
+        61: np.array([60, 160, 90], np.float32),      # cage
+        60: np.array([160, 60, 180], np.float32),
+        62: np.array([160, 60, 180], np.float32),
+        63: np.array([160, 60, 180], np.float32)}
 C_BONE = np.array([200, 200, 196], np.float32)
 C_SACRUM = np.array([160, 160, 158], np.float32)
 
@@ -165,7 +165,7 @@ def main() -> int:
     fig_w = a.panel_in * len(items)
     fig = plt.figure(figsize=(fig_w, a.height_in))
     gs = fig.add_gridspec(1, len(items), width_ratios=aspects, wspace=0.06,
-                          left=0.01, right=0.99, top=0.88, bottom=0.2)
+                          left=0.01, right=0.99, top=0.88, bottom=0.16)
     axes = [fig.add_subplot(gs[0, i]) for i in range(len(items))]
 
     px_per_5cm = 50.0 / a.mm_per_px
@@ -181,10 +181,12 @@ def main() -> int:
         ax.set_title(caption.replace("--", "–"), fontsize=7.5)
 
     handles = [mp.Patch(color=C_HW[i] / 255, label=f"{i} {HW[i]}")
-               for i in (80, 82, 81, 77) if i in present]
+               for i in (64, 66, 65, 61) if i in present]
     handles.append(mp.Patch(color=C_BONE / 255, label="bone (metal drawn through it)"))
-    fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False, fontsize=7,
-               bbox_to_anchor=(0.5, 0.0))
+    # one row, anchored to the figure's bottom edge and clear of the panels above it
+    fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False,
+               fontsize=6.5, handlelength=1.2, columnspacing=1.2,
+               bbox_to_anchor=(0.5, 0.0), bbox_transform=fig.transFigure)
     out = Path(a.out) / f"{a.name}.pdf"
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, bbox_inches="tight", dpi=300)

@@ -1,21 +1,26 @@
 """label_scheme.py — THE single source of truth for CTSpinoPelvic1K label ids.
 
 VerSe-native: the spine keeps its VerSe ids VERBATIM (no remap — that was the v3 bug),
-and every structure NOT in VerSe gets a fixed, reserved id ABOVE the VerSe range, so no
-two structures can ever share an id.
+and every structure NOT in VerSe gets a fixed id ABOVE the VerSe range, so no two
+structures can ever share an id. The space is contiguous: 0..66, plus the two VerSe ids
+27 (coccyx) and 28 (T13) that no released record uses.
 
     spine   (VerSe, from CTSpine1K) : 1–7 C1–C7 · 8–19 T1–T12 · 20–25 L1–L6 · 26 sacrum
                                        · 27 coccyx · 28 T13           ← passed through AS-IS
     pelvis  (CTPelvic1K + TS femurs): 26 sacrum [shared] · 29 S1 · 30 left_hip · 31 right_hip
                                        · 32 femur_left · 33 femur_right
     ribs    (numbered off GT thoracic): 34–45 rib_left_1..12 · 46–57 rib_right_1..12
-    58–73                           : RETIRED, unassigned (see RETIRED_IDS)
-    lumbar ribs                     : 74 left · 75 right
-    hardware                        : 76 generic · 77 cage · 78 screw_rod · 79 plate
-                                       · 80 arthroplasty · 81 si_screw · 82 osteosynthesis
-    ignore                          : 255
+    lumbar ribs                     : 58 left · 59 right
+    hardware                        : 60 generic · 61 cage · 62 screw_rod · 63 plate
+                                       · 64 arthroplasty · 65 si_screw · 66 osteosynthesis
 
-The scheme is BONE AND HARDWARE ONLY. There is no soft-tissue class.
+The scheme is BONE AND HARDWARE ONLY. There is no soft-tissue class and no sentinel.
+
+HISTORY (v9). Through v8 the lumbar ribs were 74/75 and the hardware block 76..82, above
+a block (58..73) that was reserved for soft tissue and never populated, and a
+partial-annotation sentinel (255) was declared and never used. v9 closes the gap and drops
+the sentinel; OLD_TO_NEW_V9 is the exact remap and scripts/renumber_v9.py applies it.
+Volumes from v8 and earlier carry the old ids.
 
 Import this EVERYWHERE (export_hf, build_v3, dataset.json, ostk, docs generators). Never
 define ids anywhere else. `verify()` (run in tests) guarantees no collisions.
@@ -24,6 +29,8 @@ from __future__ import annotations
 
 from typing import Dict
 
+# nnU-Net's ignore label for TRAINING volumes only. It is not part of the release scheme
+# and appears in no released volume.
 IGNORE_LABEL = 255
 
 # ── spine: VerSe verbatim (NO remap) ─────────────────────────────────────────
@@ -41,47 +48,37 @@ FEMUR_LEFT, FEMUR_RIGHT = 32, 33
 
 # ── ribs: numbered off the GT thoracic, fixed block above the femurs ─────────
 RIB_LEFT_OFFSET, RIB_RIGHT_OFFSET = 33, 45                     # rib_*_N -> OFFSET+N (34-45, 46-57)
-# a rib on a LUMBAR vertebra (13th-rib / LSTV) gets its own id, above the retired 58-73 gap
-LUMBAR_RIB_LEFT, LUMBAR_RIB_RIGHT = 74, 75
+# a rib on a LUMBAR vertebra (13th-rib / LSTV) gets its own id, directly above the ribs
+LUMBAR_RIB_LEFT, LUMBAR_RIB_RIGHT = 58, 59
 
 # ── surgical hardware ────────────────────────────────────────────────────────
 # Instrumentation is not bone and not any anatomical class, but it is not nothing either:
 # a cage bridging a disc space fuses two vertebrae into one connected object for any
 # segmenter, and dense metal in the interspace is exactly what makes an iatrogenic fusion
 # look like a congenital transitional vertebra to a distance measurement. Labelling it
-# keeps that distinction recoverable; `ignore` would erase it.
+# keeps that distinction recoverable.
 #
-# A RESERVED BLOCK, not a single id. Cage / screw / rod / plate are different objects with
+# A BLOCK, not a single id. Cage / screw / rod / plate are different objects with
 # different consequences, and a lone generic class cannot be subdivided later without
-# rewriting every label that used it. 76 is the generic call to use when the subtype is not
-# being distinguished; 77-79 are reserved so that decision stays open.
-# Subtypes are named where they are identifiable. A reader who can see it is a cage should
-# say so: collapsing `cage` into generic `hardware` later is a one-line merge, whereas
-# splitting a generic label back into subtypes means revisiting every case that used it.
-# 76 stays available for instrumentation whose subtype is unclear or not being recorded.
-HARDWARE = 76                       # instrumentation, subtype not distinguished
-HARDWARE_CAGE = 77                  # interbody cage / spacer
-HARDWARE_SCREW_ROD = 78             # pedicle screws and rods
-HARDWARE_PLATE = 79                 # plates and other fixation
-# The cohort held none of the four above and forced three more (v6): a femoral stem is long
+# rewriting every label that used it. 60 is the generic call when the subtype is not
+# being distinguished; 61-63 keep that decision open. Subtypes are named where they are
+# identifiable: collapsing `cage` into generic `hardware` later is a one-line merge,
+# whereas splitting a generic label back into subtypes means revisiting every case.
+HARDWARE = 60                       # instrumentation, subtype not distinguished
+HARDWARE_CAGE = 61                  # interbody cage / spacer
+HARDWARE_SCREW_ROD = 62             # pedicle screws and rods
+HARDWARE_PLATE = 63                 # plates and other fixation
+# The cohort held none of the four above and forced three more: a femoral stem is long
 # and thin and a shape rule would call it a rod, but it replaces a joint where a screw holds
 # parts of one bone together. Osteosynthesis and arthroplasty are different objects.
-HARDWARE_ARTHROPLASTY = 80          # joint replacement (hip in this cohort)
-HARDWARE_SI_SCREW = 81              # sacroiliac screw fixation
-HARDWARE_OSTEOSYNTHESIS = 82        # fracture fixation within one bone
+HARDWARE_ARTHROPLASTY = 64          # joint replacement (hip in this cohort)
+HARDWARE_SI_SCREW = 65              # sacroiliac screw fixation
+HARDWARE_OSTEOSYNTHESIS = 66        # fracture fixation within one bone
+MAX_ID = HARDWARE_OSTEOSYNTHESIS    # the highest identifier in the scheme
 
-# ── 58..73: RETIRED, deliberately unassigned ─────────────────────────────────
-# These ids once reserved a soft-tissue overlay block (iliolumbar ligaments, nerve roots,
-# psoas, great vessels). No released volume ever carried any of them -- confirmed by a
-# census of all 802 v7 labels -- and the dataset is a bone dataset. The block is removed
-# rather than left declared-but-empty, because three files had drifted into three
-# different name lists for the same ids, which is what an unused block invites.
-#
-# The ids stay UNASSIGNED. Do not renumber the lumbar ribs (74/75) or hardware (76..82)
-# down into the gap: those ids are in published volumes and a gap in an integer label
-# space costs nothing. If a soft-tissue layer is ever released it takes fresh ids above
-# the hardware block, with its own release note.
-RETIRED_IDS = range(58, 74)
+# v8 -> v9 remap (see HISTORY above). Applied by scripts/renumber_v9.py.
+OLD_TO_NEW_V9: Dict[int, int] = {74: 58, 75: 59, 76: 60, 77: 61, 78: 62, 79: 63,
+                                 80: 64, 81: 65, 82: 66}
 
 _VERSE_NAMES = (["C1", "C2", "C3", "C4", "C5", "C6", "C7"]
                 + [f"T{n}" for n in range(1, 13)]              # T1..T12 -> 8..19
@@ -89,7 +86,7 @@ _VERSE_NAMES = (["C1", "C2", "C3", "C4", "C5", "C6", "C7"]
 
 
 def label_dict() -> Dict[str, int]:
-    """Full {name: id} legend (background..ignore) — the ONE map for dataset.json + docs."""
+    """Full {name: id} legend (background..hardware) — the ONE map for dataset.json + docs."""
     d: Dict[str, int] = {"background": 0}
     for i, nm in enumerate(_VERSE_NAMES, start=1):             # 1..25
         d[nm] = i
@@ -105,19 +102,17 @@ def label_dict() -> Dict[str, int]:
         d[f"rib_left_{n}"] = RIB_LEFT_OFFSET + n               # 34..45
     for n in range(1, 13):
         d[f"rib_right_{n}"] = RIB_RIGHT_OFFSET + n             # 46..57
-    # 58..73 intentionally absent: see RETIRED_IDS above.
-    # a rib articulating with a LUMBAR vertebra (13th-rib / LSTV phenotype) is its own class, NOT
-    # forced to be "rib 12" -- it keeps 74/75, the ids it has in every published volume.
-    d["rib_left_lumbar"] = LUMBAR_RIB_LEFT                     # 74
-    d["rib_right_lumbar"] = LUMBAR_RIB_RIGHT                   # 75
-    d["hardware"] = HARDWARE                                   # 76 — subtype not distinguished
-    d["hardware_cage"] = HARDWARE_CAGE                         # 77 — interbody cage
-    d["hardware_screw_rod"] = HARDWARE_SCREW_ROD               # 78 — screws / rods
-    d["hardware_plate"] = HARDWARE_PLATE                       # 79 — plates
-    d["hardware_arthroplasty"] = HARDWARE_ARTHROPLASTY       # 80
-    d["hardware_si_screw"] = HARDWARE_SI_SCREW               # 81
-    d["hardware_osteosynthesis"] = HARDWARE_OSTEOSYNTHESIS   # 82
-    d["ignore"] = IGNORE_LABEL                                 # 255
+    # a rib articulating with a LUMBAR vertebra (13th-rib / LSTV phenotype) is its own class,
+    # NOT forced to be "rib 12"
+    d["rib_left_lumbar"] = LUMBAR_RIB_LEFT                     # 58
+    d["rib_right_lumbar"] = LUMBAR_RIB_RIGHT                   # 59
+    d["hardware"] = HARDWARE                                   # 60 — subtype not distinguished
+    d["hardware_cage"] = HARDWARE_CAGE                         # 61 — interbody cage
+    d["hardware_screw_rod"] = HARDWARE_SCREW_ROD               # 62 — screws / rods
+    d["hardware_plate"] = HARDWARE_PLATE                       # 63 — plates
+    d["hardware_arthroplasty"] = HARDWARE_ARTHROPLASTY       # 64
+    d["hardware_si_screw"] = HARDWARE_SI_SCREW               # 65
+    d["hardware_osteosynthesis"] = HARDWARE_OSTEOSYNTHESIS   # 66
     return d
 
 
@@ -126,7 +121,7 @@ def rib_id(side: str, number: int) -> int:
 
 
 def verify() -> None:
-    """Assert the scheme is collision-proof + VerSe-faithful (run in tests / at import)."""
+    """Assert the scheme is collision-proof, contiguous and VerSe-faithful (run in tests)."""
     d = label_dict()
     ids = [v for k, v in d.items() if k != "background"]
     assert len(ids) == len(set(ids)), "DUPLICATE label id — collision in label_scheme!"
@@ -137,17 +132,17 @@ def verify() -> None:
     for nm in ["left_hip", "right_hip", "femur_left", "femur_right",
                "rib_left_1", "rib_right_12", "rib_left_lumbar", "rib_right_lumbar"]:
         assert d[nm] >= 26, f"{nm}={d[nm]} collides with the VerSe vertebra range (1–25)"
-    # the retired soft-tissue block must stay empty: reusing those ids would silently
-    # collide with any third-party tooling still carrying the old names for them
-    assert not (set(d.values()) & set(RETIRED_IDS)), "an id in the retired 58..73 block is assigned"
-    # ribs don't overlap femurs/pelvis
+    # the space is contiguous: every id from 0 to MAX_ID is assigned exactly once
+    assert sorted(d.values()) == list(range(0, MAX_ID + 1)), "gap or overlap in the id space"
+    # ribs don't overlap femurs/pelvis; lumbar ribs follow the ribs; hardware follows them
     assert RIB_LEFT_OFFSET + 1 > FEMUR_RIGHT, "ribs overlap femurs"
-    # hardware sits above every anatomical class and clear of its own reserved block
-    assert HARDWARE > LUMBAR_RIB_RIGHT, "hardware collides with the lumbar-rib block"
+    assert LUMBAR_RIB_LEFT == RIB_RIGHT_OFFSET + 12 + 1, "lumbar ribs must follow rib_right_12"
+    assert HARDWARE == LUMBAR_RIB_RIGHT + 1, "hardware must follow the lumbar ribs"
     hw = (HARDWARE, HARDWARE_CAGE, HARDWARE_SCREW_ROD, HARDWARE_PLATE,
           HARDWARE_ARTHROPLASTY, HARDWARE_SI_SCREW, HARDWARE_OSTEOSYNTHESIS)
     assert len(set(hw)) == len(hw), "duplicate hardware id"
-    assert all(h > LUMBAR_RIB_RIGHT for h in hw), "hardware collides with an anatomy block"
+    assert IGNORE_LABEL not in d.values(), "the training ignore label is not a release class"
+    assert set(OLD_TO_NEW_V9.values()) <= set(d.values()), "remap targets must be scheme ids"
 
 
 verify()

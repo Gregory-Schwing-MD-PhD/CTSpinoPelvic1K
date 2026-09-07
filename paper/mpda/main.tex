@@ -286,7 +286,7 @@ under a single protocol; the comparators pool several collections (CTSpine1K fou
 CTPelvic1K seven), are multi-site by design (VerSe), or are routine clinical scans under
 many protocols (TotalSegmentator). With the protocol held fixed, scanner effects on a
 model become measurable rather than confounded. The price is the field of view: abdominal,
-so the thoracic spine enters from below and C2 is never present (Sec.~\ref{sec:applications}).
+so only the lowest thoracic levels are present and C2 never is (Sec.~\ref{sec:applications}).
 
 The gap was in plain sight. CTPelvic1K~\cite{ctpelvic1k} and CTSpine1K~\cite{ctspine1k},
 released months apart by an overlapping author group, each annotated the COLONOG
@@ -307,10 +307,14 @@ resolves to the current version (Sec.~\ref{sec:format}).
 
 \emph{The limitation, stated plainly.} No scan in this corpus contains C2, so the
 conventional count cannot be performed: a property of abdominal imaging, not of the
-annotation. A thirteenth thoracic vertebra, a lumbar rib and a \emph{stump rib} (a
-hypoplastic twelfth rib, a cardinal indicator of a thoracolumbar transitional vertebra)
-leave the same number of rib-free vertebrae between the two borders of the lumbar spine, the
-last rib-bearing vertebra and the sacrum.
+annotation. A thirteenth thoracic vertebra and a lumbar rib on L1 are the same object under two
+names, and either removes one rib-free vertebra from the count between the two borders of the
+lumbar spine, the last rib-bearing vertebra and the sacrum, whereas an aplastic twelfth rib
+adds one. A \emph{stump rib} (a hypoplastic twelfth rib, a cardinal indicator of a
+thoracolumbar transitional vertebra) is still a rib: it leaves the count unchanged, and only
+its length records the anomaly. Without C2, a count of four therefore cannot separate a
+thirteenth thoracic vertebra from a lumbar rib, and a count of six cannot separate an
+aplastic twelfth rib from a sixth lumbar vertebra.
 
 \emph{What the release does in addition.} Every vertebra carries the identifier its
 radiologist-sourced annotation assigned, corrected where the source was wrong; those labels
@@ -413,14 +417,14 @@ TotalSegmentator~\cite{totalsegmentator} & 1{,}204 & \has\no\has\has\has\has\no\
   a pelvis has no enumeration to get wrong; the 20 pelvis-only spines were corrected by hand};
 \draw[ar] (fix.south) -- (dense.north);
 % versions
-\node[ver, anchor=north west] (v3) at ($(dense.south west)+(1mm,-5mm)$) {\textbf{v3}};
+\node[ver, anchor=north west] (v3) at ($(dense.south west)+(1mm,-5mm)$) {\textbf{1}};
 \node[det, anchor=north west] (d3) at ($(v3.north east)+(2.5mm,-0.5mm)$) {\textbf{femora}, lower thoracic levels, and \textbf{S1} carved from the sacrum};
-\node[ver, anchor=north west] (v4) at ($(v3.south west |- d3.south)+(0,-3mm)$) {\textbf{v4}};
+\node[ver, anchor=north west] (v4) at ($(v3.south west |- d3.south)+(0,-3mm)$) {\textbf{2}};
 \node[det, anchor=north west] (d4) at ($(v4.north east)+(2.5mm,-0.5mm)$) {\textbf{ribs}: M\"oller's rib net unioned with TotalSegmentator, numbered from it; 152 cases reviewed};
-\node[ver, anchor=north west] (v5) at ($(v4.south west |- d4.south)+(0,-3mm)$) {\textbf{v5}};
+\node[ver, anchor=north west] (v5) at ($(v4.south west |- d4.south)+(0,-3mm)$) {\textbf{3}};
 \node[det, anchor=north west] (d5) at ($(v5.north east)+(2.5mm,-0.5mm)$) {\textbf{lumbar ribs} as their own class rather than rib~12 (16 cases)};
-\node[ver, anchor=north west] (v6) at ($(v5.south west |- d5.south)+(0,-3mm)$) {\textbf{v6}};
-\node[det, anchor=north west] (d6) at ($(v6.north east)+(2.5mm,-0.5mm)$) {\textbf{surgical instrumentation} as its own classes (11 cases); hip laterality corrected (22)};
+\node[ver, anchor=north west] (v6) at ($(v5.south west |- d5.south)+(0,-3mm)$) {\textbf{4}};
+\node[det, anchor=north west] (d6) at ($(v6.north east)+(2.5mm,-0.5mm)$) {\textbf{surgical instrumentation} as its own classes (11 cases)};
 \draw[ar] (dense.south) -- ($(dense.south)+(0,-2.5mm)$) -| (v3.north);
 \draw[ar] (v3.south) -- (v4.north); \draw[ar] (v4.south) -- (v5.north); \draw[ar] (v5.south) -- (v6.north);
 % gates and release
@@ -509,11 +513,12 @@ Sec.~\ref{sec:validation} are the independent check on what the rule missed.
 \subsection{Label scheme and counting anchors}
 
 The scheme is VerSe-native: vertebrae keep their VerSe identifiers (C1--C7 = 1--7,
-T1--T12 = 8--19, L1--L6 = 20--25, sacrum 26), and every non-VerSe structure takes a fixed
-identifier above that range: S1 carved from the sacrum (29), hips (30--31), femora
-(32--33), ribs (34--45 left, 46--57 right), lumbar ribs (74--75) and surgical hardware
-(76--82). Identifiers 58--73 are unassigned: a soft-tissue block once reserved there was
-never populated and is retired.
+T1--T12 = 8--19, L1--L6 = 20--25, sacrum 26, coccyx 27, T13 = 28), and every non-VerSe
+structure takes a fixed identifier above that range: S1 carved from the sacrum (29), hips
+(30--31), femora (32--33), ribs (34--45 left, 46--57 right), lumbar ribs (58--59) and
+surgical hardware (60--66). The space is contiguous; there is no class for a thirteenth
+rib, because a rib on the vertebra below T12 is recorded as a lumbar rib whatever that
+vertebra is called.
 
 Two anchors make the count decidable, and Fig.~\ref{fig:anchors} shows both: the lowest
 rib-bearing vertebra above, \textbf{S1} carved from the sacrum below. Each earns its place
@@ -541,7 +546,7 @@ scheme that numbers every rib 1--12 has nowhere to put a thirteenth: the annotat
 either call it rib~12, asserting the vertebra beneath it is thoracic, the very question at
 issue, or discard it. TotalSegmentator carries ribs 1--12 per side and no such class, and
 VerSe's T13 is a vertebra rather than a rib. This scheme can record both: VerSe's T13 (28)
-for a thoracic-type thirteenth vertebra with a true rib, and 74/75 for a lumbar-type body
+for a thoracic-type thirteenth vertebra with a true rib, and 58/59 for a lumbar-type body
 bearing a rudimentary one, so either reading is recorded as itself. No record here carries
 a T13; the sixteen lumbar-rib cases were read as lumbar-type bodies. Where a border vertebra
 could not be settled by its readers the label stands as read, and reclassifying those
@@ -552,29 +557,25 @@ records with a classifier trained on local vertebral morphology
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_anchors.pdf}
 \caption{The two anchors, from the released labels. Red, lowest rib-bearing vertebra and
-its rib; blue, S1; yellow, the rib-free vertebrae between. (b) and (c) both count four.}
+its rib; blue, S1; yellow, the rib-free vertebrae between. (b) and (c) both count four: in (b) the last rib is on L1, in (c) on T12 with L5 assimilated to the sacrum.}
 \label{fig:anchors}
 \end{figure*}
 
 Figure~\ref{fig:anchors} shows why the interval is the primitive and the label is derived.
-Among the records with four rib-free vertebrae, some reach that count through a lumbar rib
-and some without one; the two are indistinguishable by the count alone and are distinguished
-here only because rib presence is itself labeled.
+Among the records with four rib-free vertebrae, some reach that count from above, through a rib on L1, and some from below, through an L5 assimilated to the sacrum; the count alone cannot tell them apart, and the release can because the rib and the S1 boundary are both labeled.
 
 Sixteen records carry a lumbar rib: thirteen bilateral and three unilateral, all on the
 right, a count too small to support any statement about side preference.
 
-Eighteen records carry an L6. Fourteen are labeled lumbarization, two sacralization, one
-semi-sacralization and one normal, which is worth stating because it shows the two annotation
-axes disagreeing in the open: a record can carry six lumbar-type vertebrae and still be read
-as a sacralization, or as unremarkable, depending on where the reader started the count.
+Eighteen records carry an L6. Seventeen of them carry a consensus Castellvi grade;
+the eighteenth was not graded. The source transitional label, an independent field, reads
+lumbarization in fourteen, sacralization in two and semi-sacralization in one, and is
+unremarkable in the ungraded record: a spine can carry six lumbar-type vertebrae and still
+be read as a sacralization, depending on where the reader started the count.
 
-Both counts are derived from the released label volumes, and so are the manifest fields
-that report them. That is a correction: through v5, \texttt{has\_l6} was true for one
-record that contains no L6 and false for all eighteen that do, \texttt{has\_lumbar\_rib} was
-false everywhere, and \texttt{n\_lumbar\_labels} read zero in 799 of 802 records. The fields
-are rebuilt for this release by counting identifiers 25 and 74--75 in each volume, with
-\texttt{lumbar\_rib\_side} added alongside them.
+Both counts, and the manifest fields that report them (\texttt{has\_l6},
+\texttt{has\_lumbar\_rib}, \texttt{n\_lumbar\_labels}, \texttt{lumbar\_rib\_side}), are
+computed from the released label volumes by counting identifiers 25 and 58--59.
 
 \subsection{Computational tools}
 
@@ -605,8 +606,8 @@ released volumes.
 \label{sec:validation}
 
 
-Validation is layered: measurements on a corpus that has not established internal
-consistency do not look broken, they look finished.
+Validation runs in three layers, and the geometric layer runs first: a measurement
+made on an inconsistent corpus returns a number that looks as finished as a correct one.
 
 \emph{Geometric invariants.} Every case is checked for label geometry agreeing with its CT
 in shape, affine and voxel spacing; for identifiers within the published scheme; for a
@@ -632,7 +633,7 @@ one at $+1$ level and one at $-1$, reported rather than suppressed.
 
 The same check carries an invariant that reads as a null result. Of the 5{,}749 evaluable
 ribs, \emph{zero} are assigned to a lumbar vertebra, not because no lumbar ribs exist,
-since 16 records carry one, but because such a rib takes class 74 or 75 and never enters the
+since 16 records carry one, but because such a rib takes class 58 or 59 and never enters the
 numbered set the test examines. A numbered rib landing on a lumbar vertebra would be a
 counting error of exactly the kind this dataset exists to expose.
 
@@ -651,9 +652,9 @@ six alike, and seven of the 33 graded cases carry a normal count of five.
 
 Two radiology resident physicians graded every case independently and resolved their six
 disagreements by consensus; both reads and the consensus are in the manifest. The distinction
-the classification turns on, bony fusion against articulation without
-it~\cite{koninwalz2010}, is the one carrying clinical weight, and it is where the
-disagreements lay: four of the six were III against II.
+the readers disagreed on, type II (articulation) against type III (bony
+fusion)~\cite{koninwalz2010}, is the one that matters clinically: four of the six
+disagreements were III against II.
 
 \begin{table*}[t]
 \caption{Derived measures against a standing reference ($n=260$)~\cite{vialle2005}; this
@@ -689,9 +690,9 @@ calcification and reconstruction artefact. Attenuation does not separate the two
 (both saturate); site and volume do, every confirmed implant at 2,586\,mm$^3$ or above and
 every rejection at 1,768\,mm$^3$ or below.
 
-\paragraph{The subtype block had to be extended.} Identifiers 76--79 name spinal
+\paragraph{The subtype block had to be extended.} Identifiers 60--63 name spinal
 instrumentation (generic, cage, screw-and-rod, plate) and cannot describe what this cohort
-holds, so \textbf{80 arthroplasty}, \textbf{81 sacroiliac screw} and \textbf{82
+holds, so \textbf{64 arthroplasty}, \textbf{65 sacroiliac screw} and \textbf{66
 osteosynthesis} were added: osteosynthesis holds parts of one bone together where
 arthroplasty replaces a joint, and a shape rule calls a femoral stem a rod. The confirmed
 cases are eight arthroplasties, one osteosynthesis, one sacroiliac fixation and one pair of
@@ -706,8 +707,8 @@ measured from is an implant.
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_hardware.pdf}
 \caption{Instrumentation in the release, one exemplar each, drawn through bone. (a) Hip
-arthroplasty, 80, $n=8$. (b) Femoral-neck screws, 82, $n=1$. (c) Sacroiliac screws, 81,
-$n=1$. (d) Interbody cages, 77, $n=1$. Bar, 5\,cm.}
+arthroplasty, 64, $n=8$. (b) Femoral-neck screws, 66, $n=1$. (c) Sacroiliac screws, 65,
+$n=1$. (d) Interbody cages, 61, $n=1$. Bar, 5\,cm.}
 \label{fig:hardware}
 \end{figure*}
 
@@ -868,12 +869,7 @@ Postural angles are supine; pelvic incidence is not postural and needs no such c
 cohort is a colorectal screening population aged 50 and over, so its distributions should
 not be read as representative of a surgical one.
 
-\emph{Declared but empty, and confirmed so.} The partial-annotation sentinel (255) is
-declared in the scheme and occurs in no record, established by counting identifiers
-across all 802 released volumes rather than asserted. It is retained because the protocol
-is part of the scheme and a later release may ship a partially traced record. The hardware
-identifiers were in this position until v6 and are no longer: 76--82 are populated in the
-eleven instrumented records described in Sec.~\ref{sec:hardware}.
+
 
 \emph{Strength of the labels varies by structure, and the release does not average over
 that.} Vertebral labels derive from radiologist-supervised source annotations, corrected
@@ -883,10 +879,10 @@ automated rule rather than exhaustive, so its guarantee is the absence of the fa
 that rule detects. Transitional labels derive from two independent sources and are not
 uniformly adjudicated, which is precisely why the measures reported here are count-free,
 and the Castellvi grades are a consensus of two radiology resident physicians.
-The sacral sub-division inherits its level from an automatic method, and in 100 records that
-level places S1 above half the sacrum or below fifteen percent of it, which no first sacral
-segment is; those records are flagged in the released quality-control table and should be
-filtered before any measurement depending on the sacral endplate.
+S1 is carved from the sacrum by an automatic estimate of the S1--S2 boundary, and in
+100 records that estimate is implausible: it makes S1 more than half the sacrum's height or
+less than fifteen percent of it. Those records are flagged in the released quality-control
+table and should be excluded from any measurement that depends on the sacral endplate.
 
 \emph{Structures are not universally present.} Sacrum, hips and femora are present in all 802 records; one record carries no S1, one lacks T12, and nine lack an L5 identifier, because the structure lies outside the field of view or, for L5, because the lowest lumbar segment is labeled L6 or incorporated into the sacrum. Users needing the caudal anchor should filter on it explicitly.
 
@@ -894,11 +890,11 @@ filtered before any measurement depending on the sacral endplate.
 
 \emph{Comparison with related material.} Against the collections in
 Table~\ref{tab:priorart}, the contribution is the crosswalk placing spine and pelvis on the
-same series, together with classes for the anatomy an enumeration anomaly actually produces. VerSe~\cite{verse2021,versedata2021} comes closest in intent, enriching for transitional anatomy and grading by Castellvi, but it does not segment the sacrum, so the structure a grade describes has no mask; this release segments it, as L6 or as a separately carved S1.  What this release adds over TotalSegmentator~\cite{totalsegmentator} is not more anatomy per scan but the classes an anomaly needs to be recorded accurately. 
+same series, together with classes for the anatomy an enumeration anomaly actually produces. VerSe~\cite{verse2021,versedata2021} comes closest in intent, enriching for transitional anatomy and grading by Castellvi, but it does not segment the sacrum, so the structure a grade describes has no mask; this release segments it, as L6 or as a separately carved S1. Adding a sacrum to VerSe would not have supplied the pelvis, the femora or a prone acquisition, and here both label sets already existed: the join cost a crosswalk, not an annotation campaign.  What this release adds over TotalSegmentator~\cite{totalsegmentator} is not more anatomy per scan but the classes an anomaly needs to be recorded accurately. 
 
 \emph{Limitations.} The cohort comes from one acquisition protocol of a colorectal-screening population aged 50 and over, so how well it generalizes to a pathologic population is untested. The rib layer's human review was triaged by an automated rule rather than performed on every bone, so it guarantees only the absence of the failure modes that rule detects. 
 
-\emph{Future directions.} The scheme has been extended in place more than once (femora and S1, per-level ribs, lumbar ribs, hardware); imaging beyond this protocol, and the C2 anchor it cannot supply, are the natural next additions.
+\emph{Future directions.} Imaging beyond this protocol, and the C2 anchor it cannot supply, are the natural next additions; applying the released weights to VerSe would add the S1 anchor and the anomaly classes to a bone-kernel spine collection, and VerSe's vertebra labels would score that transfer.
 
 \section{Conclusion}
 

@@ -1,4 +1,4 @@
-# Known issues — CTSpinoPelvic1K v6
+# Known issues — CTSpinoPelvic1K v9
 
 What a user will run into, measured rather than estimated. Nothing here is a reason not to
 use the dataset; all of it is a reason to filter before a particular analysis.
@@ -7,8 +7,9 @@ use the dataset; all of it is a reason to filter before a particular analysis.
 
 ## 1. `null` in a Castellvi field means UNGRADED, not "no transitional vertebra"
 
-**33 of 802** records carry a radiologist Castellvi grade: IIIb ×18, IV ×4, IIb ×4, IIIa ×3,
-IIa ×2, Ib ×2. The other **769 are ungraded**, and that is not a negative finding.
+**33 of 802** records carry a Castellvi grade that is the consensus of two radiology
+residents: IIIb ×16, IIb ×6, IV ×4, IIa ×4, Ib ×2, IIIa ×1. The other **769 are ungraded**,
+and that is not a negative finding.
 
 These are colonography scans read for polyps. A transitional vertebra is easy to pass over
 when it is not what you are looking for, so an absent grade records that nobody looked, not
@@ -22,7 +23,7 @@ mistaken for a consensus.
 
 ## 2. Instrumented cases must be excluded from gap-based measurements
 
-**11 records carry surgical hardware** (ids 76–82; see the README). This matters for one
+**11 records carry surgical hardware** (ids 60–66; see the README). This matters for one
 specific reason: **an iatrogenic fusion is indistinguishable from a congenital one to a
 distance measurement.** A cage-bridged interspace reads as "no gap" exactly as a
 congenitally fused transitional vertebra does.
@@ -35,7 +36,7 @@ the eight are bilateral. Pelvic incidence and pelvic tilt are taken from the mid
 two femoral head centres, so in all eight that midpoint is derived from metal rather than
 bone, whether one head was replaced or both. Usable if you know it, misleading if you do not.
 The eight are `0188`, `0443`, `0485`, `0515`, `0671`, `0974`, `1003`, `1128`; `hardware_label_ids`
-contains 80 for each.
+contains 64 for each.
 
 ---
 
@@ -105,7 +106,7 @@ inference wherever the upper thorax is out of view** — the same failure this d
 to document for vertebrae.
 
 The *lowest* rib is reliable: the last rib is the last rib whether or not the first eleven
-are in frame. Numbers above it are less so. Lumbar ribs have their own classes (74, 75)
+are in frame. Numbers above it are less so. Lumbar ribs have their own classes (58, 59)
 rather than being forced to be rib 12.
 
 ---
@@ -144,73 +145,15 @@ would not have rejected it. It reaches 11,798 HU. No implant can: 3071 is the ce
 reconstruction, so a value above it is the reconstruction overshooting, not a denser metal.
 It is also 18 disconnected specks rather than a body. Recorded as artefact.
 
-**1035 — this entry previously warned of fragmentation that the v6 labels do not have.**
-The left hip and right hip both carried the *left* label over part of their extent, which
-made the left hip look like it was in two large pieces. That was a laterality error, not
-fragmentation, and it was corrected for v6. As shipped: left hip 99.88% one component with a
+**1035 — as shipped:** left hip 99.88% one component with a
 single 473 mm³ crumb, right hip one component, sacrum one component, S1 one component. The
 sacroiliac screws are two components because there are two screws.
 
-## 8. Hip laterality was wrong in 22 records and is corrected in v6
+## 8. Corrections carried from earlier versions
 
-**If you used v5 for anything measured from the hip or the femoral head, re-run it.**
-
-Four records — `0027`, `0107`, `0790`, `0935` — had `left_hip` and `right_hip` swapped
-outright. Eighteen more — `0012`, `0065`, `0135`, `0146`, `0172`, `0186`, `0376`, `0410`,
-`0471`, `0513`, `0746`, `0830`, `0917`, `0938`, `0957`, `1124`, `1145`, `1148` — had most of
-one hip bone wearing the other hip's label, the same fault previously recorded for 1035.
-
-The evidence, since a laterality claim should carry it:
-
-- **The femurs disagreed with the hips.** Each femur sits in its own hip's socket, and every
-  femur pair in the release is correctly sided. In all four transposed records the femurs are
-  right and each hip lies beside the *other* femur. No orientation error can do that — a
-  prone/supine flip moves both pairs together.
-- **Position does not explain it.** The flag rate is 2.39% among prone acquisitions and
-  2.84% among supine. If patient position drove it, one would carry the flags and the other
-  none.
-- **Controls separate cleanly.** Measured as the fraction of a hip label lying across the
-  spine midline — the lumbar and sacral centroid, which does not move when a hip label is
-  wrong — unflagged records sit at 0.0% (max 4.0%) and the eighteen sat at 31.8% median, up
-  to 49.7%.
-- **The correction improved the labels.** Hip components fell from 4,315 to 410 and pieces
-  under 100 voxels from 4,198 to 347 across those eighteen; each hip is now essentially a
-  single component instead of about two-thirds of one, and the two hips come out
-  near-symmetric in volume, as a pelvis is.
-
-Laterality is re-derived per voxel from the side of the spine midline, computed through the
-affine, so it does not depend on the stored orientation.
-
-**Why this reached v5:** the release check that detects it takes a `--sidedness` argument
-that defaults to 0, meaning skipped. It had never been run across all 802 records. It is not
-optional in the build that produced this deposit.
-
----
-
-## 9. v6 against the published v5
-
-v6 is **not** simply v5 plus hardware. Five records — `0179`, `0378`, `0412`, `0787`,
-`1153` — were hand-corrected after the v5 export was cut and never re-exported, so those
-corrections appear for the first time in v6 (1,025,631 voxels relabelled, chiefly a rib
-renumbering on 0179).
-
-Expect v6 to differ from published v5 in: those five records, the eleven hardware cases,
-0068's renumbering, and the twenty-two hip corrections in section 8.
-
-**The manifest also changed in every record, and not because the labels did.** Three fields
-were wrong through v5 and are recomputed here from the label volumes:
-
-| field | through v5 | in v6, counted in the voxels |
-|---|---|---|
-| `has_l6` | true in 1 record, which contains no L6 | true in the **18** that do |
-| `has_lumbar_rib` | false in all 802 | true in the **16** that carry one |
-| `n_lumbar_labels` | 0 in 799 of 802 | 4 in 9, 5 in 775, 6 in 18 |
-
-These are the fields a reader filters on to find the transitional cases this dataset exists
-to document, so the failure was quiet and total: selecting six-lumbar spines returned one
-record that is not one, and selecting lumbar ribs returned nothing at all, with no indication
-either result was wrong. `lumbar_rib_side` is new, and records that the sixteen split
-thirteen bilateral and three right-only, with no left-only case.
-
-If you compare a v5 manifest against a v6 one, every record differs on these fields. No label
-voxel changed on that account.
+Twenty-two records had hip laterality wrong before v6 (`0027`, `0107`, `0790`, `0935`
+swapped outright; eighteen more with most of one hip under the other's label). Laterality is
+now re-derived per voxel from the side of the spine midline, computed through the affine.
+The manifest fields `has_l6`, `has_lumbar_rib`, `n_lumbar_labels` and `lumbar_rib_side` are
+counted from the label volumes (identifiers 25 and 58–59). If you hold a copy from v5 or
+earlier, re-run anything measured from the hips or filtered on those fields.

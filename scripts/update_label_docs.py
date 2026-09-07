@@ -1,7 +1,7 @@
 """scripts/update_label_docs.py — put the new classes into the release's own label docs.
 
 Five classes are live in label_scheme.py and absent from everything the release actually
-ships: rib_left_lumbar (74), rib_right_lumbar (75), and the hardware block (76-79).
+ships: rib_left_lumbar (58), rib_right_lumbar (59), and the hardware block (60-66).
 Downstream code reads dataset_labels.json and dataset_interface.py, not label_scheme.py, so
 a class missing from those is a class that silently does not exist -- voxels carrying it get
 dropped, or worse, treated as an unknown index.
@@ -23,17 +23,20 @@ sys.path.insert(0, str(_HERE))
 import label_scheme as LS                                          # noqa: E402
 
 NEW_NOTES = {
-    74: ("A rib articulating with a LUMBAR vertebra. Given its own class rather than being "
+    58: ("A rib articulating with a LUMBAR vertebra. Given its own class rather than being "
          "forced to be 'rib 12': a 13th rib is a finding, and numbering it as the twelfth "
          "consumed the id the T12 rib needed."),
-    75: "As 74, right side.",
-    76: ("Surgical instrumentation whose subtype is not distinguished. Neither bone nor any "
+    59: "As 58, right side.",
+    60: ("Surgical instrumentation whose subtype is not distinguished. Neither bone nor any "
          "anatomical class; labelled rather than ignored because a cage bridging a disc "
          "space makes two vertebrae look fused to any distance measurement, and that must "
          "stay separable from congenital fusion."),
-    77: "Interbody cage or spacer.",
-    78: "Pedicle screws and rods.",
-    79: "Plates and other fixation.",
+    61: "Interbody cage or spacer.",
+    62: "Pedicle screws and rods.",
+    63: "Plates and other fixation.",
+    64: "Joint replacement: femoral stem, head and acetabular cup.",
+    65: "Iliosacral screw fixation crossing the sacroiliac joint.",
+    66: "Fracture fixation holding parts of one bone together.",
 }
 
 
@@ -61,9 +64,8 @@ def main() -> int:
                 break
 
     payload = {
-        "scheme": "CTSpinoPelvic1K v5 (VerSe-native)",
+        "scheme": "CTSpinoPelvic1K v9 (VerSe-native, contiguous 0-66)",
         "source_of_truth": "scripts/label_scheme.py",
-        "ignore_label": LS.IGNORE_LABEL,
         "id_to_name": {str(i): by_id[i] for i in sorted(by_id)},
         "name_to_id": {by_id[i]: i for i in sorted(by_id)},
         "notes": {str(k): v for k, v in NEW_NOTES.items()},
