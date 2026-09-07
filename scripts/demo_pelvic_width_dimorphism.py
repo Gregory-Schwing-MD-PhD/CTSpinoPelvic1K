@@ -1,124 +1,243 @@
-"""scripts/demo_pelvic_width_dimorphism.py -- a population-level anatomical study in one file.
+"""measure_pelvic_width.py -- the demo study: is the female pelvis relatively wider?
 
-THE QUESTION. Is relative pelvic width different between females and males? The absolute
-pelvis is wider in taller people, so the width is expressed relative to the sacrum, which is
-in the same scan and scales with the same skeleton.
+Run from the repository root, pointing at the dataset folder (the one holding labels/ and
+manifest.json):
 
-WHAT IS MEASURED, PER RECORD, FROM THE LABEL VOLUME ALONE.
-  * bi-iliac width   : the left-right extent of the two hip bones (ids 30 + 31), in mm
-  * S1 width         : the left-right extent of S1 (id 29), in mm
-  * relative width   : bi-iliac width / S1 width (dimensionless)
-Extents are read along the patient's left-right axis, found from the affine's axis codes
-rather than assumed, so prone and supine records measure the same thing.
+    python examples/pelvic_width_dimorphism/measure_pelvic_width.py \
+        --data /path/to/CTSpinoPelvic1K --out examples/pelvic_width_dimorphism/results
 
-WHO IS COMPARED. Sex comes from manifest.json (`sex`: female / male / other / missing).
-Records with hip arthroplasty are excluded (the pelvis is the patient's, but the study
-should not depend on records carrying metal), and so are records whose S1 carve is flagged.
+On the grid, through SLURM (see templates/slurm_job.sh):
 
-    python scripts/demo_pelvic_width_dimorphism.py --labels data/zenodo_deposit/labels \
-        --manifest data/zenodo_deposit/manifest.json --out results/pelvic_width
+    mkdir -p logs
+    sbatch templates/slurm_job.sh examples/pelvic_width_dimorphism/measure_pelvic_width.py \
+        --data ~/data/CTSpinoPelvic1K --out examples/pelvic_width_dimorphism/results --workers 8
 
-Outputs: a CSV with one row per record, a summary table, a figure, and a short text report
-with a Welch t test and Cohen's d. Every number in the report comes from the CSV.
+Start with --limit 10 while developing.
+
+TWO MEASUREMENTS, AND WHY THERE ARE TWO. The first thing anyone tries is the width of the
+pelvis itself, the left-right extent of the two hip bones. It is larger in males, because
+males are larger, and dividing it by the sacrum does not rescue it. The measurement the
+anatomy literature actually describes is different: how far apart the hip joints sit on a
+skeleton of a given size. So the script measures both and lets you see the contrast.
+
+  bi-iliac width         left-right extent of hip labels 30 + 31, mm (the naive try)
+  femoral head distance  distance between the centres of the two femoral heads, mm; each
+                         head centre is the centroid of the medial-most 28 mm of the top
+                         30 mm of the femur label (32 left, 33 right), which is the ball of
+                         the joint and not the greater trochanter beside it
+  vertebral body width   left-right extent of the anterior 18 mm of the L4 label
+                         (identifier 23), which is the vertebral body and not the transverse
+                         processes or facets behind it, mm; L5 (24) when L4 is absent
+  outer width            the same line extended outward through each femur mask to its
+                         last voxel: the lateral edge of each joint on the bicoxofemoral axis
+  relative separation    femoral head distance / vertebral body width, dimensionless
+
+Axes are found from the affine's axis codes, never assumed, so prone and supine records are
+measured identically. Sex comes from manifest.json. Records with surgical hardware are
+excluded from the comparison (eight carry hip prostheses).
+
+WHAT IT WRITES: results/pelvic_width.csv (one row per record), results/report.txt (the
+numbers, with Welch t tests and Cohen's d) and results/pelvic_width.png. Every number in
+the report comes from the CSV, and the figure is drawn from the same rows.
 """
 from __future__ import annotations
 
 import argparse
 import csv
 import json
-import sys
 from multiprocessing import Pool
 from pathlib import Path
 
 import nibabel as nib
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import label_scheme as LS  # noqa: E402
+HIPS = (30, 31)          # left_hip, right_hip
+FEMUR_L, FEMUR_R = 32, 33
+L4, L5 = 23, 24
+HEAD_SLAB_MM = 30.0      # the top of the femur that holds the head and neck
+HEAD_MEDIAL_MM = 28.0    # of that slab, the medial-most part: the head, not the trochanter
+BODY_SLAB_MM = 18.0      # the anterior part of the vertebra: body only, no processes
 
-HIPS = (30, 31)
-S1 = LS.S1_ID
+
+def axes(img):
+    """Axis indices and directions, read from the affine, never assumed.
+    Returns lr, si, ap and the signs right (+1 if a larger lr index is the patient's right),
+    up (+1 if a larger si index is superior) and ant (+1 if a larger ap index is anterior)."""
+    codes = nib.aff2axcodes(img.affine)
+    lr = [i for i, c in enumerate(codes) if c in "LR"][0]
+    si = [i for i, c in enumerate(codes) if c in "SI"][0]
+    ap = [i for i, c in enumerate(codes) if c in "AP"][0]
+    return (lr, si, ap, 1 if codes[lr] == "R" else -1,
+            1 if codes[si] == "S" else -1, 1 if codes[ap] == "A" else -1)
+
+
+def extent_mm(mask, axis, mm):
+    others = tuple(k for k in range(3) if k != axis)
+    idx = np.nonzero(mask.any(axis=others))[0]
+    return float((idx.max() - idx.min() + 1) * mm) if idx.size else float("nan")
+
+
+def keep_extreme(m, axis, sign, depth_mm, zoom):
+    """The part of mask m within depth_mm of its extreme along axis, in direction sign."""
+    idx = np.nonzero(m.any(axis=tuple(k for k in range(3) if k != axis)))[0]
+    if not idx.size:
+        return m
+    n = int(round(depth_mm / zoom))
+    keep = np.zeros(m.shape[axis], bool)
+    if sign > 0:
+        keep[max(0, idx.max() - n + 1):idx.max() + 1] = True
+    else:
+        keep[idx.min():idx.min() + n] = True
+    m2 = np.moveaxis(m, axis, 0).copy()
+    m2[~keep] = False
+    return np.moveaxis(m2, 0, axis)
+
+
+def head_centre(lab, fid, lr, si, right, up, zooms, affine):
+    """World-space centroid of the femoral head. The greater trochanter sits at the same
+    height as the head but lateral to it, so the top slab is restricted to its medial part."""
+    m = lab == fid
+    if not m.any():
+        return None
+    m = keep_extreme(m, si, up, HEAD_SLAB_MM, zooms[si])
+    medial = right if fid == FEMUR_L else -right      # the left femur's medial side is toward the patient's right
+    m = keep_extreme(m, lr, medial, HEAD_MEDIAL_MM, zooms[lr])
+    ijk = np.array(np.nonzero(m), float).mean(axis=1)
+    return (affine @ np.append(ijk, 1.0))[:3]
+
+
+def body_width(lab, lr, ap, ant, zooms):
+    """Left-right extent of the anterior BODY_SLAB_MM of L4 (else L5). The body is the most
+    anterior part of a vertebra; the transverse processes and facets lie behind it, so a
+    depth restriction excludes them and lordotic tilt does not matter."""
+    for vid in (L4, L5):
+        m = lab == vid
+        if not m.any():
+            continue
+        m = keep_extreme(m, ap, ant, BODY_SLAB_MM, zooms[ap])
+        return extent_mm(m, lr, zooms[lr]), vid
+    return float("nan"), None
+
+
+def outer_point(lab, fid, start, direction, affine, step_mm=0.5, max_mm=120.0):
+    """Walk from a head centre along the bicoxofemoral axis, outward, and return the last
+    world point still inside that femur's mask: the lateral edge of the joint on that line."""
+    inv = np.linalg.inv(affine)
+    last = start
+    for k in range(1, int(max_mm / step_mm)):
+        pt = start + direction * (k * step_mm)
+        ijk = np.rint(inv @ np.append(pt, 1.0))[:3].astype(int)
+        if np.any(ijk < 0) or np.any(ijk >= np.array(lab.shape)):
+            break
+        if lab[tuple(ijk)] == fid:
+            last = pt
+        elif k * step_mm > 8.0:          # allow a small gap near the centre, then stop at exit
+            break
+    return last
 
 
 def measure(path: str):
     img = nib.load(path)
-    lab = np.asanyarray(img.dataobj)
-    codes = nib.aff2axcodes(img.affine)
-    lr = [i for i, c in enumerate(codes) if c in "LR"][0]          # the left-right axis
-    mm = img.header.get_zooms()[lr]
-    others = tuple(k for k in range(3) if k != lr)
-
-    def extent_mm(mask):
-        idx = np.nonzero(mask.any(axis=others))[0]
-        return float((idx.max() - idx.min() + 1) * mm) if idx.size else float("nan")
-
-    hips = np.isin(lab, HIPS)
-    s1 = lab == S1
+    lab = np.asanyarray(img.dataobj)                  # never reorient
+    zooms = img.header.get_zooms()[:3]
+    lr, si, ap, right, up, ant = axes(img)
     case = Path(path).name.split("_")[0]
-    return case, extent_mm(hips), extent_mm(s1), int(hips.any()), int(s1.any())
+    biiliac = extent_mm(np.isin(lab, HIPS), lr, zooms[lr])
+    cl = head_centre(lab, FEMUR_L, lr, si, right, up, zooms, img.affine)
+    cr = head_centre(lab, FEMUR_R, lr, si, right, up, zooms, img.affine)
+    if cl is not None and cr is not None:
+        heads = float(np.linalg.norm(cl - cr))
+        u = (cr - cl) / heads                          # the bicoxofemoral axis, left to right
+        # extend that line outward through each femur to the edge of its mask
+        outer = float(np.linalg.norm(outer_point(lab, FEMUR_R, cr, u, img.affine) - outer_point(lab, FEMUR_L, cl, -u, img.affine)))
+    else:
+        heads = outer = float("nan")
+    width, vid = body_width(lab, lr, ap, ant, zooms)
+    return case, biiliac, heads, outer, width, vid
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--labels", default="data/zenodo_deposit/labels")
-    ap.add_argument("--manifest", default="data/zenodo_deposit/manifest.json")
-    ap.add_argument("--out", default="results/pelvic_width")
-    ap.add_argument("--workers", type=int, default=8)
-    a = ap.parse_args()
-    out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
+    ap_ = argparse.ArgumentParser()
+    ap_.add_argument("--data", required=True, help="folder holding labels/ and manifest.json")
+    ap_.add_argument("--out", default="examples/pelvic_width_dimorphism/results")
+    ap_.add_argument("--workers", type=int, default=8)
+    ap_.add_argument("--limit", type=int, default=0, help="measure only the first N records (development)")
+    a = ap_.parse_args()
+    data, out = Path(a.data), Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
 
-    man = {r["label_file"].split("/")[-1].split("_")[0]: r for r in json.load(open(a.manifest))}
-    files = sorted(str(p) for p in Path(a.labels).glob("*_label.nii.gz"))
+    man = {r["label_file"].split("/")[-1].split("_")[0]: r
+           for r in json.load(open(data / "manifest.json", encoding="utf-8"))}
+    files = sorted(str(p) for p in (data / "labels").glob("*_label.nii.gz"))
+    if a.limit:
+        files = files[:a.limit]
+    print(f"{len(files)} label volumes")
+
     rows = []
     with Pool(a.workers) as pool:
-        for k, (case, hips_mm, s1_mm, has_hips, has_s1) in enumerate(pool.imap_unordered(measure, files), 1):
+        for k, (case, biiliac, heads, outer, width, vid) in enumerate(pool.imap_unordered(measure, files), 1):
             r = man.get(case, {})
+            rel = heads / width if width == width and width > 0 else float("nan")
             rows.append({"case": case, "sex": r.get("sex") or "missing", "age": r.get("age"),
                          "position": r.get("position"), "hardware": bool(r.get("hardware_labelled")),
-                         "biiliac_mm": round(hips_mm, 1), "s1_mm": round(s1_mm, 1),
-                         "relative_width": round(hips_mm / s1_mm, 3) if s1_mm and s1_mm == s1_mm else float("nan")})
+                         "biiliac_mm": round(biiliac, 1), "femoral_head_distance_mm": round(heads, 1),
+                         "bicoxofemoral_outer_width_mm": round(outer, 1),
+                         "body_width_mm": round(width, 1), "body_level": {L4: "L4", L5: "L5"}.get(vid, ""),
+                         "relative_separation": round(rel, 3)})
             if k % 100 == 0:
                 print(f"  {k}/{len(files)}", flush=True)
     rows.sort(key=lambda r: r["case"])
     with open(out / "pelvic_width.csv", "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0])); w.writeheader(); w.writerows(rows)
 
-    # ---- analysis ----------------------------------------------------------------------
+    # ---- the comparison --------------------------------------------------------------
     from scipy import stats
-    keep = [r for r in rows if not r["hardware"] and r["relative_width"] == r["relative_width"]]
-    f = np.array([r["relative_width"] for r in keep if r["sex"] == "female"])
-    m = np.array([r["relative_width"] for r in keep if r["sex"] == "male"])
-    t, p = stats.ttest_ind(f, m, equal_var=False)
-    sp = np.sqrt((f.var(ddof=1) + m.var(ddof=1)) / 2); d = (f.mean() - m.mean()) / sp
-    fa = np.array([r["biiliac_mm"] for r in keep if r["sex"] == "female"]); ma = np.array([r["biiliac_mm"] for r in keep if r["sex"] == "male"])
-    fs = np.array([r["s1_mm"] for r in keep if r["sex"] == "female"]); ms = np.array([r["s1_mm"] for r in keep if r["sex"] == "male"])
-    lines = [
-        f"records measured: {len(rows)}; analysed (no hardware, S1 present): {len(keep)}; female {len(f)}, male {len(m)}",
-        f"bi-iliac width, mm:  female {fa.mean():.1f} +/- {fa.std(ddof=1):.1f}   male {ma.mean():.1f} +/- {ma.std(ddof=1):.1f}",
-        f"S1 width, mm:        female {fs.mean():.1f} +/- {fs.std(ddof=1):.1f}   male {ms.mean():.1f} +/- {ms.std(ddof=1):.1f}",
-        f"relative width (bi-iliac / S1): female {f.mean():.3f} +/- {f.std(ddof=1):.3f}   male {m.mean():.3f} +/- {m.std(ddof=1):.3f}",
-        f"Welch t = {t:.2f}, p = {p:.2e}, Cohen's d = {d:.2f}",
-    ]
+    keep = [r for r in rows if not r["hardware"] and r["relative_separation"] == r["relative_separation"]]
+    grp = {s: [r for r in keep if r["sex"] == s] for s in ("female", "male")}
+
+    def arr(key, s):
+        return np.array([r[key] for r in grp[s] if r[key] == r[key]])
+
+    def line(key, label, unit):
+        f, m = arr(key, "female"), arr(key, "male")
+        t, p = stats.ttest_ind(f, m, equal_var=False)
+        d = (f.mean() - m.mean()) / np.sqrt((f.var(ddof=1) + m.var(ddof=1)) / 2)
+        return (f"{label:28s} female {f.mean():7.2f} +/- {f.std(ddof=1):5.2f} (median {np.median(f):6.2f})   "
+                f"male {m.mean():7.2f} +/- {m.std(ddof=1):5.2f} (median {np.median(m):6.2f}) {unit}   "
+                f"Welch t = {t:6.2f}, p = {p:.1e}, d = {d:+.2f}")
+
+    lines = [f"records measured: {len(rows)}; analysed (no hardware, both femoral heads and a body width present): "
+             f"{len(keep)}; female {len(grp['female'])}, male {len(grp['male'])}",
+             line("biiliac_mm", "bi-iliac width", "mm"),
+             line("femoral_head_distance_mm", "femoral head distance", "mm"),
+             line("bicoxofemoral_outer_width_mm", "outer width on that axis", "mm"),
+             line("body_width_mm", "vertebral body width (L4)", "mm"),
+             line("relative_separation", "head distance / body width", "")]
     (out / "report.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
 
-    # ---- figure ------------------------------------------------------------------------
+    # ---- the figure --------------------------------------------------------------------
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     plt.rcParams.update({"font.family": "sans-serif", "font.size": 9})
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.0))
-    for ax, (key, label) in zip(axes, [("biiliac_mm", "bi-iliac width (mm)"), ("relative_width", "bi-iliac width / S1 width")]):
-        data = [[r[key] for r in keep if r["sex"] == s] for s in ("female", "male")]
-        ax.boxplot(data, tick_labels=[f"female (n={len(data[0])})", f"male (n={len(data[1])})"], widths=0.5, showfliers=False)
-        for i, dd in enumerate(data, 1):
-            ax.scatter(np.random.default_rng(0).normal(i, 0.06, len(dd)), dd, s=4, alpha=0.25, color="#1c6b73")
-        ax.set_ylabel(label); ax.grid(axis="y", color="#CCCCCC", lw=0.5); ax.set_axisbelow(True)
+    fig, axes_ = plt.subplots(1, 3, figsize=(9.6, 3.0))
+    rng = np.random.default_rng(0)
+    panels = [("biiliac_mm", "bi-iliac width (mm)", "(a) Pelvis width, absolute"),
+              ("femoral_head_distance_mm", "femoral head distance (mm)", "(b) Hip joint separation, absolute"),
+              ("relative_separation", "head distance / L4 body width", "(c) Relative to skeletal size")]
+    for ax, (key, ylabel, title) in zip(axes_, panels):
+        data_ = [list(arr(key, s)) for s in ("female", "male")]
+        ax.boxplot(data_, tick_labels=[f"female (n={len(data_[0])})", f"male (n={len(data_[1])})"],
+                   widths=0.5, showfliers=False)
+        for i, dd in enumerate(data_, 1):
+            ax.scatter(rng.normal(i, 0.06, len(dd)), dd, s=4, alpha=0.25, color="#1c6b73")
+        ax.set_ylabel(ylabel); ax.set_title(title, loc="left", fontsize=9)
+        ax.grid(axis="y", color="#CCCCCC", lw=0.5); ax.set_axisbelow(True)
         ax.spines[["top", "right"]].set_visible(False)
-    axes[0].set_title("(a) Absolute", loc="left"); axes[1].set_title("(b) Relative to the sacrum", loc="left")
     fig.tight_layout()
-    fig.savefig(out / "pelvic_width.png", dpi=200); fig.savefig(out / "pelvic_width.pdf")
-    print("wrote", out / "pelvic_width.csv", out / "pelvic_width.png", out / "report.txt")
+    fig.savefig(out / "pelvic_width.png", dpi=200)
+    print("wrote", out / "pelvic_width.csv", out / "report.txt", out / "pelvic_width.png")
     return 0
 
 
