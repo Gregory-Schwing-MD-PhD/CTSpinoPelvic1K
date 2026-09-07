@@ -44,9 +44,9 @@ id,name,records,pct
 55,rib_right_10,801,99.88
 56,rib_right_11,802,100.00
 57,rib_right_12,788,98.25
-74,rib_left_lumbar,13,1.62
-75,rib_right_lumbar,16,2.00
-77,hardware_cage,1,0.12
-80,hardware_arthroplasty,8,1.00
-81,hardware_si_screw,1,0.12
-82,hardware_osteosynthesis,1,0.12
+58,rib_left_lumbar,13,1.62
+59,rib_right_lumbar,16,2.00
+61,hardware_cage,1,0.12
+64,hardware_arthroplasty,8,1.00
+65,hardware_si_screw,1,0.12
+66,hardware_osteosynthesis,1,0.12
