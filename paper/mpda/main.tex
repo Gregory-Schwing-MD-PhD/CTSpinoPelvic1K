@@ -556,7 +556,7 @@ five-fold nnU-Net v2 ensemble, applied out-of-fold, so that each record is compl
 never trained on it, so no record is completed by a model that has seen it. The five fold
 checkpoints, with their nnU-Net plans and dataset descriptor, are released alongside the
 data (\ifreview the repository URL identifies the authors; it is on the title page and will be
-restored here for the camera-ready version\else\url{https://huggingface.co/OpenSpineConsortium/spinopelvic-seg-checkpoints}\fi). Image handling
+restored here for the camera-ready version\else\url{https://huggingface.co/OpenSpineConsortium/spinopelvic-seg-checkpoints}, trained with \url{https://github.com/Gregory-Schwing-MD-PhD/spinesurg-ct-nnunet} at commit 50b209f\fi). Image handling
 throughout used NiBabel and SciPy; no image is resampled or reoriented when a label is
 written, so every label shares its image's grid and affine exactly.
 
