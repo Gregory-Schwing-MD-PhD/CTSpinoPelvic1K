@@ -28,9 +28,9 @@ identifiers and no L5 (`n_lumbar_labels` = 4). Their source annotation counted f
 vertebrae and gave the next segment to the sacrum; the S1 carve then labelled that segment
 S1 because it is the first sacral-type segment. The radiologists graded all nine
 Castellvi IIIb, bilateral bony fusion, which is the same bone read as an L5 fused to the
-sacrum. The masks contain no separate L5. If you follow the Castellvi reading, treat
-identifier 29 in these nine records as the transitional L5; if you follow the source count,
-it is S1. The count-free measures do not depend on the choice.
+sacrum. The masks contain no separate L5. Which name the segment deserves is a question of
+pelvic morphology that this release does not settle; the count-free measures do not depend
+on it.
 
 ## 3. Instrumented cases must be excluded from gap-based measurements
 
