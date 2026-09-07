@@ -1,0 +1,94 @@
+{
+  "upload_type": "dataset",
+  "license": "cc-by-nc-sa-4.0",
+  "access_right": "open",
+  "language": "eng",
+  "creators": [
+    {
+      "name": "Schwing, Gregory",
+      "affiliation": "Department of Surgery, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Schehr, Ashley",
+      "affiliation": "Wayne State University School of Medicine, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Tekumulla, Annika",
+      "affiliation": "Wayne State University School of Medicine, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Khoushi, Margret",
+      "affiliation": "Wayne State University School of Medicine, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Christian, Ryan",
+      "affiliation": "Wayne State University School of Medicine, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Hubers, Dane",
+      "affiliation": "Wayne State University School of Medicine, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Mahjoub, Faris",
+      "affiliation": "Wayne State University School of Medicine, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Saad, Hassan",
+      "affiliation": "Wayne State University School of Medicine, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Sooch, Mia",
+      "affiliation": "Wayne State University School of Medicine, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Siddapureddy, Sathyagopal",
+      "affiliation": "Wayne State University School of Medicine, Detroit, Michigan, USA"
+    },
+    {
+      "name": "McLellan, Michael",
+      "affiliation": "Wayne State University School of Medicine, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Kim, Jerick",
+      "affiliation": "Wayne State University School of Medicine, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Ismoilov, Miraziz",
+      "affiliation": "Department of Radiology, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    },
+    {
+      "name": "Alnabahneh, Nizar",
+      "affiliation": "Department of Radiology, Detroit Medical Center / Wayne State University, Detroit, Michigan, USA"
+    }
+  ],
+  "title": "CTSpinoPelvic1K build archive: source placements, student corrections and every non-regenerable intermediate of the v10 release",
+  "version": "v10-build",
+  "keywords": [
+    "computed tomography",
+    "spine",
+    "pelvis",
+    "segmentation",
+    "lumbosacral transitional vertebra",
+    "Castellvi classification",
+    "enumeration anomaly",
+    "vertebra labeling",
+    "lumbar rib",
+    "medical imaging",
+    "reproducibility",
+    "annotation corrections",
+    "build archive"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "10.5281/zenodo.22139642",
+      "relation": "isSupplementTo",
+      "resource_type": "dataset"
+    },
+    {
+      "identifier": "https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K",
+      "relation": "isSupplementTo",
+      "resource_type": "software"
+    }
+  ],
+  "description": "<p>Everything needed to regenerate the CTSpinoPelvic1K v10 label release (10.5281/zenodo.22642578) from the public sources, beyond what the code repository holds. The release was built from TCIA CT COLONOGRAPHY imaging, CTSpine1K vertebral annotations and CTPelvic1K pelvic annotations, through model passes (TotalSegmentator, the M&ouml;ller rib network, spinopelvic-seg pseudolabels), student review of ribs and the thoracic column, radiologist reads of surgical hardware, and a sequence of scripted corrections and renumberings. Model outputs are not bit-reproducible across software versions, and human corrections cannot be regenerated at all, so this archive carries them.</p><p><strong>Components.</strong> 01 the CTSpine1K and CTPelvic1K label files that entered the build; 02 the patient database and the placed source masks on the chosen TCIA series; 03 the v4 model-output base every human correction was made on; 04 the three student review ledgers with every slot label and finalised label, reviewer handles pseudonymised; 05 the merged and cleaned v5 tree with the per-record hand corrections; 06 the radiologist-read hardware labels and the 22 pre-correction hip labels; 07 the v7 volumes after the S1 re-carve; 08 the HPC working-tree state at archive time; 09 the nnU-Net plans and fold splits of the training runs. README.md documents the chain step by step, naming the script for each hop, and CHAIN_CHECK_v7_to_v10.txt records that the last two scripted hops regenerate the published volumes voxel for voxel.</p><p>CT volumes are not included; they are public in TCIA and are rebuilt by reconstruct_ct.py in the release. Label identifiers inside components 03&ndash;07 follow the scheme of their era and are mapped to the current scheme by scripts/renumber_labels.py. Released under CC BY-NC-SA 4.0, research use only, like the dataset it supplements.</p>"
+}
