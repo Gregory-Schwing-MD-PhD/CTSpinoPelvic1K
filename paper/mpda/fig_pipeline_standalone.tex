@@ -45,14 +45,14 @@
   a pelvis has no enumeration to get wrong; the 20 pelvis-only spines were corrected by hand};
 \draw[ar] (fix.south) -- (dense.north);
 % versions
-\node[ver, anchor=north west] (v3) at ($(dense.south west)+(1mm,-5mm)$) {\textbf{v3}};
+\node[ver, anchor=north west] (v3) at ($(dense.south west)+(1mm,-5mm)$) {\textbf{1}};
 \node[det, anchor=north west] (d3) at ($(v3.north east)+(2.5mm,-0.5mm)$) {\textbf{femora}, lower thoracic levels, and \textbf{S1} carved from the sacrum};
-\node[ver, anchor=north west] (v4) at ($(v3.south west |- d3.south)+(0,-3mm)$) {\textbf{v4}};
+\node[ver, anchor=north west] (v4) at ($(v3.south west |- d3.south)+(0,-3mm)$) {\textbf{2}};
 \node[det, anchor=north west] (d4) at ($(v4.north east)+(2.5mm,-0.5mm)$) {\textbf{ribs}: M\"oller's rib net unioned with TotalSegmentator, numbered from it; 152 cases reviewed};
-\node[ver, anchor=north west] (v5) at ($(v4.south west |- d4.south)+(0,-3mm)$) {\textbf{v5}};
+\node[ver, anchor=north west] (v5) at ($(v4.south west |- d4.south)+(0,-3mm)$) {\textbf{3}};
 \node[det, anchor=north west] (d5) at ($(v5.north east)+(2.5mm,-0.5mm)$) {\textbf{lumbar ribs} as their own class rather than rib~12 (16 cases)};
-\node[ver, anchor=north west] (v6) at ($(v5.south west |- d5.south)+(0,-3mm)$) {\textbf{v6}};
-\node[det, anchor=north west] (d6) at ($(v6.north east)+(2.5mm,-0.5mm)$) {\textbf{surgical instrumentation} as its own classes (11 cases); hip laterality corrected (22)};
+\node[ver, anchor=north west] (v6) at ($(v5.south west |- d5.south)+(0,-3mm)$) {\textbf{4}};
+\node[det, anchor=north west] (d6) at ($(v6.north east)+(2.5mm,-0.5mm)$) {\textbf{surgical instrumentation} as its own classes (11 cases)};
 \draw[ar] (dense.south) -- ($(dense.south)+(0,-2.5mm)$) -| (v3.north);
 \draw[ar] (v3.south) -- (v4.north); \draw[ar] (v4.south) -- (v5.north); \draw[ar] (v5.south) -- (v6.north);
 % gates and release

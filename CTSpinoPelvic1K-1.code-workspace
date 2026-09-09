@@ -17,6 +17,9 @@
 		},
 		{
 			"path": "../OpenSpineToolkit"
+		},
+		{
+			"path": "../ERAS_2026"
 		}
 	],
 	"settings": {

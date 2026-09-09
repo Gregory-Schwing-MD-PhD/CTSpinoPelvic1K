@@ -3,6 +3,7 @@
 \providecommand\HyField@AuxAddToFields[1]{}
 \providecommand\HyField@AuxAddToCoFields[2]{}
 \citation{lian2018}
+\citation{acr2021,acrmri2023}
 \citation{koninwalz2010}
 \citation{ctspine1k}
 \citation{ctpelvic1k}
@@ -11,111 +12,141 @@
 \@writefile{toc}{\contentsline {abstract}{Abstract}{2}{section*.1}\protected@file@percent }
 \citation{koninwalz2010}
 \citation{lian2018}
-\citation{verse2021,versedata2021}
+\citation{spineps2025}
+\citation{veridah2026}
 \@writefile{toc}{\contentsline {section}{\numberline {I}Introduction}{3}{section*.3}\protected@file@percent }
+\citation{otake2012,lo2015,desilva2016}
+\citation{otake2012}
+\citation{acr2021,nass2013,acrmri2023}
+\citation{tqip2018}
+\citation{colonog,tcia}
+\citation{ctpelvic1k}
+\citation{ctspine1k}
+\citation{duplessis2018,poolman2023}
+\citation{nagata2025}
+\@writefile{toc}{\contentsline {subsection}{\numberline {I.A}Vertebra labeling when the scan cannot settle the count}{5}{section*.4}\protected@file@percent }
 \citation{zindrick1987}
 \citation{panjabi1991,panjabi1992,benzel2015}
 \citation{hughes2006,koninwalz2010}
-\@writefile{toc}{\contentsline {subsection}{\numberline {I.A}Vertebra labeling when the scan cannot settle the count}{4}{section*.4}\protected@file@percent }
-\citation{ribsegv2}
 \citation{versedata2021}
-\citation{ribsegv2}
 \citation{versedata2021}
 \citation{ctspine1k}
 \citation{ctpelvic1k}
+\citation{verse2021}
+\citation{ribsegv2}
+\citation{totalsegmentator}
 \citation{colonog,tcia}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Public CT collections at the lumbosacral junction. (a) Size, stated first because it is the claim this dataset does \emph  {not} make: three of the five comparators carry more scans, and RibSeg~v2~\cite  {ribsegv2} labels more ribs. (b) What each published scheme can \emph  {represent}, a property of its class list rather than of its segmentation quality. VerSe is graded-but-excluding: it applies the Castellvi classification and uses it to decide what to omit, leaving vertebrae partially fused to the sacrum unsegmented~\cite  {versedata2021} --- 25 of the 33 graded records here.}}{5}{figure.1}\protected@file@percent }
-\newlabel{fig:priorart}{{1}{5}{Public CT collections at the lumbosacral junction. (a) Size, stated first because it is the claim this dataset does \emph {not} make: three of the five comparators carry more scans, and RibSeg~v2~\cite {ribsegv2} labels more ribs. (b) What each published scheme can \emph {represent}, a property of its class list rather than of its segmentation quality. VerSe is graded-but-excluding: it applies the Castellvi classification and uses it to decide what to omit, leaving vertebrae partially fused to the sacrum unsegmented~\cite {versedata2021} --- 25 of the 33 graded records here}{figure.1}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces Public CT collections at the lumbosacral junction. Black, class present; outlined, graded only to exclude it~\cite  {versedata2021}.}}{6}{table.1}\protected@file@percent }
+\newlabel{tab:priorart}{{I}{6}{Public CT collections at the lumbosacral junction. Black, class present; outlined, graded only to exclude it~\cite {versedata2021}}{table.1}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {II}Acquisition and Validation Methods}{6}{section*.5}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {II.A}Sources, and why a crosswalk was necessary}{6}{section*.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {II.B}Fused and split records}{6}{section*.7}\protected@file@percent }
+\newlabel{sec:sources}{{II.A}{6}{}{section*.6}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces How the dataset was built. $n$ counts scans, or corrections, at each step.}}{7}{figure.1}\protected@file@percent }
+\newlabel{fig:pipeline}{{1}{7}{How the dataset was built. $n$ counts scans, or corrections, at each step}{figure.1}{}}
 \citation{moller2026}
 \citation{totalsegmentator}
-\@writefile{toc}{\contentsline {subsection}{\numberline {II.C}Densification, and why it is asymmetric}{7}{section*.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {II.D}Ribs}{7}{section*.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {II.B}Fused and split records}{8}{section*.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {II.C}Densification, and why it is asymmetric}{8}{section*.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {II.D}Ribs}{8}{section*.9}\protected@file@percent }
 \citation{osc2026}
-\@writefile{toc}{\contentsline {subsection}{\numberline {II.E}Label scheme and counting anchors}{8}{section*.10}\protected@file@percent }
-\citation{totalsegmentator}
+\@writefile{toc}{\contentsline {subsection}{\numberline {II.E}Label scheme and counting anchors}{9}{section*.10}\protected@file@percent }
 \citation{verse2021}
-\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces The two anchors and the interval between them, from the released labels, posterior view. Rostral anchor: the lowest rib-bearing vertebra and the rib that makes it one. Caudal anchor: S1. Both are found from the labels rather than assumed, and panels are colored by role rather than identifier, since coloring T12 would assert the count the figure derives. Panels (b) and (c) reach the same interval of four from opposite ends and are indistinguishable by it. All panels are at one millimeter scale, aligned at the sacral base.}}{10}{figure.2}\protected@file@percent }
-\newlabel{fig:anchors}{{2}{10}{The two anchors and the interval between them, from the released labels, posterior view. Rostral anchor: the lowest rib-bearing vertebra and the rib that makes it one. Caudal anchor: S1. Both are found from the labels rather than assumed, and panels are colored by role rather than identifier, since coloring T12 would assert the count the figure derives. Panels (b) and (c) reach the same interval of four from opposite ends and are indistinguishable by it. All panels are at one millimeter scale, aligned at the sacral base}{figure.2}{}}
 \citation{totalsegmentator}
 \citation{moller2026}
 \citation{nnunet}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces The two anchors, from the released labels. Red, lowest rib-bearing vertebra and its rib; blue, S1; yellow, the rib-free vertebrae between. (b) and (c) both count four. In (b) a long rib sits on L1; in (c) the twelfth ribs are stumps and the segment below the fourth lumbar body is fused to the sacrum (Castellvi IIIb) and carries the S1 identifier.}}{11}{figure.2}\protected@file@percent }
+\newlabel{fig:anchors}{{2}{11}{The two anchors, from the released labels. Red, lowest rib-bearing vertebra and its rib; blue, S1; yellow, the rib-free vertebrae between. (b) and (c) both count four. In (b) a long rib sits on L1; in (c) the twelfth ribs are stumps and the segment below the fourth lumbar body is fused to the sacrum (Castellvi IIIb) and carries the S1 identifier}{figure.2}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {II.F}Computational tools}{11}{section*.11}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {II.G}Validation}{11}{section*.12}\protected@file@percent }
-\newlabel{sec:validation}{{II.G}{11}{}{section*.12}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces Release validation. Gates run in order and a failure stops the chain.}}{12}{table.1}\protected@file@percent }
-\newlabel{tab:qc}{{I}{12}{Release validation. Gates run in order and a failure stops the chain}{table.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {II.G}Validation}{12}{section*.12}\protected@file@percent }
+\newlabel{sec:validation}{{II.G}{12}{}{section*.12}{}}
 \citation{vialle2005}
 \citation{castellvi1984}
 \citation{koninwalz2010}
 \citation{vialle2005}
-\citation{vialle2005}
-\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Derived measures against a published asymptomatic reference ($n=260$, standing)~\cite  {vialle2005}. This cohort is supine, and the two postural measures depart in opposite directions --- sacral slope 4.1\si {\degree } lower, pelvic tilt 4.3\si {\degree } higher. That is one discrepancy, not two: $PI = PT + SS$ holds by construction, so with pelvic incidence at its published value any fall in one appears as an equal rise in the other.}}{13}{table.2}\protected@file@percent }
-\newlabel{tab:spinopelvic}{{II}{13}{Derived measures against a published asymptomatic reference ($n=260$, standing)~\cite {vialle2005}. This cohort is supine, and the two postural measures depart in opposite directions --- sacral slope 4.1\si {\degree } lower, pelvic tilt 4.3\si {\degree } higher. That is one discrepancy, not two: $PI = PT + SS$ holds by construction, so with pelvic incidence at its published value any fall in one appears as an equal rise in the other}{table.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Derived measures against a standing reference ($n=260$)~\cite  {vialle2005}; this cohort is supine.}}{13}{table.2}\protected@file@percent }
+\newlabel{tab:spinopelvic}{{II}{13}{Derived measures against a standing reference ($n=260$)~\cite {vialle2005}; this cohort is supine}{table.2}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {II.H}Castellvi typing}{13}{section*.13}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {II.I}Surgical hardware, and why a threshold is not enough}{14}{section*.14}\protected@file@percent }
-\newlabel{sec:hardware}{{II.I}{14}{}{section*.14}{}}
-\@writefile{toc}{\contentsline {paragraph}{\numberline {II.I.0.a}Detection over-calls by a factor of seven.}{14}{section*.15}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{\numberline {II.I.0.b}Saturation does not separate implant from artefact.}{14}{section*.16}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{\numberline {II.I.0.c}The subtype block had to be extended.}{14}{section*.17}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{\numberline {II.I.0.d}Metal outranks bone, and that is a subtraction.}{14}{section*.18}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {III}Data Format and Usage Notes}{15}{section*.19}\protected@file@percent }
-\newlabel{sec:format}{{III}{15}{}{section*.19}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Key data types and metadata, and the fraction of the 802 released records for which each is populated. Counts are obtained by reading the released manifest, not by assertion. A field below 100\% is not an error: age and sex are absent where the source collection did not publish them, a pelvic series identifier exists only where a pelvic annotation was placed, and a Castellvi grade exists only for the transitional records that were graded.}}{16}{table.3}\protected@file@percent }
-\newlabel{tab:completeness}{{III}{16}{Key data types and metadata, and the fraction of the 802 released records for which each is populated. Counts are obtained by reading the released manifest, not by assertion. A field below 100\% is not an error: age and sex are absent where the source collection did not publish them, a pelvic series identifier exists only where a pelvic annotation was placed, and a Castellvi grade exists only for the transitional records that were graded}{table.3}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {IV}Descriptive Analysis}{16}{section*.20}\protected@file@percent }
-\newlabel{sec:descriptive}{{IV}{16}{}{section*.20}{}}
-\citation{vialle2005}
+\@writefile{toc}{\contentsline {subsection}{\numberline {II.I}Surgical hardware, and why a threshold is not enough}{13}{section*.14}\protected@file@percent }
+\newlabel{sec:hardware}{{II.I}{13}{}{section*.14}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Instrumentation in the release, one exemplar each, drawn through bone. (a) Hip arthroplasty, 66, $n=8$. (b) Femoral-neck screws, 68, $n=1$. (c) Sacroiliac screws, 67, $n=1$. (d) Interbody cages, 63, $n=1$. Bar, 5\,cm.}}{14}{figure.3}\protected@file@percent }
+\newlabel{fig:hardware}{{3}{14}{Instrumentation in the release, one exemplar each, drawn through bone. (a) Hip arthroplasty, 66, $n=8$. (b) Femoral-neck screws, 68, $n=1$. (c) Sacroiliac screws, 67, $n=1$. (d) Interbody cages, 63, $n=1$. Bar, 5\,cm}{figure.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{\numberline {II.I.0.a}Detection over-calls by a factor of five.}{14}{section*.15}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{\numberline {II.I.0.b}The subtype block had to be extended.}{14}{section*.16}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{\numberline {II.I.0.c}Metal outranks bone, and that is a subtraction.}{14}{section*.17}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {III}Data Format and Usage Notes}{14}{section*.18}\protected@file@percent }
+\newlabel{sec:format}{{III}{14}{}{section*.18}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Data types and metadata, and the records populating each, from the released manifest.}}{15}{table.3}\protected@file@percent }
+\newlabel{tab:completeness}{{III}{15}{Data types and metadata, and the records populating each, from the released manifest}{table.3}{}}
+\citation{nagata2025}
 \citation{vialle2005}
 \citation{pickhardt2013}
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Count-free measures, valid without knowing which vertebra is which. (a) Vertebrae between the lowest rib and the sacrum: an interval, not a level assignment. (b) Lowest rib length as a fraction of the rib above, showing two populations near 0.33 and 0.69 rather than one distribution with a tail. (c) Lowest lumbar transverse span against its gap to the sacral ala; cases carrying a source transitional label are marked.}}{17}{figure.3}\protected@file@percent }
-\newlabel{fig:countfree}{{3}{17}{Count-free measures, valid without knowing which vertebra is which. (a) Vertebrae between the lowest rib and the sacrum: an interval, not a level assignment. (b) Lowest rib length as a fraction of the rib above, showing two populations near 0.33 and 0.69 rather than one distribution with a tail. (c) Lowest lumbar transverse span against its gap to the sacral ala; cases carrying a source transitional label are marked}{figure.3}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Spinopelvic measures against published reference bands (mean $\pm $ SD) from an asymptomatic standing cohort.\cite  {vialle2005} Sacral slope is expected to sit below a standing reference because it is postural and this cohort is supine; pelvic incidence is not postural, which is why it can be compared without apology and why its agreement is the strongest check here.}}{17}{figure.4}\protected@file@percent }
-\newlabel{fig:validation}{{4}{17}{Spinopelvic measures against published reference bands (mean $\pm $ SD) from an asymptomatic standing cohort.\cite {vialle2005} Sacral slope is expected to sit below a standing reference because it is postural and this cohort is supine; pelvic incidence is not postural, which is why it can be compared without apology and why its agreement is the strongest check here}{figure.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Count-free measures. (a) Vertebrae between the lowest rib and the sacrum. (b) Lowest rib length over the rib above. (c) Lowest lumbar transverse span against its gap to the ala; transitional labels marked.}}{16}{figure.4}\protected@file@percent }
+\newlabel{fig:countfree}{{4}{16}{Count-free measures. (a) Vertebrae between the lowest rib and the sacrum. (b) Lowest rib length over the rib above. (c) Lowest lumbar transverse span against its gap to the ala; transitional labels marked}{figure.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {IV}Descriptive Analysis}{16}{section*.19}\protected@file@percent }
+\newlabel{sec:descriptive}{{IV}{16}{}{section*.19}{}}
 \citation{epstein2021}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Spinopelvic measures against standing reference bands (mean $\pm $ SD)~\cite  {vialle2005}.}}{17}{figure.5}\protected@file@percent }
+\newlabel{fig:validation}{{5}{17}{Spinopelvic measures against standing reference bands (mean $\pm $ SD)~\cite {vialle2005}}{figure.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {V}Potential Applications and Limitations}{17}{section*.20}\protected@file@percent }
+\newlabel{sec:applications}{{V}{17}{}{section*.20}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {V.A}Three uses the released measurements support}{17}{section*.21}\protected@file@percent }
 \citation{benzel2015}
 \citation{fea2026}
-\@writefile{toc}{\contentsline {section}{\numberline {V}Potential Applications and Limitations}{18}{section*.21}\protected@file@percent }
-\newlabel{sec:applications}{{V}{18}{}{section*.21}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {V.A}Three uses the released measurements support}{18}{section*.22}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Lumbar and lower thoracic morphometry by level, in the format the standard reference figures use --- level on the vertical axis, measurement on the horizontal. Marker, median; bar, interquartile range; line, 5th--95th percentile; the number at the right of a row is its $n$. (a) Vertebral body height, ventral against dorsal. (b) Superior endplate width. (c) Canal width against depth. (d) Transverse pedicle width. (e) Disc height, drawn at the interspace it occupies. (f) Trabecular attenuation at the published opportunistic-screening site. Coverage is not uniform and is drawn rather than assumed: canal depth and pedicle width rest on 330--656 records because they need an axial extent many field-limited series do not carry, while the remaining measures rest on 720--784. No comparison between levels is tested and none is implied; the intervals are dispersion.}}{19}{figure.5}\protected@file@percent }
-\newlabel{fig:levelatlas}{{5}{19}{Lumbar and lower thoracic morphometry by level, in the format the standard reference figures use --- level on the vertical axis, measurement on the horizontal. Marker, median; bar, interquartile range; line, 5th--95th percentile; the number at the right of a row is its $n$. (a) Vertebral body height, ventral against dorsal. (b) Superior endplate width. (c) Canal width against depth. (d) Transverse pedicle width. (e) Disc height, drawn at the interspace it occupies. (f) Trabecular attenuation at the published opportunistic-screening site. Coverage is not uniform and is drawn rather than assumed: canal depth and pedicle width rest on 330--656 records because they need an axial extent many field-limited series do not carry, while the remaining measures rest on 720--784. No comparison between levels is tested and none is implied; the intervals are dispersion}{figure.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {VI}Discussion}{21}{section*.23}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {VII}Conclusion}{21}{section*.24}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {}Data Availability}{21}{section*.25}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {}Conflict of Interest}{21}{section*.26}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Morphometry by level, as median, interquartile range and 5th--95th percentile, with $n$ at right. (a) Body height. (b) Endplate width. (c) Canal. (d) Pedicle width. (e) Disc height. (f) Trabecular attenuation.}}{18}{figure.6}\protected@file@percent }
+\newlabel{fig:levelatlas}{{6}{18}{Morphometry by level, as median, interquartile range and 5th--95th percentile, with $n$ at right. (a) Body height. (b) Endplate width. (c) Canal. (d) Pedicle width. (e) Disc height. (f) Trabecular attenuation}{figure.6}{}}
+\citation{verse2021,versedata2021}
+\citation{totalsegmentator}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Records carrying each vertebral level, cranial to caudal. Counts per identifier in Table~S1.}}{19}{figure.7}\protected@file@percent }
+\newlabel{fig:fov}{{7}{19}{Records carrying each vertebral level, cranial to caudal. Counts per identifier in Table~S1}{figure.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {VI}Discussion}{20}{section*.22}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {VII}Conclusion}{20}{section*.23}\protected@file@percent }
 \bibcite{lian2018}{{1}{}{{}}{{}}}
-\bibcite{koninwalz2010}{{2}{}{{}}{{}}}
-\bibcite{ctspine1k}{{3}{}{{}}{{}}}
-\bibcite{ctpelvic1k}{{4}{}{{}}{{}}}
-\bibcite{verse2021}{{5}{}{{}}{{}}}
-\bibcite{versedata2021}{{6}{}{{}}{{}}}
-\bibcite{zindrick1987}{{7}{}{{}}{{}}}
-\bibcite{panjabi1991}{{8}{}{{}}{{}}}
-\bibcite{panjabi1992}{{9}{}{{}}{{}}}
-\@writefile{toc}{\contentsline {section}{\numberline {}Ethics}{22}{section*.27}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {}References}{22}{section*.28}\protected@file@percent }
-\bibcite{benzel2015}{{10}{}{{}}{{}}}
-\bibcite{hughes2006}{{11}{}{{}}{{}}}
-\bibcite{ribsegv2}{{12}{}{{}}{{}}}
-\bibcite{colonog}{{13}{}{{}}{{}}}
-\bibcite{tcia}{{14}{}{{}}{{}}}
-\bibcite{moller2026}{{15}{}{{}}{{}}}
-\bibcite{totalsegmentator}{{16}{}{{}}{{}}}
-\bibcite{osc2026}{{17}{}{{}}{{}}}
-\bibcite{nnunet}{{18}{}{{}}{{}}}
-\bibcite{vialle2005}{{19}{}{{}}{{}}}
-\bibcite{castellvi1984}{{20}{}{{}}{{}}}
-\bibcite{pickhardt2013}{{21}{}{{}}{{}}}
-\bibcite{epstein2021}{{22}{}{{}}{{}}}
-\bibcite{fea2026}{{23}{}{{}}{{}}}
+\bibcite{acr2021}{{2}{}{{}}{{}}}
+\bibcite{acrmri2023}{{3}{}{{}}{{}}}
+\@writefile{toc}{\contentsline {section}{\numberline {}Data Availability}{21}{section*.24}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {}Acknowledgements}{21}{section*.25}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {}Conflict of Interest}{21}{section*.26}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {}Ethics}{21}{section*.27}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {}References}{21}{section*.28}\protected@file@percent }
+\bibcite{koninwalz2010}{{4}{}{{}}{{}}}
+\bibcite{ctspine1k}{{5}{}{{}}{{}}}
+\bibcite{ctpelvic1k}{{6}{}{{}}{{}}}
+\bibcite{spineps2025}{{7}{}{{}}{{}}}
+\bibcite{veridah2026}{{8}{}{{}}{{}}}
+\bibcite{otake2012}{{9}{}{{}}{{}}}
+\bibcite{lo2015}{{10}{}{{}}{{}}}
+\bibcite{desilva2016}{{11}{}{{}}{{}}}
+\bibcite{nass2013}{{12}{}{{}}{{}}}
+\bibcite{tqip2018}{{13}{}{{}}{{}}}
+\bibcite{colonog}{{14}{}{{}}{{}}}
+\bibcite{tcia}{{15}{}{{}}{{}}}
+\bibcite{duplessis2018}{{16}{}{{}}{{}}}
+\bibcite{poolman2023}{{17}{}{{}}{{}}}
+\bibcite{nagata2025}{{18}{}{{}}{{}}}
+\bibcite{zindrick1987}{{19}{}{{}}{{}}}
+\bibcite{panjabi1991}{{20}{}{{}}{{}}}
+\bibcite{panjabi1992}{{21}{}{{}}{{}}}
+\bibcite{benzel2015}{{22}{}{{}}{{}}}
+\bibcite{hughes2006}{{23}{}{{}}{{}}}
+\bibcite{versedata2021}{{24}{}{{}}{{}}}
+\bibcite{verse2021}{{25}{}{{}}{{}}}
+\bibcite{ribsegv2}{{26}{}{{}}{{}}}
+\bibcite{totalsegmentator}{{27}{}{{}}{{}}}
+\bibcite{moller2026}{{28}{}{{}}{{}}}
+\bibcite{osc2026}{{29}{}{{}}{{}}}
+\bibcite{nnunet}{{30}{}{{}}{{}}}
+\bibcite{vialle2005}{{31}{}{{}}{{}}}
+\bibcite{castellvi1984}{{32}{}{{}}{{}}}
+\bibcite{pickhardt2013}{{33}{}{{}}{{}}}
+\bibcite{epstein2021}{{34}{}{{}}{{}}}
+\bibcite{fea2026}{{35}{}{{}}{{}}}
 \bibdata{mainNotes}
+\newlabel{LastBibItem}{{35}{24}{}{section*.28}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {}Figure captions}{24}{section*.29}\protected@file@percent }
+\citation{vialle2005}
 \bibstyle{aapmrev4-2}
 \citation{REVTEX42Control}
 \citation{aapm41Control}
 \providecommand\NAT@force@numbers{}\NAT@force@numbers
-\newlabel{LastBibItem}{{23}{24}{}{section*.28}{}}
-\newlabel{LastPage}{{}{24}{}{}{}}
-\gdef \@abspage@last{24}
+\newlabel{LastPage}{{}{25}{}{}{}}
+\gdef \@abspage@last{25}
