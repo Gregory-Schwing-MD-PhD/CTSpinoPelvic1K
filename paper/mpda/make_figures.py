@@ -223,8 +223,36 @@ def fig_countfree(out):
 
 
 # ---------------------------------------------------------------- fig 4
+def _clean_rows(rows, flag_key="qc_flags"):
+    """Rows whose every QC flag says ok.
+
+    THE FILTER IS THE TOOLKIT'S OWN VERDICT, NOT A WINDOW ON THE VALUE. The previous
+    version kept pelvic incidence between 20 and 90 degrees, which quietly dropped 68 of
+    802 records -- and dropped them for having the wrong ANSWER rather than for any
+    identified fault, which is the shape of a filter that flatters a distribution. Every
+    excluded case now carries a reason: a violated PI = SS + PT identity, a geometry
+    outside the anatomical envelope, or a landmark that could not be fitted.
+    """
+    out = []
+    for r in rows:
+        f = (r.get(flag_key) or "").strip()
+        parts = [x for x in f.replace(",", ";").split(";") if x]
+        if all(x in ("", "ok") for x in parts):
+            out.append(r)
+    return out
+
+
 def fig_validation(out):
-    sg = load("surgical_morphometrics.csv")
+    # The spinopelvic parameters come from the toolkit, which reports PI, SS and PT
+    # independently and flags what it could not measure; the per-level dimensions still
+    # come from the release's own extraction code.
+    sp = load("spinopelvic.csv")
+    sg = _clean_rows(sp) if sp else load("surgical_morphometrics.csv")
+    KEYS = ({"pelvic_incidence_deg": "PI", "sacral_slope_deg": "SS",
+             "pelvic_tilt_deg": "PT"} if sp else
+            {k: k for k in ("pelvic_incidence_deg", "sacral_slope_deg", "pelvic_tilt_deg")})
+    if sp:
+        print(f"  fig_validation: {len(sg)}/{len(sp)} records clean by QC flag")
     # ONE ROW. The level-by-level panels moved to the level atlas, which draws the
     # same measurements with their spread instead of as overlapping density curves.
     fig = plt.figure(figsize=(COL2, 1.5), constrained_layout=True)
@@ -257,7 +285,7 @@ def fig_validation(out):
          "CT, Veilleux ($n$=200)"),
     ]):
         ax = fig.add_subplot(gs[0, i])
-        v = col(sg, key, lo, hi)
+        v = col(sg, KEYS[key], lo, hi)
         xs, ys = kde(v, lo, hi)
         ax.axvspan(ref - sd, ref + sd, color=OCHRE, alpha=0.13, lw=0)
         ax.axvline(ref, color=OCHRE, ls="--", lw=1.0,
