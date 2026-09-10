@@ -54,7 +54,18 @@ LEVELREF_CSV = (Path(__file__).resolve().parents[2] / "morphometrics"
 # is the reason a single dashed line is not a reference range, and the reason a cohort of
 # 802 with its own spread is worth having. Panjabi keeps a heavier black line because it is
 # the series the manuscript's text cites; every other series is thin.
-DRAW_SERIES = None            # a set of names restricts the drawing; None draws them all
+# ONLY PANJABI IS DRAWN. The machinery below handles all forty series in the two tables and
+# was used that way for a while, but the manuscript cites Panjabi and a handful of others,
+# so a legend naming twenty-eight studies put twenty-five names in the figure that appear
+# nowhere in the bibliography. The full record stays in morphometrics/level_references.csv
+# and morphometrics/pedicle_width_references.csv, and it is a paper of its own.
+#
+# One curve covers both Panjabi papers: the thoracic 1991 series supplies T11 and T12, the
+# 1992 lumbar series L1 to L5, and SERIES_ALIAS merges them under one name so the line runs
+# the whole span instead of breaking at the thoracolumbar junction.
+#
+# Set to None to draw them all again.
+DRAW_SERIES = {"Panjabi 1992"}
 
 DASHES = [(0, ()),                       # solid
           (0, (4.0, 1.4)),               # long dash
@@ -204,15 +215,20 @@ def build(out: Path, reference: bool = True):
     y_disc = {d: (y_of[d[:2]] + (y_of.get(d[2:], y_of["L5"] - 1))) / 2.0 for d in DISCS}
     y_hu = {k: y_of[k.upper()] for k in ["l1", "l2", "l3", "l4"]}
 
-    # A LEGEND BAND UNDER THE PANELS, not a legend inside one. Thirty-odd reference curves
-    # cannot be named in a caption, and an in-axes key large enough to hold them covers the
-    # distributions the figure exists to show. The band is its own axes so the panels keep
-    # their full width and the entries can run in columns.
-    fig = plt.figure(figsize=(MF.COL2, 49 * MF.MM))
-    gs = fig.add_gridspec(2, 3, height_ratios=[1.0, 0.26], hspace=0.44, wspace=0.22)
-    axes = np.array([fig.add_subplot(gs[0, i]) for i in range(3)])
-    ax_key = fig.add_subplot(gs[1, :])
-    ax_key.axis("off")
+    # A legend band is kept for the multi-series case, but with one reference it is dead
+    # page area: a single named curve belongs in the caption, and the panels get the height
+    # back. The band collapses automatically when only one series is drawn.
+    _multi = DRAW_SERIES is None or len(DRAW_SERIES) > 1
+    fig = plt.figure(figsize=(MF.COL2, (49 if _multi else 44) * MF.MM))
+    if _multi:
+        gs = fig.add_gridspec(2, 3, height_ratios=[1.0, 0.26], hspace=0.44, wspace=0.22)
+        axes = np.array([fig.add_subplot(gs[0, i]) for i in range(3)])
+        ax_key = fig.add_subplot(gs[1, :])
+        ax_key.axis("off")
+    else:
+        gs = fig.add_gridspec(1, 3, wspace=0.22)
+        axes = np.array([fig.add_subplot(gs[0, i]) for i in range(3)])
+        ax_key = None
     TEAL, OCHRE, INK, FAINT = MF.TEAL, MF.OCHRE, MF.INK, MF.FAINT
     # BODY HEIGHT AND DISC HEIGHT ARE DEFERRED to the next paper: body height needs
     # the cohort-versus-method argument settled first, and neither is what the
@@ -270,7 +286,7 @@ def build(out: Path, reference: bool = True):
                sorted(k for k in drawn if not k.startswith(EMPHASIS)))
     handles = [Line2D([0], [0], color=drawn[k][0], ls=drawn[k][1], lw=max(drawn[k][2], 1.0))
                for k in ordered]
-    if handles:
+    if handles and ax_key is not None:
         ncol = 3 if len(handles) <= 9 else (4 if len(handles) <= 16 else 6)
         ax_key.legend(handles, ordered, loc="upper center", ncol=ncol,
                       fontsize=4.4, handlelength=1.7, handletextpad=0.32,
