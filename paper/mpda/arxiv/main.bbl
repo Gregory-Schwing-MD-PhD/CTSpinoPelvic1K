@@ -1,0 +1,5 @@
+% Intentionally empty.
+% The bibliography is a thebibliography environment inside main.tex. REVTeX's aapm
+% substyle inputs <jobname>.bbl at \end{document} regardless, and arXiv rejects a
+% submission that references a .bbl it cannot find. This satisfies that input. Do not
+% put the reference list here: it would be typeset twice.

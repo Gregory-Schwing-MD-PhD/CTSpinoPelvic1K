@@ -3,10 +3,14 @@
 Everything the arXiv form asks for, so it can be pasted rather than reconstructed.
 
 **Upload:** `paper/mpda/CTSpinoPelvic1K_arxiv.tar.gz` (about 820 KB: `main.tex`,
-`figure_captions.tex` and six figure PDFs, nothing else). `make_arxiv.sh` builds it and then
+`figure_captions.tex`, an empty `main.bbl` and six figure PDFs, nothing else). `make_arxiv.sh` builds it and then
 compiles it in a clean temporary tree, which is the only test that predicts what arXiv will do:
 0 undefined references, no errors, 10 two-column pages. The bibliography is a `thebibliography`
-environment inside `main.tex`, so there is no `.bbl` to forget. Figure 1 is drawn in TikZ inside
+environment inside `main.tex`, so nothing has to be run through BibTeX. An **empty**
+`main.bbl` still ships, because REVTeX's aapm substyle inputs `<jobname>.bbl` at
+`\end{document}` whatever you do, and arXiv rejects a submission that references a `.bbl`
+it cannot find. Our first upload was rejected for exactly that. The stub must stay empty:
+a populated one would set the reference list twice. Figure 1 is drawn in TikZ inside
 `main.tex`, so seven figures appear from six PDFs. The preview of exactly what arXiv will
 render is `CTSpinoPelvic1K_arxiv_preview.pdf`.
 

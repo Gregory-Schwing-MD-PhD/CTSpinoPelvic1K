@@ -41,6 +41,25 @@ while read -r f; do
 done < /tmp/figs.txt
 echo "  included $(wc -l < /tmp/figs.txt) figure(s)"
 
+# ---- the .bbl arXiv insists on -----------------------------------------------------
+# REVTeX's aapm substyle runs its bibliography machinery unconditionally: it writes
+# <jobname>Notes.bib and, at \end{document}, does \@input{<jobname>.bbl}. Our
+# bibliography is a thebibliography environment inside main.tex, so no .bbl is produced
+# and LaTeX logs "No file main.bbl." That is harmless here -- the input happens AFTER the
+# bibliography has been typeset, so nothing is missing from the PDF -- but arXiv treats a
+# referenced-and-absent .bbl as a submission error and refuses to process.
+#
+# The fix is a stub, NOT the real bibliography: shipping a populated main.bbl would set
+# the reference list a second time. An empty file satisfies the input and adds nothing.
+cat > "$OUT/main.bbl" <<'BBL'
+% Intentionally empty.
+% The bibliography is a thebibliography environment inside main.tex. REVTeX's aapm
+% substyle inputs <jobname>.bbl at \end{document} regardless, and arXiv rejects a
+% submission that references a .bbl it cannot find. This satisfies that input. Do not
+% put the reference list here: it would be typeset twice.
+BBL
+echo "  wrote main.bbl stub (arXiv requires the referenced file to exist)"
+
 # --- compile in a clean tree, as arXiv will -----------------------------------------
 CLEAN=$(mktemp -d)
 cp -r "$OUT"/. "$CLEAN"/
@@ -56,6 +75,14 @@ if [ ! -f main.pdf ]; then
 fi
 grep -A3 '^!' a2.log | head -20 || true
 echo "  undefined: $(grep -ci 'undefined' a2.log || true) line(s)"
+# "No file X." is a WARNING to LaTeX and an ERROR to arXiv. It cost a rejected
+# submission once; it is checked here now.
+if grep -q "^No file " a2.log; then
+  echo "  MISSING INPUTS -- arXiv will reject this:"; grep "^No file " a2.log | sed "s/^/    /"
+  exit 1
+else
+  echo "  no missing inputs"
+fi
 python3 -c "
 import pymupdf
 d = pymupdf.open('main.pdf')
