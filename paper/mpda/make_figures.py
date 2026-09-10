@@ -238,10 +238,17 @@ def fig_validation(out):
     #
     # Sacral slope is expected BELOW the standing reference: it is postural, and lying
     # down rotates the pelvis. Pelvic incidence is not postural, which is why it can be
-    # compared to a standing cohort without apology -- and why it matching to a decimal
-    # place is the strongest check in the figure.
+    # compared to a standing cohort without apology.
+    #
+    # THE PELVIC INCIDENCE REFERENCE WAS 54.7, WHICH IS THIS COHORT'S OWN MEASURED VALUE
+    # copied into the reference slot -- the same error a co-author caught in Table II.
+    # Vialle reports 55 +- 10.6. The band moves by three tenths of a degree, so the panel
+    # barely changes, but the old comment here claimed the match "to a decimal place" was
+    # the strongest check in the figure, and that match was an artefact of comparing the
+    # measurement against itself. It agrees to within a degree against the real value,
+    # which is the honest and still-strong version of the claim.
     for i, (key, title, lo, hi, ref, sd) in enumerate([
-        ("pelvic_incidence_deg", "pelvic incidence", 20, 90, 54.7, 10.6),
+        ("pelvic_incidence_deg", "pelvic incidence", 20, 90, 55.0, 10.6),
         ("sacral_slope_deg", "sacral slope", 10, 70, 41.0, 8.4),
         ("pelvic_tilt_deg", "pelvic tilt", -10, 45, 13.0, 6.0),
     ]):
