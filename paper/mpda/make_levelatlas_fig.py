@@ -54,6 +54,49 @@ DISC_LABEL = {"L1L2": "L1–L2", "L2L3": "L2–L3", "L3L4": "L3–L4",
 REF_CSV = Path(__file__).resolve().parents[2] / "morphometrics" / "panjabi_reference.csv"
 
 
+# --------------------------------------------------------- the published range, not "the" value
+# THIRTEEN SERIES DISAGREE BY ABOUT 65% OF THE MEDIAN at every lumbar level. Transverse
+# pedicle width at L5 is published as 11.8 mm and as 21.6 mm, by studies that all name the
+# same dimension in the same bone. Part of it is real population difference, part is
+# definitional (endosteal against outer cortical differs by about 5 mm at L5), part is the
+# measurement plane. Drawing any one of them as the reference asserts an agreement that
+# does not exist, so the whole set is drawn: a span from the lowest published mean to the
+# highest, with a tick per series.
+SPREAD_CSV = (Path(__file__).resolve().parents[2] / "morphometrics"
+              / "pedicle_width_references.csv")
+
+
+def load_spread():
+    """{measure: {level: [means]}} from the multi-series reference table."""
+    if not SPREAD_CSV.exists():
+        return {}
+    with SPREAD_CSV.open(encoding="utf-8") as fh:
+        rows = [ln for ln in fh if not ln.lstrip().startswith("#")]
+    out = {}
+    for r in csv.DictReader(rows):
+        try:
+            out.setdefault(r["measure"], {}).setdefault(r["level"], []).append(float(r["mean"]))
+        except (ValueError, KeyError):
+            continue
+    return out
+
+
+def draw_spread(ax, spread, key, y_of, color, offset=0.0):
+    """The published range at each level, with one tick per series."""
+    d = spread.get(key)
+    if not d:
+        return False
+    for lv, vals in d.items():
+        if lv not in y_of or len(vals) < 2:
+            continue
+        y = y_of[lv] + offset
+        ax.plot([min(vals), max(vals)], [y, y], color=color, lw=0.8, alpha=0.85,
+                solid_capstyle="butt", zorder=1.4)
+        ax.plot(vals, [y] * len(vals), ls="none", marker="|", ms=3.4, mew=0.7,
+                color=color, alpha=0.9, zorder=1.5)
+    return True
+
+
 def load_reference():
     """{measure: {level: (mean, sem)}} from the transcribed tables, comments skipped."""
     if not REF_CSV.exists():
@@ -94,6 +137,7 @@ def build(out: Path, reference: bool = False):
     dg = MF.load("degenerative.csv")
     op = MF.load("opportunistic.csv")
     ref = load_reference() if reference else {}
+    spread = load_spread() if reference else {}
     if not (lg and sm and dg and op):
         raise SystemExit("morphometrics CSVs not found")
 
@@ -152,7 +196,7 @@ def build(out: Path, reference: bool = False):
     # (d) transverse pedicle width
     draw(ax_d, S["pedicle"], y_of, OCHRE, "D")
     annotate_n(ax_d, S["pedicle"], y_of, FAINT)
-    draw_reference(ax_d, ref, "pedicle", y_of, MF.INK)
+    draw_spread(ax_d, spread, "PDW", y_of, MF.INK)
     ax_d.set_xlabel("transverse pedicle width (mm)")
     ax_d.set_title("(d) Pedicle width", loc="left", fontsize=8.0)
 
@@ -191,10 +235,13 @@ def build(out: Path, reference: bool = False):
 
     if ref:
         import matplotlib.lines as mlines
-        ax_e.legend(handles=[mlines.Line2D([], [], color=MF.INK, ls="--", lw=0.9,
-                                           label=r"Panjabi 1992 (mean $\pm$ SEM, $n=12$)")],
-                    fontsize=6.3, handlelength=1.6, loc="lower left",
-                    bbox_to_anchor=(0.0, 0.0), frameon=False)
+        ax_f.legend(handles=[
+            mlines.Line2D([], [], color=MF.INK, ls="--", lw=0.9,
+                          label=r"Panjabi 1992 (mean $\pm$ SEM, $n=12$)"),
+            mlines.Line2D([], [], color=MF.INK, ls="-", lw=0.8, marker="|", ms=3.4,
+                          label="range of 13 published series")],
+                    fontsize=6.3, handlelength=1.6, loc="upper left",
+                    bbox_to_anchor=(0.0, 1.0), frameon=False)
 
     fig.tight_layout(pad=0.5, w_pad=1.4, h_pad=1.2)
     out.mkdir(parents=True, exist_ok=True)

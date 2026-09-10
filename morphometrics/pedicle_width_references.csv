@@ -1,0 +1,85 @@
+series,year,cohort,n,modality,measure,level,mean,sd,dispersion,source_kind,citation
+# Published transverse pedicle width (PDW) at the lumbar isthmus, outer cortical unless
+# the modality column says endosteal. One row per series and level.
+#
+# WHY THIS FILE HAS TWELVE SERIES AND NOT ONE. At L5 the published means run from 11.8 mm
+# to 21.6 mm. That is nearly a factor of two, between studies that all claim to measure the
+# same named quantity in the same bone. Some of the spread is real population difference
+# (the Chinese, Indian and Saudi series sit low, the New Zealand series high), some is
+# definitional (endosteal against outer cortical differs by about 5 mm at L5), and some is
+# measurement plane (axial overestimates against a plane perpendicular to the pedicle axis
+# by about 12% in the thoracic spine, Knez & Vrtovec 2020). Drawing one of them as "the"
+# reference implies an agreement that does not exist.
+#
+# DISPERSION IS NAMED PER ROW because it is not consistent across the literature and
+# secondary tables routinely relabel it. Panjabi reports SEM over twelve specimens, which
+# is a statement about how well the mean is pinned down, not about how much people differ.
+# Most of the others report SD. They are not comparable and must not be drawn alike.
+#
+# source_kind: primary = read from the paper's own table; secondary = recovered from a
+# transcription in a later paper, named in the citation, and to be treated as provisional.
+Panjabi,1992,cadaveric dry bone,12,caliper/digitiser,PDW,L1,8.60,0.92,SEM,primary,Panjabi MM et al. Spine 1992;17(3):299-306 (mean of PDWr 8.0 and PDWl 9.2)
+Panjabi,1992,cadaveric dry bone,12,caliper/digitiser,PDW,L2,8.25,0.68,SEM,primary,Panjabi MM et al. Spine 1992;17(3):299-306
+Panjabi,1992,cadaveric dry bone,12,caliper/digitiser,PDW,L3,10.15,0.60,SEM,primary,Panjabi MM et al. Spine 1992;17(3):299-306
+Panjabi,1992,cadaveric dry bone,12,caliper/digitiser,PDW,L4,14.05,0.32,SEM,primary,Panjabi MM et al. Spine 1992;17(3):299-306
+Panjabi,1992,cadaveric dry bone,12,caliper/digitiser,PDW,L5,18.60,1.03,SEM,primary,Panjabi MM et al. Spine 1992;17(3):299-306
+Zindrick,1987,cadaveric,26-56 per level,caliper,PDW,L1,8.70,2.30,SD,secondary,Zindrick MR et al. Spine 1987;12(2):160-166
+Zindrick,1987,cadaveric,26-56 per level,caliper,PDW,L2,8.90,2.20,SD,secondary,Zindrick MR et al. Spine 1987;12(2):160-166
+Zindrick,1987,cadaveric,26-56 per level,caliper,PDW,L3,10.30,2.60,SD,secondary,Zindrick MR et al. Spine 1987;12(2):160-166
+Zindrick,1987,cadaveric,26-56 per level,caliper,PDW,L4,12.90,2.10,SD,secondary,Zindrick MR et al. Spine 1987;12(2):160-166
+Zindrick,1987,cadaveric,26-56 per level,caliper,PDW,L5,18.00,4.10,SD,secondary,Zindrick MR et al. Spine 1987;12(2):160-166
+Yu,2015,cadaveric,503,digital caliper,PDW,L1,8.55,,none,secondary,Yu CC et al. Spine 2015;40(21):1639-1646 (midpoint of published range)
+Yu,2015,cadaveric,503,digital caliper,PDW,L2,8.65,,none,secondary,Yu CC et al. Spine 2015;40(21):1639-1646
+Yu,2015,cadaveric,503,digital caliper,PDW,L3,10.43,,none,secondary,Yu CC et al. Spine 2015;40(21):1639-1646
+Yu,2015,cadaveric,503,digital caliper,PDW,L4,13.06,,none,secondary,Yu CC et al. Spine 2015;40(21):1639-1646
+Yu,2015,cadaveric,503,digital caliper,PDW,L5,18.03,,none,secondary,Yu CC et al. Spine 2015;40(21):1639-1646
+Olsewski,1990,cadaveric + patients,100,direct,PDW,L1,8.20,,none,secondary,Olsewski JM et al. J Bone Joint Surg Am 1990;72(4):541-549
+Olsewski,1990,cadaveric + patients,100,direct,PDW,L2,8.40,,none,secondary,Olsewski JM et al. J Bone Joint Surg Am 1990;72(4):541-549
+Olsewski,1990,cadaveric + patients,100,direct,PDW,L3,10.20,,none,secondary,Olsewski JM et al. J Bone Joint Surg Am 1990;72(4):541-549
+Olsewski,1990,cadaveric + patients,100,direct,PDW,L4,13.20,,none,secondary,Olsewski JM et al. J Bone Joint Surg Am 1990;72(4):541-549
+Olsewski,1990,cadaveric + patients,100,direct,PDW,L5,20.10,,none,secondary,Olsewski JM et al. J Bone Joint Surg Am 1990;72(4):541-549
+Lien,2007,cadaveric Taiwanese,,caliper,PDW,L1,6.40,1.60,SD,primary,Lien SB et al. Eur Spine J 2007;16:1215-1222
+Lien,2007,cadaveric Taiwanese,,caliper,PDW,L2,7.40,1.70,SD,primary,Lien SB et al. Eur Spine J 2007;16:1215-1222
+Lien,2007,cadaveric Taiwanese,,caliper,PDW,L3,9.30,1.90,SD,primary,Lien SB et al. Eur Spine J 2007;16:1215-1222
+Lien,2007,cadaveric Taiwanese,,caliper,PDW,L4,11.60,2.10,SD,primary,Lien SB et al. Eur Spine J 2007;16:1215-1222
+Lien,2007,cadaveric Taiwanese,,caliper,PDW,L5,17.50,2.60,SD,primary,Lien SB et al. Eur Spine J 2007;16:1215-1222
+Hou,1993,cadaveric Chinese,40,direct,PDW,L1,7.00,,none,secondary,Hou S et al. Spine 1993;18(13):1850-1855
+Hou,1993,cadaveric Chinese,40,direct,PDW,L2,7.40,,none,secondary,Hou S et al. Spine 1993;18(13):1850-1855
+Hou,1993,cadaveric Chinese,40,direct,PDW,L3,9.20,,none,secondary,Hou S et al. Spine 1993;18(13):1850-1855
+Hou,1993,cadaveric Chinese,40,direct,PDW,L4,10.50,,none,secondary,Hou S et al. Spine 1993;18(13):1850-1855
+Hou,1993,cadaveric Chinese,40,direct,PDW,L5,12.90,,none,secondary,Hou S et al. Spine 1993;18(13):1850-1855
+Krag,1988,CT vs cut cadaver,,CT,PDW,L1,7.01,,none,secondary,Krag MH et al. Spine 1988;13(1):27-32
+Krag,1988,CT vs cut cadaver,,CT,PDW,L2,8.67,,none,secondary,Krag MH et al. Spine 1988;13(1):27-32
+Krag,1988,CT vs cut cadaver,,CT,PDW,L3,9.30,,none,secondary,Krag MH et al. Spine 1988;13(1):27-32
+Krag,1988,CT vs cut cadaver,,CT,PDW,L4,11.03,,none,secondary,Krag MH et al. Spine 1988;13(1):27-32
+Krag,1988,CT vs cut cadaver,,CT,PDW,L5,15.15,,none,secondary,Krag MH et al. Spine 1988;13(1):27-32
+Mitra,2002,cadaveric Indian,20,direct,PDW,L1,7.05,,none,secondary,Mitra SR et al. Spine 2002;27(5):453-459
+Mitra,2002,cadaveric Indian,20,direct,PDW,L2,7.45,,none,secondary,Mitra SR et al. Spine 2002;27(5):453-459
+Mitra,2002,cadaveric Indian,20,direct,PDW,L3,8.51,,none,secondary,Mitra SR et al. Spine 2002;27(5):453-459
+Mitra,2002,cadaveric Indian,20,direct,PDW,L4,9.71,,none,secondary,Mitra SR et al. Spine 2002;27(5):453-459
+Mitra,2002,cadaveric Indian,20,direct,PDW,L5,16.19,,none,secondary,Mitra SR et al. Spine 2002;27(5):453-459
+Arockiaraj,2025,patients Saudi,300,CT,PDW,L1,5.76,1.02,SD,primary,Arockiaraj J et al. J Craniovertebr Junction Spine 2025 (PMC12459938)
+Arockiaraj,2025,patients Saudi,300,CT,PDW,L2,6.34,0.96,SD,primary,Arockiaraj J et al. J Craniovertebr Junction Spine 2025 (PMC12459938)
+Arockiaraj,2025,patients Saudi,300,CT,PDW,L3,8.11,1.10,SD,primary,Arockiaraj J et al. J Craniovertebr Junction Spine 2025 (PMC12459938)
+Arockiaraj,2025,patients Saudi,300,CT,PDW,L4,9.82,1.20,SD,primary,Arockiaraj J et al. J Craniovertebr Junction Spine 2025 (PMC12459938)
+Arockiaraj,2025,patients Saudi,300,CT,PDW,L5,13.62,1.48,SD,primary,Arockiaraj J et al. J Craniovertebr Junction Spine 2025 (PMC12459938)
+Moncada-Habib,2025,patients Mexican,37,CT,PDW,L1,7.00,1.70,SD,primary,Moncada-Habib T et al. Cureus 2025 (PMC12504117)
+Moncada-Habib,2025,patients Mexican,37,CT,PDW,L2,7.00,1.50,SD,primary,Moncada-Habib T et al. Cureus 2025 (PMC12504117)
+Moncada-Habib,2025,patients Mexican,37,CT,PDW,L3,8.10,1.80,SD,primary,Moncada-Habib T et al. Cureus 2025 (PMC12504117)
+Moncada-Habib,2025,patients Mexican,37,CT,PDW,L4,9.30,1.80,SD,primary,Moncada-Habib T et al. Cureus 2025 (PMC12504117)
+Moncada-Habib,2025,patients Mexican,37,CT,PDW,L5,11.80,3.00,SD,primary,Moncada-Habib T et al. Cureus 2025 (PMC12504117)
+Robertson,2000,patients New Zealand,100,CT,PDW,L1,10.30,,none,secondary,Robertson PA & Stewart NR. Spine 2000;25(6):709-715
+Robertson,2000,patients New Zealand,100,CT,PDW,L2,10.30,,none,secondary,Robertson PA & Stewart NR. Spine 2000;25(6):709-715
+Robertson,2000,patients New Zealand,100,CT,PDW,L3,13.00,,none,secondary,Robertson PA & Stewart NR. Spine 2000;25(6):709-715
+Robertson,2000,patients New Zealand,100,CT,PDW,L4,16.30,,none,secondary,Robertson PA & Stewart NR. Spine 2000;25(6):709-715
+Robertson,2000,patients New Zealand,100,CT,PDW,L5,21.60,,none,secondary,Robertson PA & Stewart NR. Spine 2000;25(6):709-715
+Otsuki,2021,cadaveric micro-CT,60 pedicles,micro-CT perpendicular to axis,PDW,L1,7.10,2.40,SD,primary,Otsuki B et al. PLoS One 2021;16(6):e0253019
+Otsuki,2021,cadaveric micro-CT,60 pedicles,micro-CT perpendicular to axis,PDW,L2,7.30,2.40,SD,primary,Otsuki B et al. PLoS One 2021;16(6):e0253019
+Otsuki,2021,cadaveric micro-CT,60 pedicles,micro-CT perpendicular to axis,PDW,L3,9.40,2.00,SD,primary,Otsuki B et al. PLoS One 2021;16(6):e0253019
+Otsuki,2021,cadaveric micro-CT,60 pedicles,micro-CT perpendicular to axis,PDW,L4,10.60,0.80,SD,primary,Otsuki B et al. PLoS One 2021;16(6):e0253019
+Otsuki,2021,cadaveric micro-CT,60 pedicles,micro-CT perpendicular to axis,PDW,L5,11.80,1.70,SD,primary,Otsuki B et al. PLoS One 2021;16(6):e0253019
+Makino,2012,patients Japanese endosteal,500 pedicles,CT endosteal,PDW,L1,5.46,1.69,SD,primary,Makino T et al. Eur Spine J 2012 (PMC3535235) transverse pedicle width TPW
+Makino,2012,patients Japanese endosteal,500 pedicles,CT endosteal,PDW,L2,5.76,1.73,SD,primary,Makino T et al. Eur Spine J 2012 (PMC3535235)
+Makino,2012,patients Japanese endosteal,500 pedicles,CT endosteal,PDW,L3,7.25,1.82,SD,primary,Makino T et al. Eur Spine J 2012 (PMC3535235)
+Makino,2012,patients Japanese endosteal,500 pedicles,CT endosteal,PDW,L4,9.01,1.91,SD,primary,Makino T et al. Eur Spine J 2012 (PMC3535235)
+Makino,2012,patients Japanese endosteal,500 pedicles,CT endosteal,PDW,L5,12.86,2.47,SD,primary,Makino T et al. Eur Spine J 2012 (PMC3535235)
