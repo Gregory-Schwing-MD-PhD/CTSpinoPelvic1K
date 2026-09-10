@@ -238,6 +238,21 @@ def one(path: str) -> dict:
 
                     r[f"body_height_{name}_mm"] = round(float(ha), 1)
                     r[f"body_height_post_{name}_mm"] = round(float(hp), 1)
+                    # AND THE SAME HEIGHT READ AT THE WALL, which is what the cadaveric
+                    # series report. hp above is a MAXIMUM over the whole posterior half,
+                    # so it is an upper envelope of the body rather than a reading
+                    # anywhere in particular, and it runs about 6 mm above Panjabi's
+                    # VBHp at every lumbar level. This takes the 90th percentile of the
+                    # columns inside the posterior 20% of the body's own anteroposterior
+                    # span: at the wall, and robust to one tall column. The old field is
+                    # unchanged and still published.
+                    _yy = np.array(sorted(col_h))
+                    _hh = np.array([col_h[y] for y in _yy])
+                    _cut = _yy.min() + 0.20 * (_yy.max() - _yy.min())
+                    _band = _hh[_yy <= _cut]
+                    if len(_band):
+                        r[f"body_height_wall_{name}_mm"] = round(
+                            float(np.percentile(_band, 90)), 1)
                     if hp > 1:
                         r[f"wedge_ratio_{name}"] = round(float(ha / hp), 3)
     _guard_wedge(r, list(LUMBAR.values()))

@@ -27,8 +27,10 @@ distributions are mildly skewed at L5 where transitional anatomy widens the lowe
 A mean would move with the anatomy the dataset was built to study.
 
 N IS DRAWN, NOT ASSUMED. Coverage is not uniform: body and canal-width measures rest on
-~730-790 records per level, while canal depth and pedicle width fall to 331 at L1 because
-the measurement needs an axial extent many field-limited abdominal series do not carry.
+~730-790 records per level, while canal depth and pedicle width carried about half that
+because both were computed from ONE axial slice and were dropped whenever the bony ring
+did not close in it. That was a sampling choice, not a field-of-view limit, and they are
+scanned now.
 Reporting a tight interval from 331 records beside one from 773 without saying so would
 misrepresent both, so every row is annotated with its own n.
 """

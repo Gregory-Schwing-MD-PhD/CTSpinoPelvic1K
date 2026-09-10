@@ -376,14 +376,30 @@ def one(path: str) -> dict:
 
     # ---- per-level pedicle width, canal, wedging ---------------------------------
     ped, canal, torg, wedge = {}, {}, {}, {}
+    ped_side, ped_mean = {}, {}
     for vid in sorted(have):
         if vid not in LUMBAR:
             continue
         m = have[vid]
         idx = np.argwhere(m)
-        zc = int(np.median(idx[:, 2]))
-        sl = m[:, :, zc]
-        if sl.sum() < 60:
+        # SCAN, DO NOT SAMPLE ONE SLICE. This was the single axial slice at the median z
+        # of the WHOLE vertebra, spinous process included, so the plane was not even at
+        # mid-body. When the bony ring did not happen to close there the level was lost
+        # for canal depth AND pedicle width together, which is why both carried about
+        # half the n that canal width does. Take the first slice in the middle third
+        # whose ring actually closes instead.
+        zz = np.nonzero(m.any(axis=(0, 1)))[0]
+        sl, zc = None, None
+        for z in zz[len(zz) // 3: 2 * len(zz) // 3 + 1]:
+            s_ = m[:, :, z]
+            if s_.sum() < 60:
+                continue
+            h_ = ndimage.binary_fill_holes(s_) & ~s_
+            # a real canal, not a trabecular void: the old code had no size floor here
+            if h_.sum() >= 20:
+                sl, zc = s_, int(z)
+                break
+        if sl is None:
             continue
         # canal = the enclosed hole in the ring at mid-body
         filled = ndimage.binary_fill_holes(sl)
@@ -462,10 +478,17 @@ def one(path: str) -> dict:
             # too broad (L5 came back 22.7mm); the narrowest is a slice with no real
             # bridge at all. The isthmus is a waist, so the typical slice is the honest
             # one.
-            got = [float(np.median(v)) for v in per_side.values() if v]
+            got = {k: float(np.median(v)) for k, v in per_side.items() if v}
             if got:
-                # the narrower pedicle is the one that limits the screw
-                ped[LUMBAR[vid]] = round(min(got), 1)
+                # KEEP BOTH SIDES. min() is the right number for a screw and the wrong
+                # one for morphometry: Panjabi reports PDWr and PDWl separately, and
+                # their own left-right gaps run to 1.3 mm at L4, so comparing our min
+                # against their mean is biased low before any anatomy is considered.
+                # pedicle_mm keeps its clinical meaning; the rest are new.
+                ped[LUMBAR[vid]] = round(min(got.values()), 1)
+                for k, v in got.items():
+                    ped_side[f"{LUMBAR[vid]}_{k}"] = round(v, 1)
+                ped_mean[LUMBAR[vid]] = round(sum(got.values()) / len(got), 1)
 
         # WEDGING IS A PROPERTY OF THE BODY. Taking the posterior fifth of the whole
         # vertebra measures the spinous process, which spans far more height than the
@@ -481,7 +504,11 @@ def one(path: str) -> dict:
             if len(za) and len(zp):
                 wedge[LUMBAR[vid]] = round(len(za) / len(zp), 3)
 
-    for nm, d in (("pedicle_mm", ped), ("canal_ap_mm", canal),
+    # pedicle_mean_mm is the like-for-like counterpart to a published PDW, which is
+    # reported per side; pedicle_l/_r carry the sides themselves. pedicle_mm stays
+    # the min, the pedicle that limits a screw.
+    for nm, d in (("pedicle_mm", ped), ("pedicle_mean_mm", ped_mean),
+                  ("pedicle_side_mm", ped_side), ("canal_ap_mm", canal),
                   ("torg", torg), ("wedge", wedge)):
         for k, v in d.items():
             r[f"{nm}_{k}"] = v
