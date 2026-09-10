@@ -54,7 +54,7 @@ abstract field takes plain text; the four bold section labels are kept as words.
 
 ## Comments field
 
-    11 pages, 7 figures, 3 tables. Dataset (802 annotated CT records, CC BY-NC-SA 4.0) at
+    10 pages, 7 figures, 3 tables. Dataset (802 annotated CT records, CC BY-NC-SA 4.0) at
     https://doi.org/10.5281/zenodo.22139642; build archive at
     https://doi.org/10.5281/zenodo.22647933; code at
     https://github.com/OpenSpineConsortium/CTSpinoPelvic1K. Submitted to Medical Physics
