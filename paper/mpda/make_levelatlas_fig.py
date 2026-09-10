@@ -64,20 +64,28 @@ REF_CSV = Path(__file__).resolve().parents[2] / "morphometrics" / "panjabi_refer
 # highest, with a tick per series.
 SPREAD_CSV = (Path(__file__).resolve().parents[2] / "morphometrics"
               / "pedicle_width_references.csv")
+LEVELREF_CSV = (Path(__file__).resolve().parents[2] / "morphometrics"
+                / "level_references.csv")
 
 
 def load_spread():
-    """{measure: {level: [means]}} from the multi-series reference table."""
-    if not SPREAD_CSV.exists():
-        return {}
-    with SPREAD_CSV.open(encoding="utf-8") as fh:
-        rows = [ln for ln in fh if not ln.lstrip().startswith("#")]
+    """{measure: {level: [published means]}}, from both reference tables.
+
+    Keyed by THIS release's measure names, so a panel asks for what it plots. The pedicle
+    table is separate because it was assembled first and carries extra columns about
+    endosteal against outer cortical that the others do not need.
+    """
     out = {}
-    for r in csv.DictReader(rows):
-        try:
-            out.setdefault(r["measure"], {}).setdefault(r["level"], []).append(float(r["mean"]))
-        except (ValueError, KeyError):
+    for path, col in ((SPREAD_CSV, "measure"), (LEVELREF_CSV, "measure")):
+        if not path.exists():
             continue
+        with path.open(encoding="utf-8") as fh:
+            rows = [ln for ln in fh if not ln.lstrip().startswith("#")]
+        for r in csv.DictReader(rows):
+            try:
+                out.setdefault(r[col], {}).setdefault(r["level"], []).append(float(r["mean"]))
+            except (ValueError, KeyError):
+                continue
     return out
 
 
@@ -131,7 +139,7 @@ def draw_reference(ax, ref, key, y_of, color, offset=0.0):
     return True
 
 
-def build(out: Path, reference: bool = False):
+def build(out: Path, reference: bool = True):
     lg = MF.load("level_gradients.csv")
     sm = MF.load("surgical_morphometrics.csv")
     dg = MF.load("degenerative.csv")
@@ -168,7 +176,8 @@ def build(out: Path, reference: bool = False):
     # (a) body height, ventral against dorsal
     draw(ax_a, S["h_ant"], y_of, TEAL, "o", offset=+0.17, label="ventral")
     draw(ax_a, S["h_post"], y_of, OCHRE, "s", offset=-0.17, label="dorsal")
-    draw_reference(ax_a, ref, "h_post", y_of, MF.INK, offset=-0.17)
+    draw_spread(ax_a, spread, "h_ant", y_of, MF.INK, offset=+0.17)
+    draw_spread(ax_a, spread, "h_post", y_of, MF.INK, offset=-0.17)
     ax_a.set_xlabel("vertebral body height (mm)")
     ax_a.set_title("(a) Body height", loc="left", fontsize=8.0)
     ax_a.legend(fontsize=6.3, handlelength=1.0, loc="lower right",
@@ -177,15 +186,15 @@ def build(out: Path, reference: bool = False):
     # (b) superior endplate width
     draw(ax_b, S["endplate"], y_of, TEAL, "o")
     annotate_n(ax_b, S["endplate"], y_of, FAINT)
-    draw_reference(ax_b, ref, "endplate", y_of, MF.INK)
+    draw_spread(ax_b, spread, "endplate", y_of, MF.INK)
     ax_b.set_xlabel("superior endplate width (mm)")
     ax_b.set_title("(b) Endplate width", loc="left", fontsize=8.0)
 
     # (c) canal, width against depth
     draw(ax_c, S["canal_w"], y_of, TEAL, "o", offset=+0.17, label="width")
     draw(ax_c, S["canal_ap"], y_of, INK, "^", offset=-0.17, label="depth (AP)")
-    draw_reference(ax_c, ref, "canal_w", y_of, MF.INK, offset=+0.17)
-    draw_reference(ax_c, ref, "canal_ap", y_of, MF.INK, offset=-0.17)
+    draw_spread(ax_c, spread, "canal_w", y_of, MF.INK, offset=+0.17)
+    draw_spread(ax_c, spread, "canal_ap", y_of, MF.INK, offset=-0.17)
     ax_c.set_xlabel("spinal canal (mm)")
     ax_c.set_title("(c) Canal", loc="left", fontsize=8.0)
     # upper right: the canal narrows upward, so the free space is to the right of the
@@ -197,6 +206,7 @@ def build(out: Path, reference: bool = False):
     draw(ax_d, S["pedicle"], y_of, OCHRE, "D")
     annotate_n(ax_d, S["pedicle"], y_of, FAINT)
     draw_spread(ax_d, spread, "PDW", y_of, MF.INK)
+    draw_spread(ax_e, spread, "disc", y_disc, MF.INK)
     ax_d.set_xlabel("transverse pedicle width (mm)")
     ax_d.set_title("(d) Pedicle width", loc="left", fontsize=8.0)
 
@@ -236,10 +246,8 @@ def build(out: Path, reference: bool = False):
     if ref:
         import matplotlib.lines as mlines
         ax_f.legend(handles=[
-            mlines.Line2D([], [], color=MF.INK, ls="--", lw=0.9,
-                          label=r"Panjabi 1992 (mean $\pm$ SEM, $n=12$)"),
             mlines.Line2D([], [], color=MF.INK, ls="-", lw=0.8, marker="|", ms=3.4,
-                          label="range of 13 published series")],
+                          label="published means, 5 to 18 series")],
                     fontsize=6.3, handlelength=1.6, loc="upper left",
                     bbox_to_anchor=(0.0, 1.0), frameon=False)
 
@@ -271,8 +279,8 @@ def build(out: Path, reference: bool = False):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="paper/mpda/figures")
-    ap.add_argument("--reference", action="store_true",
-                    help="overlay Panjabi 1992 (mean +- SEM, n=12) on panels a-d")
+    ap.add_argument("--no-reference", dest="reference", action="store_false",
+                    help="omit the published-range overlay")
     a = ap.parse_args()
     S = build(Path(a.out), reference=a.reference)
     for name, st in S.items():
