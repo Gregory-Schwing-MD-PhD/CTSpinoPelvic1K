@@ -51,7 +51,7 @@ DISC_LABEL = {"L1L2": "L1–L2", "L2L3": "L2–L3", "L3L4": "L3–L4",
 # a statement about how well the average is pinned down, not about how much people differ.
 # Drawn on one axis the SEM bar is nearly a point. Anything that made the two look alike
 # would be misleading, so they are drawn differently and the caption says which is which.
-REF_CSV = Path(__file__).resolve().parents[2] / "morphometrics" / "panjabi1992_lumbar.csv"
+REF_CSV = Path(__file__).resolve().parents[2] / "morphometrics" / "panjabi_reference.csv"
 
 
 def load_reference():
@@ -62,7 +62,10 @@ def load_reference():
     with REF_CSV.open(encoding="utf-8") as fh:
         rows = [ln for ln in fh if not ln.lstrip().startswith("#")]
     for r in csv.DictReader(rows):
-        out.setdefault(r["measure"], {})[r["level"]] = (float(r["mean"]), float(r["sem"]))
+        # a blank SEM is a value the paper prints in prose rather than in a table,
+        # so it gets a marker and no bar rather than a fabricated one
+        sem = float(r["sem"]) if (r.get("sem") or "").strip() else None
+        out.setdefault(r["measure"], {})[r["level"]] = (float(r["mean"]), sem)
     return out
 
 
@@ -73,10 +76,15 @@ def draw_reference(ax, ref, key, y_of, color, offset=0.0):
         return False
     lv = [l for l in LEVELS if l in d]
     xs = [d[l][0] for l in lv]
-    es = [d[l][1] for l in lv]
+    es = [d[l][1] if d[l][1] is not None else 0.0 for l in lv]
     ys = [y_of[l] + offset for l in lv]
     ax.errorbar(xs, ys, xerr=es, color=color, lw=0.9, ls="--", marker="", zorder=1.5,
                 elinewidth=0.9, capsize=1.6, capthick=0.9, alpha=0.95)
+    # a value with no published bar still gets its point drawn, just without whiskers
+    bare = [(d[l][0], y_of[l] + offset) for l in lv if d[l][1] is None]
+    if bare:
+        ax.plot([b[0] for b in bare], [b[1] for b in bare], ls="none", marker="|",
+                ms=4, color=color, zorder=1.6)
     return True
 
 

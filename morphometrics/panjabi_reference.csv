@@ -53,3 +53,25 @@ pedicle,L2,8.25,0.675,PDW = mean(PDWr 7.8+-0.57, PDWl 8.7+-0.78),4,302
 pedicle,L3,10.15,0.600,PDW = mean(PDWr 10.2+-0.67, PDWl 10.1+-0.53),4,302
 pedicle,L4,14.05,0.320,PDW = mean(PDWr 13.4+-0.18, PDWl 14.7+-0.46),4,302
 pedicle,L5,18.60,1.030,PDW = mean(PDWr 18.0+-1.03, PDWl 19.2+-1.03),4,302
+# --------------------------------------------------------------------------------------
+# Panjabi MM, Takata K, Goel V, Federico D, Oxland T, Duranceau J, Krag M.
+# Thoracic human vertebrae: quantitative three-dimensional anatomy.
+# Spine (Phila Pa 1976) 1991;16(8):888-901. doi:10.1097/00007632-199108000-00006
+#
+# SAME TWELVE SPECIMENS. This paper states "A total of 12 C2 to L5 spines were studied",
+# so the thoracic and lumbar papers are two reports of one cadaveric series, not two
+# independent series. Anything drawn from both is one n=12 reference, not n=24.
+#
+# Only the values printed as NUMBERS are recorded below. The end-plate widths for T11 and
+# T12 exist in this paper only as a curve (Fig. 4A) and posterior body height only as a
+# curve (Fig. 4D) plus one figure quoted in the running text, so reading them off the axis
+# would put graph-estimated values into a published comparison. They are left out.
+#
+# For the record, the text does state: posterior vertebral body height rises "from a value
+# of 14.3 mm at T1 to 22.7 mm at T12", an average of 0.8 mm per level. That single T12
+# value is entered; T11 is not, because only the curve gives it.
+canal_w,T11,19.4,0.95,SCW,4,893
+canal_w,T12,22.2,1.12,SCW,4,893
+canal_ap,T11,16.0,0.46,SCD,4,893
+canal_ap,T12,18.1,0.62,SCD,4,893
+h_post,T12,22.7,,VBHp (running text p. 890; Table 3 not in the scan),,890
