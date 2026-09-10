@@ -208,7 +208,7 @@ def build(out: Path, reference: bool = True):
     # cannot be named in a caption, and an in-axes key large enough to hold them covers the
     # distributions the figure exists to show. The band is its own axes so the panels keep
     # their full width and the entries can run in columns.
-    fig = plt.figure(figsize=(MF.COL2, 62 * MF.MM))
+    fig = plt.figure(figsize=(MF.COL2, 49 * MF.MM))
     gs = fig.add_gridspec(2, 3, height_ratios=[1.0, 0.26], hspace=0.44, wspace=0.22)
     axes = np.array([fig.add_subplot(gs[0, i]) for i in range(3)])
     ax_key = fig.add_subplot(gs[1, :])

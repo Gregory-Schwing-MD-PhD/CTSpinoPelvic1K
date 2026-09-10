@@ -252,12 +252,35 @@ def fig_validation(out):
     # more elaborate estimator did -- pelvic incidence 49.2 against 45.8 for a published
     # 47.1-52.1, and 6.3% anatomically impossible against 16.0% -- so this reports the one
     # that measures better, not the one that is nicer to describe.
+    # TWO EXCLUSIONS, BOTH ON GEOMETRY AND BOTH STATED.
+    #
+    #   s1_plate_rejected  the fitted sacral plate's normal lies more than 60 deg off the
+    #     cranial axis, so it is the anterior face of the promontory and not an endplate.
+    #     99 of 802. Their sacral slopes have a median of 67.5 deg and reach 89.9; the
+    #     cases that survive have a median of 35.1 and a maximum of 59.8.
+    #
+    #   pelvic tilt below -15 deg  an anteversion steeper than any reported. 60 of the
+    #     remainder. These cases have a NORMAL sacral plate (tilt 38 deg, slope 38.0) and
+    #     a NORMAL femoral head separation (164 mm), yet return a pelvic incidence of 1 to
+    #     17 deg, which would put the hip axis almost on the plate normal. The plate and
+    #     the heads are each right and their relative geometry is not; the cause is not
+    #     identified, so they are excluded and counted rather than explained away.
+    #     Documented in docs/SPINOPELVIC_ESTIMATOR.md.
+    def _keep(r):
+        if (r.get("s1_plate_rejected") or "0") not in ("", "0"):
+            return False
+        try:
+            return float(r["pelvic_tilt_deg"]) >= -15.0
+        except (TypeError, ValueError, KeyError):
+            return False
     _all = load("surgical_morphometrics.csv")
-    sg = [r for r in _all if (r.get("s1_plate_rejected") or "0") in ("", "0")]
+    sg = [r for r in _all if _keep(r)]
     KEYS = {k: k for k in ("pelvic_incidence_deg", "sacral_slope_deg", "pelvic_tilt_deg")}
     if _all:
-        print(f"  fig_validation: {len(sg)}/{len(_all)} records kept "
-              f"({len(_all) - len(sg)} sacral plates rejected)")
+        _plate = sum(1 for r in _all
+                     if (r.get("s1_plate_rejected") or "0") not in ("", "0"))
+        print(f"  fig_validation: {len(sg)}/{len(_all)} kept "
+              f"({_plate} plate rejected, {len(_all) - len(sg) - _plate} tilt below -15 deg)")
     # ONE ROW. The level-by-level panels moved to the level atlas, which draws the
     # same measurements with their spread instead of as overlapping density curves.
     fig = plt.figure(figsize=(COL2, 1.5), constrained_layout=True)

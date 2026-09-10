@@ -564,12 +564,14 @@ restored here for the camera-ready version\else\url{https://huggingface.co/OpenS
 throughout used NiBabel and SciPy; no image is resampled or reoriented when a label is
 written, so every label shares its image's grid and affine exactly.
 
-\emph{Measurement.} Dimensions here come from code released with the dataset. A
-reusable implementation that reads each between landmarks in the vertebra's own frame,
-rather than along the scanner's axes, is released separately as \toolkit{}
-(\ifreview the URL identifies the authors and is on the title page\else\url{https://github.com/OpenSpineConsortium/OpenSpineToolkit}\fi). The two agree
-within a millimetre on canal depth; they differ most on posterior body height, where the
-frame removes a tilt term worth several millimetres at L5.
+\emph{Measurement.} Dimensions and spinopelvic parameters come from code released with the
+dataset. A sacral plate whose fitted normal lies more than 60\si{\degree} off the cranial
+axis is rejected and the case reported missing: such a fit has found the near-vertical
+anterior face of the promontory, not the endplate. Gating on the geometry rather than on
+the value leaves unusual patients in. \toolkit{} is released separately
+(\ifreview the URL identifies the authors and is on the title page\else\url{https://github.com/OpenSpineConsortium/OpenSpineToolkit}\fi)
+as a reusable implementation measuring in each vertebra's own frame; no open-source
+implementation computing these parameters from CT segmentations was found.
 
 \emph{Generative artificial intelligence.} A large language model (Claude, Anthropic)
 assisted with drafting and editing the manuscript text and with writing the analysis and
@@ -608,11 +610,12 @@ since 16 records carry one, but because such a rib takes class 60 or 61 and neve
 numbered set the test examines. A numbered rib landing on a lumbar vertebra would be a
 counting error of exactly the kind this dataset exists to expose.
 
-\emph{Agreement with published values.} Derived spinopelvic measures are compared against
-Vialle \emph{et al.}~\cite{vialle2005} (Table~\ref{tab:spinopelvic}). Pelvic incidence is the strongest of these checks because it is a morphological property
-of the pelvis rather than a posture, and so is directly comparable to a standing reference
-cohort; it agrees to within a degree. Lumbar lordosis sits below the standing reference, the
-direction recumbency predicts.
+\emph{Agreement with published values.} Pelvic incidence is the strongest of these checks
+because it is a morphological property rather than a posture; it agrees to within half a
+degree with the automated supine CT series of Veilleux \emph{et al.}~\cite{veilleux2020}
+and sits below the standing figure, the direction reported for subjects imaged both
+ways.\cite{leeliu2022} Sacral slope and lumbar lordosis also sit below their standing
+references, as recumbency predicts, and pelvic tilt above.
 
 \subsection{Castellvi typing}
 
@@ -628,18 +631,19 @@ fusion)~\cite{koninwalz2010}, is the one that matters clinically, and four of th
 disagreements were III against II.
 
 \begin{table*}[t]
-\caption{Derived measures against a standing reference ($n=260$)~\cite{vialle2005}; this
-cohort is supine.}
+\caption{Spinopelvic measures, median over the 575 of 802 records passing the geometric
+gates, against automated supine CT.\cite{veilleux2020} Standing values are 55.0, 41.0,
+13.0 and 60.0\si{\degree}.\cite{vialle2005}}
 \label{tab:spinopelvic}
 \begin{ruledtabular}
 \maxwidth{%
 \begin{tabular}{lcc}
-Measure & This dataset (supine) & Reference (standing) \\ \colrule
-Pelvic incidence & 54.7\si{\degree} & 55 $\pm$ 10.6 \\
-Pelvic tilt & 17.3\si{\degree} & 13 $\pm$ 6 \\
-Sacral slope & 36.9\si{\degree} & 41.0 $\pm$ 8.4 \\
-Lumbar lordosis & 52.7\si{\degree} & 60 $\pm$ 10 \\
-PI $-$ LL mismatch & 2.6\si{\degree} & centered near 0 \\
+Measure & This dataset (supine, $n=575$) & Veilleux (supine CT) \\ \colrule
+Pelvic incidence & 52.6\si{\degree} & 52.1 \\
+Sacral slope & 33.1\si{\degree} & 36.5 \\
+Pelvic tilt & 19.6\si{\degree} & 15.6 \\
+Lumbar lordosis & 49.3\si{\degree} & --- \\
+PI $-$ LL mismatch & 4.1\si{\degree} & --- \\
 \end{tabular}
 }
 \end{ruledtabular}
@@ -798,20 +802,22 @@ enumeration, a model trained on them is not learning the convention that fails.
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_levelatlas.pdf}
-\caption{Morphometry by level, as median, interquartile range and 5th--95th percentile, with $n$ at
-right. (a) Endplate width. (b) Canal. (c) Pedicle width. Dashed lines are Panjabi's
-cadaveric means for the same measures, the series the textbook figures redraw.}
+\caption{Morphometry by level, T11--L5, as median, interquartile range and 5th--95th
+percentile, with $n$ at right. (a) Endplate width. (b) Canal, width and depth. (c)
+Transverse pedicle width, the mean of the two sides. Lines are the published series for
+each measure, keyed below; Panjabi is drawn in black as the series the text cites.}
 \label{fig:levelatlas}
 \end{figure*}
 
-\emph{Reference morphometry with its spread.} The values a surgeon consults for endplate and canal dimensions and pedicle width come
-from cadaveric series of twelve to thirty specimens\cite{panjabi1991,panjabi1992,berry1987}
-and are redrawn in the textbooks as one curve per level.\cite{benzel2015} A standard error,
-where one is reported, describes the mean and not the spread of individuals, so neither
-tells the reader whether the patient in front of them is unusual. The same measures are
-given here from 802 records with the distribution attached (Fig.~\ref{fig:levelatlas}),
-reproducing the classical figures' pedicle widening into the lower lumbar spine and adding
-the width of each distribution, the part needed to judge an individual.
+\emph{Reference morphometry with its spread.} The values a surgeon consults for endplate
+and canal dimensions and pedicle width come from cadaveric series of ten to thirty
+specimens\cite{panjabi1991,panjabi1992,berry1987} redrawn in the textbooks as one curve per
+level.\cite{benzel2015} A standard error describes the mean, not the spread of individuals,
+so neither tells the reader whether the patient in front of them is unusual. The same
+measures are given here from 802 records with the distribution attached
+(Fig.~\ref{fig:levelatlas}), reproducing the classical pedicle widening into the lower
+lumbar spine and adding the width of each distribution. The published series drawn
+alongside disagree among themselves by 21 to 69\%.
 
 \emph{Patient-specific models.} Finite-element studies increasingly apply patient-specific
 modeling to alignment planning and implant design.\cite{fea2026} Such a model needs spine, pelvis and
@@ -829,10 +835,9 @@ in Table~S1.}
 
 \emph{Limitations: coverage and cohort.}\label{sec:limitations} Thoracic ground truth is
 field-of-view limited (Fig.~\ref{fig:fov}) and does not reach T1. Postural angles are
-supine, though pelvic incidence is not postural and needs no such caveat. The cohort is one
-acquisition protocol of a colorectal screening population aged 50 and over, so its
-distributions should not be read as a surgical one, and generalization to pathologic anatomy
-is untested.
+supine; pelvic incidence is not postural, but it is modality-sensitive, reading below
+radiography for the same subjects.\cite{leeliu2022} The cohort is one acquisition protocol of a colorectal screening population
+aged 50 and over, so its distributions should not be read as a surgical one.
 
 
 
@@ -1043,6 +1048,19 @@ M.~R. Zindrick et~al.,
 \newblock Spine (Phila. Pa. 1976) {\bf 12}, 160--166 (1987),
 \newblock doi:10.1097/00007632-198703000-00012.
 
+\bibitem{leeliu2022}
+C.~M. Lee and R.~W. Liu,
+\newblock Comparison of pelvic incidence measurement using lateral x-ray, standard CT versus
+CT with 3D reconstruction,
+\newblock Eur. Spine J. {\bf 31}, 241--247 (2022),
+\newblock doi:10.1007/s00586-021-07024-7.
+
+\bibitem{veilleux2020}
+N.~J. Veilleux, N.~V. Kalore, J.~A. Vossen, and J.~S. Wayne,
+\newblock Automatic characterization of pelvic and sacral measures from 200 subjects,
+\newblock J. Bone Joint Surg. Am. {\bf 102}, e130 (2020),
+\newblock doi:10.2106/JBJS.20.00343.
+
 \bibitem{panjabi1991}
 M.~M. Panjabi et~al.,
 \newblock Thoracic human vertebrae: quantitative three-dimensional anatomy,
@@ -1120,7 +1138,7 @@ F.~Isensee, P.~F. Jaeger, S.~A.~A. Kohl, J.~Petersen, and K.~H. Maier-Hein,
 \newblock doi:10.1038/s41592-020-01008-z.
 
 \bibitem{vialle2005}
-R.~Vialle, N.~Levassor, L.~Rillardon, A.~Templier, W.~Skalli, and P.~Guigui,
+R.~Vialle et~al.,
 \newblock Radiographic analysis of the sagittal alignment and balance of the spine in asymptomatic subjects,
 \newblock J. Bone Joint Surg. Am. {\bf 87}, 260--267 (2005),
 \newblock doi:10.2106/JBJS.D.02043.
@@ -1132,7 +1150,7 @@ A.~E. Castellvi, L.~A. Goldstein, and D.~P. Chan,
 \newblock doi:10.1097/00007632-198407000-00014.
 
 \bibitem{pickhardt2013}
-P.~J. Pickhardt, B.~D. Pooler, T.~Lauder, A.~M. del Rio, R.~J. Bruce, and N.~Binkley,
+P.~J. Pickhardt et~al.,
 \newblock Opportunistic screening for osteoporosis using abdominal computed tomography scans obtained for other indications,
 \newblock Ann. Intern. Med. {\bf 158}, 588--595 (2013),
 \newblock doi:10.7326/0003-4819-158-8-201304160-00003.
