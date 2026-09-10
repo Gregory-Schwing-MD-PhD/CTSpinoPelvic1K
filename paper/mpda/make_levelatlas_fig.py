@@ -41,11 +41,51 @@ DISC_LABEL = {"L1L2": "L1–L2", "L2L3": "L2–L3", "L3L4": "L3–L4",
               "L4L5": "L4–L5", "L5S1": "L5–S1"}
 
 
-def build(out: Path):
+# --------------------------------------------------------------------------- reference
+# PANJABI 1992 OVERLAID ON OUR OWN DISTRIBUTIONS. This is the comparison the section is
+# arguing for, so the figure should carry it rather than ask the reader to take it on
+# trust: the classical value and, beside it, what 802 living patients actually look like.
+#
+# THE BARS ARE NOT COMPARABLE, AND THAT IS THE POINT. Ours are the 5th-95th percentile of
+# a population. Panjabi's are the standard error of the mean of twelve specimens, which is
+# a statement about how well the average is pinned down, not about how much people differ.
+# Drawn on one axis the SEM bar is nearly a point. Anything that made the two look alike
+# would be misleading, so they are drawn differently and the caption says which is which.
+REF_CSV = Path(__file__).resolve().parents[2] / "morphometrics" / "panjabi1992_lumbar.csv"
+
+
+def load_reference():
+    """{measure: {level: (mean, sem)}} from the transcribed tables, comments skipped."""
+    if not REF_CSV.exists():
+        return {}
+    out = {}
+    with REF_CSV.open(encoding="utf-8") as fh:
+        rows = [ln for ln in fh if not ln.lstrip().startswith("#")]
+    for r in csv.DictReader(rows):
+        out.setdefault(r["measure"], {})[r["level"]] = (float(r["mean"]), float(r["sem"]))
+    return out
+
+
+def draw_reference(ax, ref, key, y_of, color, offset=0.0):
+    """One dashed reference line with its SEM bars. Silent when the measure has no counterpart."""
+    d = ref.get(key)
+    if not d:
+        return False
+    lv = [l for l in LEVELS if l in d]
+    xs = [d[l][0] for l in lv]
+    es = [d[l][1] for l in lv]
+    ys = [y_of[l] + offset for l in lv]
+    ax.errorbar(xs, ys, xerr=es, color=color, lw=0.9, ls="--", marker="", zorder=1.5,
+                elinewidth=0.9, capsize=1.6, capthick=0.9, alpha=0.95)
+    return True
+
+
+def build(out: Path, reference: bool = False):
     lg = MF.load("level_gradients.csv")
     sm = MF.load("surgical_morphometrics.csv")
     dg = MF.load("degenerative.csv")
     op = MF.load("opportunistic.csv")
+    ref = load_reference() if reference else {}
     if not (lg and sm and dg and op):
         raise SystemExit("morphometrics CSVs not found")
 
@@ -76,20 +116,24 @@ def build(out: Path):
     # (a) body height, ventral against dorsal
     draw(ax_a, S["h_ant"], y_of, TEAL, "o", offset=+0.17, label="ventral")
     draw(ax_a, S["h_post"], y_of, OCHRE, "s", offset=-0.17, label="dorsal")
+    draw_reference(ax_a, ref, "h_post", y_of, MF.INK, offset=-0.17)
     ax_a.set_xlabel("vertebral body height (mm)")
     ax_a.set_title("(a) Body height", loc="left", fontsize=8.0)
-    ax_a.legend(fontsize=6.3, handlelength=1.0, loc="upper left",
-                bbox_to_anchor=(0.0, 0.30))
+    ax_a.legend(fontsize=6.3, handlelength=1.0, loc="lower right",
+                bbox_to_anchor=(1.0, 0.0) if ref else (1.0, 0.0))
 
     # (b) superior endplate width
     draw(ax_b, S["endplate"], y_of, TEAL, "o")
     annotate_n(ax_b, S["endplate"], y_of, FAINT)
+    draw_reference(ax_b, ref, "endplate", y_of, MF.INK)
     ax_b.set_xlabel("superior endplate width (mm)")
     ax_b.set_title("(b) Endplate width", loc="left", fontsize=8.0)
 
     # (c) canal, width against depth
     draw(ax_c, S["canal_w"], y_of, TEAL, "o", offset=+0.17, label="width")
     draw(ax_c, S["canal_ap"], y_of, INK, "^", offset=-0.17, label="depth (AP)")
+    draw_reference(ax_c, ref, "canal_w", y_of, MF.INK, offset=+0.17)
+    draw_reference(ax_c, ref, "canal_ap", y_of, MF.INK, offset=-0.17)
     ax_c.set_xlabel("spinal canal (mm)")
     ax_c.set_title("(c) Canal", loc="left", fontsize=8.0)
     # upper right: the canal narrows upward, so the free space is to the right of the
@@ -100,6 +144,7 @@ def build(out: Path):
     # (d) transverse pedicle width
     draw(ax_d, S["pedicle"], y_of, OCHRE, "D")
     annotate_n(ax_d, S["pedicle"], y_of, FAINT)
+    draw_reference(ax_d, ref, "pedicle", y_of, MF.INK)
     ax_d.set_xlabel("transverse pedicle width (mm)")
     ax_d.set_title("(d) Pedicle width", loc="left", fontsize=8.0)
 
@@ -136,6 +181,13 @@ def build(out: Path):
     ax_e.set_yticklabels([DISC_LABEL[d] for d in DISCS])
     ax_e.set_ylim(min(y_disc.values()) - 0.6, max(y_disc.values()) + 0.6)
 
+    if ref:
+        import matplotlib.lines as mlines
+        ax_e.legend(handles=[mlines.Line2D([], [], color=MF.INK, ls="--", lw=0.9,
+                                           label=r"Panjabi 1992 (mean $\pm$ SEM, $n=12$)")],
+                    fontsize=6.3, handlelength=1.6, loc="lower left",
+                    bbox_to_anchor=(0.0, 0.0), frameon=False)
+
     fig.tight_layout(pad=0.5, w_pad=1.4, h_pad=1.2)
     out.mkdir(parents=True, exist_ok=True)
     fig.savefig(out / "fig_levelatlas.pdf")
@@ -164,8 +216,10 @@ def build(out: Path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="paper/mpda/figures")
+    ap.add_argument("--reference", action="store_true",
+                    help="overlay Panjabi 1992 (mean +- SEM, n=12) on panels a-d")
     a = ap.parse_args()
-    S = build(Path(a.out))
+    S = build(Path(a.out), reference=a.reference)
     for name, st in S.items():
         print(f"{name:9s} " + ", ".join(f"{lv.upper()}:{s['n']}" for lv, s in st.items()))
 

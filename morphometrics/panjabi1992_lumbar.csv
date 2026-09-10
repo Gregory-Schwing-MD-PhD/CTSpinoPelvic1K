@@ -1,0 +1,55 @@
+measure,level,mean,sem,panjabi_name,source_table,source_page
+# Panjabi MM, Goel V, Oxland T, Takata K, Duranceau J, Krag M, Price M.
+# Human lumbar vertebrae: quantitative three-dimensional anatomy.
+# Spine (Phila Pa 1976) 1992;17(3):299-306. doi:10.1097/00007632-199203000-00010
+#
+# Transcribed from the scanned tables; the PDF carries no text layer. Every value is
+# MEAN plus or minus STANDARD ERROR OF THE MEAN, which the footnote of each table states
+# explicitly ("*Mean +/- SEM"). That is the whole reason this overlay is worth drawing:
+# an SEM bar is the precision of the average of twelve specimens, not the spread of the
+# population, so it is narrow by construction and cannot tell a surgeon whether the
+# patient in front of them is unusual.
+#
+# Column mapping to this release's measures:
+#   h_post   <- VBHp  posterior vertebral body height   (Table 2)
+#   endplate <- EPWu  upper end-plate width             (Table 2)
+#   canal_w  <- SCW   spinal canal lateral width        (Table 3)
+#   canal_ap <- SCD   spinal canal anteroposterior depth(Table 3)
+#   pedicle  <- PDW   transverse pedicle width          (Table 4)
+#
+# PEDICLE IS THE ONE DERIVED ROW. Table 4 reports the right and left pedicles separately
+# (PDWr, PDWl). The value below is their average, which is what the paper's own running
+# text calls PDW: it says the width "was initially 8.6 mm at L1, then decreased to 8.2 mm
+# at L2 ... At L5, the width was 18.9 mm", and averaging the two columns reproduces 8.6,
+# 8.25 and 18.6. The bar is the average of the two reported SEMs; Panjabi publishes no
+# combined SEM and none can be recovered from what is printed, so it is an average of the
+# two published bars and nothing more.
+#
+# h_ant has NO counterpart here: Table 2 reports posterior body height only.
+# disc and hu have no counterpart at all; Panjabi measured vertebrae, not discs, and
+# attenuation is an in vivo quantity a cadaveric study does not produce.
+h_post,L1,23.8,1.03,VBHp,2,301
+h_post,L2,24.3,0.95,VBHp,2,301
+h_post,L3,23.8,1.10,VBHp,2,301
+h_post,L4,24.1,1.10,VBHp,2,301
+h_post,L5,22.9,0.95,VBHp,2,301
+endplate,L1,41.2,1.03,EPWu,2,301
+endplate,L2,42.6,0.74,EPWu,2,301
+endplate,L3,44.1,0.88,EPWu,2,301
+endplate,L4,46.6,1.20,EPWu,2,301
+endplate,L5,47.3,1.20,EPWu,2,301
+canal_w,L1,23.7,0.92,SCW,3,302
+canal_w,L2,23.8,0.71,SCW,3,302
+canal_w,L3,24.3,0.64,SCW,3,302
+canal_w,L4,25.4,0.49,SCW,3,302
+canal_w,L5,27.1,0.88,SCW,3,302
+canal_ap,L1,19.0,0.67,SCD,3,302
+canal_ap,L2,18.2,0.53,SCD,3,302
+canal_ap,L3,17.5,0.53,SCD,3,302
+canal_ap,L4,18.6,0.71,SCD,3,302
+canal_ap,L5,19.7,0.49,SCD,3,302
+pedicle,L1,8.60,0.915,PDW = mean(PDWr 8.0+-0.95, PDWl 9.2+-0.88),4,302
+pedicle,L2,8.25,0.675,PDW = mean(PDWr 7.8+-0.57, PDWl 8.7+-0.78),4,302
+pedicle,L3,10.15,0.600,PDW = mean(PDWr 10.2+-0.67, PDWl 10.1+-0.53),4,302
+pedicle,L4,14.05,0.320,PDW = mean(PDWr 13.4+-0.18, PDWl 14.7+-0.46),4,302
+pedicle,L5,18.60,1.030,PDW = mean(PDWr 18.0+-1.03, PDWl 19.2+-1.03),4,302
