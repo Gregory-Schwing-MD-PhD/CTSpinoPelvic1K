@@ -564,12 +564,19 @@ restored here for the camera-ready version\else\url{https://huggingface.co/OpenS
 throughout used NiBabel and SciPy; no image is resampled or reoriented when a label is
 written, so every label shares its image's grid and affine exactly.
 
-\emph{Measurement.} Dimensions here come from code released with the dataset. A
-reusable implementation that reads each between landmarks in the vertebra's own frame,
-rather than along the scanner's axes, is released separately as \toolkit{}
-(\ifreview the URL identifies the authors and is on the title page\else\url{https://github.com/OpenSpineConsortium/OpenSpineToolkit}\fi). The two agree
-within a millimetre on canal depth; they differ most on posterior body height, where the
-frame removes a tilt term worth several millimetres at L5.
+\emph{Measurement.} Per-level dimensions come from code released with the dataset. The
+spinopelvic parameters come from \toolkit{}
+(\ifreview the URL identifies the authors and is on the title page\else\url{https://github.com/OpenSpineConsortium/OpenSpineToolkit}\fi),
+a separately released implementation that reads each measure between landmarks in the
+vertebra's own frame rather than along the scanner's axes: the sacral plate by its
+anterior and posterior corners, the construction pelvic incidence was defined with, and
+each femoral head by a sphere fitted to its articular surface rather than a label
+centroid. Every case carries the geometric identity check $\mathrm{PI}=\mathrm{SS}+
+\mathrm{PT}$ and a plausibility gate, and a case failing either is reported as missing
+with its reason rather than as a number. The toolkit resolves structure names against the
+label scheme it detects in each volume: two schemes are in circulation for these data,
+they differ in every identifier that matters, and resolving against the wrong one returns
+a different bone rather than an error.
 
 \emph{Generative artificial intelligence.} A large language model (Claude, Anthropic)
 assisted with drafting and editing the manuscript text and with writing the analysis and
@@ -798,20 +805,24 @@ enumeration, a model trained on them is not learning the convention that fails.
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_levelatlas.pdf}
-\caption{Morphometry by level, as median, interquartile range and 5th--95th percentile, with $n$ at
-right. (a) Endplate width. (b) Canal. (c) Pedicle width. Dashed lines are Panjabi's
-cadaveric means for the same measures, the series the textbook figures redraw.}
+\caption{Morphometry by level, T11--L5, as median, interquartile range and 5th--95th
+percentile, with $n$ at right. (a) Endplate width. (b) Canal, width and depth. (c)
+Transverse pedicle width, the mean of the two sides. Lines are the published series for
+each measure, keyed below; Panjabi is drawn in black as the series the text cites.}
 \label{fig:levelatlas}
 \end{figure*}
 
 \emph{Reference morphometry with its spread.} The values a surgeon consults for endplate and canal dimensions and pedicle width come
-from cadaveric series of twelve to thirty specimens\cite{panjabi1991,panjabi1992,berry1987}
+from cadaveric series of ten to thirty specimens\cite{panjabi1991,panjabi1992,berry1987}
 and are redrawn in the textbooks as one curve per level.\cite{benzel2015} A standard error,
 where one is reported, describes the mean and not the spread of individuals, so neither
 tells the reader whether the patient in front of them is unusual. The same measures are
 given here from 802 records with the distribution attached (Fig.~\ref{fig:levelatlas}),
 reproducing the classical figures' pedicle widening into the lower lumbar spine and adding
-the width of each distribution, the part needed to judge an individual.
+the width of each distribution, the part needed to judge an individual. Drawing every
+series the literature offers rather than one also shows what a single curve conceals: for
+the same measure and level the published means disagree by 21 to 69\%, a spread comparable
+to the between-patient spread they are used to interpret.
 
 \emph{Patient-specific models.} Finite-element studies increasingly apply patient-specific
 modeling to alignment planning and implant design.\cite{fea2026} Such a model needs spine, pelvis and

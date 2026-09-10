@@ -230,38 +230,47 @@ def fig_validation(out):
     fig = plt.figure(figsize=(COL2, 1.5), constrained_layout=True)
     gs = gridspec.GridSpec(1, 3, figure=fig)
 
-    # (a-c) three spinopelvic measures against their published value
-    # REFERENCE VALUES ARE SOURCED AND CARRY THEIR SPREAD. Round numbers drawn as a
-    # single line made every distribution look off-centre against a figure nobody had
-    # checked. These are Vialle 2005 (n = 260 asymptomatic adults, standing), quoted as
-    # mean +- SD and drawn as a band, which is what a reference range actually is.
+    # (a-c) three spinopelvic measures against their published values
     #
-    # Sacral slope is expected BELOW the standing reference: it is postural, and lying
-    # down rotates the pelvis. Pelvic incidence is not postural, which is why it can be
-    # compared to a standing cohort without apology.
+    # TWO REFERENCES, BECAUSE THE MODALITY MATTERS MORE THAN THE POSTURE HERE. The band is
+    # Vialle 2005 (n=300 asymptomatic adults, standing radiographs), quoted as mean +- SD,
+    # which is what a reference range actually is. But this cohort is supine CT, and CT
+    # reads LOWER than a standing radiograph in the same subjects -- 53 against 56 degrees
+    # of pelvic incidence in Lee & Liu (Eur Spine J 2022;31:241). Comparing a CT cohort
+    # against radiographic norms alone therefore builds in an offset that has nothing to
+    # do with this dataset, and a reader cannot tell it from a real discrepancy.
     #
-    # THE PELVIC INCIDENCE REFERENCE WAS 54.7, WHICH IS THIS COHORT'S OWN MEASURED VALUE
-    # copied into the reference slot -- the same error a co-author caught in Table II.
-    # Vialle reports 55 +- 10.6. The band moves by three tenths of a degree, so the panel
-    # barely changes, but the old comment here claimed the match "to a decimal place" was
-    # the strongest check in the figure, and that match was an artefact of comparing the
-    # measurement against itself. It agrees to within a degree against the real value,
-    # which is the honest and still-strong version of the claim.
-    for i, (key, title, lo, hi, ref, sd) in enumerate([
-        ("pelvic_incidence_deg", "pelvic incidence", 20, 90, 55.0, 10.6),
-        ("sacral_slope_deg", "sacral slope", 10, 70, 41.0, 8.4),
-        ("pelvic_tilt_deg", "pelvic tilt", -10, 45, 13.0, 6.0),
+    # So the CT literature is drawn too, as a second line: pelvic incidence 47.1 over 370
+    # subjects measured automatically in 3-D (Vrtovec, Spine 2012;37:E479), and sacral
+    # slope and pelvic tilt from the 200-subject automated CT series of Veilleux (JBJS Am
+    # 2020;102:e130). Where this cohort sits between the two is the honest picture.
+    #
+    # THE PELVIC INCIDENCE REFERENCE WAS ONCE 54.7, WHICH IS THIS COHORT'S OWN MEASURED
+    # VALUE copied into the reference slot -- the same error a co-author caught in
+    # Table II. Comparing a measurement against itself is not a check.
+    for i, (key, title, lo, hi, ref, sd, ct_ref, ct_lab) in enumerate([
+        ("pelvic_incidence_deg", "pelvic incidence", 20, 90, 55.0, 10.6, 47.1,
+         "CT, Vrtovec ($n$=370)"),
+        ("sacral_slope_deg", "sacral slope", 10, 70, 41.0, 8.4, 36.5,
+         "CT, Veilleux ($n$=200)"),
+        ("pelvic_tilt_deg", "pelvic tilt", -10, 45, 13.0, 6.0, 15.6,
+         "CT, Veilleux ($n$=200)"),
     ]):
         ax = fig.add_subplot(gs[0, i])
         v = col(sg, key, lo, hi)
         xs, ys = kde(v, lo, hi)
         ax.axvspan(ref - sd, ref + sd, color=OCHRE, alpha=0.13, lw=0)
-        ax.axvline(ref, color=OCHRE, ls="--", lw=1.0)
+        ax.axvline(ref, color=OCHRE, ls="--", lw=1.0,
+                   label="standing XR" if i == 0 else None)
+        ax.axvline(ct_ref, color=INK, ls=(0, (1.4, 1.2)), lw=1.0,
+                   label="published CT" if i == 0 else None)
         ax.fill_between(xs, ys, color=TEAL, alpha=0.18, lw=0)
         ax.plot(xs, ys, color=TEAL, lw=1.3)
         ax.set_xlabel(f"{title} (°)")
         ax.set_ylabel("density" if i == 0 else "")
         ax.set_title(f"({'abc'[i]}) {title.capitalize()}", loc="left", fontsize=8.5)
+        if i == 0:
+            ax.legend(fontsize=5.6, handlelength=1.4, frameon=False, loc="upper left")
 
     for ax in fig.axes:
         mp_ticks(ax)
@@ -349,7 +358,11 @@ def fig_opportunistic(out):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default="paper/mpda/figures")
+    # RESOLVED AGAINST THIS FILE, NOT THE WORKING DIRECTORY. As a bare relative path this
+    # default silently created paper/mpda/paper/mpda/figures/ whenever the script was run
+    # from its own directory, and the build then typeset the previous run's figures with
+    # no error anywhere -- the worst kind of stale, because everything reports success.
+    ap.add_argument("--out", default=str(Path(__file__).resolve().parent / "figures"))
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)

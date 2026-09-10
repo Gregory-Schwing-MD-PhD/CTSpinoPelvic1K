@@ -66,6 +66,17 @@ from scipy import ndimage
 
 THORACIC_BASE = 7
 LUMBAR = {20: "L1", 21: "L2", 22: "L3", 23: "L4", 24: "L5", 25: "L6"}
+# THE PER-LEVEL MEASURES RUN HIGHER THAN THE LUMBAR SPINE, and only they do. Canal depth
+# and pedicle width stopped at L1 for no better reason than that this dict did, while
+# canal WIDTH and endplate width -- computed by extract_level_gradients.py, which carries
+# T11 and T12 -- ran two levels higher in the same figure. Panjabi's thoracic companion
+# paper publishes both measures at T11 and T12, so the reference curve was there and our
+# own was the half that stopped.
+#
+# LUMBAR is left alone deliberately. It defines the lordosis arc (which starts at L1 by
+# convention, not at T11), the L4/L5 crest lookup, and the level set that pedicle_min_mm
+# minimises over -- a number already reported. Only the per-level loop widens.
+PER_LEVEL = {18: "T11", 19: "T12", **LUMBAR}
 SACRUM, S1, HIP_L, HIP_R, FEM_L, FEM_R = 26, 29, 30, 31, 32, 33
 RIB_L, RIB_R = 33, 45
 MIN_VOX = 3000
@@ -233,7 +244,7 @@ def one(path: str) -> dict:
     except Exception as exc:                                        # noqa: BLE001
         return {"case": stem, "error": type(exc).__name__}
 
-    have = {v: (lab == v) for v in list(LUMBAR) + [SACRUM, S1, HIP_L, HIP_R, FEM_L, FEM_R]
+    have = {v: (lab == v) for v in list(PER_LEVEL) + [SACRUM, S1, HIP_L, HIP_R, FEM_L, FEM_R]
             if (lab == v).sum() >= MIN_VOX}
 
     # ---- pelvic incidence (position independent) ---------------------------------
@@ -378,7 +389,7 @@ def one(path: str) -> dict:
     ped, canal, torg, wedge = {}, {}, {}, {}
     ped_side, ped_mean = {}, {}
     for vid in sorted(have):
-        if vid not in LUMBAR:
+        if vid not in PER_LEVEL:
             continue
         m = have[vid]
         idx = np.argwhere(m)
@@ -409,7 +420,7 @@ def one(path: str) -> dict:
             sizes = ndimage.sum(hole, cc, range(1, ncc + 1))
             big = cc == (int(np.argmax(sizes)) + 1)
             hy = np.nonzero(big.any(axis=0))[0]
-            canal[LUMBAR[vid]] = round(float(len(hy)) * sp[1], 1)
+            canal[PER_LEVEL[vid]] = round(float(len(hy)) * sp[1], 1)
             # TORG DENOMINATOR IS THE BODY, NOT THE VERTEBRA. Measuring the whole slice
             # puts the spinous process in the denominator, roughly tripling it -- which
             # is why the ratio came back near 0.2 against a normal near 1.0. The canal's
@@ -419,7 +430,7 @@ def one(path: str) -> dict:
             by = np.nonzero(bsl.any(axis=0))[0]
             depth = float(len(by)) * sp[1]
             if depth > 0:
-                torg[LUMBAR[vid]] = round(canal[LUMBAR[vid]] / depth, 3)
+                torg[PER_LEVEL[vid]] = round(canal[PER_LEVEL[vid]] / depth, 3)
             # PEDICLE ISTHMUS, PER SIDE, AT THE SLICE WHERE THE PEDICLE EXISTS.
             # Two earlier versions were wrong in opposite directions. The first took the
             # full left-right extent of bone and halved it, canal included, and read
@@ -485,10 +496,10 @@ def one(path: str) -> dict:
                 # their own left-right gaps run to 1.3 mm at L4, so comparing our min
                 # against their mean is biased low before any anatomy is considered.
                 # pedicle_mm keeps its clinical meaning; the rest are new.
-                ped[LUMBAR[vid]] = round(min(got.values()), 1)
+                ped[PER_LEVEL[vid]] = round(min(got.values()), 1)
                 for k, v in got.items():
-                    ped_side[f"{LUMBAR[vid]}_{k}"] = round(v, 1)
-                ped_mean[LUMBAR[vid]] = round(sum(got.values()) / len(got), 1)
+                    ped_side[f"{PER_LEVEL[vid]}_{k}"] = round(v, 1)
+                ped_mean[PER_LEVEL[vid]] = round(sum(got.values()) / len(got), 1)
 
         # WEDGING IS A PROPERTY OF THE BODY. Taking the posterior fifth of the whole
         # vertebra measures the spinous process, which spans far more height than the
@@ -502,7 +513,7 @@ def one(path: str) -> dict:
             za = np.nonzero(ant.any(axis=(0, 1)))[0]
             zp = np.nonzero(post.any(axis=(0, 1)))[0]
             if len(za) and len(zp):
-                wedge[LUMBAR[vid]] = round(len(za) / len(zp), 3)
+                wedge[PER_LEVEL[vid]] = round(len(za) / len(zp), 3)
 
     # pedicle_mean_mm is the like-for-like counterpart to a published PDW, which is
     # reported per side; pedicle_l/_r carry the sides themselves. pedicle_mm stays
@@ -534,9 +545,13 @@ def one(path: str) -> dict:
         if len(ok) < len(d):
             r[f"{name}_n_dropped"] = len(d) - len(ok)
 
-    _min_of(ped, "ped", "pedicle_min_mm", 1)
-    _min_of(torg, "torg", "torg_min", 3)
-    _min_of(wedge, "wedge", "wedge_min", 3)
+    # THE MINIMA STAY LUMBAR. pedicle_min_mm is reported as the narrowest LUMBAR pedicle
+    # and T11-T12 pedicles are narrower than any of them, so letting the widened loop feed
+    # this would silently redefine a published number as a thoracolumbar minimum.
+    LUM = {v for v in LUMBAR.values()}
+    _min_of({k: v for k, v in ped.items() if k in LUM}, "ped", "pedicle_min_mm", 1)
+    _min_of({k: v for k, v in torg.items() if k in LUM}, "torg", "torg_min", 3)
+    _min_of({k: v for k, v in wedge.items() if k in LUM}, "wedge", "wedge_min", 3)
     return r
 
 

@@ -113,35 +113,61 @@ def one(path: str) -> dict:
     if cl is not None and cr is not None:
         r["bi_acetabular_mm"] = round(float(np.linalg.norm(cl - cr)), 1)
 
-    # ---- pelvic inlet, promontory to symphysis --------------------------------------
-    if S1 in have and (HIP_L in have or HIP_R in have):
+    # ---- pelvic inlet: the OBSTETRIC CONJUGATE ---------------------------------------
+    # THE PREVIOUS VERSION MEASURED NEITHER OF THE THREE PUBLISHED CONJUGATES, which is
+    # why three attempts at it all landed 10-15 mm above the published range and none
+    # separated by sex, in a measure that is among the most dimorphic in the skeleton.
+    # Both of its landmarks were wrong, and both errors lengthen the line:
+    #
+    #   THE PROMONTORY. It took the most anterior voxel of the superior slab of the WHOLE
+    #   S1 label, across its full width. The most anterior point of that slab is usually
+    #   on the ALA, which sits anterior and lateral to the promontory proper. Both
+    #   published rule-based recipes restrict to a mid-sagittal slab BEFORE taking an
+    #   extremum -- Fischer et al. (Sci Rep 2019;9:13322) cut with two sagittal planes
+    #   through the PSISs and iterate; ctpelvimetry (Huang et al., J Imaging Inform Med
+    #   2026) derives a midline from the hips and sorts candidates most-anterior first,
+    #   nearest-midline second.
+    #
+    #   THE SYMPHYSIS. It took the most ANTERIOR pubic voxel, i.e. the front surface of
+    #   the pubic body. No conjugate ends there. The obstetric conjugate -- the one that
+    #   matters, because it is the true obstacle -- runs to the most posteriorly bulging
+    #   point on the BACK of the symphysis, and is by definition the SHORTEST
+    #   promontory-to-symphysis distance. Ending on the front surface adds the whole
+    #   anteroposterior thickness of the pubic body.
+    #
+    # Measuring it as the minimum distance to the midline pubis, rather than to a
+    # separately-detected landmark, is the definition itself and needs no threshold.
+    # Published means for comparison, all CT: 126.2 +/- 8.6 mm female and 119.4 +/- 9.9
+    # male (Lorenzon et al., Int J Colorectal Dis 2020;35:977, n=200); 127.0 +/- 9.5 mm
+    # over 1263 women (Nishikawa et al., J Matern Fetal Neonatal Med 2023;36:2190444).
+    if S1 in have and HIP_L in have and HIP_R in have:
+        # Midline from the two hips' own centroids: the median x of their union drifts
+        # whenever the field of view crops one side more than the other.
+        cxl = float(np.argwhere(have[HIP_L])[:, 0].mean())
+        cxr = float(np.argwhere(have[HIP_R])[:, 0].mean())
+        midx = 0.5 * (cxl + cxr)
+        SLAB_MM = 12.0
+
         si = np.argwhere(have[S1])
-        top = si[si[:, 2] >= np.percentile(si[:, 2], 88)]
-        if len(top):
-            prom = top[np.argmax(top[:, 1])] * sp
-            hips = np.zeros_like(lab, bool)
-            for h in (HIP_L, HIP_R):
-                if h in have:
-                    hips |= have[h]
-            hi = np.argwhere(hips)
-            # the pubic bones meet at the ANTERIOR MIDLINE. Taking the most anterior hip
-            # voxel at the promontory's HEIGHT instead lands on the iliac wing and
-            # returns an inlet near 70 mm, which is anatomically impossible.
-            midx = float(np.median(hi[:, 0]))
-            near = hi[np.abs(hi[:, 0] - midx) * sp[0] <= 18.0]
-            if len(near) > 50:
-                sym = near[np.argmax(near[:, 1])] * sp
-                ap = float(np.hypot(sym[1] - prom[1], sym[2] - prom[2]))
-                if 60 < ap < 200:
-                    # RECORDED BUT NOT REPORTED. Three landmark definitions were tried
-                    # against the published 110-130 mm conjugate: most-anterior pubis
-                    # (142 mm median), superior-anterior margin (135), and
-                    # superior-posterior margin (137). None reached the published range
-                    # and none separated by sex, in a measure that is among the most
-                    # dimorphic in the skeleton. The column is kept for anyone who wants
-                    # to improve the landmark; nothing downstream should plot it until
-                    # someone does.
-                    r["pelvic_inlet_ap_mm_UNVALIDATED"] = round(ap, 1)
+        si = si[np.abs(si[:, 0] - midx) * sp[0] <= SLAB_MM]      # mid-sagittal slab FIRST
+        hips = np.zeros_like(lab, bool)
+        for h in (HIP_L, HIP_R):
+            hips |= have[h]
+        hi = np.argwhere(hips)
+        hi = hi[np.abs(hi[:, 0] - midx) * sp[0] <= SLAB_MM]
+        if len(si) > 40 and len(hi) > 40:
+            top = si[si[:, 2] >= np.percentile(si[:, 2], 80)]     # superior fifth of S1
+            if len(top):
+                prom = top[np.argmax(top[:, 1])] * sp             # most anterior, midline
+                # the symphysis is anterior to the promontory; everything behind it is
+                # sacroiliac bone and must not win the minimum
+                cand = hi[(hi[:, 1] * sp[1]) > prom[1] + 20.0]
+                if len(cand) > 20:
+                    d = np.hypot(cand[:, 1] * sp[1] - prom[1],
+                                 cand[:, 2] * sp[2] - prom[2])
+                    ap = float(d.min())
+                    if 70 < ap < 190:
+                        r["pelvic_inlet_ap_mm"] = round(ap, 1)
     return r
 
 

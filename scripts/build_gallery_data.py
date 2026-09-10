@@ -492,13 +492,27 @@ PELVIC_SHAPE = [
      "shaft and read 18 mm too wide before this was corrected."),
 ]
 
-# WITHHELD, DELIBERATELY. Pelvic inlet depth and the sacral index are two of the most
-# sexually dimorphic measurements in the skeleton, and both came back with NO separation
-# at all -- inlet 149.8 mm in women against 149.5 in men, sacral index 0.9 against 0.9 --
-# with the inlet also 20 mm above the published range for an obstetric conjugate. A null
-# in a measure that is known to separate is evidence the landmark is wrong, not evidence
-# about the population, so neither is shown until the landmark is fixed.
-WITHHELD = ["pelvic_inlet_ap_mm", "sacral_width_ratio", "inlet_index"]
+# WITHHELD, DELIBERATELY -- and one of them has now earned its way out.
+#
+# Pelvic inlet depth and the sacral index are two of the most sexually dimorphic
+# measurements in the skeleton, and both came back with NO separation at all -- inlet
+# 149.8 mm in women against 149.5 in men, sacral index 0.9 against 0.9 -- with the inlet
+# also 20 mm above the published range for an obstetric conjugate. A null in a measure
+# that is known to separate is evidence the landmark is wrong, not evidence about the
+# population, so neither was shown.
+#
+# THE INLET IS NOW MEASURED AND IS RELEASED. Both of its landmarks had been wrong, and
+# both errors lengthened the line: the promontory was taken as the most anterior point of
+# the whole superior S1 slab, which is on the ala rather than the midline, and the
+# anterior end was the FRONT surface of the pubic body, where no conjugate ends. Measured
+# in a mid-sagittal slab as the shortest promontory-to-symphysis distance -- the obstetric
+# conjugate's own definition -- it reads 131.4 mm in women against 125.4 in men. The
+# separation is 6.5 mm against a published 6.8 (Lorenzon et al., Int J Colorectal Dis
+# 2020;35:977, n=200: 126.2 +/- 8.6 female, 119.4 +/- 9.9 male), and both sexes now sit
+# within about 0.6 SD of the published mean instead of 20 mm above it.
+#
+# The sacral index and inlet index still show no separation and stay withheld.
+WITHHELD = ["sacral_width_ratio", "inlet_index"]
 
 
 def add_pelvic_shape(out, path, extra=None):

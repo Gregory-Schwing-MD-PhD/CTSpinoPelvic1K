@@ -41,72 +41,71 @@ SPREAD_CSV = (Path(__file__).resolve().parents[2] / "morphometrics"
 LEVELREF_CSV = (Path(__file__).resolve().parents[2] / "morphometrics"
                 / "level_references.csv")
 
-# NAMED SERIES, DRAWN AS LINES. An unlabelled span with ticks showed that the references
-# disagree but not WHICH reference is where, so a reader could not check our distribution
-# against any particular one. Each series now gets its own line, its own colour and dash,
-# and an entry in the legend.
+# EVERY SERIES THE TABLES HOLD IS DRAWN. An earlier version showed Panjabi alone, on the
+# argument that the manuscript's case runs through the textbook a surgeon consults and the
+# textbook redraws Panjabi. That argument was half wrong, and checking it is what changed
+# this figure: Benzel's Chapter 1 cites Panjabi's CERVICAL and THORACIC papers (refs 3 and
+# 4, p. 15) and does not cite the 1992 lumbar paper at all, while the transverse-pedicle
+# figure a surgeon actually reads (Fig. 1.11, p. 6) is drawn from Krag, Zindrick and
+# Bernard. Showing one series and calling it the textbook's would have been wrong.
 #
-# The set is chosen for coverage, not cherry-picked: these are the series that appear
-# across the most panels, plus the largest cohort available for each measure. Panjabi is
-# always drawn because it is the series the manuscript cites. Others exist in the tables
-# and are deliberately not drawn -- eighteen lines on the canal panel would be unreadable,
-# and the full record is in morphometrics/level_references.csv.
-#
-# Colours are Okabe-Ito, which stays distinguishable for the common colour-vision
-# deficiencies, and every series also carries a distinct dash so the panels survive being
-# printed in grey.
-# ONLY PANJABI IS DRAWN HERE, deliberately. The full multi-series machinery below works and
-# the tables carry ten series, but this manuscript's argument runs through the textbook a
-# surgeon actually consults, and that textbook redraws Panjabi. Showing ten series that
-# disagree by 21 to 69% is a different paper's argument, and a good one -- the tables, the
-# styles and the drawing code are all kept for it. Set DRAW_SERIES to None to draw them all.
+# So the panels now show the whole published record. They disagree -- by 21 to 69% -- and
+# that disagreement is the point a reader is entitled to see rather than take on trust: it
+# is the reason a single dashed line is not a reference range, and the reason a cohort of
+# 802 with its own spread is worth having. Panjabi keeps a heavier black line because it is
+# the series the manuscript's text cites; every other series is thin.
+DRAW_SERIES = None            # a set of names restricts the drawing; None draws them all
+
+DASHES = [(0, ()),                       # solid
+          (0, (4.0, 1.4)),               # long dash
+          (0, (2.4, 1.2)),               # medium dash
+          (0, (1.2, 1.2)),               # fine dash
+          (0, (5.0, 1.2, 1.0, 1.2)),     # dash-dot
+          (0, (1.0, 1.8))]               # dotted
+# Okabe-Ito, which stays separable under the common colour-vision deficiencies. Black is
+# held back for Panjabi, and pure yellow is dropped -- it disappears on white.
+PALETTE = ["#0072B2", "#009E73", "#D55E00", "#CC79A7",
+           "#56B4E9", "#E69F00", "#7A5195", "#4D7C3A"]
+
+EMPHASIS = "Panjabi 1992"     # the series the manuscript's text cites
+
+# The two tables name the same studies differently -- surname alone in the pedicle table,
+# surname and year in the general one. Left unmerged, Panjabi's pedicle rows became two
+# half-curves and only the thoracic half was drawn.
 SERIES_ALIAS = {"Panjabi": "Panjabi 1992", "Zindrick": "Zindrick 1987",
                 "Yu": "Yu 2015", "Arockiaraj": "Arockiaraj 2025",
-                "Makino": "Makino 2012"}
-DRAW_SERIES = {"Panjabi 1992"}
+                "Makino": "Makino 2012", "Krag": "Krag 1988",
+                "Hou": "Hou 1993", "Olsewski": "Olsewski 1990",
+                "Lien": "Lien 2007", "Mitra": "Mitra 2002",
+                "Robertson": "Robertson 2000", "Otsuki": "Otsuki 2020",
+                "Moncada-Habib": "Moncada-Habib 2023"}
 
-DASH_SOLID = "-"
-DASH_LONG = (0, (4, 1.4))
-DASH_MED = (0, (2.4, 1.2))
-DASH_FINE = (0, (1.4, 1.2))
-DASH_DOT = (0, (1, 1.6))
-DASH_DASHDOT = (0, (5, 1.2, 1, 1.2))
 
-# EVERY SERIES GETS A UNIQUE COLOUR-AND-DASH PAIR. A first version reused styles between
-# the two reference tables, so the legend showed Bonczar, Shin and Yu as the same blue
-# solid line and a reader could not tell which curve belonged to which study. The assert
-# below is what keeps that from coming back.
-#
-# Colours are Okabe-Ito, which stays distinguishable for the common colour-vision
-# deficiencies, and the dash carries the same information again so the panels survive
-# being printed in grey.
-SERIES_STYLE = {
-    "Panjabi 1992":  ("#000000", DASH_LONG,    "Panjabi 1992 (cadaver, $n$=12)"),
-    "Bonczar 2024":  ("#0072B2", DASH_SOLID,   "Bonczar 2024 (meta, $n$=1481)"),
-    "Griffith 2016": ("#009E73", DASH_FINE,    "Griffith 2016 (CT, $n$=1080)"),
-    "Duman 2026":    ("#D55E00", DASH_DASHDOT, "Duman 2026 (CT, $n$=517)"),
-    "Yadav 2020":    ("#CC79A7", DASH_MED,     "Yadav 2020 (CT, $n$=302)"),
-    "Tan 2004":      ("#56B4E9", DASH_DOT,     "Tan 2004 (cadaver, $n$=10)"),
-    "Shin 2024":     ("#0072B2", DASH_FINE,    "Shin 2024 (CT, $n$=700)"),
-}
-# the pedicle table keys on surname alone
-SERIES_STYLE.update({
-    "Panjabi":    SERIES_STYLE["Panjabi 1992"],
-    "Yu":         ("#56B4E9", DASH_DASHDOT, "Yu 2015 (cadaver, $n$=503)"),
-    "Zindrick":   ("#D55E00", DASH_MED,     "Zindrick 1987 (cadaver)"),
-    "Arockiaraj": ("#CC79A7", DASH_DOT,     "Arockiaraj 2025 (CT, $n$=300)"),
-})
-_seen = {}
-for _k, _v in SERIES_STYLE.items():
-    _sig = (_v[0], _v[1])
-    assert _sig not in _seen or _seen[_sig] == _v[2], (
-        f"style clash: {_v[2]!r} and {_seen[_sig]!r} would draw identically")
-    _seen[_sig] = _v[2]
+def _style_table(names):
+    """One unique (colour, dash) per series, assigned deterministically.
+
+    Assigned by position in a SORTED list rather than written out by hand, because the
+    hand-written version drifted: Bonczar, Shin and Yu were all given the same blue solid
+    line and the legend could not tell a reader which curve was which. Colour cycles
+    fastest so that neighbouring entries in the legend differ in colour as well as dash.
+    """
+    out = {EMPHASIS: ("#000000", DASHES[0], 1.25)}
+    i = 0
+    for n in sorted(x for x in names if x != EMPHASIS):
+        out[n] = (PALETTE[i % len(PALETTE)], DASHES[(i // len(PALETTE)) % len(DASHES)], 0.75)
+        i += 1
+    assert len({(c, tuple(d) if isinstance(d, tuple) else d) for c, d, _ in out.values()})         == len(out), "two series would draw identically"
+    return out
 
 
 def load_reference_series():
-    """{measure: {series: {level: mean}}}, sexes averaged into one line per series."""
-    out, tally = {}, {}
+    """({measure: {series: {level: mean}}}, {series: legend label}).
+
+    The legend label is built from the table's own cohort/n/modality columns rather than
+    written out per series, so adding a row to a CSV adds a correctly-labelled curve and
+    the legend cannot fall out of step with the data behind it.
+    """
+    tally, meta = {}, {}
     for path in (LEVELREF_CSV, SPREAD_CSV):
         if not path.exists():
             continue
@@ -115,45 +114,56 @@ def load_reference_series():
         for r in csv.DictReader(rows):
             try:
                 v = float(r["mean"])
-            except (ValueError, KeyError):
+            except (ValueError, KeyError, TypeError):
                 continue
             # THE TWO TABLES NAME THE PEDICLE DIFFERENTLY. The pedicle-specific table calls
             # it PDW and the general one calls it "pedicle"; they are the same measure and
             # Panjabi's thoracic levels live in the second. Merging them is what lets one
             # curve run T11 to L5 instead of stopping at L1.
             meas = "PDW" if r["measure"] == "pedicle" else r["measure"]
-            # and the two tables name the SERIES differently too: surname alone in one,
-            # surname and year in the other. Left unmerged, Panjabi's thoracic and lumbar
-            # pedicle rows became two half-curves and only the thoracic half was drawn.
             ser = SERIES_ALIAS.get(r["series"], r["series"])
-            key = (meas, ser, r["level"])
-            tally.setdefault(key, []).append(v)
-    for (meas, ser, lv), vals in tally.items():
-        out.setdefault(meas, {}).setdefault(ser, {})[lv] = sum(vals) / len(vals)
-    return out
+            tally.setdefault((meas, ser), {}).setdefault(r["level"], []).append(v)
+            meta.setdefault(ser, r)
+    out = {}
+    for (meas, ser), per_level in tally.items():
+        for lv, vals in per_level.items():
+            out.setdefault(meas, {}).setdefault(ser, {})[lv] = sum(vals) / len(vals)
+
+    labels = {}
+    for ser, r in meta.items():
+        n = (r.get("n") or "").strip()
+        coh = (r.get("cohort") or "").strip().lower()
+        kind = ("cadaver" if "cadaver" in coh or "dry bone" in coh else
+                "meta" if "meta" in coh or "pooled" in coh else
+                "MRI" if "mri" in (r.get("modality") or "").lower() else
+                "CT" if "ct" in (r.get("modality") or "").lower() else "")
+        bits = ", ".join(x for x in (kind, (f"$n$={n}" if n else "")) if x)
+        labels[ser] = f"{ser} ({bits})" if bits else ser
+    return out, labels
 
 
-def draw_reference_series(ax, refs, measure, y_of, offset=0.0, drawn=None):
-    """One line per named series, through its own per-level means."""
+def draw_reference_series(ax, refs, measure, y_of, styles, labels,
+                          offset=0.0, drawn=None):
+    """One line per series, through its own per-level means, over every level it has."""
     d = refs.get(measure)
     if not d:
         return
     for ser, per_level in sorted(d.items()):
         if DRAW_SERIES is not None and ser not in DRAW_SERIES:
             continue
-        style = SERIES_STYLE.get(ser)
-        if style is None:
+        st = styles.get(ser)
+        if st is None:
             continue
-        colour, dash, label = style
-        lv = [l for l in LEVELS if l in per_level] or [l for l in per_level]
-        lv = [l for l in lv if l in y_of]
-        if len(lv) < 3:
-            continue
+        colour, dash, lw = st
+        lv = [l for l in LEVELS if l in per_level and l in y_of]
+        if len(lv) < 2:                      # a two-point series is still a line worth
+            continue                         # drawing; a one-point series is not
         ax.plot([per_level[l] for l in lv], [y_of[l] + offset for l in lv],
-                color=colour, ls=dash, lw=1.0, zorder=1.6, alpha=0.95,
-                solid_capstyle="round")
+                color=colour, ls=dash, lw=lw,
+                zorder=1.9 if ser == EMPHASIS else 1.5,
+                alpha=0.95, solid_capstyle="round")
         if drawn is not None:
-            drawn[label] = (colour, dash)
+            drawn[labels.get(ser, ser)] = (colour, dash, lw)
 
 
 def build(out: Path, reference: bool = True):
@@ -161,7 +171,8 @@ def build(out: Path, reference: bool = True):
     sm = MF.load("surgical_morphometrics.csv")
     dg = MF.load("degenerative.csv")
     op = MF.load("opportunistic.csv")
-    refs = load_reference_series() if reference else {}
+    refs, ref_labels = load_reference_series() if reference else ({}, {})
+    styles = _style_table({ser for d in refs.values() for ser in d})
     drawn = {}
     if not (lg and sm and dg and op):
         raise SystemExit("morphometrics CSVs not found")
@@ -172,7 +183,14 @@ def build(out: Path, reference: bool = True):
         "endplate": series(lg, "endplate_width_{l}_mm",   GATES["endplate"]),
         "canal_w":  series(lg, "canal_width_{l}_mm",      GATES["canal_w"]),
         "canal_ap": series(sm, "canal_ap_mm_{l}",         GATES["canal_ap"]),
-        "pedicle":  series(sm, "pedicle_mm_{l}",          GATES["pedicle"]),
+        # PEDICLE WIDTH IS THE MEAN OF THE TWO SIDES HERE, not the minimum. pedicle_mm is
+        # the narrower pedicle, which is the right number for a screw and the wrong one
+        # for this figure: Panjabi and every other series report PDW per side, and their
+        # own left-right gaps reach 1.3 mm at L4, so plotting our minimum against their
+        # mean is biased low before any anatomy is involved. Measured over the cohort the
+        # gap is 0.7 mm at L1 and 2.4 mm at L5 -- the wrong one of the two would have made
+        # the caudal widening look shallower than it is.
+        "pedicle":  series(sm, "pedicle_mean_mm_{l}",     GATES["pedicle"]),
         "disc":     series(dg, "disc_height_{l}_mm", (1.0, 25.0), levels=DISCS),
         "hu":       series(op, "{l}_trabecular_hu", (-50.0, 400.0),
                            levels=["l1", "l2", "l3", "l4"]),
@@ -186,7 +204,15 @@ def build(out: Path, reference: bool = True):
     y_disc = {d: (y_of[d[:2]] + (y_of.get(d[2:], y_of["L5"] - 1))) / 2.0 for d in DISCS}
     y_hu = {k: y_of[k.upper()] for k in ["l1", "l2", "l3", "l4"]}
 
-    fig, axes = plt.subplots(1, 3, figsize=(MF.COL2, 52 * MF.MM))
+    # A LEGEND BAND UNDER THE PANELS, not a legend inside one. Thirty-odd reference curves
+    # cannot be named in a caption, and an in-axes key large enough to hold them covers the
+    # distributions the figure exists to show. The band is its own axes so the panels keep
+    # their full width and the entries can run in columns.
+    fig = plt.figure(figsize=(MF.COL2, 74 * MF.MM))
+    gs = fig.add_gridspec(2, 3, height_ratios=[1.0, 0.32], hspace=0.44, wspace=0.22)
+    axes = np.array([fig.add_subplot(gs[0, i]) for i in range(3)])
+    ax_key = fig.add_subplot(gs[1, :])
+    ax_key.axis("off")
     TEAL, OCHRE, INK, FAINT = MF.TEAL, MF.OCHRE, MF.INK, MF.FAINT
     # BODY HEIGHT AND DISC HEIGHT ARE DEFERRED to the next paper: body height needs
     # the cohort-versus-method argument settled first, and neither is what the
@@ -196,15 +222,17 @@ def build(out: Path, reference: bool = True):
     # (b) superior endplate width
     draw(ax_b, S["endplate"], y_of, TEAL, "o")
     annotate_n(ax_b, S["endplate"], y_of, FAINT)
-    draw_reference_series(ax_b, refs, "endplate", y_of, drawn=drawn)
+    draw_reference_series(ax_b, refs, "endplate", y_of, styles, ref_labels, drawn=drawn)
     ax_b.set_xlabel("superior endplate width (mm)")
     ax_b.set_title("(a) Endplate width", loc="left", fontsize=8.0)
 
     # (c) canal, width against depth
     draw(ax_c, S["canal_w"], y_of, TEAL, "o", offset=+0.17, label="width")
     draw(ax_c, S["canal_ap"], y_of, INK, "^", offset=-0.17, label="depth (AP)")
-    draw_reference_series(ax_c, refs, "canal_w", y_of, offset=+0.17, drawn=drawn)
-    draw_reference_series(ax_c, refs, "canal_ap", y_of, offset=-0.17, drawn=drawn)
+    draw_reference_series(ax_c, refs, "canal_w", y_of, styles, ref_labels,
+                          offset=+0.17, drawn=drawn)
+    draw_reference_series(ax_c, refs, "canal_ap", y_of, styles, ref_labels,
+                          offset=-0.17, drawn=drawn)
     ax_c.set_xlabel("spinal canal (mm)")
     ax_c.set_title("(b) Canal", loc="left", fontsize=8.0)
     # upper right: the canal narrows upward, so the free space is to the right of the
@@ -215,7 +243,7 @@ def build(out: Path, reference: bool = True):
     # (d) transverse pedicle width
     draw(ax_d, S["pedicle"], y_of, OCHRE, "D")
     annotate_n(ax_d, S["pedicle"], y_of, FAINT)
-    draw_reference_series(ax_d, refs, "PDW", y_of, drawn=drawn)
+    draw_reference_series(ax_d, refs, "PDW", y_of, styles, ref_labels, drawn=drawn)
     ax_d.set_xlabel("transverse pedicle width (mm)")
     ax_d.set_title("(c) Pedicle width", loc="left", fontsize=8.0)
 
@@ -235,9 +263,20 @@ def build(out: Path, reference: bool = True):
     for ax in (ax_c, ax_d):
         ax.set_yticklabels(LEVELS)
         ax.tick_params(labelleft=True)
-    # THE LEGEND IS GONE with the panel that held it: one reference, named in the caption,
-    # does not need a key.
-    fig.tight_layout(pad=0.5, w_pad=1.4, h_pad=1.2)
+    # The key names every series actually drawn, in the order they were drawn, with
+    # Panjabi first because it is the one the text cites.
+    from matplotlib.lines import Line2D
+    ordered = ([k for k in drawn if k.startswith(EMPHASIS)] +
+               sorted(k for k in drawn if not k.startswith(EMPHASIS)))
+    handles = [Line2D([0], [0], color=drawn[k][0], ls=drawn[k][1], lw=max(drawn[k][2], 1.0))
+               for k in ordered]
+    if handles:
+        ncol = 3 if len(handles) <= 9 else (4 if len(handles) <= 20 else 5)
+        ax_key.legend(handles, ordered, loc="upper center", ncol=ncol,
+                      fontsize=4.9, handlelength=1.9, handletextpad=0.4,
+                      columnspacing=0.8, labelspacing=0.28, frameon=False,
+                      borderaxespad=0.0)
+    fig.subplots_adjust(left=0.072, right=0.996, top=0.955, bottom=0.015)
     out.mkdir(parents=True, exist_ok=True)
     fig.savefig(out / "fig_levelatlas.pdf")
     fig.savefig(out / "fig_levelatlas.png", dpi=200)   # for the website

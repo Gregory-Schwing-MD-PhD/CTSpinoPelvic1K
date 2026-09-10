@@ -179,10 +179,20 @@ def one(args) -> dict:
             bridged.append(None)
             continue
         iu, il = np.argwhere(bu), np.argwhere(bl)
-        # a midline column through both bodies: the disc is measured where a radiologist
-        # measures it, not at the rim where osteophytes distort the gap
-        cx = float(np.median(np.concatenate([iu[:, 0], il[:, 0]])))
-        cy = float(np.median(np.concatenate([iu[:, 1], il[:, 1]])))
+        # A COLUMN THROUGH THE OVERLAP OF THE TWO BODIES, not through the median of their
+        # union. The median of the union is only the middle of both bodies when they sit
+        # above one another; where one body is offset from the other it lands where only
+        # one of them is, and the column then samples a single body and measures nothing.
+        # That is exactly what happened at L5-S1 once S1 was carved as its own label: the
+        # S1 body reaches further posteriorly than L5, the pooled median fell behind L5
+        # altogether, and 174 records lost the measurement while reporting no error --
+        # case 0012 had L5 spanning y 170-235 and S1 spanning 133-201, a pooled median of
+        # 172, and zero L5 voxels inside the window.
+        def _mid(a, b):
+            lo, hi = max(a.min(), b.min()), min(a.max(), b.max())
+            return 0.5 * (lo + hi) if hi >= lo else float(np.median(np.concatenate([a, b])))
+        cx = _mid(iu[:, 0], il[:, 0])
+        cy = _mid(iu[:, 1], il[:, 1])
         rx = max(2, int(round(8.0 / sp[0])))
         ry = max(2, int(round(8.0 / sp[1])))
         sel_u = iu[(np.abs(iu[:, 0] - cx) <= rx) & (np.abs(iu[:, 1] - cy) <= ry)]
