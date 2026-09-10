@@ -57,6 +57,7 @@
 \newif\ifcaptionlist \captionlisttrue
 \newcommand{\doiurl}[1]{\url{https://doi.org/#1}}
 \newcommand{\consortium}{\ifreview a student research consortium\else OpenSpineConsortium\fi}
+\newcommand{\toolkit}{\ifreview an open-source measurement toolkit\else OpenSpineToolkit, a unit-tested open-source package\fi}
 
 % Fit content to the text block WITHOUT enlarging it. \resizebox{\linewidth}{!}
 % forces the width to match exactly, which scales small things UP -- inflating
@@ -294,16 +295,13 @@ annotation. A thirteenth thoracic vertebra and a lumbar rib are different phenot
 distinguished as separate subtypes in cadaveric classifications of the thoracolumbar
 junction~\cite{duplessis2018,poolman2023}: the first is an additional rib-bearing segment,
 usually above five lumbar vertebrae, so the column holds 25 presacral vertebrae; the second
-is a rudimentary rib on a lumbar-type L1 in a column of the usual 24. Between the two borders
-used here, the last rib-bearing vertebra and the sacrum, a lumbar rib still leaves four
-rib-free vertebrae, as does a T13 in the rarer column of 24 with four lumbar vertebrae; a T13
-above five lumbar vertebrae leaves five, and an aplastic twelfth rib leaves six. A \emph{stump rib}, a hypoplastic twelfth rib and a cardinal indicator of a thoracolumbar
-transitional vertebra, is still a rib, so it leaves the count unchanged and only its length
-records the anomaly. Rib anomalies travel with the lumbosacral border; on whole-spine CT, hypoplastic
-twelfth ribs occur with sacralization and lumbar ribs with lumbarization~\cite{nagata2025}.
-Without C2, a count of four therefore cannot separate a lumbar rib from a cranially shifted
-T13 or from an L5 assimilated to the sacrum, and a count of six cannot separate an aplastic
-twelfth rib from a sixth lumbar vertebra.
+is a rudimentary rib on a lumbar-type L1 in a column of the usual 24. Between the two borders used here, the last rib-bearing vertebra and the sacrum, none
+of them is separable by counting: four rib-free vertebrae fit a lumbar rib, a cranially
+shifted T13 or an L5 assimilated to the sacrum, and six fit an aplastic twelfth rib or a
+sixth lumbar vertebra. A \emph{stump rib}, hypoplastic and a cardinal indicator of a
+thoracolumbar transitional vertebra, is still a rib, so only its length records the
+anomaly. Rib anomalies travel with the lumbosacral border: on whole-spine CT hypoplastic
+twelfth ribs occur with sacralization and lumbar ribs with lumbarization.~\cite{nagata2025}
 
 \emph{What the release does in addition.} Every vertebra carries the identifier its
 radiologist-sourced annotation assigned, corrected where the source was wrong; those labels
@@ -565,6 +563,13 @@ data (\ifreview the repository URL identifies the authors; it is on the title pa
 restored here for the camera-ready version\else\url{https://huggingface.co/OpenSpineConsortium/spinopelvic-seg-checkpoints}, trained with \url{https://github.com/Gregory-Schwing-MD-PhD/spinesurg-ct-nnunet} at commit 50b209f\fi). Image handling
 throughout used NiBabel and SciPy; no image is resampled or reoriented when a label is
 written, so every label shares its image's grid and affine exactly.
+
+\emph{Measurement.} Per-level dimensions are computed by \toolkit{},
+released separately (\ifreview the repository URL
+identifies the authors and is on the title page\else\url{https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolkit}\fi). It reads
+each dimension between landmarks in a frame built from that vertebra's own end-plates,
+so a height is measured corner to corner rather than along the scanner's axes and a
+pedicle width across the pedicle's own oblique axis rather than across the patient.
 
 \emph{Generative artificial intelligence.} A large language model (Claude, Anthropic)
 assisted with drafting and editing the manuscript text and with writing the analysis and
@@ -872,7 +877,8 @@ The archive carries the loader, the label scheme, the quality-control tables and
 analysis code under an open-source licence. \ifreview The repository URL identifies the authors; it
 is on the title page and will be restored here for the camera-ready version.\else Code:
 \url{https://github.com/OpenSpineConsortium/CTSpinoPelvic1K}; convenience mirror:
-\url{https://huggingface.co/datasets/OpenSpineConsortium/CTSpinoPelvic1K}.\fi
+\url{https://huggingface.co/datasets/OpenSpineConsortium/CTSpinoPelvic1K}; measurement
+toolkit: \url{https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolkit}.\fi
 
 \section*{Acknowledgements}
 % The guidelines want the COI statement below an Acknowledgements section, and the
