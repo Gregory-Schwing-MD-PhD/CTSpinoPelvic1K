@@ -8,13 +8,8 @@ specimens and no measure of spread:
   (c) canal width and depth                Benzel Fig. 1.9
   (d) transverse pedicle width             Benzel Fig. 1.11
   (e) disc height by interspace            quoted in the text as single values
-  (f) trabecular attenuation by level      the in vivo stand-in for Benzel Fig. 1.4
-
-Panel (f) needs care and its caption says so: Benzel Fig. 1.4 plots vertebral COMPRESSION
-STRENGTH, measured by loading cadaveric specimens to failure. Attenuation is not that. It
-is the in vivo quantity that stands in for it in living patients, it is measured here at
-the published opportunistic-screening site, and it is what a CT can supply at no extra
-dose -- but it is a different measurement and is not offered as the same number.
+  (f) the legend -- trabecular attenuation used to sit here, but no published series
+      measures it, so it was the one panel a reader could not check
 
 Imports the manuscript's figure style from make_figures so this panel cannot drift from the
 others: same sans face, bold black axes, grey grid, 600 dpi, authored at the final 180 mm
@@ -41,102 +36,103 @@ DISC_LABEL = {"L1L2": "L1–L2", "L2L3": "L2–L3", "L3L4": "L3–L4",
               "L4L5": "L4–L5", "L5S1": "L5–S1"}
 
 
-# --------------------------------------------------------------------------- reference
-# PANJABI 1992 OVERLAID ON OUR OWN DISTRIBUTIONS. This is the comparison the section is
-# arguing for, so the figure should carry it rather than ask the reader to take it on
-# trust: the classical value and, beside it, what 802 living patients actually look like.
-#
-# THE BARS ARE NOT COMPARABLE, AND THAT IS THE POINT. Ours are the 5th-95th percentile of
-# a population. Panjabi's are the standard error of the mean of twelve specimens, which is
-# a statement about how well the average is pinned down, not about how much people differ.
-# Drawn on one axis the SEM bar is nearly a point. Anything that made the two look alike
-# would be misleading, so they are drawn differently and the caption says which is which.
-REF_CSV = Path(__file__).resolve().parents[2] / "morphometrics" / "panjabi_reference.csv"
-
-
-# --------------------------------------------------------- the published range, not "the" value
-# THIRTEEN SERIES DISAGREE BY ABOUT 65% OF THE MEDIAN at every lumbar level. Transverse
-# pedicle width at L5 is published as 11.8 mm and as 21.6 mm, by studies that all name the
-# same dimension in the same bone. Part of it is real population difference, part is
-# definitional (endosteal against outer cortical differs by about 5 mm at L5), part is the
-# measurement plane. Drawing any one of them as the reference asserts an agreement that
-# does not exist, so the whole set is drawn: a span from the lowest published mean to the
-# highest, with a tick per series.
 SPREAD_CSV = (Path(__file__).resolve().parents[2] / "morphometrics"
               / "pedicle_width_references.csv")
 LEVELREF_CSV = (Path(__file__).resolve().parents[2] / "morphometrics"
                 / "level_references.csv")
 
+# NAMED SERIES, DRAWN AS LINES. An unlabelled span with ticks showed that the references
+# disagree but not WHICH reference is where, so a reader could not check our distribution
+# against any particular one. Each series now gets its own line, its own colour and dash,
+# and an entry in the legend.
+#
+# The set is chosen for coverage, not cherry-picked: these are the series that appear
+# across the most panels, plus the largest cohort available for each measure. Panjabi is
+# always drawn because it is the series the manuscript cites. Others exist in the tables
+# and are deliberately not drawn -- eighteen lines on the canal panel would be unreadable,
+# and the full record is in morphometrics/level_references.csv.
+#
+# Colours are Okabe-Ito, which stays distinguishable for the common colour-vision
+# deficiencies, and every series also carries a distinct dash so the panels survive being
+# printed in grey.
+DASH_SOLID = "-"
+DASH_LONG = (0, (4, 1.4))
+DASH_MED = (0, (2.4, 1.2))
+DASH_FINE = (0, (1.4, 1.2))
+DASH_DOT = (0, (1, 1.6))
+DASH_DASHDOT = (0, (5, 1.2, 1, 1.2))
 
-def load_spread():
-    """{measure: {level: [published means]}}, from both reference tables.
+# EVERY SERIES GETS A UNIQUE COLOUR-AND-DASH PAIR. A first version reused styles between
+# the two reference tables, so the legend showed Bonczar, Shin and Yu as the same blue
+# solid line and a reader could not tell which curve belonged to which study. The assert
+# below is what keeps that from coming back.
+#
+# Colours are Okabe-Ito, which stays distinguishable for the common colour-vision
+# deficiencies, and the dash carries the same information again so the panels survive
+# being printed in grey.
+SERIES_STYLE = {
+    "Panjabi 1992":  ("#000000", DASH_LONG,    "Panjabi 1992 (cadaver, $n$=12)"),
+    "Bonczar 2024":  ("#0072B2", DASH_SOLID,   "Bonczar 2024 (meta, $n$=1481)"),
+    "Griffith 2016": ("#009E73", DASH_FINE,    "Griffith 2016 (CT, $n$=1080)"),
+    "Duman 2026":    ("#D55E00", DASH_DASHDOT, "Duman 2026 (CT, $n$=517)"),
+    "Yadav 2020":    ("#CC79A7", DASH_MED,     "Yadav 2020 (CT, $n$=302)"),
+    "Tan 2004":      ("#56B4E9", DASH_DOT,     "Tan 2004 (cadaver, $n$=10)"),
+    "Shin 2024":     ("#0072B2", DASH_FINE,    "Shin 2024 (CT, $n$=700)"),
+}
+# the pedicle table keys on surname alone
+SERIES_STYLE.update({
+    "Panjabi":    SERIES_STYLE["Panjabi 1992"],
+    "Yu":         ("#56B4E9", DASH_DASHDOT, "Yu 2015 (cadaver, $n$=503)"),
+    "Zindrick":   ("#D55E00", DASH_MED,     "Zindrick 1987 (cadaver)"),
+    "Arockiaraj": ("#CC79A7", DASH_DOT,     "Arockiaraj 2025 (CT, $n$=300)"),
+})
+_seen = {}
+for _k, _v in SERIES_STYLE.items():
+    _sig = (_v[0], _v[1])
+    assert _sig not in _seen or _seen[_sig] == _v[2], (
+        f"style clash: {_v[2]!r} and {_seen[_sig]!r} would draw identically")
+    _seen[_sig] = _v[2]
 
-    Keyed by THIS release's measure names, so a panel asks for what it plots. The pedicle
-    table is separate because it was assembled first and carries extra columns about
-    endosteal against outer cortical that the others do not need.
-    """
-    out = {}
-    for path, col in ((SPREAD_CSV, "measure"), (LEVELREF_CSV, "measure")):
+
+def load_reference_series():
+    """{measure: {series: {level: mean}}}, sexes averaged into one line per series."""
+    out, tally = {}, {}
+    for path in (LEVELREF_CSV, SPREAD_CSV):
         if not path.exists():
             continue
         with path.open(encoding="utf-8") as fh:
             rows = [ln for ln in fh if not ln.lstrip().startswith("#")]
         for r in csv.DictReader(rows):
             try:
-                out.setdefault(r[col], {}).setdefault(r["level"], []).append(float(r["mean"]))
+                v = float(r["mean"])
             except (ValueError, KeyError):
                 continue
+            key = (r["measure"], r["series"], r["level"])
+            tally.setdefault(key, []).append(v)
+    for (meas, ser, lv), vals in tally.items():
+        out.setdefault(meas, {}).setdefault(ser, {})[lv] = sum(vals) / len(vals)
     return out
 
 
-def draw_spread(ax, spread, key, y_of, color, offset=0.0):
-    """The published range at each level, with one tick per series."""
-    d = spread.get(key)
+def draw_reference_series(ax, refs, measure, y_of, offset=0.0, drawn=None):
+    """One line per named series, through its own per-level means."""
+    d = refs.get(measure)
     if not d:
-        return False
-    for lv, vals in d.items():
-        if lv not in y_of or len(vals) < 2:
+        return
+    for ser, per_level in sorted(d.items()):
+        style = SERIES_STYLE.get(ser)
+        if style is None:
             continue
-        y = y_of[lv] + offset
-        ax.plot([min(vals), max(vals)], [y, y], color=color, lw=0.8, alpha=0.85,
-                solid_capstyle="butt", zorder=1.4)
-        ax.plot(vals, [y] * len(vals), ls="none", marker="|", ms=3.4, mew=0.7,
-                color=color, alpha=0.9, zorder=1.5)
-    return True
-
-
-def load_reference():
-    """{measure: {level: (mean, sem)}} from the transcribed tables, comments skipped."""
-    if not REF_CSV.exists():
-        return {}
-    out = {}
-    with REF_CSV.open(encoding="utf-8") as fh:
-        rows = [ln for ln in fh if not ln.lstrip().startswith("#")]
-    for r in csv.DictReader(rows):
-        # a blank SEM is a value the paper prints in prose rather than in a table,
-        # so it gets a marker and no bar rather than a fabricated one
-        sem = float(r["sem"]) if (r.get("sem") or "").strip() else None
-        out.setdefault(r["measure"], {})[r["level"]] = (float(r["mean"]), sem)
-    return out
-
-
-def draw_reference(ax, ref, key, y_of, color, offset=0.0):
-    """One dashed reference line with its SEM bars. Silent when the measure has no counterpart."""
-    d = ref.get(key)
-    if not d:
-        return False
-    lv = [l for l in LEVELS if l in d]
-    xs = [d[l][0] for l in lv]
-    es = [d[l][1] if d[l][1] is not None else 0.0 for l in lv]
-    ys = [y_of[l] + offset for l in lv]
-    ax.errorbar(xs, ys, xerr=es, color=color, lw=0.9, ls="--", marker="", zorder=1.5,
-                elinewidth=0.9, capsize=1.6, capthick=0.9, alpha=0.95)
-    # a value with no published bar still gets its point drawn, just without whiskers
-    bare = [(d[l][0], y_of[l] + offset) for l in lv if d[l][1] is None]
-    if bare:
-        ax.plot([b[0] for b in bare], [b[1] for b in bare], ls="none", marker="|",
-                ms=4, color=color, zorder=1.6)
-    return True
+        colour, dash, label = style
+        lv = [l for l in LEVELS if l in per_level] or [l for l in per_level]
+        lv = [l for l in lv if l in y_of]
+        if len(lv) < 3:
+            continue
+        ax.plot([per_level[l] for l in lv], [y_of[l] + offset for l in lv],
+                color=colour, ls=dash, lw=1.0, zorder=1.6, alpha=0.95,
+                solid_capstyle="round")
+        if drawn is not None:
+            drawn[label] = (colour, dash)
 
 
 def build(out: Path, reference: bool = True):
@@ -144,8 +140,8 @@ def build(out: Path, reference: bool = True):
     sm = MF.load("surgical_morphometrics.csv")
     dg = MF.load("degenerative.csv")
     op = MF.load("opportunistic.csv")
-    ref = load_reference() if reference else {}
-    spread = load_spread() if reference else {}
+    refs = load_reference_series() if reference else {}
+    drawn = {}
     if not (lg and sm and dg and op):
         raise SystemExit("morphometrics CSVs not found")
 
@@ -169,32 +165,32 @@ def build(out: Path, reference: bool = True):
     y_disc = {d: (y_of[d[:2]] + (y_of.get(d[2:], y_of["L5"] - 1))) / 2.0 for d in DISCS}
     y_hu = {k: y_of[k.upper()] for k in ["l1", "l2", "l3", "l4"]}
 
-    fig, axes = plt.subplots(2, 3, figsize=(MF.COL2, 82 * MF.MM))
+    fig, axes = plt.subplots(2, 3, figsize=(MF.COL2, 74 * MF.MM))
     TEAL, OCHRE, INK, FAINT = MF.TEAL, MF.OCHRE, MF.INK, MF.FAINT
     ax_a, ax_b, ax_c, ax_d, ax_e, ax_f = axes.ravel()
 
     # (a) body height, ventral against dorsal
     draw(ax_a, S["h_ant"], y_of, TEAL, "o", offset=+0.17, label="ventral")
     draw(ax_a, S["h_post"], y_of, OCHRE, "s", offset=-0.17, label="dorsal")
-    draw_spread(ax_a, spread, "h_ant", y_of, MF.INK, offset=+0.17)
-    draw_spread(ax_a, spread, "h_post", y_of, MF.INK, offset=-0.17)
+    draw_reference_series(ax_a, refs, "h_ant", y_of, offset=+0.17, drawn=drawn)
+    draw_reference_series(ax_a, refs, "h_post", y_of, offset=-0.17, drawn=drawn)
     ax_a.set_xlabel("vertebral body height (mm)")
     ax_a.set_title("(a) Body height", loc="left", fontsize=8.0)
     ax_a.legend(fontsize=6.3, handlelength=1.0, loc="lower right",
-                bbox_to_anchor=(1.0, 0.0) if ref else (1.0, 0.0))
+                bbox_to_anchor=(1.0, 0.0) if refs else (1.0, 0.0))
 
     # (b) superior endplate width
     draw(ax_b, S["endplate"], y_of, TEAL, "o")
     annotate_n(ax_b, S["endplate"], y_of, FAINT)
-    draw_spread(ax_b, spread, "endplate", y_of, MF.INK)
+    draw_reference_series(ax_b, refs, "endplate", y_of, drawn=drawn)
     ax_b.set_xlabel("superior endplate width (mm)")
     ax_b.set_title("(b) Endplate width", loc="left", fontsize=8.0)
 
     # (c) canal, width against depth
     draw(ax_c, S["canal_w"], y_of, TEAL, "o", offset=+0.17, label="width")
     draw(ax_c, S["canal_ap"], y_of, INK, "^", offset=-0.17, label="depth (AP)")
-    draw_spread(ax_c, spread, "canal_w", y_of, MF.INK, offset=+0.17)
-    draw_spread(ax_c, spread, "canal_ap", y_of, MF.INK, offset=-0.17)
+    draw_reference_series(ax_c, refs, "canal_w", y_of, offset=+0.17, drawn=drawn)
+    draw_reference_series(ax_c, refs, "canal_ap", y_of, offset=-0.17, drawn=drawn)
     ax_c.set_xlabel("spinal canal (mm)")
     ax_c.set_title("(c) Canal", loc="left", fontsize=8.0)
     # upper right: the canal narrows upward, so the free space is to the right of the
@@ -205,8 +201,8 @@ def build(out: Path, reference: bool = True):
     # (d) transverse pedicle width
     draw(ax_d, S["pedicle"], y_of, OCHRE, "D")
     annotate_n(ax_d, S["pedicle"], y_of, FAINT)
-    draw_spread(ax_d, spread, "PDW", y_of, MF.INK)
-    draw_spread(ax_e, spread, "disc", y_disc, MF.INK)
+    draw_reference_series(ax_d, refs, "PDW", y_of, drawn=drawn)
+    draw_reference_series(ax_e, refs, "disc", y_disc, drawn=drawn)
     ax_d.set_xlabel("transverse pedicle width (mm)")
     ax_d.set_title("(d) Pedicle width", loc="left", fontsize=8.0)
 
@@ -216,13 +212,10 @@ def build(out: Path, reference: bool = True):
     ax_e.set_xlabel("disc height (mm)")
     ax_e.set_title("(e) Disc height", loc="left", fontsize=8.0)
 
-    # (f) trabecular attenuation
-    draw(ax_f, S["hu"], y_hu, INK, "v")
-    annotate_n(ax_f, S["hu"], y_hu, FAINT)
-    ax_f.set_xlabel("trabecular attenuation (HU)")
-    ax_f.set_title("(f) Bone density", loc="left", fontsize=8.0)
+    # (f) is the legend, not a panel
+    ax_f.axis("off")
 
-    for ax in axes.ravel():
+    for ax in (ax_a, ax_b, ax_c, ax_d, ax_e):
         MF.mp_ticks(ax)
         ax.set_yticks([y_of[l] for l in LEVELS])
         ax.set_ylim(-len(LEVELS) + 0.4, 0.6)
@@ -234,7 +227,7 @@ def build(out: Path, reference: bool = True):
     for ax in (ax_a, ax_d):
         ax.set_yticklabels(LEVELS)
         ax.set_ylabel("vertebral level")
-    for ax in (ax_b, ax_c, ax_f):
+    for ax in (ax_b, ax_c):
         ax.set_yticklabels(LEVELS)
         ax.tick_params(labelleft=True)
     # The discs occupy the half-steps between vertebral rows, so the shared level limits
@@ -243,13 +236,13 @@ def build(out: Path, reference: bool = True):
     ax_e.set_yticklabels([DISC_LABEL[d] for d in DISCS])
     ax_e.set_ylim(min(y_disc.values()) - 0.6, max(y_disc.values()) + 0.6)
 
-    if ref:
+    if drawn:
         import matplotlib.lines as mlines
-        ax_f.legend(handles=[
-            mlines.Line2D([], [], color=MF.INK, ls="-", lw=0.8, marker="|", ms=3.4,
-                          label="published means, 5 to 18 series")],
-                    fontsize=6.3, handlelength=1.6, loc="upper left",
-                    bbox_to_anchor=(0.0, 1.0), frameon=False)
+        ax_f.legend(handles=[mlines.Line2D([], [], color=c, ls=d, lw=1.1, label=lab)
+                             for lab, (c, d) in sorted(drawn.items())],
+                    loc="upper left", bbox_to_anchor=(-0.02, 0.98), frameon=False,
+                    fontsize=6.4, handlelength=2.4, handletextpad=0.6, labelspacing=0.55,
+                    title="published series", title_fontsize=6.8)
 
     fig.tight_layout(pad=0.5, w_pad=1.4, h_pad=1.2)
     out.mkdir(parents=True, exist_ok=True)
