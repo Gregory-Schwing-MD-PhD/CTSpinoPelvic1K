@@ -1,0 +1,46 @@
+This is BibTeX, Version 0.99e (TeX Live 2026)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: bibtest.aux
+The style file: ./medphy.bst
+Database file #1: ./ctspinopelvic1k.bib
+You've used 40 entries,
+            1818 wiz_defined-function locations,
+            825 strings with 19370 characters,
+and the built_in function-call counts, 9707 in all, are:
+= -- 902
+> -- 449
+< -- 0
++ -- 161
+- -- 98
+* -- 822
+:= -- 1431
+add.period$ -- 40
+call.type$ -- 40
+change.case$ -- 1
+chr.to.int$ -- 0
+cite$ -- 40
+duplicate$ -- 369
+empty$ -- 915
+format.name$ -- 138
+if$ -- 2144
+int.to.chr$ -- 0
+int.to.str$ -- 40
+missing$ -- 35
+newline$ -- 240
+num.names$ -- 40
+pop$ -- 93
+preamble$ -- 1
+purify$ -- 0
+quote$ -- 0
+skip$ -- 204
+stack$ -- 0
+substring$ -- 813
+swap$ -- 105
+text.length$ -- 0
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 0
+warning$ -- 0
+while$ -- 99
+width$ -- 42
+write$ -- 445

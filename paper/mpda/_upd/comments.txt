@@ -1,0 +1,40 @@
+
+### comment 51 — Ashley Schehr  (paragraph 32)
+ANCHOR: L.ribFemoraGradeRibsPelvisS1L6CountScansSacrumCollectionCTSpine1K541,005CTPelvic1K61,184VerSe25374RibSegv226660TotalSegmentator271,204CTSpinoPelvic1K802L.ribFemoraGradeRibsPelvisS1L6CountScansSacrumCollectionCTSpine1K541,005CTPelvic1K61,184VerSe25374RibSegv226660TotalSegmentator271,204CTSpinoPelvic1
+PARA:   L.ribFemoraGradeRibsPelvisS1L6CountScansSacrumCollectionCTSpine1K541,005CTPelvic1K61,184VerSe25374RibSegv226660TotalSegmentator271,204CTSpinoPelvic1K802L.ribFemoraGradeRibsPelvisS1L6CountScansSacrumCollectionCTSpine1K541,005CTPelvic1K61,184VerSe25374RibSegv226660TotalSegmentator271,204CTSpinoPelvic1K802
+SAYS:   wont let me edit table source numbers, they should all be one lower
+
+### comment 65 — Ashley Schehr  (paragraph 86)
+ANCHOR: Separating T12 from L1 on shape alone, with each patient’s own size divided out and cross-validation grouped by case, gives an area under the curve of 0.990 and 97.3% accuracy over 14
+PARA:   But the vertebrae themselves are known to differ. Counting is not the only route to an identity. Level-specific morphometry is long established. Pedicle width and height change systematically from the thoracic to the lumbar spine,18[-9-] vertebral body, endplate and canal dimensions differ by level,[-2-]19[-0-]–20[-1-] and the transverse process and the iliolumbar ligament mark the last lumbar ver
+SAYS:   can we do an AUC for LSTV too? Why only TLTV
+
+### comment 66 — Ashley Schehr  (paragraph 86)
+ANCHOR: Separating T12 from L1 on shape alone, with each patient’s own size divided out and cross-validation grouped by case, gives an area under the curve of 0.990 and 97.3% accuracy over 14
+PARA:   But the vertebrae themselves are known to differ. Counting is not the only route to an identity. Level-specific morphometry is long established. Pedicle width and height change systematically from the thoracic to the lumbar spine,18[-9-] vertebral body, endplate and canal dimensions differ by level,[-2-]19[-0-]–20[-1-] and the transverse process and the iliolumbar ligament mark the last lumbar ver
+SAYS:   also might be worth adding a paragraph on the methods used to calculate the AUC
+
+### comment 67 — Ashley Schehr  (paragraph 86)
+ANCHOR: Separating T12 from L1 on shape alone, with each patient’s own size divided out and cross-validation grouped by case, gives an area under the curve of 0.990 and 97.3% accuracy over 14
+PARA:   But the vertebrae themselves are known to differ. Counting is not the only route to an identity. Level-specific morphometry is long established. Pedicle width and height change systematically from the thoracic to the lumbar spine,18[-9-] vertebral body, endplate and canal dimensions differ by level,[-2-]19[-0-]–20[-1-] and the transverse process and the iliolumbar ligament mark the last lumbar ver
+SAYS:   For TLTV could compare to this study: Schinz D, Möller H, Ramschütz C, Platzek P, Graf R, Sekuboyina A, El Husseini M, May MS, Uder M, Zimmer C, Kirschke JS. A vertebral shape-based classification for labeling the thoracolumbar junction on CT imaging. Eur Spine J. 2026 Apr;35(4):2195-2203. doi: 10.1007/s00586-025-09364-0. Epub 2025 Sep 26. PMID: 41003722.
+
+### comment 119 — Ashley Schehr  (paragraph 180)
+ANCHOR: 55 ± 10.6
+PARA:   55[-4.7-] ± 10.6
+SAYS:   55° ± 10.6°
+
+### comment 122 — Ashley Schehr  (paragraph 187)
+ANCHOR: Lumbar lordosis (supine)
+PARA:   Lumbar lordosis (supine)
+SAYS:   60° ± 10°
+
+### comment 135 — Ashley Schehr  (paragraph 254)
+ANCHOR: three sacralization and three lumbarization records. With 15 of each across 802 that is the most stratification 
+PARA:   Stratification is on the transitional subtype rather than a binary LSTV flag, so every validation fold carries three sacralization and three lumbarization records. With 15 of each across 802 that is the most stratification can guarantee, and it is why a fold-level metric on the rare classes carries an error bar far wider than its own decimal places.
+SAYS:   is this saying there are 15 total sacralizations? At another point in the manuscript you say there is 14 sacralizations and at another point you say there is two sacralizations as a result of L6. Is a bit confusing. Would make it more clear the total number of sacralizations and lumbarizations in the dataset
+
+### comment 136 — Ashley Schehr  (paragraph 254)
+ANCHOR: three sacralization and three lumbarization records. With 15 of each across 802 that is the most stratification 
+PARA:   Stratification is on the transitional subtype rather than a binary LSTV flag, so every validation fold carries three sacralization and three lumbarization records. With 15 of each across 802 that is the most stratification can guarantee, and it is why a fold-level metric on the rare classes carries an error bar far wider than its own decimal places.
+SAYS:   you say 14 sacralizations in section IV, page 17

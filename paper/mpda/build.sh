@@ -44,11 +44,18 @@ fi
 
 mkdir -p "$WORK/figures"
 if [ "$MODE" = "--reprint" ]; then
-  sed 's/,preprint\]{revtex4-2}/,reprint]{revtex4-2}/' "$HERE/main.tex" > "$WORK/main.tex"
+  # reprint AND no caption list: the published article prints each caption under its figure,
+  # so counting the submission's caption list here would add a page the journal never sets.
+  # AND eviewfalse. The published article carries fourteen authors and three
+  # affiliations; the review copy replaces all of that with one bracketed line. Measuring
+  # the blinded form under-reports the published page count by a whole page, which is
+  # exactly the number the ten-page limit is about.
+  sed -E 's/,preprint(,linenumbers)?\]\{revtex4-2\}/,reprint]{revtex4-2}/; s/captionlisttrue/captionlistfalse/; s/reviewtrue/reviewfalse/' "$HERE/main.tex" > "$WORK/main.tex"
 else
   cp "$HERE/main.tex" "$WORK/main.tex"
 fi
 cp "$HERE"/figures/*.pdf "$WORK/figures/" 2>/dev/null
+cp "$HERE"/figure_captions.tex "$HERE"/census_table.tex "$WORK/" 2>/dev/null
 
 cd "$WORK"
 grep -m1 documentclass main.tex
@@ -72,7 +79,7 @@ echo "=== pages ==="
 python3 -c "
 import pymupdf
 d = pymupdf.open('main.pdf')
-print('PAGES:', d.page_count, '(MPDA limit is 10 PUBLISHED pages -- the reprint count)')
+print('PAGES:', d.page_count, '(MPDA limit is 10 PUBLISHED pages: reprint, real authors)')
 "
 
 cp main.pdf "$HERE/$OUTNAME" && echo "wrote paper/mpda/$OUTNAME"

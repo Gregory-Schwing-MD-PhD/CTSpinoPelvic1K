@@ -1,0 +1,130 @@
+
+=== para 13: Purpose: A vertebra at the lumbosacral junction is named by counting. The gold standard counts caudally from C2 on whole-spine imaging1; however, a lumbar surgical case is planned on [-a -]lumbar-only imaging[- study-]2,3[-,-] ([- -]T12 to S1)[-,-] without C2. Abdominopelvic computed tomography (CT) holds that span plus the lowest ribs and pelvis, standing in for the preoperative view. Where a lum
+  INSERTED: -only imaging
+  INSERTED:  (
+  INSERTED: )
+  DELETED: [-a -]
+  DELETED: [- study-]
+  DELETED: [-,-]
+  DELETED: [- -]
+  DELETED: [-,-]
+
+=== para 17: Potential Applications: Classifying a vertebra from local features; updating cadaveric morphometry; spinopelvic assessment; opportunistic screening; and, absent a public preoperative lumbar cohort, planning research (377 records prone). Limitations: thoracic ground truth is field-of-view limited; postural angles [-recumbent-]are supine; no held-out test set; ribs are triaged-review pseudolabels; C
+  INSERTED: are supine
+  DELETED: [-recumbent-]
+
+=== para 20: Either change alone would be tractable. Together they make it difficult to state definitively what any vertebra at these borders is. Four rib-free vertebrae above the sacrum may mean an L1 bearing a lumbar rib or an L5 assimilated to it; six may mean a true sixth lumbar vertebra, a T12 whose ribs are aplastic, or an S1 lumbarized away from the sacrum. Each set yields the same count, and the morpho
+  INSERTED: -
+
+=== para 25: The project began with a surgeon’s question, whether a vertebra can be named from the anatomy in front of the reader, on the images a lumbar surgical case is actually planned on. By guideline those are lumbar-only imaging studies2,3,12, T12 to S1, and whole-spine coverage is reserved for trauma with an identified injury13 and for deformity radiographs. The cohort suits that question. An abdominope
+  INSERTED: -only imaging
+
+=== para 86: But the vertebrae themselves are known to differ. Counting is not the only route to an identity. Level-specific morphometry is long established. Pedicle width and height change systematically from the thoracic to the lumbar spine,19 vertebral body, endplate and canal dimensions differ by level,20–22 and the transverse process and the iliolumbar ligament mark the last lumbar vertebra independently 
+  COMMENT 12 (Ashley Schehr) on "Separating T12 from L1 on shape alone, with each patient’s own size divided out and cross-validation grouped by case, gives an area under the curve of 0.990 and 97.3% accuracy over 14":
+    can we do an AUC for LSTV too? Why only TLTV
+  COMMENT 13 (Ashley Schehr) on "Separating T12 from L1 on shape alone, with each patient’s own size divided out and cross-validation grouped by case, gives an area under the curve of 0.990 and 97.3% accuracy over 14":
+    also might be worth adding a paragraph on the methods used to calculate the AUC
+  COMMENT 14 (Ashley Schehr) on "Separating T12 from L1 on shape alone, with each patient’s own size divided out and cross-validation grouped by case, gives an area under the curve of 0.990 and 97.3% accuracy over 14":
+    For TLTV could compare to this study: Schinz D, Möller H, Ramschütz C, Platzek P, Graf R, Sekuboyina A, El Husseini M, May MS, Uder M, Zimmer C, Kirschke JS. A vertebral shape-based classification for labeling the thoracolumbar junction on CT imaging. Eur Spine J. 2026 Apr;35(4):2195-2203. doi: 10.1007/s00586-025-09364-0. Epub 2025 Sep 26. PMID: 41003722.
+
+=== para 99: A corpus in which half the records lack a pelvis is not a spinopelvic dataset, so the missing structures were pseudolabeled, asymmetrically (Fig. 1). Pelvis onto spine-only records is the safe direction, since the sacrum and innominate bones carry no enumeration to get wrong, and quality is reported as held-out performance on the pelvic-[- -]only records, withheld from training for that purpose. T
+  INSERTED: -
+  DELETED: [- -]
+
+=== para 113: How S1 is cut. The sacrum’s outer boundary is the source annotation and is never altered; S1 is the cranial part of that same bone, separated by a plane. The plane’s normal is the sacrum’s own cranio-caudal axis, made orthogonal to a left–right axis measured directly rather than assumed, so as to remove the patient’s rotation within the scanner. That rotation is not negligible, with a median of 4.
+  INSERTED: 
+  INSERTED: 
+  INSERTED: 
+  DELETED: [- -]
+  DELETED: [- -]
+
+=== para 156: Both counts, and the manifest fields that report them (has_[- -]l6, has_[- -]lumbar_[- -]rib, n_[- -]lumbar_[- -]labels, lumbar_[- -]rib_[- -]side), are computed from the released label volumes by counting identifiers 25 and 60–61.
+  INSERTED: _
+  INSERTED: _
+  INSERTED: _
+  INSERTED: _
+  INSERTED: _
+  INSERTED: _
+  INSERTED: _
+  DELETED: [- -]
+  DELETED: [- -]
+  DELETED: [- -]
+  DELETED: [- -]
+  DELETED: [- -]
+  DELETED: [- -]
+  DELETED: [- -]
+
+=== para 160: Versions and parameters. Segmentation of femora, the sacral sub-division and the per-level rib numbering used TotalSegmentator27 (total task, release 2.x) on a single graphics processing unit. The binary rib network is Mo¨ller’s28 released weights, applied through the nnU-Net v2 framework30. The pelvic completion for records whose pelvis was absent used a five-fold nnU-Net v2 ensemble, applied out
+  INSERTED: -
+  INSERTED: -
+  INSERTED:  
+  DELETED: 
+  DELETED: [- -]
+
+=== para 168: The check compares each sided pair separately. Testing the ribs alone passed all 802 records while four carried left hip on the patient’s [-right, and-]right and pooling all sided structures into one test still missed one of those four, because a large correctly-sided structure masks a smaller transposed one. A gate that passes everything is not evidence of a clean corpus
+  INSERTED: right and
+  DELETED: 
+  DELETED: [-right, and-]
+
+=== para 254: Stratification is on the transitional subtype rather than a binary LSTV flag, so every validation fold carries three sacralization and three lumbarization records. With 15 of each across 802 that is the most stratification can guarantee, and it is why a fold-level metric on the rare classes carries an error bar far wider than its own decimal places.
+  COMMENT 45 (Ashley Schehr) on "three sacralization and three lumbarization records. With 15 of each across 802 that is the most stratification ":
+    is this saying there are 15 total sacralizations? At another point in the manuscript you say there is 14 sacralizations and at another point you say there is two sacralizations as a result of L6. Is a bit confusing. Would make it more clear the total number of sacralizations and lumbarizations in the dataset
+  COMMENT 46 (Ashley Schehr) on "three sacralization and three lumbarization records. With 15 of each across 802 that is the most stratification ":
+    you say 14 sacralizations in section IV, page 17
+
+=== para 276: Naming a level from its own geometry. Wrong-level spine surgery runs at roughly one in 3,110 spinal procedures, and the cause most often cited is the transitional anatomy this cohort was assembled around.34 Per-level body height, canal width, endplate width, transverse process span and wedge ratio are released for T11–L5 across all 802 records, and because the labels were assigned against the twel
+  COMMENT 47 (Ashley Schehr) on "one in 3,110 spinal procedures, and the cause most often cited is the transitional anatomy this cohort was assembled around.34 Per-":
+    epstein is secondary source, primary source for this stat is : Mody, M. G., Nourbakhsh, A., Stahl, D. L., Gibbs, M., Alfawareh, M., & Garges, K. J. (2008). The prevalence of wrong level surgery among spine surgeons. Spine, 33(2), 194–198. https://doi.org/10.1097/BRS.0b013e31816043d1
+  INSERTED:  
+
+=== para 309: Its limitations are stated at the level of detail a reader would need to catch them [- -]inde[---]
+  INSERTED:  
+  DELETED: 
+  DELETED: [- -]
+  DELETED: [---]
+
+=== para 326: Limitations. The cohort comes from one acquisition protocol of a colorectal-screening population aged 50 and over, so how well it generalizes to a pathologic population is untested. Human review of the rib layer was triaged by an automated rule, so it guarantees only the 
+  INSERTED:  
+  DELETED: 
+
+=== para 327: absence of the failures that rule detects. The lumbosacral junction carries only 33 graded records and no shape-based or rule-based classifier is attempted there. The 0.990 area under the curve reported in Section I.A addresses the thoracolumbar boundary, not the lumbosacral one, and should not be read as evidence for the lumbosacral boundary.
+  INSERTED:  
+  INSERTED: The lumbosacral junction carries only 33 graded records and no shape-based or rule-based classifier is attempted
+  INSERTED:  there. The 0.990 area under the curve reported in Section I.A a
+  INSERTED: ddresses the thoracolumbar boundary, not the lumbosacral one, and should not be read as evidence for the lumbosacral 
+  INSERTED: boundary
+  INSERTED: .
+
+=== para 331: CTSpinoPelvic1K places spine, pelvis, per-level ribs and femora on one coordinate frame in 802 records, and gives the anatomy that makes lumbar numbering ambiguous a class of its own rather than recording it as something it is not. Because both counting anchors are explicit, a level can be identified from a field of view that cannot support the conventional count downward from C2, which is every r
+  INSERTED: 
+
+=== para 347: 3American College of Radiology, ACR–ASNR–SABI–SSR practice parameter for the performance of magnetic resonance imaging (MRI) of the adult spine, revised 2023 (Resolution 6), American College of Radiology, Reston, VA, 2023.
+  COMMENT 65 (Ashley Schehr) on "3American College of Radiology, ACR–ASNR–SABI–SSR practice parameter for the performance of magnetic resonance imaging (MRI) of the adult spine, revised 2023 (Resolution 6), American College of Radiol":
+    couldnt find doi
+  COMMENT 66 (Ashley Schehr) on "3American College of Radiology, ACR–ASNR–SABI–SSR practice parameter for the performance of magnetic resonance imaging (MRI) of the adult spine, revised 2023 (Resolution 6), American College of Radiol":
+    do you think we need to address that this source is for MRIs not CTs?
+  COMMENT 67 (Ashley Schehr) on "3American College of Radiology, ACR–ASNR–SABI–SSR practice parameter for the performance of magnetic resonance imaging (MRI) of the adult spine, revised 2023 (Resolution 6), American College of Radiol":
+    couldnt find doi either
+  COMMENT 68 (Ashley Schehr) on "3American College of Radiology, ACR–ASNR–SABI–SSR practice parameter for the performance of magnetic resonance imaging (MRI) of the adult spine, revised 2023 (Resolution 6), American College of Radiol":
+    online guidelines
+https://www.asnr.org/wp-content/uploads/2019/06/MR-Adult-Spine.pdf
+
+=== para 360: 13American College of Surgeons Committee on Trauma, ACS TQIP best practices guidelines in imaging, American College of Surgeons, Chicago, 2018.
+  COMMENT 69 (Ashley Schehr) on "American College of Surgeons Committee on Trauma, ACS TQIP best practices guidelines in imaging, American College of Surgeons, Chicago, 2018.":
+    couldnt find doi
+  COMMENT 70 (Ashley Schehr) on "American College of Surgeons Committee on Trauma, ACS TQIP best practices guidelines in imaging, American College of Surgeons, Chicago, 2018.":
+    online guidelines: https://www.facs.org/media/oxdjw5zj/imaging_guidelines.pdf
+
+=== para 361: 14K. Smith et al., Data from CT COLONOGRAPHY, The Cancer Imaging Archive, 2015, doi:10.7937/K9/TCIA.2015.NWTESAY1.
+  COMMENT 71 (Ashley Schehr) on "4K. Smith et al., Data from CT COLONOGRAPHY, The Cancer Imaging Archive, 2015, doi:10.7937/K9/TCIA.2015.NWTESAY1.":
+    Smith, K., Clark, K., Bennett, W., Nolan, T., Kirby, J., Wolfsberger, M., Moulton, J., Vendt, B., Freymann, J. (2015). Data From CT COLONOGRAPHY (ACRIN 6664) (Version 2) [dataset]. The Cancer Imaging Archive. https://doi.org/10.7937/k9/tcia.2015.nwtesay1
+
+=== para 368: 22E. C. Benzel, Biomechanics of Spine Stabilization, Thieme, New York, 3rd edition, 2015.
+  COMMENT 72 (Ashley Schehr) on "E. C. Benzel, Biomechanics of Spine Stabilization, Thieme, New York, 3rd edition, 2015.":
+    might be hallcuinated
+  COMMENT 73 (Ashley Schehr) on "E. C. Benzel, Biomechanics of Spine Stabilization, Thieme, New York, 3rd edition, 2015.":
+    book: https://shop.thieme.com/biomechanics-of-spine-stabilization/9781604069242
+
+=== para 387: From Mendeley: 
+  COMMENT 74 (Ashley Schehr) on "From Mendeley: ":
+    need to be ordered still, currently alphabetical

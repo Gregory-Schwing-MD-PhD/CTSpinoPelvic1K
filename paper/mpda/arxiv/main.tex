@@ -845,30 +845,24 @@ any measurement that depends on the sacral endplate.
 
 \section{Discussion}
 
-\emph{Comparison with related material.} Against the collections in
-Table~\ref{tab:priorart}, the contribution is the crosswalk placing spine and pelvis on the
-same series, together with classes for the anatomy an enumeration anomaly produces.
+\emph{Comparison with related material.}
 VerSe~\cite{verse2021,versedata2021} comes closest in intent but has no sacral mask for the
 structure a Castellvi grade describes; this release segments it, as L6 or as a carved S1.
 Extending VerSe with a sacrum would not have supplied the pelvis, femora or prone
 acquisitions, and what this release adds over TotalSegmentator~\cite{totalsegmentator} is
 the classes an anomaly needs, not more anatomy per scan.
 
-\emph{Future directions.} Imaging beyond this protocol, and the C2 anchor it cannot
-supply, are the natural next additions; applying the released weights to VerSe would add the
-S1 anchor and the anomaly classes to a bone-kernel collection. A Castellvi read of the whole
-cohort would test the co-occurrence of rib and lumbosacral anomalies at full power and would
-supply the labels a lumbosacral classifier needs. The S1 carve should be replaced by one
-that follows the anatomy, and whether the fused segment in the nine four-lumbar records is a
-lumbar-type body is a question for pelvic morphometrics.
+\emph{Future directions.} Applying the released weights to VerSe would add the S1 anchor
+and the anomaly classes to a bone-kernel collection. A Castellvi read of the whole cohort
+would test the co-occurrence of rib and lumbosacral anomalies at full power and supply the
+labels a lumbosacral classifier needs.
 
 \section{Conclusion}
 
 CTSpinoPelvic1K places spine, pelvis, per-level ribs and femora on one coordinate frame in
-802 records, and gives the anatomy that makes lumbar numbering ambiguous a class of its own
-rather than recording it as something it is not. Because both counting anchors are explicit,
-a level can be identified from a field of view that cannot support the conventional count
-downward from C2, which is every record here.
+802 records, and gives the anatomy that makes lumbar numbering ambiguous a class of its own.
+Because both counting anchors are explicit, a level can be identified from a field of view
+that cannot support the conventional count downward from C2.
 
 \section*{Data Availability}
 The release described here is \datasetversion{}, permanently archived at

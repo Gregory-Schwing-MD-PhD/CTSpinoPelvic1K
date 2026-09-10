@@ -1,0 +1,71 @@
+a)Electronic mail: gregory.schwing@med.wayne.edu
+
+Updated reference list:
+
+Lian, J., Levine, N., & Cho, W. (2018). A review of lumbosacral transitional vertebrae and associated vertebral numeration. European Spine Journal, 27(5), 995–1004. https://doi.org/10.1007/s00586-018-5554-8
+
+Hutchins, T. A., Peckham, M., Shah, L. M., Parsons, M. S., Agarwal, V., Boulter, D. J., Burns, J., Cassidy, R. C., Davis, M. A., Holly, L. T., Hunt, C. H., Khan, M. A., Moritani, T., Ortiz, A. O., O’Toole, J. E., Powers, W. J., Promes, S. B., Reitman, C., Shah, V. N., … Corey, A. S. (2021). ACR Appropriateness Criteria® Low Back Pain: 2021 Update. Journal of the American College of Radiology, 18(11), S361–S379. https://doi.org/10.1016/j.jacr.2021.08.002
+
+Konin, G. P., & Walz, D. M. (2010). Lumbosacral Transitional Vertebrae: Classification, Imaging Findings, and Clinical Relevance. American Journal of Neuroradiology, 31(10), 1778–1786. https://doi.org/10.3174/ajnr.A2036
+
+Deng, Y., Wang, C., Hui, Y., Li, Q., Li, J., Luo, S., Sun, M., Quan, Q., Yang, S., Hao, Y., Liu, P., Xiao, H., Zhao, C., Wu, X., & Zhou, S. K. (2025). CTSpine1K: A Large-Scale Dataset for Spinal Vertebrae Segmentation in Computed Tomography. Machine Learning for Biomedical Imaging, 3(MICCAI Open Data 2024-2025), 824–832. https://doi.org/10.59275/j.melba.2025-gf84
+
+Liu, P., Han, H., Du, Y., Zhu, H., Li, Y., Gu, F., Xiao, H., Li, J., Zhao, C., Xiao, L., Wu, X., & Zhou, S. K. (2021). Deep learning to segment pelvic bones: large-scale CT datasets and baseline models. International Journal of Computer Assisted Radiology and Surgery, 16(5), 749–756. https://doi.org/10.1007/s11548-021-02363-8
+
+Möller, H., Graf, R., Schmitt, J., Keinert, B., Schön, H., Atad, M., Sekuboyina, A., Streckenbach, F., Kofler, F., Kroencke, T., Bette, S., Willich, S. N., Keil, T., Niendorf, T., Pischon, T., Endemann, B., Menze, B., Rueckert, D., & Kirschke, J. S. (2024). SPINEPS—automatic whole spine segmentation of T2-weighted MR images using a two-phase approach to multi-class semantic and instance segmentation. European Radiology, 35(3), 1178–1189. https://doi.org/10.1007/s00330-024-11155-y
+
+Möller, H., Schoen, H., Graf, R., Atad, M., Molinier, N., Sekuboyina, A., Budai, B. K., Bamberg, F., Ringhof, S., Schlett, C., Pischon, T., Niendorf, T., Decker, J. A., Weber, M.-A., Menze, B., Rueckert, D., & Kirschke, J. S. (2026). VERIDAH: Solving Enumeration Anomaly Aware Vertebra Labeling across Imaging Sequences.
+
+Otake, Y., Schafer, S., Stayman, J. W., Zbijewski, W., Kleinszig, G., Graumann, R., Khanna, A. J., & Siewerdsen, J. H. (2012). Automatic localization of vertebral levels in x-ray fluoroscopy using 3D-2D registration: a tool to reduce wrong-site surgery. Physics in Medicine and Biology, 57(17), 5485–5508. https://doi.org/10.1088/0031-9155/57/17/5485
+
+Lo, S. L., Otake, Y., Puvanesarajah, V., Wang, A. S., Uneri, A., de Silva, T., Vogt, S., Kleinszig, G., Elder, B. D., Goodwin, C. R., Kosztowski, T. A., Liauw, J. A., Groves, M., Bydon, A., Sciubba, D. M., Witham, T. F., Wolinsky, J.-P., Aygun, N., Gokaslan, Z. L., & Siewerdsen, J. H. (2015). Automatic Localization of Target Vertebrae in Spine Surgery. Spine, 40(8), E476–E483. https://doi.org/10.1097/BRS.0000000000000814
+
+de Silva, T., Lo, S.-F. L., Aygun, N., Aghion, D. M., Boah, A., Petteys, R., Uneri, A., Ketcha, M. D., Yi, T., Vogt, S., Kleinszig, G., Wei, W., Weiten, M., Ye, X., Bydon, A., Sciubba, D. M., Witham, T. F., Wolinsky, J.-P., & Siewerdsen, J. H. (2016). Utility of the LevelCheck Algorithm for Decision Support in Vertebral Localization. Spine, 41(20), E1249–E1256. https://doi.org/10.1097/BRS.0000000000001589
+
+Kreiner, D. S., Shaffer, W. O., Baisden, J. L., Gilbert, T. J., Summers, J. T., Toton, J. F., Hwang, S. W., Mendel, R. C., & Reitman, C. A. (2013). An evidence-based clinical guideline for the diagnosis and treatment of degenerative lumbar spinal stenosis (update). The Spine Journal, 13(7), 734–743. https://doi.org/10.1016/j.spinee.2012.11.059
+
+Sixta, S., Moore, F., Ditillo, M., Fox, A., Garcia, A., Holena, D., Joseph, B., Tyrie, L., & Cotton, B. (2012). Screening for thoracolumbar spinal injuries in blunt trauma: An Eastern Association for the Surgery of Trauma practice management guideline. Journal of Trauma and Acute Care Surgery, 73(5), S326-S332. https://doi.org/10.1097/TA.0b013e31827559b8
+
+Smith, K., Clark, K., Bennett, W., Nolan, T., Kirby, J., Wolfsberger, M., Moulton, J., Vendt, B., Freymann, J. (2015). Data From CT COLONOGRAPHY (ACRIN 6664) (Version 2) [dataset]. The Cancer Imaging Archive. https://doi.org/10.7937/k9/tcia.2015.nwtesay1
+
+Clark, K., Vendt, B., Smith, K., Freymann, J., Kirby, J., Koppel, P., Moore, S., Phillips, S., Maffitt, D., Pringle, M., Tarbox, L., & Prior, F. (2013). The Cancer Imaging Archive (TCIA): Maintaining and Operating a Public Information Repository. Journal of Digital Imaging, 26(6), 1045–1057. https://doi.org/10.1007/s10278-013-9622-7
+
+du Plessis, A. M., Greyling, L. M., & Page, B. J. (2018). Differentiation and classification of thoracolumbar transitional vertebrae. Journal of Anatomy, 232(5), 850–856. https://doi.org/10.1111/joa.12781
+
+Poolman, A. M., Wessels, Q., Schoor, A. van, & Keough, N. (2023). Thoracolumbar transitional vertebrae: Quantitative differentiation and associated numeric variation in the vertebral column using skeletal remains. Journal of Anatomy, 243(2), 311–318. https://doi.org/10.1111/joa.13865
+
+Nagata, S., Yamada, C., Sawano, M., Shouji, Y., Shioyama, G., Nakamura, S., Uchiyama, Y., Nishimura, H., & Tanoue, S. (2025). Lumbosacral transitional vertebra on whole-spine CT: prevalence and association with rib abnormalities. Skeletal Radiology, 54(10), 2169–2177. https://doi.org/10.1007/s00256-025-04952-z
+
+ZINDRICK, M. R., WILTSE, L. L., DOORNIK, A., WIDELL, E. H., KNIGHT, G. W., PATWARDHAN, A. G., THOMAS, J. C., ROTHMAN, S. L., & FIELDS, B. T. (1987). Analysis of the Morphometric Characteristics of the Thoracic and Lumbar Pedicles. Spine, 12(2), 160–166. https://doi.org/10.1097/00007632-198703000-00012
+
+PANJABI, M. M., TAKATA, K., GOEL, V., FEDERICO, D., OXLAND, T., DURANCEAU, J., & KRAG, M. (1991). Thoracic Human Vertebrae Quantitative Three-Dimensional Anatomy. SPINE, 16(8), 888–901. https://doi.org/10.1097/00007632-199108000-00006
+
+PANJABI, M. M., GOEL, V., OXLAND, T., TAKATA, K., DURANCEAU, J., KRAG, M., & PRICE, M. (1992). Human Lumbar Vertebrae. Spine, 17(3), 299–306. https://doi.org/10.1097/00007632-199203000-00010
+
+Berry, J. L., Moran, J. M., Berg, W. S., & Steffee, A. D. (1987). A morphometric study of human lumbar and selected thoracic vertebrae. Spine, 12(4), 362–367. https://doi.org/10.1097/00007632-198705000-00010
+
+Hughes, R. J., & Saifuddin, A. (2006). Numbering of Lumbosacral Transitional Vertebrae on MRI: Role of the Iliolumbar Ligaments. American Journal of Roentgenology, 187(1), W59–W65. https://doi.org/10.2214/AJR.05.0415
+
+Liebl, H., Schinz, D., Sekuboyina, A., Malagutti, L., Löffler, M. T., Bayat, A., el Husseini, M., Tetteh, G., Grau, K., Niederreiter, E., Baum, T., Wiestler, B., Menze, B., Braren, R., Zimmer, C., & Kirschke, J. S. (2021). A computed tomography vertebral segmentation dataset with anatomical variations and multi-vendor scanner data. Scientific Data, 8(1), 284. https://doi.org/10.1038/s41597-021-01060-0
+
+Sekuboyina, A., Husseini, M. E., Bayat, A., Löffler, M., Liebl, H., Li, H., Tetteh, G., Kukačka, J., Payer, C., Štern, D., Urschler, M., Chen, M., Cheng, D., Lessmann, N., Hu, Y., Wang, T., Yang, D., Xu, D., Ambellan, F., … Kirschke, J. S. (2021). VerSe: A Vertebrae labelling and segmentation benchmark for multi-detector CT images. Medical Image Analysis, 73, 102166. https://doi.org/10.1016/j.media.2021.102166
+
+Jin, L., Gu, S., Wei, D., Adhinarta, J. K., Kuang, K., Zhang, Y. J., Pfister, H., Ni, B., Yang, J., & Li, M. (2024). RibSeg v2: A Large-Scale Benchmark for Rib Labeling and Anatomical Centerline Extraction. IEEE Transactions on Medical Imaging, 43(1), 570–581. https://doi.org/10.1109/TMI.2023.3313627
+
+Wasserthal, J., Breit, H.-C., Meyer, M. T., Pradella, M., Hinck, D., Sauter, A. W., Heye, T., Boll, D. T., Cyriac, J., Yang, S., Bach, M., & Segeroth, M. (2023). TotalSegmentator: Robust Segmentation of 104 Anatomic Structures in CT Images. Radiology: Artificial Intelligence, 5(5). https://doi.org/10.1148/ryai.230024
+
+Möller, H., Schön, H., Dima, A., Keinert-Weth, B., Graf, R., Atad, M., Paetzold, J., Jungmann, F., Braren, R., Kofler, F., Menze, B., Rueckert, D., & Kirschke, J. S. (2025). Automated Thoracolumbar Stump Rib Detection and Analysis in a Large CT Cohort.
+
+Schehr, A., Kim, J., & Schwing, G. (2026). OpenSpineConsortium: An Open-Source Framework for Medical Student Engagement in Computational Spine Imaging Research. Cureus. https://doi.org/10.7759/cureus.112661
+
+Isensee, F., Jaeger, P. F., Kohl, S. A. A., Petersen, J., & Maier-Hein, K. H. (2021). nnU-Net: a self-configuring method for deep learning-based biomedical image segmentation. Nature Methods, 18(2), 203–211. https://doi.org/10.1038/s41592-020-01008-z
+
+Vialle, R., Levassor, N., Rillardon, L., Templier, A., Skalli, W., & Guigui, P. (2005). Radiographic Analysis of the Sagittal Alignment and Balance of the Spine in Asymptomatic Subjects. The Journal of Bone & Joint Surgery, 87(2), 260–267. https://doi.org/10.2106/JBJS.D.02043
+
+CASTELLVI, A. E., GOLDSTEIN, L. A., & CHAN, D. P. K. (1984). Lumbosacral Transitional Vertebrae and Their Relationship With Lumbar Extradural Defects. Spine, 9(5), 493–495. https://doi.org/10.1097/00007632-198407000-00014
+
+Pickhardt, P. J., Pooler, B. D., Lauder, T., del Rio, A. M., Bruce, R. J., & Binkley, N. (2013). Opportunistic Screening for Osteoporosis Using Abdominal Computed Tomography Scans Obtained for Other Indications. Annals of Internal Medicine, 158(8), 588–595. https://doi.org/10.7326/0003-4819-158-8-201304160-00003
+
+Mody, M. G., Nourbakhsh, A., Stahl, D. L., Gibbs, M., Alfawareh, M., & Garges, K. J. (2008). The prevalence of wrong level surgery among spine surgeons. Spine, 33(2), 194–198. https://doi.org/10.1097/BRS.0b013e31816043d1
+
+Beaulieu, E., Wise, J., Merem, I., Comella, Z., Afsahi, R., Roemer, J., Lin, M., Sharp, R., Cheema, T. S., & Vrionis, F. D. (2026). A Review of Finite Element Analysis in Spine Surgery Decision-Making. Journal of Clinical Medicine, 15(7), 2584. https://doi.org/10.3390/jcm15072584

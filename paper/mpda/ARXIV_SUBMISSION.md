@@ -5,7 +5,7 @@ Everything the arXiv form asks for, so it can be pasted rather than reconstructe
 **Upload:** `paper/mpda/CTSpinoPelvic1K_arxiv.tar.gz` (about 820 KB: `main.tex`,
 `figure_captions.tex` and six figure PDFs, nothing else). `make_arxiv.sh` builds it and then
 compiles it in a clean temporary tree, which is the only test that predicts what arXiv will do:
-0 undefined references, no errors, 11 two-column pages. The bibliography is a `thebibliography`
+0 undefined references, no errors, 10 two-column pages. The bibliography is a `thebibliography`
 environment inside `main.tex`, so there is no `.bbl` to forget. Figure 1 is drawn in TikZ inside
 `main.tex`, so seven figures appear from six PDFs. The preview of exactly what arXiv will
 render is `CTSpinoPelvic1K_arxiv_preview.pdf`.

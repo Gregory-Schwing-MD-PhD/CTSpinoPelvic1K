@@ -1,0 +1,155 @@
+
+### comment 594351037 — Jerick Kim  (paragraph 18)
+ANCHOR: INTRODUCTION
+PARA:   I. INTRODUCTION
+SAYS:   feel like overall flow can be better.
+
+### comment 1616041658 — Mia Sooch  (paragraph 19)
+ANCHOR: Transitional variants sit 
+PARA:   The spine commonly carries seven cervical, twelve thoracic and five lumbar vertebrae, and a vertebra is identified by where it falls in that sequence. Transitional variants sit at the two ends of the lumbar column, the thoracolumbar transitional vertebra (TLTV) above and the lumbosacral transitional vertebra (LSTV) below, and they disturb identification in two ways at once. They change what the bo
+SAYS:   It might be helpful to add a picture so the reader's can reference what a transitional variant looks like and how it can serve as an identifier
+
+### comment 1641408221 — Maggie Khoushi  (paragraph 20)
+ANCHOR:  Whether it differs enough for a learned classifier to separate them, or at least to assign each reading a probability, is the question this release is built to support. 
+PARA:   Either change alone would be tractable. Together they make it difficult to state definitively what any vertebra at these borders is. Four rib-free vertebrae above the sacrum may mean an L1 bearing a lumbar rib or an L5 assimilated to it; six may mean a true sixth lumbar vertebra, a T12 whose ribs are aplastic, or an S1 lumbarized away from the sacrum. Each set yields the same count, and the morpho
+SAYS:   agree w Jerick's comment above, the wording is switching between active and passive voice, making it kind of difficult to follow along
+
+### comment 444238270 — Jerick Kim  (paragraph 20)
+ANCHOR:  LSTV is common, reported between 4% and 30% depending on definition, and wrong-level surgery is its most serious consequence.
+PARA:   Either change alone would be tractable. Together they make it difficult to state definitively what any vertebra at these borders is. Four rib-free vertebrae above the sacrum may mean an L1 bearing a lumbar rib or an L5 assimilated to it; six may mean a true sixth lumbar vertebra, a T12 whose ribs are aplastic, or an S1 lumbarized away from the sacrum. Each set yields the same count, and the morpho
+SAYS:   ref?
+
+### comment 541491983 — Ryan Christian  (paragraph 20)
+ANCHOR:  LSTV is common, reported between 4% and 30% depending on definition, and wrong-level surgery is its most serious consequence.
+PARA:   Either change alone would be tractable. Together they make it difficult to state definitively what any vertebra at these borders is. Four rib-free vertebrae above the sacrum may mean an L1 bearing a lumbar rib or an L5 assimilated to it; six may mean a true sixth lumbar vertebra, a T12 whose ribs are aplastic, or an S1 lumbarized away from the sacrum. Each set yields the same count, and the morpho
+SAYS:   ^
+
+### comment 1444959721 — Mia Sooch  (paragraph 24)
+ANCHOR: protocol held fixed,
+PARA:   The project began with a surgeon’s question, whether a vertebra can be named from the anatomy in front of the reader, on the images a lumbar surgical case is actually planned on. By guideline, those are lumbar studies2,3,12, T12 to S1, and whole-spine coverage is reserved for trauma with an identified injury13 and for deformity radiographs. The cohort suits that question. An abdominopelvic CT runs
+SAYS:   Explain what "protocol" is. Dumb this down, can be hard to follow without background knowledge
+
+### comment 989800900 — Ryan Christian  (paragraph 83)
+ANCHOR: l
+PARA:   length as a fraction of the rib above it, a transverse process by its span and its distance from the ala. None of these changes with the name a reader gives the junction, so cases that disagree about the name remain comparable.
+SAYS:   Where is the start of this sentence?
+
+### comment 172747243 — Maggie Khoushi  (paragraph 83)
+ANCHOR: l
+PARA:   length as a fraction of the rib above it, a transverse process by its span and its distance from the ala. None of these changes with the name a reader gives the junction, so cases that disagree about the name remain comparable.
+SAYS:   its right above the table label but i agree that the table should not split the paragraph - this applies to all the tables and images in the paper, the constant cut offs mid-paragraph are really disruptive
+
+### comment 826233184 — Annika Tekumulla  (paragraph 84)
+ANCHOR:  gives an area under the curve of 0.990 and 97.3% accuracy
+PARA:   But the vertebrae themselves are known to differ. Counting is not the only route to an identity. Level-specific morphometry is long established. Pedicle width and height change systematically from the thoracic to the lumbar spine,19 vertebral body, endplate and canal dimensions differ by level,20–22 and the transverse process and the iliolumbar ligament mark the last lumbar vertebra independently 
+SAYS:   what about for LSTV?
+
+### comment 1888482027 — Jerick Kim  (paragraph 87)
+ANCHOR: TCIA 
+PARA:   Both sources draw part of their imaging from the TCIA CT colonography collection14,15. CTSpine1K’s 1,005 volumes come from four collections and CTPelvic1K’s 1,184 from seven; COLONOG is the only collection common to both and the only one acquired under a single protocol, so this release is its COLONOG subset, 782 patients with a CTSpine1K vertebral
+SAYS:   define. and other acronyms used
+
+### comment 1915318837 — Mia Sooch  (paragraph 90)
+ANCHOR: CT series it was drawn on.
+PARA:   annotation and 20 with a CTPelvic1K pelvic annotation only, 802 in all. Neither source released the mapping from an annotation to the specific CT series it was drawn on.
+SAYS:   move the figure to after this sentence
+
+### comment 233637189 — Mia Sooch  (paragraph 92)
+ANCHOR: nothing finer
+PARA:   twice, prone and supine, and an annotation carries a patient identifier and nothing finer. Turning a patient from supine to prone alters lumbar lordosis and the alignment of each segment against the next, so outlines drawn on one series are the wrong shape for the other and no rigid realignment recovers them. The crosswalk (Fig. 1) therefore resolves each annotation to a patient and then, within t
+SAYS:   change the wording
+
+### comment 726471207 — Mia Sooch  (paragraph 97)
+ANCHOR: commit to a count and on a transitional vertebra commits to the commoner reading;
+PARA:   A corpus in which half the records lack a pelvis is not a spinopelvic dataset, so the missing structures were pseudolabeled, asymmetrically (Fig. 1). Pelvis onto spine-only records is the safe direction, since the sacrum and innominate bones carry no enumeration to get wrong, and quality is reported as held-out performance on the pelvic only records, withheld from training for that purpose. The re
+SAYS:   clarify this sentence, hard to follow
+
+### comment 1868922712 — Annika Tekumulla  (paragraph 100)
+ANCHOR: wo available automatic sources fail in complementary ways.
+PARA:   No public rib annotation covers this cohort, and the two available automatic sources fail in complementary ways.
+SAYS:   source?
+
+### comment 542774536 — Mia Sooch  (paragraph 151)
+ANCHOR:  count.
+PARA:   started the count.
+SAYS:   move figure to after this sentence so it doesn't split the paragraph or above "Figure 2 shows why"
+
+### comment 1741837754 — Maggie Khoushi  (paragraph 162)
+ANCHOR: each sided pair separately
+PARA:   The check compares each sided pair separately. Testing the ribs alone passed all 802 records while four carried left hip on the patient’s right, and pooling all sided structures into one test still missed one of those four, because a large correctly-sided structure masks a smaller transposed one. A gate that passes everything is not evidence of a clean corpus
+SAYS:   i dont think phrases in the body should be bolded or italicized, i think that would be better reserved for headings
+
+### comment 2132209053 — Maggie Khoushi  (paragraph 162)
+ANCHOR: each sided pair separately
+PARA:   The check compares each sided pair separately. Testing the ribs alone passed all 802 records while four carried left hip on the patient’s right, and pooling all sided structures into one test still missed one of those four, because a large correctly-sided structure masks a smaller transposed one. A gate that passes everything is not evidence of a clean corpus
+SAYS:   applies to many other examples above and below. need to pick one and fix all the rest
+
+### comment 611020735 — Mia Sooch  (paragraph 162)
+ANCHOR:  of those four,
+PARA:   The check compares each sided pair separately. Testing the ribs alone passed all 802 records while four carried left hip on the patient’s right, and pooling all sided structures into one test still missed one of those four, because a large correctly-sided structure masks a smaller transposed one. A gate that passes everything is not evidence of a clean corpus
+SAYS:   reword for clarity. "four carried left hip" and "those four"
+
+### comment 291662962 — Maggie Khoushi  (paragraph 193)
+ANCHOR: an iatrogenic fusion is indistinguishable from a congenital one to a distance
+PARA:   an iatrogenic fusion is indistinguishable from a congenital one to a distance
+SAYS:   this sentence has a random subheading and drop down menu linked to it somehow ? you can see it if you hover your pointer just left of the sentence
+
+### comment 1934048125 — Maggie Khoushi  (paragraph 193)
+ANCHOR: an iatrogenic fusion is indistinguishable from a congenital one to a distance
+PARA:   an iatrogenic fusion is indistinguishable from a congenital one to a distance
+SAYS:   actually there are a lot of these randomly
+
+### comment 1890825269 — Jerick Kim  (paragraph 253)
+ANCHOR: The cohort is a colorectal cancer screening population of 802 records. 738 are recorded female (393) or male (345); 11 carry DICOM’s other value and 53 no sex field. Age is present for 709 (median 59, range 50–89). All 802 are counted in totals; the eleven outside
+PARA:   The cohort is a colorectal cancer screening population of 802 records. 738 are recorded female (393) or male (345); 11 carry DICOM’s other value and 53 no sex field. Age is present for 709 (median 59, range 50–89). All 802 are counted in totals; the eleven outside
+SAYS:   is this necessary? i think narrowing our focus to what we really want to address and remove info like this may help the manuscript be more concise and straight to the point
+
+### comment 1783887669 — Maggie Khoushi  (paragraph 253)
+ANCHOR: The cohort is a colorectal cancer screening population of 802 records. 738 are recorded female (393) or male (345); 11 carry DICOM’s other value and 53 no sex field. Age is present for 709 (median 59, range 50–89). All 802 are counted in totals; the eleven outside
+PARA:   The cohort is a colorectal cancer screening population of 802 records. 738 are recorded female (393) or male (345); 11 carry DICOM’s other value and 53 no sex field. Age is present for 709 (median 59, range 50–89). All 802 are counted in totals; the eleven outside
+SAYS:   second
+
+### comment 1252928524 — Maggie Khoushi  (paragraph 257)
+ANCHOR: pelvis retroverting as a spine ages.
+PARA:   Level gradients and spinopelvic measures (Fig. 5). Vertebral dimensions increase caudally; pelvic incidence does not vary with age while pelvic tilt does, the signature of a pelvis retroverting as a spine ages.
+SAYS:   not sure if this was copied from another source but there are a lot of random gaps / strange formatting gaps mid-sentence, probably just need a once over before sending to the reviewers to make sure we catch all of them. I tried to fix as many as i can
+
+### comment 822605769 — Jerick Kim  (paragraph 261)
+ANCHOR: V. POTENTIAL APPLICATIONS AND LIMITATIONS
+PARA:   V. POTENTIAL APPLICATIONS AND LIMITATIONS
+SAYS:   there are limitations mentioned multiple times throughout the manuscript. not sure if you want to consolidate into one at the end or keep as is
+
+### comment 448181744 — Maggie Khoushi  (paragraph 261)
+ANCHOR: V. POTENTIAL APPLICATIONS AND LIMITATIONS
+PARA:   V. POTENTIAL APPLICATIONS AND LIMITATIONS
+SAYS:   ^^^
+
+### comment 1001947558 — Maggie Khoushi  (paragraph 293)
+ANCHOR: Fig. 6 Morphometry by level, as median, interquartile range and 5th–95th percentile, with n at right. (a) Body height. (b) Endplate width. (c) Canal. (d) Pedicle width. (e) Disc height. (f)
+PARA:   Fig. 6 Morphometry by level, as median, interquartile range and 5th–95th percentile, with n at right. (a) Body height. (b) Endplate width. (c) Canal. (d) Pedicle width. (e) Disc height. (f)
+SAYS:   some of the figure labels are above and some are below. need to decide on a consistent format
+
+### comment 947329319 — Mia Sooch  (paragraph 296)
+ANCHOR:  never show what usual looks like
+PARA:   Reference morphometry with its spread. The values a surgeon consults for vertebral body height, canal dimensions and pedicle width come from cadaveric series of a few dozen specimens, plotted as single values with no indication of spread.22 They cannot tell a reader whether the patient in front of them is unusual, because they never show what usual looks like. The same measures are given here from
+SAYS:   strong statement. replace "never"
+
+### comment 2089231169 — Maggie Khoushi  (paragraph 296)
+ANCHOR: (Fig. 6), 
+PARA:   Reference morphometry with its spread. The values a surgeon consults for vertebral body height, canal dimensions and pedicle width come from cadaveric series of a few dozen specimens, plotted as single values with no indication of spread.22 They cannot tell a reader whether the patient in front of them is unusual, because they never show what usual looks like. The same measures are given here from
+SAYS:   the image for figure 6 is above when it is actually discussed/referenced in the text
+
+### comment 2128211674 — Maggie Khoushi  (paragraph 299)
+ANCHOR: Its limitations are stated at the level of detail a reader would need to catch them inde-
+PARA:   Its limitations are stated at the level of detail a reader would need to catch them inde-
+SAYS:   unclear what this means / is referring to
+
+### comment 1838827616 — Maggie Khoushi  (paragraph 305)
+ANCHOR: ll,i ll
+PARA:        l l, i l l
+SAYS:   what is happening here
+
+### comment 284813284 — Annika Tekumulla  (paragraph 333)
+ANCHOR: 3American College of Radiology, ACR–ASNR–SABI–SSR practice parameter for the performance of magnetic resonance imaging (MRI) of the adult spine, revised 2023 (Resolution 6), American College of Radiology, Reston, VA, 2023.
+PARA:   3American College of Radiology, ACR–ASNR–SABI–SSR practice parameter for the performance of magnetic resonance imaging (MRI) of the adult spine, revised 2023 (Resolution 6), American College of Radiology, Reston, VA, 2023.
+SAYS:   MRI? Didn't focus on this in the paper
