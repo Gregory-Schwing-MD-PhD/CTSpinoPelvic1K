@@ -55,6 +55,13 @@ LEVELREF_CSV = (Path(__file__).resolve().parents[2] / "morphometrics"
 # Colours are Okabe-Ito, which stays distinguishable for the common colour-vision
 # deficiencies, and every series also carries a distinct dash so the panels survive being
 # printed in grey.
+# ONLY PANJABI IS DRAWN HERE, deliberately. The full multi-series machinery below works and
+# the tables carry ten series, but this manuscript's argument runs through the textbook a
+# surgeon actually consults, and that textbook redraws Panjabi. Showing ten series that
+# disagree by 21 to 69% is a different paper's argument, and a good one -- the tables, the
+# styles and the drawing code are all kept for it. Set DRAW_SERIES to None to draw them all.
+DRAW_SERIES = {"Panjabi 1992", "Panjabi"}
+
 DASH_SOLID = "-"
 DASH_LONG = (0, (4, 1.4))
 DASH_MED = (0, (2.4, 1.2))
@@ -120,6 +127,8 @@ def draw_reference_series(ax, refs, measure, y_of, offset=0.0, drawn=None):
     if not d:
         return
     for ser, per_level in sorted(d.items()):
+        if DRAW_SERIES is not None and ser not in DRAW_SERIES:
+            continue
         style = SERIES_STYLE.get(ser)
         if style is None:
             continue
@@ -165,26 +174,19 @@ def build(out: Path, reference: bool = True):
     y_disc = {d: (y_of[d[:2]] + (y_of.get(d[2:], y_of["L5"] - 1))) / 2.0 for d in DISCS}
     y_hu = {k: y_of[k.upper()] for k in ["l1", "l2", "l3", "l4"]}
 
-    fig, axes = plt.subplots(2, 3, figsize=(MF.COL2, 74 * MF.MM))
+    fig, axes = plt.subplots(1, 3, figsize=(MF.COL2, 52 * MF.MM))
     TEAL, OCHRE, INK, FAINT = MF.TEAL, MF.OCHRE, MF.INK, MF.FAINT
-    ax_a, ax_b, ax_c, ax_d, ax_e, ax_f = axes.ravel()
-
-    # (a) body height, ventral against dorsal
-    draw(ax_a, S["h_ant"], y_of, TEAL, "o", offset=+0.17, label="ventral")
-    draw(ax_a, S["h_post"], y_of, OCHRE, "s", offset=-0.17, label="dorsal")
-    draw_reference_series(ax_a, refs, "h_ant", y_of, offset=+0.17, drawn=drawn)
-    draw_reference_series(ax_a, refs, "h_post", y_of, offset=-0.17, drawn=drawn)
-    ax_a.set_xlabel("vertebral body height (mm)")
-    ax_a.set_title("(a) Body height", loc="left", fontsize=8.0)
-    ax_a.legend(fontsize=6.3, handlelength=1.0, loc="lower right",
-                bbox_to_anchor=(1.0, 0.0) if refs else (1.0, 0.0))
+    # BODY HEIGHT AND DISC HEIGHT ARE DEFERRED to the next paper: body height needs
+    # the cohort-versus-method argument settled first, and neither is what the
+    # textbook curve a surgeon consults is about.
+    ax_b, ax_c, ax_d = axes.ravel()
 
     # (b) superior endplate width
     draw(ax_b, S["endplate"], y_of, TEAL, "o")
     annotate_n(ax_b, S["endplate"], y_of, FAINT)
     draw_reference_series(ax_b, refs, "endplate", y_of, drawn=drawn)
     ax_b.set_xlabel("superior endplate width (mm)")
-    ax_b.set_title("(b) Endplate width", loc="left", fontsize=8.0)
+    ax_b.set_title("(a) Endplate width", loc="left", fontsize=8.0)
 
     # (c) canal, width against depth
     draw(ax_c, S["canal_w"], y_of, TEAL, "o", offset=+0.17, label="width")
@@ -192,7 +194,7 @@ def build(out: Path, reference: bool = True):
     draw_reference_series(ax_c, refs, "canal_w", y_of, offset=+0.17, drawn=drawn)
     draw_reference_series(ax_c, refs, "canal_ap", y_of, offset=-0.17, drawn=drawn)
     ax_c.set_xlabel("spinal canal (mm)")
-    ax_c.set_title("(c) Canal", loc="left", fontsize=8.0)
+    ax_c.set_title("(b) Canal", loc="left", fontsize=8.0)
     # upper right: the canal narrows upward, so the free space is to the right of the
     # T11-T12 rows. Lower left sits on the depth whiskers and lower right on the L5 width
     # marker, which is the widest canal in the panel.
@@ -202,20 +204,11 @@ def build(out: Path, reference: bool = True):
     draw(ax_d, S["pedicle"], y_of, OCHRE, "D")
     annotate_n(ax_d, S["pedicle"], y_of, FAINT)
     draw_reference_series(ax_d, refs, "PDW", y_of, drawn=drawn)
-    draw_reference_series(ax_e, refs, "disc", y_disc, drawn=drawn)
     ax_d.set_xlabel("transverse pedicle width (mm)")
-    ax_d.set_title("(d) Pedicle width", loc="left", fontsize=8.0)
+    ax_d.set_title("(c) Pedicle width", loc="left", fontsize=8.0)
 
-    # (e) disc height, drawn between the vertebrae it separates
-    draw(ax_e, S["disc"], y_disc, TEAL, "o")
-    annotate_n(ax_e, S["disc"], y_disc, FAINT)
-    ax_e.set_xlabel("disc height (mm)")
-    ax_e.set_title("(e) Disc height", loc="left", fontsize=8.0)
 
-    # (f) is the legend, not a panel
-    ax_f.axis("off")
-
-    for ax in (ax_a, ax_b, ax_c, ax_d, ax_e):
+    for ax in (ax_b, ax_c, ax_d):
         MF.mp_ticks(ax)
         ax.set_yticks([y_of[l] for l in LEVELS])
         ax.set_ylim(-len(LEVELS) + 0.4, 0.6)
@@ -224,26 +217,14 @@ def build(out: Path, reference: bool = True):
 
     # Only the left column carries level labels; the discs panel names interspaces instead,
     # because labelling it with vertebral levels would put a disc on a vertebra.
-    for ax in (ax_a, ax_d):
+    for ax in (ax_b,):
         ax.set_yticklabels(LEVELS)
         ax.set_ylabel("vertebral level")
-    for ax in (ax_b, ax_c):
+    for ax in (ax_c, ax_d):
         ax.set_yticklabels(LEVELS)
         ax.tick_params(labelleft=True)
-    # The discs occupy the half-steps between vertebral rows, so the shared level limits
-    # clip the lowest one against the bottom spine. This panel gets limits of its own.
-    ax_e.set_yticks([y_disc[d] for d in DISCS])
-    ax_e.set_yticklabels([DISC_LABEL[d] for d in DISCS])
-    ax_e.set_ylim(min(y_disc.values()) - 0.6, max(y_disc.values()) + 0.6)
-
-    if drawn:
-        import matplotlib.lines as mlines
-        ax_f.legend(handles=[mlines.Line2D([], [], color=c, ls=d, lw=1.1, label=lab)
-                             for lab, (c, d) in sorted(drawn.items())],
-                    loc="upper left", bbox_to_anchor=(-0.02, 0.98), frameon=False,
-                    fontsize=6.4, handlelength=2.4, handletextpad=0.6, labelspacing=0.55,
-                    title="published series", title_fontsize=6.8)
-
+    # THE LEGEND IS GONE with the panel that held it: one reference, named in the caption,
+    # does not need a key.
     fig.tight_layout(pad=0.5, w_pad=1.4, h_pad=1.2)
     out.mkdir(parents=True, exist_ok=True)
     fig.savefig(out / "fig_levelatlas.pdf")
