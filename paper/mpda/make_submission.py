@@ -56,7 +56,23 @@ standalone = r"""\documentclass[border=2pt]{standalone}
 \linespread{1}\selectfont
 """ + tikz.group(1) + "\n\\end{document}\n"
 (HERE / "fig_pipeline_standalone.tex").write_text(standalone, encoding="utf-8")
-print("fig_pipeline_standalone.tex written (compile with pdflatex in WSL)")
+print("fig_pipeline_standalone.tex written")
+# Figure 1 is the TikZ chart inside main.tex, so this .tex is rewritten on every run --
+# but the PDF was NOT recompiled, and the packet shipped a render from before the chart
+# was redrawn. Compile it here and let it overwrite figures/fig_pipeline.pdf below.
+_sh = ("export PATH=$HOME/.TinyTeX/bin/x86_64-linux:$PATH; "
+       "cd /tmp && rm -rf figstand && mkdir figstand && cd figstand && "
+       "cp {t} . && pdflatex -interaction=nonstopmode fig_pipeline_standalone.tex >/dev/null 2>&1 "
+       "&& cp fig_pipeline_standalone.pdf {o}")
+_t = "/mnt/" + str(HERE / "fig_pipeline_standalone.tex").replace(":", "").replace("\\", "/")
+_o = "/mnt/" + str(HERE / "figures" / "fig_pipeline.pdf").replace(":", "").replace("\\", "/")
+_t = _t[:5] + _t[5].lower() + _t[6:]
+_o = _o[:5] + _o[5].lower() + _o[6:]
+_r = subprocess.run(["wsl", "-e", "bash", "-lc", _sh.format(t=_t, o=_o)],
+                    capture_output=True, text=True)
+if _r.returncode:
+    raise SystemExit("Figure 1 failed to compile: " + (_r.stderr or _r.stdout)[:400])
+print("Figure 1 recompiled ->", (HERE / "figures" / "fig_pipeline.pdf").stat().st_size, "bytes")
 
 # ---- 3. assemble -------------------------------------------------------------------------
 out = ROOT / "dist" / "submission"
@@ -69,7 +85,9 @@ order = ["figures/fig_pipeline.pdf", "figures/fig_anchors.pdf", "figures/fig_har
 # confirm the order against main.tex's includegraphics sequence (Fig. 1 is TikZ, not included)
 inc = re.findall(r"includegraphics\[[^\]]*\]\{figures/([a-z_]+)\.pdf\}", src)
 assert inc == [Path(p).stem for p in order[1:]], inc
-copies = {"main.pdf": "Main_Document_CTSpinoPelvic1K.pdf",
+# build.sh writes CTSpinoPelvic1K_dataset_article.pdf, NOT main.pdf. Copying main.pdf
+# shipped whatever the previous hand-copy left there, one build behind the source.
+copies = {"CTSpinoPelvic1K_dataset_article.pdf": "Main_Document_CTSpinoPelvic1K.pdf",
           "title_page.pdf": "Title_Page_CTSpinoPelvic1K.pdf",
           "supplementary.pdf": "Supporting_Information_CTSpinoPelvic1K.pdf"}
 for s_, d_ in copies.items():
