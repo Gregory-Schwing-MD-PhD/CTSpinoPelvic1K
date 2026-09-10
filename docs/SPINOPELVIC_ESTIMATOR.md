@@ -55,10 +55,12 @@ The corner fit on S1 under-read **sacral slope by about 9°** and **lumbar lordo
 shares the S1 plate — by about 12°**, on every case, while PI stayed close enough to look
 reasonable and the geometric identity PI = SS + PT held throughout.
 
-This is worth stating plainly: an identity check cannot catch a consistent error in a shared
-landmark. It was found only by comparing against an outside reference — the release's own
-independent extraction code (SS 35.8°) and published automated supine CT (36.5°, Veilleux et
-al., *JBJS Am* 2020;102:e130, n=200) — against ostk's 24.8°.
+This is worth stating plainly: **an identity check cannot catch a consistent error in a
+shared landmark.** Both quantities moved together and the sum was preserved. It was found
+only by comparing against an outside reference — the release's own independent extraction
+code (SS 35.8°) and published automated supine CT (36.5°, Veilleux et al., *JBJS Am*
+2020;102:e130, n=200) — against ostk's 24.8°. Every check in this note that actually caught
+something compared against something outside the estimator.
 
 ## 4. Flags were dropped for exactly the cases that needed them
 
@@ -67,12 +69,15 @@ came back `None`. But a geometry that violates the identity, or returns a pelvic
 pelvis has, still produces a finite number — so the cases the guards exist to catch arrived
 unflagged and indistinguishable from good ones.
 
-## What the estimator does now
+## What the toolkit does now
 
-PI, SS and PT are computed **independently** — plate normal against the radius, normal
-against the vertical, radius against the vertical — so `|PI − (SS + PT)|` is a real
-per-case check rather than a tautology. The sagittal plane is derived from the two femoral
-head centres rather than assumed from the scanner axes. Each femoral head centre is a
+PI and SS are computed from their own geometry — plate normal against the radius, normal
+against the vertical — and PT is signed by construction as PI − SS. The check that remains
+is PT's *magnitude*, measured independently from the radius against the vertical, against
+that derived value; the PI = SS + PT identity is now true by construction and tests
+nothing, which is the honest description of what it was mostly doing anyway. The sagittal
+plane is derived from the two femoral head centres rather than assumed from the scanner
+axes. Each femoral head centre is a
 least-squares sphere fitted to its articular surface, seeded from the acetabular interface
 and grown through the neck, which is the method with the best published repeatability
 (0.20 mm inter-operator, Renault et al., *J Biomech* 2018;80:171; 0.5 mm hip-centre
@@ -81,8 +86,55 @@ agreement in STAPLE, Modenese & Renault, *J Biomech* 2021;116:110186). PI is tak
 *Eur Spine J* 1998;7:99) and what every 3-D CT implementation uses.
 
 Plausibility gates, set at roughly published mean ± 4–5 SD so an unusual patient survives
-them, are in `ostk/metrics.py` with their sources. A case failing the identity or a gate is
-reported as missing **with its reason**, never as a number.
+them, are in `ostk/metrics.py` with their sources. A case failing a gate is reported with
+its reason, never as a bare number.
+
+None of that is sufficient, as the next section shows. The toolkit remains the better
+*description* of how these measurements should be made; it is not yet the better
+*measurement*, and the release reports the one that measures better.
+
+## Which estimator the release actually reports, and why it is not the elaborate one
+
+Measured head-to-head over the same 300 records, **the release's own extraction code beats
+the toolkit's more principled estimator**, and the released numbers are therefore the
+extraction code's:
+
+| | median | IQR | outside a plausible range |
+|---|---|---|---|
+| PI, extraction code | **49.2** | 39.4–58.2 | **6.3%** |
+| PI, toolkit | 45.8 | 25.5–54.6 | 16.0% |
+| SS, extraction code | **35.9** | 28.1–49.9 | 3.3% |
+| SS, toolkit | 32.3 | 25.0–40.0 | 2.7% |
+
+Published supine CT is PI 47.1–52.1 and SS 36.5, so the extraction code is closer on both.
+
+The toolkit's failure is worth naming precisely, because it does not look like a failure.
+Its S1 surface fit is **bimodal**: on the full 802, 28.3% of cases land on a steeper
+surface and return a pelvic incidence clustered near 18.6° with a sacral slope near 42°,
+while the rest land on a flatter one and return PI near 50° with SS near 29°. A population
+does not have two pelvic incidences. Both groups individually look defensible — the failing
+group's sacral slope is actually *closer* to the published value than the good group's —
+which is why the mean of the two looked reasonable and why nothing internal caught it.
+
+Those 28.3% arrive carrying `identity_violation`, and the arithmetic in every one of them
+is `PI = |SS − PT|` rather than `PI = SS + PT`. That signature has an innocent explanation
+— an anteverted pelvis, where the true tilt is negative and an unsigned angle discards the
+sign — and taking that explanation at face value would have been wrong. Looking at the
+distribution instead settles it: the negative values cluster tightly at −20 to −30° with
+PI near 18°, which is not anteversion, it is a second surface.
+
+Pelvic tilt is signed now regardless, because that is independently correct: a negative
+tilt is an anteverted pelvis and the SRS-Schwab PT modifier is defined on the signed value.
+
+## What the release does instead
+
+Gate on the **geometry, not the answer**. A sacral plate whose fitted normal lies more than
+60° off the cranial axis is not a plate — it is the anterior face of the promontory — so the
+case is reported missing with a reason (`s1_plate_rejected`, with the measured tilt in
+`s1_plate_tilt_deg`). Rejecting a pelvic incidence for being an unlikely *number* would
+discard unusual patients along with broken fits; rejecting a plate that cannot be a plate
+discards only the latter, whatever it implies. The bound is deliberately loose: a sacral
+slope of 60° is steep but real, 88° is not.
 
 ## Reference values, and why the modality matters
 

@@ -564,16 +564,18 @@ restored here for the camera-ready version\else\url{https://huggingface.co/OpenS
 throughout used NiBabel and SciPy; no image is resampled or reoriented when a label is
 written, so every label shares its image's grid and affine exactly.
 
-\emph{Measurement.} Per-level dimensions come from code released with the dataset. The
-spinopelvic parameters come from \toolkit{}
-(\ifreview the URL identifies the authors and is on the title page\else\url{https://github.com/OpenSpineConsortium/OpenSpineToolkit}\fi),
-which reads each measure between landmarks in the vertebra's own frame rather than along
-the scanner's axes: the sacral plate by its anterior and posterior corners, the
-construction pelvic incidence was defined with, and each femoral head by a sphere fitted
-to its articular surface. Every case carries the identity check
-$\mathrm{PI}=\mathrm{SS}+\mathrm{PT}$ and a plausibility gate, and a case failing either
-is reported as missing with its reason rather than as a number. We found no open-source
-implementation computing these parameters from CT segmentations.
+\emph{Measurement.} Dimensions and spinopelvic parameters come from code released with
+the dataset. The sacral plate is fitted to its superior surface, and a fit whose normal
+lies more than 60\si{\degree} off the cranial axis is rejected with the case reported as
+missing: such a fit has found the near-vertical anterior face of the promontory rather
+than the endplate, and the incidence that follows from it is arbitrary. The gate is on
+the geometry rather than on the value, so an unusual patient survives it.
+\toolkit{} is released separately
+(\ifreview the URL identifies the authors and is on the title page\else\url{https://github.com/OpenSpineConsortium/OpenSpineToolkit}\fi)
+as a reusable implementation that reads each measure between landmarks in the vertebra's
+own frame, fits each femoral head as a sphere on its articular surface, and resolves
+structure names against the label scheme it detects in each volume. We found no
+open-source implementation computing these parameters from CT segmentations.
 
 \emph{Generative artificial intelligence.} A large language model (Claude, Anthropic)
 assisted with drafting and editing the manuscript text and with writing the analysis and

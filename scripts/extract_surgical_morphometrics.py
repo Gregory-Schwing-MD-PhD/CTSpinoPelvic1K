@@ -264,6 +264,27 @@ def one(path: str) -> dict:
                 else (None, None))
     if s1c is None and SACRUM in have:
         s1c, s1n = _endplate(have[SACRUM], sp, True)
+    # A PLATE WHOSE NORMAL IS NOT ROUGHLY CRANIAL IS NOT A PLATE. The S1 fit sometimes
+    # latches onto the near-vertical anterior face of the promontory instead of the
+    # superior surface; its normal then points forward rather than up (z-component 0.03 to
+    # 0.44, a sacral slope near 88 degrees) and the pelvic incidence that follows is
+    # arbitrary. Measured over the release that is about one case in eleven.
+    #
+    # The gate is on the GEOMETRY, not on the answer. Rejecting a pelvic incidence for
+    # being an unlikely number would discard unusual patients along with broken fits;
+    # rejecting a sacral endplate whose normal lies more than 60 degrees off the cranial
+    # axis discards only fits that cannot be endplates, whatever they imply. The bound is
+    # deliberately loose -- a sacral slope of 60 degrees is steep but real, 88 is not.
+    # After Tier-1 practice in the automated-CT literature: emit a flagged absence with a
+    # reason, never a number nobody can distinguish from a good one.
+    MAX_PLATE_TILT_DEG = 60.0
+    if s1n is not None:
+        tilt = _angle(s1n, np.array([0.0, 0.0, 1.0]))
+        r["s1_plate_tilt_deg"] = round(float(tilt), 1)
+        if tilt > MAX_PLATE_TILT_DEG:
+            r["s1_plate_rejected"] = 1
+            s1c = s1n = None
+
     if fem is not None and s1c is not None and s1n is not None:
         v = fem - s1c
         # PI is measured in the sagittal plane: drop the left-right component
