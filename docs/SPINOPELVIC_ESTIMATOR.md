@@ -188,15 +188,26 @@ forward to join the body and the ala, and the widest slice in the front third of
 catches them. The figure shows the disagreement rather than hiding it, and the caption
 claims no agreement.
 
-**The toolkit's implementation cannot be substituted, because through `level_morphometry`
-it returns nothing.** Over all 802 released records and seven levels — roughly 5,600
-level-instances — `ostk morph` produced a pedicle width for **two**. `pedicle_widths`
-returns an empty dict on essentially every released volume, so the columns come back
-silently absent rather than wrong.
+**The toolkit's implementation measures L5 better, and was not substituted anyway.** Called
+directly on released volumes it returns L1 6.62 mm and L5 **15.10 mm** — and 15.10 is nearer
+the published 16.20 than the extraction script's 20.70. So where it runs, it is the better
+measurement of the two at the level that matters.
 
-That matters beyond this figure: the algorithm itself was validated standalone on 114–118
-pedicles per level (L1 7.1, L3 9.1, L5 14.4 mm, all inside the published ranges and nearer
-the published L5 than the script), so the method works and its integration into
-`level_morphometry` does not. A user calling `ostk morph` today gets empty pedicle columns
-with no error. Until that is fixed the toolkit should not be described as measuring pedicle
-width.
+Two things stopped it being used here, and one of them I first got wrong:
+
+- **It is expensive.** The signed-distance resample to 0.35 mm costs roughly 30–60 s per
+  level; `ostk morph` over *two* cases exceeded a 280-second timeout. A full 802-record run
+  is hours, not minutes.
+- **The 2026-09-10 shard run produced pedicle columns for two level-instances out of about
+  5,600** — while each shard completed in 52–90 minutes, far less than 100 cases × 7 levels
+  of this code would need. The columns were never computed rather than computed and lost.
+  *Why* is not established. I first recorded this as a broken integration and as the `frame`
+  argument; both were wrong — `pedicle_widths` never reads `frame`, and `level_morphometry`
+  returns pedicle widths correctly when called today. The likeliest reading is that those
+  shards ran an earlier state of the package.
+
+**So Figure 6(c) keeps the extraction script's values, and the L5 point stays high.** The
+honest summary is that a better L5 measurement exists, has been demonstrated on individual
+cases, and has not been shown to survive a full run — which is not a basis for putting it in
+a published figure. Substituting it is the obvious next piece of work.
+
