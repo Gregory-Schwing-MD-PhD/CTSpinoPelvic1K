@@ -93,6 +93,13 @@ for must in ('Gregory Schwing', 'Nizar Alnabahneh', 'OpenSpineConsortium'):
 print(f'  any redaction marker left: {\"removed for double-anonymized\" in \" \".join(p.get_text() for p in d)}')
 "
 
+# THE PREVIEW IS WRITTEN FROM THE CLEAN-TREE BUILD, EVERY TIME. It used to be produced by
+# hand, so it drifted: on 2026-09-10 the preview on disk was three hours older than the
+# figures and still showed canal depth and pedicle width stopping at L1, which is the state
+# before those measures were extended to T11 and T12. A stale preview is worse than none --
+# it is the artefact a co-author actually opens, and it disagrees with the paper silently.
+cp "$CLEAN/main.pdf" "$HERE/CTSpinoPelvic1K_arxiv_preview.pdf" 2>/dev/null   && echo "  refreshed CTSpinoPelvic1K_arxiv_preview.pdf from the clean-tree build"
+
 cd "$HERE"
 tar -czf "$TAR" -C "$OUT" .
 echo "  wrote $TAR ($(du -h "$TAR" | cut -f1))"
