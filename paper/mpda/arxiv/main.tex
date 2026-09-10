@@ -564,12 +564,12 @@ restored here for the camera-ready version\else\url{https://huggingface.co/OpenS
 throughout used NiBabel and SciPy; no image is resampled or reoriented when a label is
 written, so every label shares its image's grid and affine exactly.
 
-\emph{Measurement.} Per-level dimensions are computed by \toolkit{},
-released separately (\ifreview the repository URL
-identifies the authors and is on the title page\else\url{https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolkit}\fi). It reads
-each dimension between landmarks in a frame built from that vertebra's own end-plates,
-so a height is measured corner to corner rather than along the scanner's axes and a
-pedicle width across the pedicle's own oblique axis rather than across the patient.
+\emph{Measurement.} Dimensions here come from code released with the dataset. A
+reusable implementation that reads each between landmarks in the vertebra's own frame,
+rather than along the scanner's axes, is released separately as \toolkit{}
+(\ifreview the URL identifies the authors and is on the title page\else\url{https://github.com/OpenSpineConsortium/OpenSpineToolkit}\fi). The two agree
+within a millimetre on canal depth; they differ most on posterior body height, where the
+frame removes a tilt term worth several millimetres at L5.
 
 \emph{Generative artificial intelligence.} A large language model (Claude, Anthropic)
 assisted with drafting and editing the manuscript text and with writing the analysis and
@@ -878,7 +878,7 @@ analysis code under an open-source licence. \ifreview The repository URL identif
 is on the title page and will be restored here for the camera-ready version.\else Code:
 \url{https://github.com/OpenSpineConsortium/CTSpinoPelvic1K}; convenience mirror:
 \url{https://huggingface.co/datasets/OpenSpineConsortium/CTSpinoPelvic1K}; measurement
-toolkit: \url{https://github.com/Gregory-Schwing-MD-PhD/OpenSpineToolkit}.\fi
+toolkit: \url{https://github.com/OpenSpineConsortium/OpenSpineToolkit}.\fi
 
 \section*{Acknowledgements}
 % The guidelines want the COI statement below an Acknowledgements section, and the
