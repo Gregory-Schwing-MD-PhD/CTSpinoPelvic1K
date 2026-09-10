@@ -567,16 +567,12 @@ written, so every label shares its image's grid and affine exactly.
 \emph{Measurement.} Per-level dimensions come from code released with the dataset. The
 spinopelvic parameters come from \toolkit{}
 (\ifreview the URL identifies the authors and is on the title page\else\url{https://github.com/OpenSpineConsortium/OpenSpineToolkit}\fi),
-a separately released implementation that reads each measure between landmarks in the
-vertebra's own frame rather than along the scanner's axes: the sacral plate by its
-anterior and posterior corners, the construction pelvic incidence was defined with, and
-each femoral head by a sphere fitted to its articular surface rather than a label
-centroid. Every case carries the geometric identity check $\mathrm{PI}=\mathrm{SS}+
-\mathrm{PT}$ and a plausibility gate, and a case failing either is reported as missing
-with its reason rather than as a number. The toolkit resolves structure names against the
-label scheme it detects in each volume: two schemes are in circulation for these data,
-they differ in every identifier that matters, and resolving against the wrong one returns
-a different bone rather than an error.
+which reads each measure between landmarks in the vertebra's own frame rather than along
+the scanner's axes: the sacral plate by its anterior and posterior corners, the
+construction pelvic incidence was defined with, and each femoral head by a sphere fitted
+to its articular surface. Every case carries the identity check
+$\mathrm{PI}=\mathrm{SS}+\mathrm{PT}$ and a plausibility gate, and a case failing either
+is reported as missing with its reason rather than as a number.
 
 \emph{Generative artificial intelligence.} A large language model (Claude, Anthropic)
 assisted with drafting and editing the manuscript text and with writing the analysis and
@@ -820,9 +816,8 @@ tells the reader whether the patient in front of them is unusual. The same measu
 given here from 802 records with the distribution attached (Fig.~\ref{fig:levelatlas}),
 reproducing the classical figures' pedicle widening into the lower lumbar spine and adding
 the width of each distribution, the part needed to judge an individual. Drawing every
-series the literature offers rather than one also shows what a single curve conceals: for
-the same measure and level the published means disagree by 21 to 69\%, a spread comparable
-to the between-patient spread they are used to interpret.
+published series rather than one also shows what a single curve conceals: for the same
+measure and level the published means disagree by 21 to 69\%.
 
 \emph{Patient-specific models.} Finite-element studies increasingly apply patient-specific
 modeling to alignment planning and implant design.\cite{fea2026} Such a model needs spine, pelvis and

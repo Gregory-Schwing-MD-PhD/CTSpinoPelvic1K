@@ -208,8 +208,8 @@ def build(out: Path, reference: bool = True):
     # cannot be named in a caption, and an in-axes key large enough to hold them covers the
     # distributions the figure exists to show. The band is its own axes so the panels keep
     # their full width and the entries can run in columns.
-    fig = plt.figure(figsize=(MF.COL2, 74 * MF.MM))
-    gs = fig.add_gridspec(2, 3, height_ratios=[1.0, 0.32], hspace=0.44, wspace=0.22)
+    fig = plt.figure(figsize=(MF.COL2, 62 * MF.MM))
+    gs = fig.add_gridspec(2, 3, height_ratios=[1.0, 0.26], hspace=0.44, wspace=0.22)
     axes = np.array([fig.add_subplot(gs[0, i]) for i in range(3)])
     ax_key = fig.add_subplot(gs[1, :])
     ax_key.axis("off")
@@ -271,10 +271,10 @@ def build(out: Path, reference: bool = True):
     handles = [Line2D([0], [0], color=drawn[k][0], ls=drawn[k][1], lw=max(drawn[k][2], 1.0))
                for k in ordered]
     if handles:
-        ncol = 3 if len(handles) <= 9 else (4 if len(handles) <= 20 else 5)
+        ncol = 3 if len(handles) <= 9 else (4 if len(handles) <= 16 else 6)
         ax_key.legend(handles, ordered, loc="upper center", ncol=ncol,
-                      fontsize=4.9, handlelength=1.9, handletextpad=0.4,
-                      columnspacing=0.8, labelspacing=0.28, frameon=False,
+                      fontsize=4.4, handlelength=1.7, handletextpad=0.32,
+                      columnspacing=0.6, labelspacing=0.24, frameon=False,
                       borderaxespad=0.0)
     fig.subplots_adjust(left=0.072, right=0.996, top=0.955, bottom=0.015)
     out.mkdir(parents=True, exist_ok=True)
