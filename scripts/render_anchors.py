@@ -145,6 +145,39 @@ def crop(lab, rostral, margin_mm, zooms):
     return out
 
 
+def fit_titles(fig, axes, gap_pt=12.0, floor=7.5):
+    """Scale every panel title by ONE factor until no two ADJACENT titles touch.
+
+    Matplotlib does not clip a title to its axes, so in a strip of panels a long
+    caption silently runs into its neighbour. That shipped in Figure 2 of the dataset
+    article: "(c) four, stump ribs on T12, fused junction" overlapped "(d)" by 2.8pt.
+
+    The criterion is pairwise, not per-axes. Titles wider than the image beneath them
+    are normal and look fine; two of the four here are. What must hold is that
+    neighbours keep daylight between them. Fitting each title inside its own axes
+    instead demanded a 0.63 shrink and drove the type below the legend under it.
+
+    One factor for the whole strip: four captions set at four sizes reads as a
+    mistake, so the tightest pair sets the size and the rest follow.
+    """
+    fig.canvas.draw()
+    r = fig.canvas.get_renderer()
+    pad = gap_pt * fig.dpi / 72.0
+    boxes = [ax.title.get_window_extent(renderer=r) for ax in axes]
+    worst = 1.0
+    for a, b in zip(boxes, boxes[1:]):
+        pitch = (b.x0 + b.x1) / 2 - (a.x0 + a.x1) / 2
+        half = (a.width + b.width) / 2
+        if half + pad > pitch:
+            worst = min(worst, (pitch - pad) / half)
+    if worst >= 1.0:
+        return None
+    for ax in axes:
+        ax.title.set_fontsize(max(floor, ax.title.get_fontsize() * worst))
+    fig.canvas.draw()
+    return worst
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--labels", default="data/hf_export_v5/labels")
@@ -204,6 +237,10 @@ def main() -> int:
         # the caption already states the count; repeating it on a second line collided
         # across panels at strip proportions and added nothing
         ax.set_title(caption, fontsize=8.5)
+
+    f = fit_titles(fig, list(axes))
+    if f:
+        print(f"  titles shrunk to {f:.3f} so panel captions keep daylight")
 
     import matplotlib.patches as mp
     handles = [
