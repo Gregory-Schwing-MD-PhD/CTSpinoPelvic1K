@@ -163,3 +163,40 @@ radiographic norms alone builds in an offset that has nothing to do with this da
 - **No published head-to-head exists** comparing plane-fitting estimators for the S1
   endplate, nor femoral-head-centre estimators, nor any open-source PI/SS/PT-from-CT
   implementation. All three are gaps this dataset and toolkit could fill.
+
+---
+
+# Pedicle width: which code the figure uses, and why not the toolkit's
+
+Figure 6(c) plots the extraction script's transverse pedicle width, the mean of the two
+sides. Against the thirteen published series in `morphometrics/pedicle_width_references.csv`
+it tracks them closely except at L5:
+
+| level | ours | published mean |
+|---|---|---|
+| T11 | 8.60 | 9.75 |
+| T12 | 8.10 | 8.70 |
+| L1 | 6.90 | 8.35 |
+| L2 | 6.90 | 8.72 |
+| L3 | 9.00 | 10.24 |
+| L4 | 12.20 | 12.56 |
+| **L5** | **20.70** | **16.20** |
+
+L5 sits inside the published range (11.8–21.6, thirteen series) but above eleven of the
+thirteen. This is the transverse-process merge: at L5 the processes arise far enough
+forward to join the body and the ala, and the widest slice in the front third of the canal
+catches them. The figure shows the disagreement rather than hiding it, and the caption
+claims no agreement.
+
+**The toolkit's implementation cannot be substituted, because through `level_morphometry`
+it returns nothing.** Over all 802 released records and seven levels — roughly 5,600
+level-instances — `ostk morph` produced a pedicle width for **two**. `pedicle_widths`
+returns an empty dict on essentially every released volume, so the columns come back
+silently absent rather than wrong.
+
+That matters beyond this figure: the algorithm itself was validated standalone on 114–118
+pedicles per level (L1 7.1, L3 9.1, L5 14.4 mm, all inside the published ranges and nearer
+the published L5 than the script), so the method works and its integration into
+`level_morphometry` does not. A user calling `ostk morph` today gets empty pedicle columns
+with no error. Until that is fixed the toolkit should not be described as measuring pedicle
+width.
