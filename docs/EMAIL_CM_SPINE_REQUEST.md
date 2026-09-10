@@ -58,11 +58,36 @@ gregory.schwing@med.wayne.edu
 
 ---
 
+## On the Baidu Pan question
+
+There is no Baidu link. I downloaded the published PDF and extracted every URL in it.
+The paper contains exactly four: its own DOI, the YOLOv5 repository, the authors'
+GitHub repository, and the journal homepage. It has no Supplementary Materials
+section and no Acknowledgments section. The Data Availability Statement reads in
+full: "Our code and data are available at https://github.com/zengyuyuyu/Neighbor
+(accessed on 19 March 2024)." That repository's only dataset link is the dead Drive
+URL, unchanged across all 18 of its commits. Searches in Chinese for the dataset name
+with the Baidu Pan and extraction-code terms return nothing, and there is no Gitee
+mirror. Offering Baidu Pan in the email above is a convenience for them, not a
+reference to a link anyone has seen.
+
 ## If they do not reply
 
-Secondary contacts at the same institute: Zhiyong Sun (sunzy@iim.ac.cn), Kun Wang
-(kunwang@iim.ac.cn). Clinical collaborator at Anhui Medical University: Changqing
-Wang (wangchangqing@ahmu.edu.cn).
+Every author email, taken from the paper itself rather than from a directory:
+
+| Author | Email | Role |
+|---|---|---|
+| Erkang Cheng | ekcheng@iim.ac.cn | corresponding |
+| Bo Song | songbo@iim.ac.cn | corresponding |
+| Yu Zeng | yzeng@iim.ac.cn | first author, owns the GitHub account |
+| Kun Wang | kunwang@iim.ac.cn | Institute of Intelligent Machines |
+| Zhiyong Sun | sunzy@iim.ac.cn | Institute of Intelligent Machines |
+| Qiang Zhang | zhangqiang@iim.ac.cn | Institute of Intelligent Machines |
+| Changqing Wang | wangchangqing@ahmu.edu.cn | Anhui Medical University, clinical |
+| Chi Xiong | xiongchi@ustc.edu.cn | USTC |
+| Bin Cai | bincai@mail.ustc.edu.cn | USTC |
+| Peng Xiao | xiaopeng@stu.hfuu.edu.cn | Hefei University |
+| Lei Dai | 2052732@tongji.edu.cn | Tongji University |
 
 ## What the dataset is, for planning purposes
 
