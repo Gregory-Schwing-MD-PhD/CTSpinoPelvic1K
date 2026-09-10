@@ -180,6 +180,27 @@ DISC = [
   ("Twomey 1985", "F", [None, 6.1, 8.0, 8.2, 8.5, 8.1], [None, 2.5, 1.3, 1.2, 1.3, 1.2], "area divided by AP depth, age 20-35"),
 ]
 
+# ---------------------------------------------------------------- Panjabi's thoracic paper
+# SAME TWELVE SPINES. The 1991 paper states "A total of 12 C2 to L5 spines were studied",
+# so the thoracic and lumbar papers are two reports of one series and their levels join
+# into a single curve rather than two references. Read from the tables, not from a figure.
+#
+# END-PLATE WIDTH IS ABSENT ON PURPOSE. Its thoracic values live in that paper's Table 3,
+# on page 892, which is missing from the scan we hold -- the copy runs 891 then 893. The
+# figures give end-plate width as a curve (Fig. 4A) and reading values off an axis would
+# put graph estimates into a published comparison, so T11 and T12 have no end-plate row.
+THORACIC_LEVELS = ["T11", "T12"]
+THORACIC = {
+    "canal_w":  ([19.4, 22.2], [0.95, 1.12], "Table 4, p. 893 (SCW)"),
+    "canal_ap": ([16.0, 18.1], [0.46, 0.62], "Table 4, p. 893 (SCD)"),
+    # PDW is the mean of the sides, as the lumbar rows are:
+    #   T11  PDWr 8.8 +- 0.43, PDWl 10.7 +- 0.84
+    #   T12  PDWr 8.8 +- 0.81, PDWl  8.6 +- 0.68
+    "pedicle":  ([9.75, 8.70], [0.635, 0.745], "Table 5, p. 894 (mean of PDWr and PDWl)"),
+}
+PANJABI_1991 = ("cadaveric dry bone", "12", "3-D digitiser", "SEM", "primary",
+                "Panjabi MM et al. Spine 1991;16(8):888-901 (same 12 spines as the 1992 paper)")
+
 OUT = Path(__file__).resolve().parent / "level_references.csv"
 FIELDS = ["measure", "level", "series", "sex", "mean", "sd", "dispersion",
           "cohort", "n", "modality", "source_kind", "notes", "citation"]
@@ -198,6 +219,14 @@ def main():
                              "mean": m, "sd": "" if sd is None else sd, "dispersion": disp,
                              "cohort": cohort, "n": n, "modality": modality,
                              "source_kind": kind, "notes": note, "citation": cite})
+    cohort, n, modality, disp, kind, cite = PANJABI_1991
+    for measure, (means, sems, note) in THORACIC.items():
+        for lv, m, sd in zip(THORACIC_LEVELS, means, sems):
+            rows.append({"measure": measure, "level": lv, "series": "Panjabi 1992",
+                         "sex": "all", "mean": m, "sd": sd, "dispersion": disp,
+                         "cohort": cohort, "n": n, "modality": modality,
+                         "source_kind": kind, "notes": note, "citation": cite})
+
     with OUT.open("w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=FIELDS)
         w.writeheader()

@@ -60,7 +60,10 @@ LEVELREF_CSV = (Path(__file__).resolve().parents[2] / "morphometrics"
 # surgeon actually consults, and that textbook redraws Panjabi. Showing ten series that
 # disagree by 21 to 69% is a different paper's argument, and a good one -- the tables, the
 # styles and the drawing code are all kept for it. Set DRAW_SERIES to None to draw them all.
-DRAW_SERIES = {"Panjabi 1992", "Panjabi"}
+SERIES_ALIAS = {"Panjabi": "Panjabi 1992", "Zindrick": "Zindrick 1987",
+                "Yu": "Yu 2015", "Arockiaraj": "Arockiaraj 2025",
+                "Makino": "Makino 2012"}
+DRAW_SERIES = {"Panjabi 1992"}
 
 DASH_SOLID = "-"
 DASH_LONG = (0, (4, 1.4))
@@ -114,7 +117,16 @@ def load_reference_series():
                 v = float(r["mean"])
             except (ValueError, KeyError):
                 continue
-            key = (r["measure"], r["series"], r["level"])
+            # THE TWO TABLES NAME THE PEDICLE DIFFERENTLY. The pedicle-specific table calls
+            # it PDW and the general one calls it "pedicle"; they are the same measure and
+            # Panjabi's thoracic levels live in the second. Merging them is what lets one
+            # curve run T11 to L5 instead of stopping at L1.
+            meas = "PDW" if r["measure"] == "pedicle" else r["measure"]
+            # and the two tables name the SERIES differently too: surname alone in one,
+            # surname and year in the other. Left unmerged, Panjabi's thoracic and lumbar
+            # pedicle rows became two half-curves and only the thoracic half was drawn.
+            ser = SERIES_ALIAS.get(r["series"], r["series"])
+            key = (meas, ser, r["level"])
             tally.setdefault(key, []).append(v)
     for (meas, ser, lv), vals in tally.items():
         out.setdefault(meas, {}).setdefault(ser, {})[lv] = sum(vals) / len(vals)
