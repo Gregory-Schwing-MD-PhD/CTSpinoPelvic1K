@@ -28,6 +28,8 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
 
 import make_figures as MF          # style, palette, loaders
 from levelatlas import LEVELS, GATES, series, draw, annotate_n
@@ -172,17 +174,41 @@ def load_reference_series():
     return out, labels, spread
 
 
-# WHAT INTERVAL THE REFERENCE BAND SHOWS. The question this figure asks is whether an
-# individual patient is unusual, not whether two means differ, so the band has to be an
-# interval for an INDIVIDUAL of the reference population -- mean +/- 1.96 SD -- and not a
-# confidence interval on Panjabi's mean. With n=12 those differ by a factor of 3.5, and
-# the confidence interval would be the wrong one twice over: too narrow to compare against
-# a percentile range, and answering a question nobody asked.
+# WHAT INTERVAL THE REFERENCE BAND SHOWS, AND WHY IT IS NOT A CONFIDENCE INTERVAL.
 #
-# The SD is recovered from the reported SEM (see load_reference_series). It is estimated
-# from twelve specimens and is itself uncertain, which is why the band is drawn as a soft
-# fill rather than hard edges, and why n is named in the caption.
+# The question this figure asks is whether an individual patient is unusual, not whether
+# two means differ. Hahn, Meeker & Escobar (Statistical Intervals, 2nd ed., Wiley 2017,
+# ch. 1) put the choice plainly: a confidence interval bounds a PARAMETER, a prediction
+# interval bounds ONE FUTURE OBSERVATION, a tolerance interval bounds A STATED PROPORTION
+# of the population. Only the last two answer this figure's question. With n=12 the
+# confidence interval on Panjabi's mean is sqrt(12) = 3.5x narrower than his population
+# interval, so drawing it would make every cohort look aberrant for a reason that is
+# arithmetic rather than anatomy -- the error the 2024 lumbar meta-analysis makes when it
+# rules differences insignificant on overlapping confidence intervals (Bonczar et al.,
+# Surg Radiol Anat 46:2097). Cumming, Stat Med 28:205, on why intervals should not be
+# compared by eye at all.
+#
+# SO THE TWO LAYERS ARE MATCHED AS POPULATION INTERVALS. The cohort rows already show the
+# 5th-95th percentile, which is a 95% population interval read off 700+ patients; the band
+# is mean +/- 1.96 SD, the same interval for Panjabi's specimens under normality. They are
+# the same quantity, which is what makes the widths comparable at all -- and they come out
+# within a median 1.04x of each other.
+#
+# THE BAND ITSELF IS UNCERTAIN, AND THAT IS DRAWN TOO. The SD is recovered as SEM*sqrt(12)
+# from twelve specimens, so it carries a chi-square(11) 95% interval of 0.71x to 1.70x.
+# Drawing that as a second, wider band was tried and abandoned: at 1.70x the pedicle band
+# covers most of its panel and the two canal bands merge into one wash, so the figure
+# loses the comparison it exists to make. Bland & Altman's rule for limits of agreement
+# (Stat Methods Med Res 8:135) is to publish the limits AND their uncertainty rather than
+# retreat to the mean -- so the factor is stated in the text, where it costs no legibility.
+#
+# A 95/95 tolerance band would need k=3.16 rather than 1.96 at n=12 (Howe, JASA 64:610),
+# i.e. 61% wider again. That is the honest figure for "where 95% of the population lies,
+# with 95% confidence", and it is stated in the text rather than drawn, because at that
+# width the reference stops discriminating anything.
 REF_K = 1.96
+# chi-square(11) upper 95% bound on an SD estimated from n=12
+REF_SD_CI_HI = 1.70
 
 
 def draw_reference_band(ax, spread, refs, measure, y_of, series=EMPHASIS, offset=0.0):
@@ -280,7 +306,7 @@ def build(out: Path, reference: bool = True):
     # page area: a single named curve belongs in the caption, and the panels get the height
     # back. The band collapses automatically when only one series is drawn.
     _multi = DRAW_SERIES is None or len(DRAW_SERIES) > 1
-    fig = plt.figure(figsize=(MF.COL2, (49 if _multi else 39) * MF.MM))
+    fig = plt.figure(figsize=(MF.COL2, (49 if _multi else 36) * MF.MM))
     if _multi:
         gs = fig.add_gridspec(2, 3, height_ratios=[1.0, 0.26], hspace=0.44, wspace=0.22)
         axes = np.array([fig.add_subplot(gs[0, i]) for i in range(3)])
@@ -303,6 +329,17 @@ def build(out: Path, reference: bool = True):
     draw_reference_series(ax_b, refs, "endplate", y_of, styles, ref_labels, drawn=drawn)
     ax_b.set_xlabel("upper end-plate width, EPWu (mm)")
     ax_b.set_title("(a) Upper end-plate width (EPWu)", loc="left", fontsize=8.0)
+    # NAME THE STATISTIC ON THE FIGURE, not only in the caption, and name both n. A reader
+    # who does not know the band is a population interval and not a confidence interval
+    # will read its width as "the cadavers were less variable" (Cumming, Fidler & Vaux,
+    # J Cell Biol 177:7, rule 1: say what the bars are and say n).
+    ax_b.legend(handles=[Line2D([], [], color=MF.INK, lw=1.4,
+                                label="Panjabi mean, $n$=12/level"),
+                         Patch(facecolor="#000000", alpha=0.085, lw=0,
+                               label="$\pm$1.96 SD (95% of specimens)"),
+                         ],
+                fontsize=5.6, handlelength=1.1, handleheight=0.9, labelspacing=0.32,
+                borderpad=0.35, loc="upper right", framealpha=0.88, edgecolor="none")
 
     # (c) canal, width against depth
     draw(ax_c, S["canal_w"], y_of, TEAL, "o", offset=+0.17, label="width (SCW)")
@@ -346,7 +383,6 @@ def build(out: Path, reference: bool = True):
         ax.tick_params(labelleft=True)
     # The key names every series actually drawn, in the order they were drawn, with
     # Panjabi first because it is the one the text cites.
-    from matplotlib.lines import Line2D
     ordered = ([k for k in drawn if k.startswith(EMPHASIS)] +
                sorted(k for k in drawn if not k.startswith(EMPHASIS)))
     handles = [Line2D([0], [0], color=drawn[k][0], ls=drawn[k][1], lw=max(drawn[k][2], 1.0))

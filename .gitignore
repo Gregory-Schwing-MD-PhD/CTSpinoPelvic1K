@@ -63,3 +63,14 @@ hf_token.txt
 .ipynb_checkpoints/
 *.ipynb
 dist/
+# downloaded dataset archives and any credentials that come with them
+LATERAL_ATLAS/
+BUULSPINE_3600/
+CSPINE_ARCHIVE/
+AASCE19/
+**/key.txt
+MANUAL_REFS/
+
+# Commercial-track strategy: never leaves this machine
+COMMERCIALIZATION.md
+DATA_PROVENANCE.md

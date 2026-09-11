@@ -804,10 +804,9 @@ enumeration, a model trained on them is not learning the convention that fails.
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_levelatlas.pdf}
 \caption{Morphometry by level, T11--L5: median, interquartile range, 5th--95th
 percentile, $n$ at right. (a) End-plate width EPWu. (b) Canal width SCW and depth SCD.
-(c) Pedicle width PDW, both sides averaged. Black lines are Panjabi's cadaveric
-means\cite{panjabi1991,panjabi1992}; grey bands his population interval, mean $\pm$ 1.96
-SD, SD recovered from the reported SEM ($n=12$). T11--T12 EPWu is digitised from his
-Figure 4A.}
+(c) Pedicle width PDW, both sides averaged. Reference is Panjabi's cadaveric
+series\cite{panjabi1991,panjabi1992}, keyed in (a), its SD recovered from the reported
+SEM; T11--T12 EPWu is digitised from his Figure 4A.}
 \label{fig:levelatlas}
 \end{figure*}
 
@@ -815,17 +814,18 @@ Figure 4A.}
 and canal dimensions and pedicle width come from cadaveric series of ten to thirty
 specimens\cite{panjabi1991,panjabi1992,berry1987} redrawn in the textbooks as one curve per
 level\cite{benzel2015} --- Panjabi's is the series behind its body and canal
-figures. A standard error describes the mean, not the spread of individuals,
-so neither tells the reader whether the patient in front of them is unusual. The same
+figures. A standard error describes the mean, not the spread of individuals. The same
 measures are given here from 802 records with the distribution attached
 (Fig.~\ref{fig:levelatlas}), reproducing the classical pedicle widening into the lower
-lumbar spine and adding the width of each distribution.
+lumbar spine. Both layers of that figure are population intervals rather than confidence
+intervals, which is what makes their widths comparable: a confidence interval bounds a
+parameter, a population interval bounds individuals,\cite{hahn2017} and at $n=12$ the two
+differ by $\sqrt{12}$.
 
-\emph{Patient-specific models.} Finite-element studies increasingly apply patient-specific
-modeling to alignment planning and implant design.\cite{fea2026} Such a model needs spine, pelvis and
-femoral heads in one frame, which is this release's construction; in 351 patients two
-postures give a within-patient change in alignment against which a predicted postural
-response can be checked.
+\emph{Patient-specific models.} Patient-specific finite-element modeling for alignment
+planning and implant design\cite{fea2026} needs spine, pelvis and femoral heads in one
+frame, which is this release's construction, and 351 patients give a within-patient
+postural change to check a prediction against.
 
 \begin{figure}[t]
 \centering
@@ -946,13 +946,13 @@ T.~A. Hutchins et~al.,
 
 \bibitem{acrct2022}
 {American College of Radiology},
-\newblock {ACR}--{ASNR}--{ASSR}--{SPR} practice parameter for the performance of computed tomography ({CT}) of the spine, revised 2022 ({Resolution} 23),
-\newblock American College of Radiology, Reston, VA. \url{https://www.asnr.org/wp-content/uploads/2019/06/CT-Spine-1.pdf}, 2022.
+\newblock Practice parameter for the performance of {CT} of the spine, revised 2022,
+\newblock \url{https://www.asnr.org/wp-content/uploads/2019/06/CT-Spine-1.pdf}.
 
 \bibitem{acrmri2023}
 {American College of Radiology},
-\newblock {ACR}--{ASNR}--{SABI}--{SSR} practice parameter for the performance of magnetic resonance imaging ({MRI}) of the adult spine, revised 2023 ({Resolution} 6),
-\newblock American College of Radiology, Reston, VA. \url{https://www.asnr.org/wp-content/uploads/2019/06/MR-Adult-Spine.pdf}, 2023.
+\newblock Practice parameter for the performance of {MRI} of the adult spine, revised 2023,
+\newblock \url{https://www.asnr.org/wp-content/uploads/2019/06/MR-Adult-Spine.pdf}.
 
 \bibitem{koninwalz2010}
 G.~Konin and D.~Walz,
@@ -980,7 +980,7 @@ S.~Nagata et~al.,
 
 \bibitem{spineps2025}
 H.~M{\"o}ller et~al.,
-\newblock {SPINEPS}—automatic whole spine segmentation of {T2}-weighted {MR} images using a two-phase approach to multi-class semantic and instance segmentation,
+\newblock {SPINEPS}---automatic whole spine segmentation of {T2}-weighted {MR} images using a two-phase approach to multi-class semantic and instance segmentation,
 \newblock Eur. Radiol. {\bf 35}, 1178--1189 (2025),
 \newblock doi:10.1007/s00330-024-11155-y.
 
@@ -1173,6 +1173,10 @@ N.~Epstein,
 \newblock A perspective on wrong level, wrong side, and wrong site spine surgery,
 \newblock Surg. Neurol. Int. {\bf 12}, 286 (2021),
 \newblock doi:10.25259/SNI\_402\_2021.
+
+\bibitem{hahn2017}
+G.~J. Hahn, W.~Q. Meeker and L.~A. Escobar, Statistical Intervals, Wiley,
+2nd edition, 2017.
 
 \bibitem{benzel2015}
 E.~C. Benzel,
