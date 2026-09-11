@@ -238,6 +238,9 @@ def load_reference_series():
 BODY_LEVELS = tuple(l for l in LEVELS if l != "L5")
 
 REF_K = 1.96
+# the shared reference key sits UNDER THE AXIS LABELS, so the panel titles need no
+# extra clearance; the band it needs is reserved at the bottom of the gridspec
+TITLE_PAD = 4.0
 # chi-square(11) upper 95% bound on an SD estimated from n=12
 REF_SD_CI_HI = 1.70
 
@@ -339,7 +342,7 @@ def build(out: Path, reference: bool = True):
     # page area: a single named curve belongs in the caption, and the panels get the height
     # back. The band collapses automatically when only one series is drawn.
     _multi = DRAW_SERIES is None or len(DRAW_SERIES) > 1
-    fig = plt.figure(figsize=(MF.COL2, (49 if _multi else 28) * MF.MM))
+    fig = plt.figure(figsize=(MF.COL2, (49 if _multi else 24) * MF.MM))
     if _multi:
         gs = fig.add_gridspec(2, 3, height_ratios=[1.0, 0.26], hspace=0.44, wspace=0.22)
         axes = np.array([fig.add_subplot(gs[0, i]) for i in range(3)])
@@ -361,19 +364,21 @@ def build(out: Path, reference: bool = True):
     draw_reference_band(ax_b, ref_spread, refs, "endplate", y_of)
     draw_reference_series(ax_b, refs, "endplate", y_of, styles, ref_labels, drawn=drawn)
     ax_b.set_xlabel("upper end-plate width, EPWu (mm)")
-    ax_b.set_title("(a) Upper end-plate width (EPWu)", loc="left", fontsize=8.0)
-    # NAME THE STATISTIC ON THE FIGURE, not only in the caption, and name both n. A reader
-    # who does not know the band is a population interval and not a confidence interval
-    # will read its width as "the cadavers were less variable" (Cumming, Fidler & Vaux,
-    # J Cell Biol 177:7, rule 1: say what the bars are and say n).
-    ax_b.legend(handles=[Line2D([], [], color=MF.INK, lw=1.4,
-                                label="Panjabi mean, $n$=12/level"),
-                         Patch(facecolor="#000000", alpha=0.085, lw=0,
-                               label="$\pm$1.96 SD (95% of specimens)"),
-                         ],
-                fontsize=5.6, handlelength=1.1, handleheight=0.9, labelspacing=0.32,
-                borderpad=0.3, loc="lower left", framealpha=0.9,
-                edgecolor="none")
+    ax_b.set_title("(a) Upper end-plate width (EPWu)", loc="left", fontsize=8.0,
+                pad=TITLE_PAD)
+    # THE REFERENCE KEY IS SHARED, SO IT SITS ONCE ACROSS ALL THREE PANELS rather than in
+    # one of them. The black line and the grey band mean the same thing in (a), (b) and
+    # (c); a key inside (a) implies they belong to (a), and it also has to be squeezed
+    # into whatever corner that panel's data leaves free, which moved twice.
+    #
+    # It is placed BELOW THE PANEL TITLES and above the axes: the titles name what each
+    # panel measures, the key names what the reference marks mean everywhere. Room is made
+    # with title `pad` rather than by shrinking the axes, so the plots keep their height.
+    #
+    # NAME THE STATISTIC, not only in the caption, and name n. A reader who does not know
+    # the band is a population interval and not a confidence interval will read its width
+    # as "the cadavers were less variable" (Cumming, Fidler & Vaux, J Cell Biol 177:7,
+    # rule 1: say what the bars are and say n).
 
     # (c) canal, width against depth
     draw(ax_c, S["canal_w"], y_of, TEAL, "o", offset=+0.17, label="width (SCW)")
@@ -385,7 +390,7 @@ def build(out: Path, reference: bool = True):
     draw_reference_series(ax_c, refs, "canal_ap", y_of, styles, ref_labels,
                           offset=-0.17, drawn=drawn)
     ax_c.set_xlabel("spinal canal, SCW and SCD (mm)")
-    ax_c.set_title("(b) Canal (SCW, SCD)", loc="left", fontsize=8.0)
+    ax_c.set_title("(b) Canal (SCW, SCD)", loc="left", fontsize=8.0, pad=TITLE_PAD)
     # upper right: the canal narrows upward, so the free space is to the right of the
     # T11-T12 rows. Lower left sits on the depth whiskers and lower right on the L5 width
     # marker, which is the widest canal in the panel.
@@ -397,8 +402,30 @@ def build(out: Path, reference: bool = True):
     draw_reference_band(ax_d, ref_spread, refs, "PDW", y_of)
     draw_reference_series(ax_d, refs, "PDW", y_of, styles, ref_labels, drawn=drawn)
     ax_d.set_xlabel("transverse pedicle width, PDW (mm)")
-    ax_d.set_title("(c) Pedicle width (PDW)", loc="left", fontsize=8.0)
+    ax_d.set_title("(c) Pedicle width (PDW)", loc="left", fontsize=8.0, pad=TITLE_PAD)
 
+
+    # ONE KEY FOR THE WHOLE FIGURE, under the axis labels and centred across all three
+    # panels, because the black line and the grey band mean the same thing in (a), (b) and
+    # (c). Put inside one panel it reads as belonging to that panel, and it has to be
+    # squeezed into whatever corner that panel's data leaves free -- which moved twice.
+    #
+    # The band is reserved in the gridspec rather than added to the figure height: this
+    # figure is load-bearing for a ten-page limit, so the space comes off the top, which
+    # the titles no longer need.
+    fig.legend(handles=[Line2D([], [], color=MF.INK, lw=1.4,
+                               label="Panjabi cadaveric mean, $n$=12 per level"),
+                        Patch(facecolor="#000000", alpha=0.085, lw=0,
+                              label="$\\pm$1.96 SD (95% of his specimens)")],
+               # anchored to the MIDDLE PANEL'S axes, not to figure coordinates: this
+               # figure is saved with a tight bounding box, so a figure-fraction anchor
+               # is measured against a canvas that is then cropped, and the key landed
+               # between the tick labels and the axis title instead of below both.
+               loc="upper center", bbox_to_anchor=(0.5, -0.36),
+               bbox_transform=ax_c.transAxes,
+               ncol=2, frameon=False, fontsize=6.4,
+               handlelength=1.4, handleheight=0.9, columnspacing=1.8,
+               handletextpad=0.5)
 
     for ax in (ax_b, ax_c, ax_d):
         MF.mp_ticks(ax)
