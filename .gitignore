@@ -75,3 +75,6 @@ MANUAL_REFS/
 COMMERCIALIZATION.md
 DATA_PROVENANCE.md
 IRB_ADDENDUM.md
+
+# internal correspondence and IRB drafts: never in the public repo
+proposals/
