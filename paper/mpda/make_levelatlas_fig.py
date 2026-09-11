@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
 from pathlib import Path
 
 import numpy as np
@@ -116,7 +117,7 @@ def load_reference_series():
     written out per series, so adding a row to a CSV adds a correctly-labelled curve and
     the legend cannot fall out of step with the data behind it.
     """
-    tally, meta = {}, {}
+    tally, meta, sdev = {}, {}, {}
     for path in (LEVELREF_CSV, SPREAD_CSV):
         if not path.exists():
             continue
@@ -135,10 +136,28 @@ def load_reference_series():
             ser = SERIES_ALIAS.get(r["series"], r["series"])
             tally.setdefault((meas, ser), {}).setdefault(r["level"], []).append(v)
             meta.setdefault(ser, r)
+            # POPULATION SD, not the standard error of the mean. Panjabi reports
+            # "mean +/- SEM" with n=12, and SEM is about 3.5x narrower than the SD it
+            # came from. Drawing that next to a percentile interval over 700 patients
+            # would compare the precision of HIS MEAN against the spread of MY
+            # POPULATION, which is not a comparison at all -- his band would look
+            # implausibly tight and this cohort implausibly variable. Converted back.
+            try:
+                disp_v = float(r.get("sd") or "")
+                nn = float(r.get("n") or "")
+            except ValueError:
+                continue
+            kind = (r.get("dispersion") or "").upper()
+            sd = disp_v * math.sqrt(nn) if "SEM" in kind or "SE" == kind.strip() else disp_v
+            sdev.setdefault((meas, ser), {})[r["level"]] = (sd, nn)
     out = {}
     for (meas, ser), per_level in tally.items():
         for lv, vals in per_level.items():
             out.setdefault(meas, {}).setdefault(ser, {})[lv] = sum(vals) / len(vals)
+
+    spread = {}
+    for (meas, ser), per_level in sdev.items():
+        spread.setdefault(meas, {})[ser] = per_level
 
     labels = {}
     for ser, r in meta.items():
@@ -150,7 +169,48 @@ def load_reference_series():
                 "CT" if "ct" in (r.get("modality") or "").lower() else "")
         bits = ", ".join(x for x in (kind, (f"$n$={n}" if n else "")) if x)
         labels[ser] = f"{ser} ({bits})" if bits else ser
-    return out, labels
+    return out, labels, spread
+
+
+# WHAT INTERVAL THE REFERENCE BAND SHOWS. The question this figure asks is whether an
+# individual patient is unusual, not whether two means differ, so the band has to be an
+# interval for an INDIVIDUAL of the reference population -- mean +/- 1.96 SD -- and not a
+# confidence interval on Panjabi's mean. With n=12 those differ by a factor of 3.5, and
+# the confidence interval would be the wrong one twice over: too narrow to compare against
+# a percentile range, and answering a question nobody asked.
+#
+# The SD is recovered from the reported SEM (see load_reference_series). It is estimated
+# from twelve specimens and is itself uncertain, which is why the band is drawn as a soft
+# fill rather than hard edges, and why n is named in the caption.
+REF_K = 1.96
+
+
+def draw_reference_band(ax, spread, refs, measure, y_of, series=EMPHASIS, offset=0.0):
+    """Panjabi's population interval, mean +/- REF_K SD, behind the cohort rows.
+
+    Drawn only where the source reports a dispersion. The T11--T12 end-plate means are
+    digitised from a figure, which carries no SEM, so the band stops at L1 there rather
+    than being extended by assumption.
+    """
+    per_level = (refs.get(measure) or {}).get(series)
+    sd_level = (spread.get(measure) or {}).get(series)
+    if not per_level or not sd_level:
+        return
+    runs, cur = [], []
+    for lv in LEVELS:                      # keep anatomical order, break where SD is absent
+        if lv in per_level and lv in sd_level and lv in y_of:
+            cur.append(lv)
+        elif cur:
+            runs.append(cur); cur = []
+    if cur:
+        runs.append(cur)
+    for run in runs:
+        if len(run) < 2:
+            continue
+        ys = [y_of[l] + offset for l in run]
+        lo = [per_level[l] - REF_K * sd_level[l][0] for l in run]
+        hi = [per_level[l] + REF_K * sd_level[l][0] for l in run]
+        ax.fill_betweenx(ys, lo, hi, color="#000000", alpha=0.085, lw=0, zorder=0.6)
 
 
 def draw_reference_series(ax, refs, measure, y_of, styles, labels,
@@ -182,7 +242,8 @@ def build(out: Path, reference: bool = True):
     sm = MF.load("surgical_morphometrics.csv")
     dg = MF.load("degenerative.csv")
     op = MF.load("opportunistic.csv")
-    refs, ref_labels = load_reference_series() if reference else ({}, {})
+    refs, ref_labels, ref_spread = (load_reference_series() if reference
+                                    else ({}, {}, {}))
     styles = _style_table({ser for d in refs.values() for ser in d})
     drawn = {}
     if not (lg and sm and dg and op):
@@ -238,6 +299,7 @@ def build(out: Path, reference: bool = True):
     # (b) superior endplate width
     draw(ax_b, S["endplate"], y_of, TEAL, "o")
     annotate_n(ax_b, S["endplate"], y_of, FAINT)
+    draw_reference_band(ax_b, ref_spread, refs, "endplate", y_of)
     draw_reference_series(ax_b, refs, "endplate", y_of, styles, ref_labels, drawn=drawn)
     ax_b.set_xlabel("upper end-plate width, EPWu (mm)")
     ax_b.set_title("(a) Upper end-plate width (EPWu)", loc="left", fontsize=8.0)
@@ -245,8 +307,10 @@ def build(out: Path, reference: bool = True):
     # (c) canal, width against depth
     draw(ax_c, S["canal_w"], y_of, TEAL, "o", offset=+0.17, label="width (SCW)")
     draw(ax_c, S["canal_ap"], y_of, INK, "^", offset=-0.17, label="depth (SCD)")
+    draw_reference_band(ax_c, ref_spread, refs, "canal_w", y_of, offset=+0.17)
     draw_reference_series(ax_c, refs, "canal_w", y_of, styles, ref_labels,
                           offset=+0.17, drawn=drawn)
+    draw_reference_band(ax_c, ref_spread, refs, "canal_ap", y_of, offset=-0.17)
     draw_reference_series(ax_c, refs, "canal_ap", y_of, styles, ref_labels,
                           offset=-0.17, drawn=drawn)
     ax_c.set_xlabel("spinal canal, SCW and SCD (mm)")
@@ -259,6 +323,7 @@ def build(out: Path, reference: bool = True):
     # (d) transverse pedicle width
     draw(ax_d, S["pedicle"], y_of, OCHRE, "D")
     annotate_n(ax_d, S["pedicle"], y_of, FAINT)
+    draw_reference_band(ax_d, ref_spread, refs, "PDW", y_of)
     draw_reference_series(ax_d, refs, "PDW", y_of, styles, ref_labels, drawn=drawn)
     ax_d.set_xlabel("transverse pedicle width, PDW (mm)")
     ax_d.set_title("(c) Pedicle width (PDW)", loc="left", fontsize=8.0)
