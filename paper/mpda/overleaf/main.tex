@@ -614,8 +614,11 @@ counting error of exactly the kind this dataset exists to expose.
 because it is a morphological property rather than a posture; it agrees to within half a
 degree with the automated supine CT series of Veilleux \emph{et al.}~\cite{veilleux2020}
 and sits below the standing figure, the direction reported for subjects imaged both
-ways.\cite{leeliu2022} Sacral slope and lumbar lordosis also sit below their standing
-references, as recumbency predicts, and pelvic tilt above.
+ways.\cite{leeliu2022} Sacral slope and pelvic tilt are postural, and read three degrees
+below and four above Veilleux's asymptomatic subjects; a second supine CT series reports
+53.4, 34.1 and 19.2\si{\degree}, within a degree of this cohort on all
+three.\cite{hasegawa2018} Recumbency runs the wrong way to explain the gap, raising slope
+rather than lowering it, so the residual tracks cohort and not construction.
 
 \subsection{Castellvi typing}
 
@@ -632,18 +635,18 @@ disagreements were III against II.
 
 \begin{table*}[t]
 \caption{Spinopelvic measures, median over the 575 of 802 records passing the geometric
-gates, against automated supine CT.\cite{veilleux2020} Standing values are 55.0, 41.0,
-13.0 and 60.0\si{\degree}.\cite{vialle2005}}
+gates, against two supine CT series.\cite{veilleux2020,hasegawa2018} Standing values are
+55.0, 41.0, 13.0 and 60.0\si{\degree}.\cite{vialle2005}}
 \label{tab:spinopelvic}
 \begin{ruledtabular}
 \maxwidth{%
-\begin{tabular}{lcc}
-Measure & This dataset (supine, $n=575$) & Veilleux (supine CT) \\ \colrule
-Pelvic incidence & 52.6\si{\degree} & 52.1 \\
-Sacral slope & 33.1\si{\degree} & 36.5 \\
-Pelvic tilt & 19.6\si{\degree} & 15.6 \\
-Lumbar lordosis & 49.3\si{\degree} & --- \\
-PI $-$ LL mismatch & 4.1\si{\degree} & --- \\
+\begin{tabular}{lccc}
+Measure & This dataset (supine, $n=575$) & Veilleux ($n=200$) & Hasegawa ($n=24$) \\ \colrule
+Pelvic incidence & 52.6\si{\degree} & 52.1 & 53.4 \\
+Sacral slope & 33.1\si{\degree} & 36.5 & 34.1 \\
+Pelvic tilt & 19.6\si{\degree} & 15.6 & 19.2 \\
+Lumbar lordosis & 49.3\si{\degree} & --- & --- \\
+PI $-$ LL mismatch & 4.1\si{\degree} & --- & --- \\
 \end{tabular}
 }
 \end{ruledtabular}
@@ -751,8 +754,8 @@ anatomy sits, and which is present does not by itself determine what to call it.
 1.5\%). The co-occurrence reported there is testable here only where the junction was read; stump ribs accompany four of the 14 source-labeled sacralizations and 94 of the other 758 records (odds ratio 2.8, $p=0.09$, Fisher's exact test), and no lumbarization carries a lumbar rib.
 
 \emph{Spinopelvic measures} (Fig.~\ref{fig:validation}). Pelvic incidence sits on the
-standing reference, as a morphological property rather than a posture should. Sacral
-slope falls below it and pelvic tilt above, the direction recumbency predicts.
+standing reference, as a morphological property should; slope and tilt sit inside the
+published supine CT range.
 
 % Left full-width deliberately: narrowing this one to a column saved no page and cost
 % legibility in a five-panel figure. The hardware figure was worth narrowing; this is not.
@@ -802,11 +805,11 @@ enumeration, a model trained on them is not learning the convention that fails.
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_levelatlas.pdf}
-\caption{Morphometry by level, T11--L5, as median, interquartile range and 5th--95th
-percentile, with $n$ at right. (a) Upper end-plate width EPWu. (b) Canal width SCW and
-depth SCD. (c) Transverse pedicle width PDW, the mean of the two sides. Black lines are
-Panjabi's cadaveric means\cite{panjabi1991,panjabi1992}, T11--T12 EPWu digitised from
-Figure 4A of the former.}
+\caption{Morphometry by level, T11--L5: median, interquartile range, 5th--95th
+percentile, $n$ at right. (a) End-plate width EPWu. (b) Canal width SCW and depth SCD.
+(c) Pedicle width PDW, both sides averaged. Reference is Panjabi's cadaveric
+series\cite{panjabi1991,panjabi1992}, keyed in (a), its SD recovered from the reported
+SEM; T11--T12 EPWu is digitised from his Figure 4A.}
 \label{fig:levelatlas}
 \end{figure*}
 
@@ -814,17 +817,18 @@ Figure 4A of the former.}
 and canal dimensions and pedicle width come from cadaveric series of ten to thirty
 specimens\cite{panjabi1991,panjabi1992,berry1987} redrawn in the textbooks as one curve per
 level\cite{benzel2015} --- Panjabi's is the series behind its body and canal
-figures. A standard error describes the mean, not the spread of individuals,
-so neither tells the reader whether the patient in front of them is unusual. The same
+figures. A standard error describes the mean, not the spread of individuals. The same
 measures are given here from 802 records with the distribution attached
 (Fig.~\ref{fig:levelatlas}), reproducing the classical pedicle widening into the lower
-lumbar spine and adding the width of each distribution.
+lumbar spine. Both layers of that figure are population intervals rather than confidence
+intervals, which is what makes their widths comparable: a confidence interval bounds a
+parameter, a population interval bounds individuals,\cite{hahn2017} and at $n=12$ the two
+differ by $\sqrt{12}$.
 
-\emph{Patient-specific models.} Finite-element studies increasingly apply patient-specific
-modeling to alignment planning and implant design.\cite{fea2026} Such a model needs spine, pelvis and
-femoral heads in one frame, which is this release's construction; in 351 patients two
-postures give a within-patient change in alignment against which a predicted postural
-response can be checked.
+\emph{Patient-specific models.} Patient-specific finite-element modeling for alignment
+planning and implant design\cite{fea2026} needs spine, pelvis and femoral heads in one
+frame, which is this release's construction, and 351 patients give a within-patient
+postural change to check a prediction against.
 
 \begin{figure}[t]
 \centering
