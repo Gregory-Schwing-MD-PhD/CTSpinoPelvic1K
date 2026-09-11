@@ -798,7 +798,7 @@ decision.
 \emph{Naming a level from its own geometry.} Wrong-level spine surgery runs at roughly one in
 3{,}110 spinal procedures, and among the predominant contributing factors is the
 transitional anatomy this cohort was assembled around.\cite{mody2008,epstein2021} Per-level body height, canal width,
-endplate width, transverse-process span and wedge ratio are released for T11--L5 across all
+endplate width, transverse-process span and wedge ratio are released across all
 802 records, and because the labels were assigned against the twelfth rib rather than by
 enumeration, a model trained on them is not learning the convention that fails.
 
@@ -807,9 +807,9 @@ enumeration, a model trained on them is not learning the convention that fails.
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_levelatlas.pdf}
 \caption{Morphometry by level, T11--L5: median, interquartile range, 5th--95th
 percentile, $n$ at right. (a) End-plate width EPWu. (b) Canal width SCW and depth SCD.
-(c) Pedicle width PDW, both sides averaged. Reference is Panjabi's cadaveric
-series\cite{panjabi1991,panjabi1992}, keyed in (a), its SD recovered from the reported
-SEM; T11--T12 EPWu is digitised from his Figure 4A.}
+(c) Pedicle width PDW, both sides averaged. L5 is withheld in (a) and (c); see text.
+Reference is Panjabi's cadaveric series\cite{panjabi1991,panjabi1992}, keyed in (a), its
+SD recovered from the reported SEM; T11--T12 EPWu is digitised from his Figure 4A.}
 \label{fig:levelatlas}
 \end{figure*}
 
@@ -841,7 +841,9 @@ in Table~S1.}
 \emph{Limitations: coverage and cohort.}\label{sec:limitations} Thoracic ground truth is
 field-of-view limited (Fig.~\ref{fig:fov}) and does not reach T1. Postural angles are
 supine; pelvic incidence is not postural, but it is modality-sensitive, reading below
-radiography for the same subjects.\cite{leeliu2022} The cohort is one acquisition protocol of a colorectal screening population
+radiography for the same subjects.\cite{leeliu2022} End-plate and pedicle width are
+withheld at L5: both are measured on a body isolated by cutting at the canal wall, and the
+L5 transverse processes arise in front of that wall, so the cut cannot separate them. The cohort is one acquisition protocol of a colorectal screening population
 aged 50 and over, so its distributions should not be read as a surgical one.
 
 
@@ -857,7 +859,7 @@ that estimate is implausible, making S1 more than half the sacrum's height or un
 percent of it, and those records are flagged in the quality-control table for exclusion from
 any measurement that depends on the sacral endplate.
 
-\emph{Absent structures, and no classifier at the lower border.} Sacrum, hips and femora are present in all 802 records; one record carries no S1 and one no T12, each outside the field of view. Nine records carry no L5 identifier because their source annotation counted four lumbar vertebrae, all nine are Castellvi IIIb, and the fused transitional segment carries the S1 identifier as the caudal anchor; the manifest names them. No shape-based classifier is attempted at the lumbosacral junction, where 15 records in each rare stratum leave three per fold, too few to estimate from; the 0.990 area under the curve reported above is the thoracolumbar boundary, not this one.
+\emph{Absent structures, and no classifier at the lower border.} Sacrum, hips and femora are present in all 802 records; one lacks S1 and one T12, each outside the field of view. Nine carry no L5 identifier because their source annotation counted four lumbar vertebrae; all nine are Castellvi IIIb, the fused segment carries the S1 identifier as the caudal anchor, and the manifest names them. No shape-based classifier is attempted at the lumbosacral junction: 15 records in each rare stratum leave three per fold. The 0.990 area under the curve above is the thoracolumbar boundary, not this one.
 
 \section{Discussion}
 
