@@ -162,8 +162,15 @@ Three things are documented rather than fixed, in `docs/SPINOPELVIC_ESTIMATOR.md
 2. **ostk's pedicle width** measures L5 better than the extraction script does (15.1 mm
    against 20.7, published 16.2) but produced almost nothing in a full run and costs 30–60 s
    per level.
-3. **Canal depth's low tail** is artefact, not stenosis: only 3 cases are low at all of
-   L2/L3/L4 out of 130/197/99 individually, and real stenosis clusters within a patient.
+3. **The canal-depth low tail was artefact and is now fixed**; `docs/LEVEL_MORPHOMETRY.md`
+   records what was wrong with it and with end-plate width at L5, what the measurement
+   literature says, and what remains. Two things there are worth doing and are not done:
+   resampling each vertebra into its own frame before slicing, which is the published
+   correction for oblique-section pseudo-stenosis; and taking end-plate width from the
+   SPINEPS corpus label this repository already generates, which removes the
+   transverse-process contamination by construction rather than by a geometric rule.
+4. **The anterior pelvic plane is not measured**, so anatomical sacral slope cannot be
+   reported and the reference-frame question in `docs/SPINOPELVIC_ESTIMATOR.md` stays open.
 
 ## Diagnostics
 

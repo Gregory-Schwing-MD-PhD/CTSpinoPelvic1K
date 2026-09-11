@@ -43,6 +43,26 @@ copy the paper cites. Same for OpenSpineToolkit (branch `main`, not `master`).
 `wsl -e bash -lc '...'`. `make_submission.py` is the exception — it shells out to `wsl` and
 must run from Windows.
 
+**Spread, not the median, is what catches a broken per-level measurement.** Canal depth
+and end-plate width both had medians sitting near the published means at every level while
+21% of L3 records read below any canal diameter ever reported in a living adult, and 12% of
+L5 end-plate widths were walking from the published body width toward the published
+transverse-process span. The gates passed; the medians looked right. What failed was
+comparing the SD against the widest SD in the living-cohort literature, and comparing the
+share below a threshold against the published prevalence of the condition that threshold
+defines. `docs/LEVEL_MORPHOMETRY.md`.
+
+**A maximum extent is not a diameter, and a first-slice-that-works is not a plane.** Both
+defects above came from those two substitutions. Every normative series measures a
+midsagittal chord at a named anatomical plane, and reproducing a published number means
+reproducing its definition, not just its units.
+
+**Render the mask.** Three analytically reasonable fixes for the L5 end-plate width were
+implemented and all three were wrong, in ways the numbers alone did not reveal. One render
+of the retained mask showed what was actually there. This is the second time in this
+project that rendering settled something that two or three rounds of reasoning from
+numbers got wrong.
+
 ## Grid
 
 `go2432@grid.wayne.edu`. Labels at `~/data/CTSpinoPelvic1K/labels`, CT at `.../ct`.

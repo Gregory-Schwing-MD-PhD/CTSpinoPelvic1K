@@ -148,6 +148,52 @@ radiographic norms alone builds in an offset that has nothing to do with this da
 | SS | 36.49 (Veilleux 2020) | 41 ± 8.4 (Vialle 2005) |
 | PT | 15.60 (Veilleux 2020) | 13 ± 6 (Vialle 2005) |
 
+## 5. Sacral slope read low, and the tidy explanation was wrong again
+
+Against Veilleux's automated supine CT (n=200) this cohort reads **sacral slope 3.4 lower,
+pelvic tilt 4.0 higher, pelvic incidence 0.5 higher**. That is not three independent
+discrepancies. It is the exact signature of a rotated vertical reference: a rotation of
+delta moves SS by -delta and PT by +delta and leaves PI untouched, which Ohashi et al.
+(*Spine Surg Relat Res* 2024;8:61) write out as `aSS = SS - APPA` and `aPT = PT + APPA`.
+
+So the obvious reading was that Veilleux references the **anterior pelvic plane** and this
+code references the scanner axis. The evidence for that part is decent: Veilleux's abstract
+lists ASIS and pubic tubercles as landmarks, which have no role in a scanner-axis slope; the
+companion paper on the same 200 subjects (Higgins et al., *JBJS Am* 2014;96:1776) says the
+frame is "an automatically identified anterior pelvic plane reference frame"; and Veilleux
+reports a sacropubic angle, which is APP-referenced by definition. Both conventions are
+published — Hatem et al. (*Orthop J Sports Med* 2025, n=3,695 supine CT) align to the APP,
+Xu et al. (*Sci Rep* 2024;14:21453) use the image z axis, as here.
+
+**It still does not work, and the reason is the sign.** Recumbency rotates the pelvis
+*anteriorly*, which RAISES sacral slope and lowers tilt: +0.9 degrees in 211 patients
+(Banitalebi, *Clin Spine Surg* 2026;39:E104), +3.9 in 15 volunteers (Chevillotte, *OTSR*
+2018;104:565), +7.1 in 24 (Hasegawa, below). Supine APP tilt is anteriorly directed in most
+reported cohorts (+5.1 median in 422 pre-THA hips, Uemura; +8.6 to +12.2 in Jenkinson), so
+an APP-framed slope should land *below* a scanner-framed one, not above. To explain this gap
+by frame alone you need APPA ~ -3.4 degrees, which contradicts those series.
+
+**What does explain it is the cohort.** Veilleux's 200 were asymptomatic subjects imaged for
+non-musculoskeletal reasons. This is an abdominopelvic CT population: older, symptomatic, on
+a table with knee bolsters. Hasegawa et al. (*BMC Musculoskelet Disord* 2018;19:437), the
+one published supine-CT series in an older symptomatic cohort, reports **PI 53.4, SS 34.1,
+PT 19.2** against **52.6, 33.1, 19.6** here -- within a degree on all three, from a
+scanner-axis vertical. Kiapour's 9,721-CT study finds obesity alone worth about 2 degrees of
+slope, and tilt rises with age.
+
+Figure 5 now draws both series as a band rather than one line through one of them, and
+Table II carries both columns. The manuscript also said twice that recumbency lowers sacral
+slope; it does not, and that is corrected.
+
+**The decisive experiment is cheap and has not been done.** Fit the APP from the hip labels
+already in the release -- ASIS and pubic tubercles are extremal points on them -- measure
+APPA over all 802, and report `aSS = SS - APPA` alongside the raw values. If aSS lands at
+36-38 the whole gap was convention; if it lands near 29 this cohort is genuinely retroverted
+on the table and the numbers are right as they stand. Anatomical sacral slope is also the
+better parameter to report regardless: it is posture-independent, it does not use the
+femoral head centre, and its inter-rater ICC is 0.856 against pelvic incidence's 0.653
+(Suzuki et al., *J Orthop Surg* 2020;28).
+
 ## Still open
 
 - **Eight records measure PI from a prosthetic femoral head.** Sphere-fitting a prosthesis
@@ -163,6 +209,9 @@ radiographic norms alone builds in an offset that has nothing to do with this da
 - **No published head-to-head exists** comparing plane-fitting estimators for the S1
   endplate, nor femoral-head-centre estimators, nor any open-source PI/SS/PT-from-CT
   implementation. All three are gaps this dataset and toolkit could fill.
+- **The anterior pelvic plane is not measured here**, so anatomical sacral slope and
+  anatomical pelvic tilt cannot be reported and the frame question above stays open. The
+  landmarks are present in the released labels; the code is not written.
 
 ---
 
