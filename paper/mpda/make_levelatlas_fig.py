@@ -339,7 +339,7 @@ def build(out: Path, reference: bool = True):
     # page area: a single named curve belongs in the caption, and the panels get the height
     # back. The band collapses automatically when only one series is drawn.
     _multi = DRAW_SERIES is None or len(DRAW_SERIES) > 1
-    fig = plt.figure(figsize=(MF.COL2, (49 if _multi else 32) * MF.MM))
+    fig = plt.figure(figsize=(MF.COL2, (49 if _multi else 28) * MF.MM))
     if _multi:
         gs = fig.add_gridspec(2, 3, height_ratios=[1.0, 0.26], hspace=0.44, wspace=0.22)
         axes = np.array([fig.add_subplot(gs[0, i]) for i in range(3)])
@@ -372,8 +372,8 @@ def build(out: Path, reference: bool = True):
                                label="$\pm$1.96 SD (95% of specimens)"),
                          ],
                 fontsize=5.6, handlelength=1.1, handleheight=0.9, labelspacing=0.32,
-                borderpad=0.3, loc="upper right", bbox_to_anchor=(0.92, 1.02),
-                framealpha=0.9, edgecolor="none")
+                borderpad=0.3, loc="lower left", framealpha=0.9,
+                edgecolor="none")
 
     # (c) canal, width against depth
     draw(ax_c, S["canal_w"], y_of, TEAL, "o", offset=+0.17, label="width (SCW)")

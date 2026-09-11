@@ -270,7 +270,15 @@ def fig_validation(out):
         if (r.get("s1_plate_rejected") or "0") not in ("", "0"):
             return False
         try:
-            return float(r["pelvic_tilt_deg"]) >= -15.0
+            # The tilt filter that used to live here is gone. It removed records by their
+            # ANSWER -- "no pelvis is anteverted past 15 degrees" -- and it was standing in
+            # for a defect in the plate fit: `_endplate` orients its normal by the superior
+            # component alone, so a plane fitted to the ventral surface of the sacrum comes
+            # back leaning posteriorly at a normal-looking angle from vertical, and pelvic
+            # incidence collapses. That is now rejected upstream on the geometry, and it
+            # leaves nothing behind: the released measures carry no pelvic tilt below -15
+            # and no pelvic incidence below 22. See docs/SPINOPELVIC_ESTIMATOR.md.
+            return True
         except (TypeError, ValueError, KeyError):
             return False
     _all = load("surgical_morphometrics.csv")
@@ -283,7 +291,7 @@ def fig_validation(out):
               f"({_plate} plate rejected, {len(_all) - len(sg) - _plate} tilt below -15 deg)")
     # ONE ROW. The level-by-level panels moved to the level atlas, which draws the
     # same measurements with their spread instead of as overlapping density curves.
-    fig = plt.figure(figsize=(COL2, 1.5), constrained_layout=True)
+    fig = plt.figure(figsize=(COL2, 1.28), constrained_layout=True)
     gs = gridspec.GridSpec(1, 3, figure=fig)
 
     # (a-c) three spinopelvic measures against their published values
@@ -339,13 +347,20 @@ def fig_validation(out):
     # on the same 200 subjects (Higgins, JBJS Am 96:1776) says the frame is the APP -- but
     # the sign of the published supine APP tilt is not consistent across cohorts, so the
     # correction cannot be applied in the right direction with any confidence.
+    # ONE CT SERIES ON THE FIGURE, NOT TWO. Drawing Hasegawa beside Veilleux was tried and
+    # reverted. The two differ by more than this cohort differs from either, which is the
+    # honest picture -- but Hasegawa is 24 adult-spinal-deformity patients and Veilleux is
+    # 200 asymptomatic subjects measured automatically, and a line on a figure carries no
+    # n and no cohort. Giving them equal visual weight reads as having gone looking for the
+    # series that agrees. A table can carry both with their n, so Table II does; the figure
+    # keeps the stronger series and the text explains the gap.
     for i, (key, title, lo, hi, ref, sd, ct_refs, ct_lab) in enumerate([
-        ("pelvic_incidence_deg", "pelvic incidence", 20, 90, 55.0, 10.6, (52.1, 53.4),
-         "CT, Veilleux ($n$=200); Hasegawa ($n$=24)"),
-        ("sacral_slope_deg", "sacral slope", 10, 70, 41.0, 8.4, (36.5, 34.1),
-         "CT, Veilleux ($n$=200); Hasegawa ($n$=24)"),
-        ("pelvic_tilt_deg", "pelvic tilt", -10, 45, 13.0, 6.0, (15.6, 19.2),
-         "CT, Veilleux ($n$=200); Hasegawa ($n$=24)"),
+        ("pelvic_incidence_deg", "pelvic incidence", 20, 90, 55.0, 10.6, (52.1,),
+         "CT, Veilleux ($n$=200)"),
+        ("sacral_slope_deg", "sacral slope", 10, 70, 41.0, 8.4, (36.5,),
+         "CT, Veilleux ($n$=200)"),
+        ("pelvic_tilt_deg", "pelvic tilt", -10, 45, 13.0, 6.0, (15.6,),
+         "CT, Veilleux ($n$=200)"),
     ]):
         ax = fig.add_subplot(gs[0, i])
         v = col(sg, KEYS[key], lo, hi)
@@ -353,12 +368,9 @@ def fig_validation(out):
         ax.axvspan(ref - sd, ref + sd, color=OCHRE, alpha=0.13, lw=0)
         ax.axvline(ref, color=OCHRE, ls="--", lw=1.0,
                    label="standing XR" if i == 0 else None)
-        c_lo, c_hi = min(ct_refs), max(ct_refs)
-        ax.axvspan(c_lo, c_hi, color=INK, alpha=0.10, lw=0)
         for k, c in enumerate(ct_refs):
             ax.axvline(c, color=INK, ls=(0, (1.4, 1.2)), lw=1.0,
-                       label=("published CT, two series" if (i == 0 and k == 0)
-                              else None))
+                       label=("published CT" if (i == 0 and k == 0) else None))
         ax.fill_between(xs, ys, color=TEAL, alpha=0.18, lw=0)
         ax.plot(xs, ys, color=TEAL, lw=1.3)
         ax.set_xlabel(f"{title} (°)")

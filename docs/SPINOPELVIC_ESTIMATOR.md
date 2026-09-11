@@ -196,6 +196,32 @@ femoral head centre, and its inter-rater ICC is 0.856 against pelvic incidence's
 
 ## Still open
 
+- ~~128 records return PI 1-17 with a normal plate and normal femoral heads.~~ **SOLVED
+  2026-09-11.** The plate tilt gate measures only the angle from the cranial axis, which is
+  blind to the DIRECTION of the tilt. `_endplate` orients its normal by the superior
+  component alone (`n if n[2] >= 0 else -n`), so a plane fitted to the wrong surface comes
+  back leaning POSTERIORLY at a perfectly normal angle from vertical and sails through.
+  39 of 39 records returning PI <= 17 had a posteriorly leaning normal; 39 of 39 returning
+  PI > 35 had an anteriorly leaning one -- a clean separation on a quantity nothing
+  downstream was looking at.
+
+  Rendering the fit shows what it lands on, and it implicates the S1 carve. Where the carve
+  produces a compact wedge under L5 the selected voxels lie on the superior end-plate and
+  the normal points up and forward. Where it fails -- an irregular blob, or on some records
+  an "S1" spanning most of the sacrum -- the plane is fitted to the VENTRAL SURFACE OF THE
+  SACRUM, a long antero-inferior ramp, and pelvic incidence collapses. Case 0097 reads
+  PI 2.8 for exactly this reason. It also explains why two label sets that differ only in
+  the S1 carve (Dice 0.301 on that label) give completely different spinopelvic numbers for
+  the same patient.
+
+  Gated on the geometry: a normal with a non-positive anterior component is not an S1
+  superior end-plate. 140 plates rejected for it, and afterwards **no record returns a
+  pelvic incidence below 22.4 or a pelvic tilt below -15**, so the figure's ad-hoc
+  "tilt >= -15" filter -- which was removing these by their answer -- is gone. n goes from
+  575 to 563.
+
+  Still not fixed is the carve itself. A substructure label gives the sacral plate directly
+  and is the planned revision.
 - **Eight records measure PI from a prosthetic femoral head.** Sphere-fitting a prosthesis
   is not validated anywhere I could find; the published fallbacks avoid the femoral head
   entirely (anatomical sacral slope, Imai et al., *J Orthop Surg Res* 2019;14:126; sacral

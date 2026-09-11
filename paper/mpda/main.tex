@@ -634,18 +634,18 @@ fusion)~\cite{koninwalz2010}, is the one that matters clinically, and four of th
 disagreements were III against II.
 
 \begin{table*}[t]
-\caption{Spinopelvic measures, median over the 575 of 802 records passing the geometric
+\caption{Spinopelvic measures, median over the 563 of 802 records passing the geometric
 gates, against two supine CT series.\cite{veilleux2020,hasegawa2018} Standing values are
 55.0, 41.0, 13.0 and 60.0\si{\degree}.\cite{vialle2005}}
 \label{tab:spinopelvic}
 \begin{ruledtabular}
 \maxwidth{%
 \begin{tabular}{lccc}
-Measure & This dataset (supine, $n=575$) & Veilleux ($n=200$) & Hasegawa ($n=24$) \\ \colrule
-Pelvic incidence & 52.6\si{\degree} & 52.1 & 53.4 \\
-Sacral slope & 33.1\si{\degree} & 36.5 & 34.1 \\
-Pelvic tilt & 19.6\si{\degree} & 15.6 & 19.2 \\
-Lumbar lordosis & 49.3\si{\degree} & --- & --- \\
+Measure & This dataset (supine, $n=563$) & Veilleux ($n=200$) & Hasegawa ($n=24$) \\ \colrule
+Pelvic incidence & 52.7\si{\degree} & 52.1 & 53.4 \\
+Sacral slope & 33.2\si{\degree} & 36.5 & 34.1 \\
+Pelvic tilt & 19.7\si{\degree} & 15.6 & 19.2 \\
+Lumbar lordosis & 49.6\si{\degree} & --- & --- \\
 PI $-$ LL mismatch & 4.1\si{\degree} & --- & --- \\
 \end{tabular}
 }
@@ -754,8 +754,8 @@ anatomy sits, and which is present does not by itself determine what to call it.
 1.5\%). The co-occurrence reported there is testable here only where the junction was read; stump ribs accompany four of the 14 source-labeled sacralizations and 94 of the other 758 records (odds ratio 2.8, $p=0.09$, Fisher's exact test), and no lumbarization carries a lumbar rib.
 
 \emph{Spinopelvic measures} (Fig.~\ref{fig:validation}). Pelvic incidence sits on the
-standing reference, as a morphological property should; slope and tilt sit inside the
-published supine CT range.
+standing reference, as a morphological property should; slope and tilt sit below and above
+the published CT values, which Table~\ref{tab:spinopelvic} places against two series.
 
 % Left full-width deliberately: narrowing this one to a column saved no page and cost
 % legibility in a five-panel figure. The hardware figure was worth narrowing; this is not.
@@ -842,8 +842,10 @@ in Table~S1.}
 field-of-view limited (Fig.~\ref{fig:fov}) and does not reach T1. Postural angles are
 supine; pelvic incidence is not postural, but it is modality-sensitive, reading below
 radiography for the same subjects.\cite{leeliu2022} End-plate and pedicle width are
-withheld at L5: both are measured on a body isolated by cutting at the canal wall, and the
-L5 transverse processes arise in front of that wall, so the cut cannot separate them. The cohort is one acquisition protocol of a colorectal screening population
+withheld at L5, where the transverse processes arise in front of the canal wall the body is
+cut at. Those two and the spinopelvic angles, which rest on the carved S1 end-plate, are
+the provisional part of this release; a substructure label gives body and sacral plate
+directly and is the planned revision, which the version DOI carries. The cohort is one acquisition protocol of a colorectal screening population
 aged 50 and over, so its distributions should not be read as a surgical one.
 
 
@@ -874,7 +876,9 @@ anatomy per scan.
 \emph{Future directions.} Applying the released weights to VerSe would add the S1 anchor
 and the anomaly classes to a bone-kernel collection. A Castellvi read of the whole cohort
 would test the co-occurrence of rib and lumbosacral anomalies at full power and supply the
-labels a lumbosacral classifier needs.
+labels a lumbosacral classifier needs. A corpus label from substructure
+segmentation\cite{spineps2025} would measure the body without the canal cut that withholds
+L5 here.
 
 \section{Conclusion}
 

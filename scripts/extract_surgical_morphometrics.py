@@ -447,8 +447,35 @@ def one(path: str) -> dict:
     if s1n is not None:
         tilt = _angle(s1n, np.array([0.0, 0.0, 1.0]))
         r["s1_plate_tilt_deg"] = round(float(tilt), 1)
+        r["s1_plate_n_ant"] = round(float(s1n[1]), 3)
         if tilt > MAX_PLATE_TILT_DEG:
             r["s1_plate_rejected"] = 1
+            s1c = s1n = None
+        # AND THE TILT GATE IS BLIND TO THE DIRECTION OF THE TILT, which is the other half
+        # of the failure. `_endplate` orients its normal by the SUPERIOR component alone --
+        # `n if n[2] >= 0 else -n` -- so a plane fitted to a surface that slopes the wrong
+        # way comes back leaning POSTERIORLY, at the same angle from vertical as a good
+        # one, and sails through a gate that measures only that angle.
+        #
+        # It is not a sign ambiguity; it is a different surface. Rendering the fit shows
+        # what it lands on: where the S1 carve produces a compact wedge under L5 the
+        # voxels selected lie on the superior end-plate and the normal points up and
+        # forward, but where the carve fails -- an irregular blob, or, on some records, an
+        # "S1" spanning most of the sacrum -- the plane is fitted to the VENTRAL SURFACE
+        # OF THE SACRUM, a long antero-inferior ramp, and pelvic incidence collapses.
+        #
+        # Measured over the release, 39 of 39 records returning PI <= 17 have a posteriorly
+        # leaning normal and 39 of 39 returning PI > 35 have an anteriorly leaning one --
+        # a clean separation on a quantity nothing downstream was looking at.
+        #
+        # So gate on it, in the same spirit as the tilt gate: an S1 superior end-plate in a
+        # supine adult has a normal with a positive anterior component. One that does not
+        # is not that surface, whatever angle it makes with the vertical. This replaces the
+        # figure's ad-hoc "pelvic tilt >= -15 degrees" filter, which was removing the same
+        # records by their ANSWER rather than by their geometry.
+        elif s1n[1] <= 0.0:
+            r["s1_plate_rejected"] = 1
+            r["s1_plate_reject_reason"] = "normal leans posteriorly"
             s1c = s1n = None
 
     if fem is not None and s1c is not None and s1n is not None:
