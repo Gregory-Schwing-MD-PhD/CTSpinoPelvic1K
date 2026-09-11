@@ -197,6 +197,31 @@ THORACIC = {
     #   T11  PDWr 8.8 +- 0.43, PDWl 10.7 +- 0.84
     #   T12  PDWr 8.8 +- 0.81, PDWl  8.6 +- 0.68
     "pedicle":  ([9.75, 8.70], [0.635, 0.745], "Table 5, p. 894 (mean of PDWr and PDWl)"),
+    # END-PLATE WIDTH IS DIGITISED FROM THE PAPER'S OWN FIGURE, NOT READ FROM A TABLE.
+    # Table 3 holds the end-plate dimensions and sits on page 892, which is absent from
+    # every scan of this paper we have been able to obtain -- the two copies on hand are
+    # byte-identical and both skip it (p. 891 is followed by p. 893). Interlibrary loan is
+    # outstanding; when the table arrives these two values should be replaced by it.
+    #
+    # Until then they come from Figure 4A on p. 896, which plots EPWu, EPWl, EPDu and EPDl
+    # against T1-T12 -- the authors' own figure of their own data, not a textbook redraw.
+    # Benzel's Fig. 1.1 was considered and rejected: it pools four sources (Berry, both
+    # Panjabi papers and White & Panjabi), plots BODY DIAMETER rather than end-plate width,
+    # has no T11 tick, and the chapter states its figures may contain extrapolated data.
+    #
+    # Digitised by locating the open-square marker interiors against the axis ticks
+    # (44.0 px per mm, residual-free over 10-50). Four checks agree:
+    #   T1 24.54 -> T12 39.20 is a 59.7% increase, inside the 55% (EPWl) to 73% (EPDu)
+    #     range the paper states for the four dimensions;
+    #   the largest steps are T10->T11 (+4.60) and T11->T12 (+3.96) against ~1.3 for every
+    #     earlier level, matching "the increase in width was greatest for the two
+    #     distal-most vertebrae (T11 and T12)" on p. 890;
+    #   T12 39.2 runs continuously into L1 41.2 from the 1992 lumbar paper;
+    #   EPWl(T12) 42.3 exceeds EPWu(L1) 41.2, as the text requires.
+    # No SEM is recoverable from the figure, so the dispersion is left empty rather than
+    # invented.
+    "endplate": ([35.2, 39.2], [None, None],
+                 "Figure 4A, p. 896 (EPWu, digitised; Table 3 p. 892 missing from all scans)"),
 }
 PANJABI_1991 = ("cadaveric dry bone", "12", "3-D digitiser", "SEM", "primary",
                 "Panjabi MM et al. Spine 1991;16(8):888-901 (same 12 spines as the 1992 paper)")

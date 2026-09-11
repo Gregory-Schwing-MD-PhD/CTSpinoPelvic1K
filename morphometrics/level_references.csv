@@ -360,3 +360,5 @@ canal_ap,T11,Panjabi 1992,all,16.0,0.46,SEM,cadaveric dry bone,12,3-D digitiser,
 canal_ap,T12,Panjabi 1992,all,18.1,0.62,SEM,cadaveric dry bone,12,3-D digitiser,primary,"Table 4, p. 893 (SCD)",Panjabi MM et al. Spine 1991;16(8):888-901 (same 12 spines as the 1992 paper)
 pedicle,T11,Panjabi 1992,all,9.75,0.635,SEM,cadaveric dry bone,12,3-D digitiser,primary,"Table 5, p. 894 (mean of PDWr and PDWl)",Panjabi MM et al. Spine 1991;16(8):888-901 (same 12 spines as the 1992 paper)
 pedicle,T12,Panjabi 1992,all,8.7,0.745,SEM,cadaveric dry bone,12,3-D digitiser,primary,"Table 5, p. 894 (mean of PDWr and PDWl)",Panjabi MM et al. Spine 1991;16(8):888-901 (same 12 spines as the 1992 paper)
+endplate,T11,Panjabi 1992,all,35.2,,SEM,cadaveric dry bone,12,3-D digitiser,primary,"Figure 4A, p. 896 (EPWu, digitised; Table 3 p. 892 missing from all scans)",Panjabi MM et al. Spine 1991;16(8):888-901 (same 12 spines as the 1992 paper)
+endplate,T12,Panjabi 1992,all,39.2,,SEM,cadaveric dry bone,12,3-D digitiser,primary,"Figure 4A, p. 896 (EPWu, digitised; Table 3 p. 892 missing from all scans)",Panjabi MM et al. Spine 1991;16(8):888-901 (same 12 spines as the 1992 paper)

@@ -219,7 +219,7 @@ def build(out: Path, reference: bool = True):
     # page area: a single named curve belongs in the caption, and the panels get the height
     # back. The band collapses automatically when only one series is drawn.
     _multi = DRAW_SERIES is None or len(DRAW_SERIES) > 1
-    fig = plt.figure(figsize=(MF.COL2, (49 if _multi else 44) * MF.MM))
+    fig = plt.figure(figsize=(MF.COL2, (49 if _multi else 41) * MF.MM))
     if _multi:
         gs = fig.add_gridspec(2, 3, height_ratios=[1.0, 0.26], hspace=0.44, wspace=0.22)
         axes = np.array([fig.add_subplot(gs[0, i]) for i in range(3)])
