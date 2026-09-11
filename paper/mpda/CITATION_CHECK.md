@@ -593,3 +593,63 @@ sentence on their own.
 ### Not verified against source text
 
 - **`nnunet`** — no abstract in PubMed; cited only as the framework the released weights run under, which is what its title states.
+
+---
+
+## Addendum, 10 September 2026 — two references added since this check
+
+The check above covers the 40 references present on 9 September. Two have been added since,
+both for the spinopelvic comparison in Table II and Figure 5, and both are verified here to
+the same standard: the quoted text is copied from the source record, not paraphrased.
+
+Nothing was removed. Three existing references changed usage count only:
+`panjabi1991` and `panjabi1992` each gained one call (the Figure 6 caption now cites both,
+because the T11–T12 end-plate reference is digitised from the 1991 paper's Figure 4A while
+the lumbar values come from the 1992 paper's Table 2), and `vialle2005` lost one (its
+standing values moved from a table column into the table caption).
+
+### veilleux2020 — supported
+
+Veilleux NJ, Kalore NV, Vossen JA, Wayne JS. *Automatic Characterization of Pelvic and
+Sacral Measures from 200 Subjects.* J Bone Joint Surg Am 2020;102:e130.
+doi:10.2106/JBJS.20.00343, PMID 32881722.
+
+**Manuscript:** Table II gives the published supine-CT comparison as PI 52.1°, SS 36.5°,
+PT 15.6°, and the text says pelvic incidence "agrees to within half a degree with the
+automated supine CT series of Veilleux".
+
+**Source, verbatim from the abstract:** "The mean sacral slope was 36.49°, the mean pelvic
+tilt was 15.60°, and the mean pelvic incidence was 52.05°." The cohort is "200 asymptomatic
+subjects" whose scans were "generated for non-musculoskeletal conditions", measured by "an
+automated feature recognition algorithm" on CT.
+
+**Verdict: supported.** The three numbers are the source's own, rounded to one decimal. This
+cohort's 52.6° differs from 52.05° by 0.55°, which is what "within half a degree" claims.
+Routine CT is acquired supine, so describing the series as supine CT is accurate, though the
+abstract does not use the word.
+
+### leeliu2022 — supported
+
+Lee CM, Liu RW. *Comparison of pelvic incidence measurement using lateral x-ray, standard CT
+versus CT with 3D reconstruction.* Eur Spine J 2022;31:241–247.
+doi:10.1007/s00586-021-07024-7, PMID 34743245.
+
+**Manuscript:** used twice, for the claim that CT reads below radiography in the same
+subjects — in the Table II caption and in the sentence "sits below the standing figure, the
+direction reported for subjects imaged both ways".
+
+**Source, verbatim from the abstract:** "Mean ± SD of PI measurements on XR, standard CT and
+CT with 3D reconstruction were 56° ± 13°, 53° ± 12° and 53° ± 12°, respectively,
+demonstrating a small but significant elevation of PI measurement on XR". Conclusion:
+"standard XR … appears to slightly overestimate PI." n = 77 subjects with both a lateral
+radiograph and a CT.
+
+**Verdict: supported.** The manuscript claims only the direction and that it was measured in
+subjects imaged both ways, which is what the source reports. Note the source does not state
+whether its radiographs were standing; the word "standing" in the manuscript sentence refers
+to Vialle's cohort, not to this one, and the claim borrowed from here is the modality
+difference alone.
+
+**Provenance note.** An intermediate literature search recorded this paper's numbers as
+snippet-only and its publisher page as unfetchable. They were re-verified directly against
+the Europe PMC record on 10 September 2026, which is the text quoted above.
