@@ -803,9 +803,8 @@ enumeration, a model trained on them is not learning the convention that fails.
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_levelatlas.pdf}
 \caption{Morphometry by level, T11--L5, as median, interquartile range and 5th--95th
-percentile, with $n$ at right, in Panjabi's nomenclature. (a) Upper end-plate width
-EPWu. (b) Spinal canal width SCW and depth SCD. (c) Transverse pedicle width PDW, the
-mean of the two sides (Panjabi reports PDWr and PDWl separately). Black lines are
+percentile, with $n$ at right. (a) Upper end-plate width EPWu. (b) Canal width SCW and
+depth SCD. (c) Transverse pedicle width PDW, the mean of the two sides. Black lines are
 Panjabi's cadaveric means\cite{panjabi1991,panjabi1992}, T11--T12 EPWu digitised from
 Figure 4A of the former.}
 \label{fig:levelatlas}
@@ -814,7 +813,8 @@ Figure 4A of the former.}
 \emph{Reference morphometry with its spread.} The values a surgeon consults for endplate
 and canal dimensions and pedicle width come from cadaveric series of ten to thirty
 specimens\cite{panjabi1991,panjabi1992,berry1987} redrawn in the textbooks as one curve per
-level.\cite{benzel2015} A standard error describes the mean, not the spread of individuals,
+level\cite{benzel2015} --- Panjabi's is the series behind its body and canal
+figures. A standard error describes the mean, not the spread of individuals,
 so neither tells the reader whether the patient in front of them is unusual. The same
 measures are given here from 802 records with the distribution attached
 (Fig.~\ref{fig:levelatlas}), reproducing the classical pedicle widening into the lower
@@ -881,10 +881,14 @@ that cannot support the conventional count downward from C2.
 The release described here is \datasetversion{}, permanently archived at
 \doiurl{\datasetversiondoi}; the concept DOI \doiurl{\datasetdoi} resolves to the
 current version.
-The archive carries the loader, the label scheme, the quality-control tables and the
-analysis code under an open-source licence. \ifreview The repository URL identifies the authors; it
-is on the title page and will be restored here for the camera-ready version.\else Code:
-\url{https://github.com/OpenSpineConsortium/CTSpinoPelvic1K}; convenience mirror:
+The archive carries the loader, the label scheme and the quality-control tables under an
+open-source licence. The repository additionally carries the extraction and figure code,
+the reference table with a citation on every row, the values plotted in
+Fig.~\ref{fig:levelatlas}, and a recipe for running them in order. \ifreview The
+repository URL identifies the authors; it is on the title page and will be restored here for
+the camera-ready version.\else Code:
+\url{https://github.com/OpenSpineConsortium/CTSpinoPelvic1K} (article materials under
+\texttt{paper/mpda/}); convenience mirror:
 \url{https://huggingface.co/datasets/OpenSpineConsortium/CTSpinoPelvic1K}; measurement
 toolkit: \url{https://github.com/OpenSpineConsortium/OpenSpineToolkit}.\fi
 
@@ -1134,7 +1138,7 @@ A.~Schehr, J.~Kim, and G.~Schwing,
 \fi
 
 \bibitem{nnunet}
-F.~Isensee, P.~F. Jaeger, S.~A.~A. Kohl, J.~Petersen, and K.~H. Maier-Hein,
+F.~Isensee et~al.,
 \newblock {nnU-Net}: a self-configuring method for deep learning-based biomedical image segmentation,
 \newblock Nat. Methods {\bf 18}, 203--211 (2021),
 \newblock doi:10.1038/s41592-020-01008-z.
@@ -1158,7 +1162,7 @@ P.~J. Pickhardt et~al.,
 \newblock doi:10.7326/0003-4819-158-8-201304160-00003.
 
 \bibitem{mody2008}
-M.~G. Mody, A.~Nourbakhsh, D.~L. Stahl, M.~Gibbs, M.~Alfawareh, and K.~J. Garges,
+M.~G. Mody et~al.,
 \newblock The Prevalence of Wrong Level Surgery Among Spine Surgeons,
 \newblock Spine (Phila. Pa. 1976) {\bf 33}, 194--198 (2008),
 \newblock doi:10.1097/BRS.0b013e31816043d1.
