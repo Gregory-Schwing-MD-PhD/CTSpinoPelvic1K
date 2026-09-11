@@ -171,6 +171,29 @@ Museyko and Engelke's result (*Bone* 2009;44:429) — superior sub-VOI precision
 50–100% worse than mid sub-VOI ones — and it points at the two fixes that would actually
 work, both listed below.
 
+## What the article reports, after all this
+
+**L5 is withheld for end-plate width and pedicle width.** Both are measured on a body
+isolated by cutting at the anterior wall of the canal, and at L5 the transverse processes
+arise in front of that wall, so the cut keeps them. The contamination is confined to L5
+and it is large there:
+
+| measure | T11-L4 | L5 |
+|---|---|---|
+| end-plate width | median within 0.0-2.4 mm of published, SD 1.16-1.41x | **median +2.2 mm, SD 1.58x, 95 records > 60 mm** |
+| pedicle width | median 0.4-1.7 mm below published | **median +4.5 mm above published** |
+
+Publishing a number that is wrong in an eighth of the cohort, in a figure whose point is
+that a reader can tell whether a patient is unusual, is worse than publishing one fewer
+row. `morphometrics/level_atlas.csv` -- the file the article names as the values behind
+Figure 6 -- carries no L5 row for either measure, and the article says why rather than
+reporting it with a caveat nobody reads.
+
+Canal width and depth keep L5: neither is measured off the body, so neither is exposed to
+this, and canal depth at L5 now sits inside every published series. The per-case CSVs keep
+the raw L5 numbers, documented here, because they are raw measurement output rather than a
+released reference value.
+
 ## Still open
 
 - **The obliquity correction is only in ostk.** The extraction script, which is what the

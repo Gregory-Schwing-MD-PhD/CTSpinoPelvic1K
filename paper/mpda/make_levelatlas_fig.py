@@ -206,6 +206,37 @@ def load_reference_series():
 # i.e. 61% wider again. That is the honest figure for "where 95% of the population lies,
 # with 95% confidence", and it is stated in the text rather than drawn, because at that
 # width the reference stops discriminating anything.
+# L5 IS WITHHELD FOR THE TWO MEASURES THE TRANSVERSE PROCESSES CONTAMINATE.
+#
+# End-plate width and pedicle width are both taken from a vertebral body isolated by
+# cutting the mask at the anterior wall of the spinal canal. At L5 the transverse
+# processes and pedicle roots arise far enough FORWARD to fall in front of that wall, so
+# the cut keeps them and there is no radius, plane or percentile that separates them
+# again -- three rules were built and run over all 802 records and none beat the one that
+# ships (docs/LEVEL_MORPHOMETRY.md carries the scoring). The contamination is confined to
+# L5 and it is large there:
+#
+#   measure            T11-L4                              L5
+#   end-plate width    median within 0.0-2.4 mm of         median +2.2 mm, SD 1.58x
+#                      published, SD 1.16-1.41x            published, 95 records > 60 mm
+#   pedicle width      median 0.4-1.7 mm below published   median +4.5 mm above published
+#
+# The published L5 transverse-process span is 85.9 mm against a body width of 48.8
+# (Bonczar et al. 2024, n=1481); the over-wide records are walking from the one to the
+# other. Publishing a number that is wrong in an eighth of the cohort, in a figure whose
+# whole point is that a reader can tell whether a patient is unusual, is worse than
+# publishing one fewer row. So L5 is dropped from these two measures and the reason is
+# given, rather than being reported with a caveat nobody reads.
+#
+# CANAL WIDTH AND DEPTH KEEP L5: neither is measured off the body, so neither is exposed
+# to this, and canal depth at L5 now sits inside every published series.
+#
+# The fix is not a better cut. It is not needing one: SPINEPS emits the vertebral corpus
+# as its own class (TPTBox Location 50) with the costal processes separate (43, 44), and
+# scripts/spineps_ct_pipeline.py already runs it in CT mode. Measured on that label there
+# is nothing to cut. That is the next piece of work, not this one.
+BODY_LEVELS = tuple(l for l in LEVELS if l != "L5")
+
 REF_K = 1.96
 # chi-square(11) upper 95% bound on an SD estimated from n=12
 REF_SD_CI_HI = 1.70
@@ -278,7 +309,8 @@ def build(out: Path, reference: bool = True):
     S = {
         "h_ant":    series(lg, "body_height_{l}_mm",      GATES["height"]),
         "h_post":   series(lg, "body_height_post_{l}_mm", GATES["height"]),
-        "endplate": series(lg, "endplate_width_{l}_mm",   GATES["endplate"]),
+        "endplate": series(lg, "endplate_width_{l}_mm",   GATES["endplate"],
+                           levels=BODY_LEVELS),
         "canal_w":  series(lg, "canal_width_{l}_mm",      GATES["canal_w"]),
         "canal_ap": series(sm, "canal_ap_mm_{l}",         GATES["canal_ap"]),
         # PEDICLE WIDTH IS THE MEAN OF THE TWO SIDES HERE, not the minimum. pedicle_mm is
@@ -288,7 +320,8 @@ def build(out: Path, reference: bool = True):
         # mean is biased low before any anatomy is involved. Measured over the cohort the
         # gap is 0.7 mm at L1 and 2.4 mm at L5 -- the wrong one of the two would have made
         # the caudal widening look shallower than it is.
-        "pedicle":  series(sm, "pedicle_mean_mm_{l}",     GATES["pedicle"]),
+        "pedicle":  series(sm, "pedicle_mean_mm_{l}",     GATES["pedicle"],
+                           levels=BODY_LEVELS),
         "disc":     series(dg, "disc_height_{l}_mm", (1.0, 25.0), levels=DISCS),
         "hu":       series(op, "{l}_trabecular_hu", (-50.0, 400.0),
                            levels=["l1", "l2", "l3", "l4"]),

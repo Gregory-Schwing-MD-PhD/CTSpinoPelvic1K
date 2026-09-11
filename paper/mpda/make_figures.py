@@ -159,7 +159,7 @@ def kde(v, lo, hi, n=200):
 # ---------------------------------------------------------------- fig 3
 def fig_countfree(out):
     tr = load("transition_morphometrics.csv")
-    fig = plt.figure(figsize=(COL2, 1.85), constrained_layout=True)
+    fig = plt.figure(figsize=(COL2, 1.62), constrained_layout=True)
     gs = gridspec.GridSpec(1, 3, figure=fig)
 
     # (a) the interval count
@@ -382,7 +382,7 @@ def fig_opportunistic(out):
     if not op:
         print("  ! opportunistic.csv missing; fig5 skipped")
         return
-    fig = plt.figure(figsize=(COL2, 2.05), constrained_layout=True)
+    fig = plt.figure(figsize=(COL2, 1.88), constrained_layout=True)
     gs = gridspec.GridSpec(1, 3, figure=fig)
 
     # (a) the distribution, with the osteoporosis threshold
