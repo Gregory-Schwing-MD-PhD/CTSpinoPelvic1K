@@ -239,18 +239,18 @@ def build(out: Path, reference: bool = True):
     draw(ax_b, S["endplate"], y_of, TEAL, "o")
     annotate_n(ax_b, S["endplate"], y_of, FAINT)
     draw_reference_series(ax_b, refs, "endplate", y_of, styles, ref_labels, drawn=drawn)
-    ax_b.set_xlabel("superior endplate width (mm)")
-    ax_b.set_title("(a) Endplate width", loc="left", fontsize=8.0)
+    ax_b.set_xlabel("upper end-plate width, EPWu (mm)")
+    ax_b.set_title("(a) Upper end-plate width (EPWu)", loc="left", fontsize=8.0)
 
     # (c) canal, width against depth
-    draw(ax_c, S["canal_w"], y_of, TEAL, "o", offset=+0.17, label="width")
-    draw(ax_c, S["canal_ap"], y_of, INK, "^", offset=-0.17, label="depth (AP)")
+    draw(ax_c, S["canal_w"], y_of, TEAL, "o", offset=+0.17, label="width (SCW)")
+    draw(ax_c, S["canal_ap"], y_of, INK, "^", offset=-0.17, label="depth (SCD)")
     draw_reference_series(ax_c, refs, "canal_w", y_of, styles, ref_labels,
                           offset=+0.17, drawn=drawn)
     draw_reference_series(ax_c, refs, "canal_ap", y_of, styles, ref_labels,
                           offset=-0.17, drawn=drawn)
-    ax_c.set_xlabel("spinal canal (mm)")
-    ax_c.set_title("(b) Canal", loc="left", fontsize=8.0)
+    ax_c.set_xlabel("spinal canal, SCW and SCD (mm)")
+    ax_c.set_title("(b) Canal (SCW, SCD)", loc="left", fontsize=8.0)
     # upper right: the canal narrows upward, so the free space is to the right of the
     # T11-T12 rows. Lower left sits on the depth whiskers and lower right on the L5 width
     # marker, which is the widest canal in the panel.
@@ -260,8 +260,8 @@ def build(out: Path, reference: bool = True):
     draw(ax_d, S["pedicle"], y_of, OCHRE, "D")
     annotate_n(ax_d, S["pedicle"], y_of, FAINT)
     draw_reference_series(ax_d, refs, "PDW", y_of, styles, ref_labels, drawn=drawn)
-    ax_d.set_xlabel("transverse pedicle width (mm)")
-    ax_d.set_title("(c) Pedicle width", loc="left", fontsize=8.0)
+    ax_d.set_xlabel("transverse pedicle width, PDW (mm)")
+    ax_d.set_title("(c) Pedicle width (PDW)", loc="left", fontsize=8.0)
 
 
     for ax in (ax_b, ax_c, ax_d):
