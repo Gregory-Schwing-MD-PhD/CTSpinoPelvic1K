@@ -296,17 +296,21 @@ def fig_validation(out):
     # against radiographic norms alone therefore builds in an offset that has nothing to
     # do with this dataset, and a reader cannot tell it from a real discrepancy.
     #
-    # So the CT literature is drawn too, as a second line: pelvic incidence 47.1 over 370
-    # subjects measured automatically in 3-D (Vrtovec, Spine 2012;37:E479), and sacral
-    # slope and pelvic tilt from the 200-subject automated CT series of Veilleux (JBJS Am
-    # 2020;102:e130). Where this cohort sits between the two is the honest picture.
+    # So the CT literature is drawn too, as a second line -- and it is ONE series for all
+    # three panels: the 200-subject automated supine CT cohort of Veilleux (JBJS Am
+    # 2020;102:e130), which is what Table II compares against. It was briefly two sources,
+    # with pelvic incidence taken from Vrtovec (Spine 2012;37:E479, n=370, 47.1 deg) while
+    # the table quoted Veilleux's 52.1, so the same paper carried two different published
+    # CT values for the same parameter and the distribution looked five degrees high
+    # against one of them. Mixing reference cohorts across panels of one figure is not
+    # worth the extra citation.
     #
     # THE PELVIC INCIDENCE REFERENCE WAS ONCE 54.7, WHICH IS THIS COHORT'S OWN MEASURED
     # VALUE copied into the reference slot -- the same error a co-author caught in
     # Table II. Comparing a measurement against itself is not a check.
     for i, (key, title, lo, hi, ref, sd, ct_ref, ct_lab) in enumerate([
-        ("pelvic_incidence_deg", "pelvic incidence", 20, 90, 55.0, 10.6, 47.1,
-         "CT, Vrtovec ($n$=370)"),
+        ("pelvic_incidence_deg", "pelvic incidence", 20, 90, 55.0, 10.6, 52.1,
+         "CT, Veilleux ($n$=200)"),
         ("sacral_slope_deg", "sacral slope", 10, 70, 41.0, 8.4, 36.5,
          "CT, Veilleux ($n$=200)"),
         ("pelvic_tilt_deg", "pelvic tilt", -10, 45, 13.0, 6.0, 15.6,
