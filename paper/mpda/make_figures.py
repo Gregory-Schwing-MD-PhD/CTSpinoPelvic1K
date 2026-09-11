@@ -308,13 +308,44 @@ def fig_validation(out):
     # THE PELVIC INCIDENCE REFERENCE WAS ONCE 54.7, WHICH IS THIS COHORT'S OWN MEASURED
     # VALUE copied into the reference slot -- the same error a co-author caught in
     # Table II. Comparing a measurement against itself is not a check.
-    for i, (key, title, lo, hi, ref, sd, ct_ref, ct_lab) in enumerate([
-        ("pelvic_incidence_deg", "pelvic incidence", 20, 90, 55.0, 10.6, 52.1,
-         "CT, Veilleux ($n$=200)"),
-        ("sacral_slope_deg", "sacral slope", 10, 70, 41.0, 8.4, 36.5,
-         "CT, Veilleux ($n$=200)"),
-        ("pelvic_tilt_deg", "pelvic tilt", -10, 45, 13.0, 6.0, 15.6,
-         "CT, Veilleux ($n$=200)"),
+    # ONE CT SERIES WAS NOT ENOUGH, AND THE GAP WAS THE COHORT, NOT THE CODE.
+    #
+    # Sacral slope here reads about 3 degrees below Veilleux and pelvic tilt about 4 above,
+    # with pelvic incidence unmoved -- which is exactly the signature of a rotated vertical
+    # reference, since a rotation delta moves SS by -delta and PT by +delta and leaves PI
+    # alone (Ohashi et al., Spine Surg Relat Res 8:61, who write it as aSS = SS - APPA and
+    # aPT = PT + APPA). That reading was pursued and does not survive. Recumbency runs the
+    # WRONG WAY for it: lying down rotates the pelvis anteriorly, RAISING sacral slope and
+    # lowering tilt, by 0.9 degrees in 211 patients (Banitalebi, Clin Spine Surg 39:E104),
+    # 3.9 in 15 volunteers (Chevillotte, OTSR 104:565) and 7.1 in 24 (Hasegawa below). An
+    # anterior-pelvic-plane convention in Veilleux would push the same way. Neither
+    # explains a cohort reading LOW on slope.
+    #
+    # What explains it is who is in the scanner. Veilleux's 200 were asymptomatic subjects
+    # imaged for non-musculoskeletal reasons; this cohort is an abdominopelvic CT
+    # population, older and symptomatic. The one published supine-CT series matched on
+    # that -- Hasegawa et al., BMC Musculoskelet Disord 19:437, women of about 60 with
+    # adult spinal deformity, supine CT-DRR -- reports PI 53.4, SS 34.1, PT 19.2 against
+    # this cohort's 52.6, 33.1 and 19.6. That is agreement to within a degree on all
+    # three, from a cohort resembling this one, using a scanner-axis vertical.
+    #
+    # So both are drawn, as a band between them rather than a line through one. A single
+    # reference point invites the reading that any departure is a defect; two series that
+    # differ by more than this cohort differs from either says what is actually true.
+    #
+    # Still not settled, and stated in docs/SPINOPELVIC_ESTIMATOR.md rather than guessed
+    # at: whether Veilleux is anterior-pelvic-plane referenced. Its abstract lists ASIS and
+    # pubic tubercles, which have no role in a scanner-axis slope, and the companion paper
+    # on the same 200 subjects (Higgins, JBJS Am 96:1776) says the frame is the APP -- but
+    # the sign of the published supine APP tilt is not consistent across cohorts, so the
+    # correction cannot be applied in the right direction with any confidence.
+    for i, (key, title, lo, hi, ref, sd, ct_refs, ct_lab) in enumerate([
+        ("pelvic_incidence_deg", "pelvic incidence", 20, 90, 55.0, 10.6, (52.1, 53.4),
+         "CT, Veilleux ($n$=200); Hasegawa ($n$=24)"),
+        ("sacral_slope_deg", "sacral slope", 10, 70, 41.0, 8.4, (36.5, 34.1),
+         "CT, Veilleux ($n$=200); Hasegawa ($n$=24)"),
+        ("pelvic_tilt_deg", "pelvic tilt", -10, 45, 13.0, 6.0, (15.6, 19.2),
+         "CT, Veilleux ($n$=200); Hasegawa ($n$=24)"),
     ]):
         ax = fig.add_subplot(gs[0, i])
         v = col(sg, KEYS[key], lo, hi)
@@ -322,8 +353,12 @@ def fig_validation(out):
         ax.axvspan(ref - sd, ref + sd, color=OCHRE, alpha=0.13, lw=0)
         ax.axvline(ref, color=OCHRE, ls="--", lw=1.0,
                    label="standing XR" if i == 0 else None)
-        ax.axvline(ct_ref, color=INK, ls=(0, (1.4, 1.2)), lw=1.0,
-                   label="published CT" if i == 0 else None)
+        c_lo, c_hi = min(ct_refs), max(ct_refs)
+        ax.axvspan(c_lo, c_hi, color=INK, alpha=0.10, lw=0)
+        for k, c in enumerate(ct_refs):
+            ax.axvline(c, color=INK, ls=(0, (1.4, 1.2)), lw=1.0,
+                       label=("published CT, two series" if (i == 0 and k == 0)
+                              else None))
         ax.fill_between(xs, ys, color=TEAL, alpha=0.18, lw=0)
         ax.plot(xs, ys, color=TEAL, lw=1.3)
         ax.set_xlabel(f"{title} (°)")
@@ -347,7 +382,7 @@ def fig_opportunistic(out):
     if not op:
         print("  ! opportunistic.csv missing; fig5 skipped")
         return
-    fig = plt.figure(figsize=(COL2, 2.4), constrained_layout=True)
+    fig = plt.figure(figsize=(COL2, 2.05), constrained_layout=True)
     gs = gridspec.GridSpec(1, 3, figure=fig)
 
     # (a) the distribution, with the osteoporosis threshold

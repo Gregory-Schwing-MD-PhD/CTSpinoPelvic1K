@@ -87,6 +87,135 @@ def _com(mask, sp):
     return (idx.mean(0) * sp) if len(idx) else None
 
 
+MIN_CANAL_MM2 = 18.0          # a lumbar canal is 200-300 mm^2; a pocket is not
+CANAL_CENTROID_TOL_MM = 8.0   # how far a slice canal may sit from the column axis
+MIDSAG_HALF_MM = 1.5          # half-width of the mid-sagittal strip the chord is read on
+
+
+def _canal_column(m, sp):
+    """The canal as one continuous column, and the pedicle slab within it.
+
+    WHAT THIS REPLACES, AND WHY. The sagittal canal diameter used to be read off the FIRST
+    axial slice in the middle third of the vertebra whose bony ring happened to close, as
+    the total anteroposterior extent of the enclosed hole. Three things are wrong with
+    that and all three push the same way:
+
+      1. THE SLICE IS WHICHEVER ONE CLOSES FIRST, not an anatomical plane. Every normative
+         series fixes the plane at the pedicle -- Maeder et al. (Diagnostics 13:734,
+         n=1050) measure "in a plane perpendicular to the longitudinal axis of the spine
+         and at the vertebral pedicle levels ... to limit the influence of degenerative
+         changes, which typically occur at the intervertebral disc and facet joint
+         levels"; Cook & Baker (Int J Spine Surg 15:1072) at the "pediculolaminar level".
+         Taking the first closing slice is close to taking a minimum over noisy slices,
+         and a minimum manufactures a low tail.
+      2. THE RING NEED NOT CLOSE IN AN AXIAL PLANE. A lumbar vertebra in a supine scan of
+         a lordotic adult is tilted, and an oblique section through the canal is filled in
+         by volume averaging: Eubanks, Cann & Brant-Zawadzki (Radiology 157:243) showed in
+         phantom that angled sections "do not always overestimate its diameter ... but can
+         make it appear artifactually stenotic". A modern pipeline puts the cost at 22% of
+         axis-aligned measurement lines invalid (Nixon et al., BMC Med Imaging 26:134).
+      3. THE MAX EXTENT IS NOT THE MIDSAGITTAL DIAMETER. The L4 and especially L5 canal is
+         trefoil (Aly & Amin, Orthopedics 36:e229, n=300), so its widest anteroposterior
+         chord runs through a lateral recess rather than the midline.
+
+    What it cost: 157 of 736 L3 records read under 11 mm. The smallest midsagittal canal
+    anywhere in 1000 level-measurements of living adults is 11.70 mm (Cizmic et al., Acta
+    Inform Med 31:200) and the Framingham CT cohort puts congenital absolute stenosis at
+    2.62%. Twenty-one per cent is a method failing, not a cohort.
+
+    So: build the canal as a column (Banik et al., J Digit Imaging 23:301 -- close the ring
+    before looking for the hole; Diaz-Parra et al., EMBC 2014:5514 -- select it by
+    continuity across slices rather than per slice), and return the slab where it is
+    closed on all four sides.
+    """
+    zz = np.nonzero(m.any(axis=(0, 1)))[0]
+    if len(zz) < 4:
+        return None
+    min_px = max(10, int(round(MIN_CANAL_MM2 / (sp[0] * sp[1]))))
+    # Banik closes in 3-D with a tubular element 2 mm in radius; the same radius in-plane
+    # bridges the interlaminar gap so the ring encloses. A fixed 3x3 would be 2 mm only at
+    # 0.7 mm pitch and half that at 0.35.
+    rr = max(1, int(round(2.0 / min(sp[0], sp[1]))))
+    yy_, xx_ = np.ogrid[-rr:rr + 1, -rr:rr + 1]
+    se = (xx_ ** 2 + yy_ ** 2) <= rr ** 2
+
+    cand = {}
+    for z in zz:
+        s_ = m[:, :, z]
+        if s_.sum() < 60:
+            continue
+        h = ndimage.binary_fill_holes(ndimage.binary_closing(s_, se)) & ~s_
+        if not h.any():
+            continue
+        cc, n = ndimage.label(h)
+        if n == 0:
+            continue
+        sz = ndimage.sum(h, cc, range(1, n + 1))
+        big = cc == int(np.argmax(sz)) + 1
+        if big.sum() < min_px:
+            continue
+        xs, ys = np.nonzero(big)
+        cand[int(z)] = (big, xs.mean(), ys.mean())
+    if len(cand) < 3:
+        return None
+
+    # CONTINUITY AS A CENTROID GATE, NOT VOXEL ADJACENCY. Requiring the column to be one
+    # 3-D connected component was tried and is too strict: on 3-5 mm slices the canal can
+    # step several millimetres between neighbours and the column breaks into pieces too
+    # short to measure, which cost 15% of the levels. Gating on distance to the column
+    # axis rejects the same wrong regions -- a facet pocket is nowhere near the canal --
+    # without demanding that voxels touch.
+    cx = np.median([v[1] for v in cand.values()])
+    cy = np.median([v[2] for v in cand.values()])
+    keep = sorted(z for z, v in cand.items()
+                  if np.hypot((v[1] - cx) * sp[0], (v[2] - cy) * sp[1])
+                  <= CANAL_CENTROID_TOL_MM)
+    if len(keep) < 3:
+        return None
+    runs, cur = [], [keep[0]]
+    for a, b in zip(keep, keep[1:]):
+        if b - a <= 2:                      # bridge a single dropped slice
+            cur.append(b)
+        else:
+            runs.append(cur)
+            cur = [b]
+    runs.append(cur)
+    run = max(runs, key=len)
+    if len(run) < 3:
+        return None
+    # the closed-ring column IS the pediculolaminar extent; its central half is the slab
+    lo = run[int(0.25 * (len(run) - 1))]
+    hi = run[int(0.75 * (len(run) - 1))]
+    return cand, [z for z in run if lo <= z <= hi]
+
+
+def _canal_ap(cand, slab, sp):
+    """Midsagittal canal diameter, as the median over the pedicle slab.
+
+    The chord is read on a strip about the canal own midline and taken as the run
+    CONTAINING the canal centroid, so a second enclosed pocket in the same column cannot
+    be spliced on. Every normative series measures this quantity and not the maximum
+    extent: Verbiest criterion, Cizmic "mediosagittal diameter", Aly & Amin "midsagittal
+    diameter", Cook & Baker on the midsagittal reformat, and Panjabi SCD.
+    """
+    aps = []
+    for z in slab:
+        if z not in cand:
+            continue
+        big, xbar, ybar = cand[z]
+        xc = int(round(xbar))
+        w = max(1, int(round(MIDSAG_HALF_MM / sp[0])))
+        col = big[max(0, xc - w): xc + w + 1, :].any(axis=0)
+        yy = np.nonzero(col)[0]
+        if len(yy) < 2:
+            continue
+        lbl = ndimage.label(col)[0]
+        yc = int(round(ybar))
+        k = lbl[yc] if 0 <= yc < len(lbl) and lbl[yc] else int(lbl[yy].max())
+        aps.append(float((lbl == k).sum()) * sp[1])
+    return float(np.median(aps)) if aps else None
+
+
 def _canal_front(mask, sp):
     """Anterior wall of the spinal canal, in voxel units along y. None if not found.
 
@@ -420,28 +549,18 @@ def one(path: str) -> dict:
         # for canal depth AND pedicle width together, which is why both carried about
         # half the n that canal width does. Take the first slice in the middle third
         # whose ring actually closes instead.
-        zz = np.nonzero(m.any(axis=(0, 1)))[0]
-        sl, zc = None, None
-        for z in zz[len(zz) // 3: 2 * len(zz) // 3 + 1]:
-            s_ = m[:, :, z]
-            if s_.sum() < 60:
-                continue
-            h_ = ndimage.binary_fill_holes(s_) & ~s_
-            # a real canal, not a trabecular void: the old code had no size floor here
-            if h_.sum() >= 20:
-                sl, zc = s_, int(z)
-                break
-        if sl is None:
+        col = _canal_column(m, sp)
+        if col is None:
             continue
-        # canal = the enclosed hole in the ring at mid-body
-        filled = ndimage.binary_fill_holes(sl)
-        hole = filled & ~sl
-        if hole.any():
-            cc, ncc = ndimage.label(hole)
-            sizes = ndimage.sum(hole, cc, range(1, ncc + 1))
-            big = cc == (int(np.argmax(sizes)) + 1)
+        cand, slab = col
+        zc = int(slab[len(slab) // 2])
+        sl = m[:, :, zc]
+        ap = _canal_ap(cand, slab, sp)
+        if ap is not None:
+            canal[PER_LEVEL[vid]] = round(ap, 1)
+        big = cand[zc][0]
+        if True:
             hy = np.nonzero(big.any(axis=0))[0]
-            canal[PER_LEVEL[vid]] = round(float(len(hy)) * sp[1], 1)
             # TORG DENOMINATOR IS THE BODY, NOT THE VERTEBRA. Measuring the whole slice
             # puts the spinous process in the denominator, roughly tripling it -- which
             # is why the ratio came back near 0.2 against a normal near 1.0. The canal's
@@ -450,7 +569,7 @@ def one(path: str) -> dict:
             bsl = sl[:, hy.max():]
             by = np.nonzero(bsl.any(axis=0))[0]
             depth = float(len(by)) * sp[1]
-            if depth > 0:
+            if depth > 0 and PER_LEVEL[vid] in canal:
                 torg[PER_LEVEL[vid]] = round(canal[PER_LEVEL[vid]] / depth, 3)
             # PEDICLE ISTHMUS, PER SIDE, AT THE SLICE WHERE THE PEDICLE EXISTS.
             # Two earlier versions were wrong in opposite directions. The first took the

@@ -614,8 +614,11 @@ counting error of exactly the kind this dataset exists to expose.
 because it is a morphological property rather than a posture; it agrees to within half a
 degree with the automated supine CT series of Veilleux \emph{et al.}~\cite{veilleux2020}
 and sits below the standing figure, the direction reported for subjects imaged both
-ways.\cite{leeliu2022} Sacral slope and lumbar lordosis also sit below their standing
-references, as recumbency predicts, and pelvic tilt above.
+ways.\cite{leeliu2022} Sacral slope and pelvic tilt are postural, and read three degrees
+below and four above Veilleux's asymptomatic subjects; a second supine CT series reports
+53.4, 34.1 and 19.2\si{\degree}, within a degree of this cohort on all
+three.\cite{hasegawa2018} Recumbency runs the wrong way to explain the gap, raising slope
+rather than lowering it, so the residual tracks cohort and not construction.
 
 \subsection{Castellvi typing}
 
@@ -632,18 +635,18 @@ disagreements were III against II.
 
 \begin{table*}[t]
 \caption{Spinopelvic measures, median over the 575 of 802 records passing the geometric
-gates, against automated supine CT.\cite{veilleux2020} Standing values are 55.0, 41.0,
-13.0 and 60.0\si{\degree}.\cite{vialle2005}}
+gates, against two supine CT series.\cite{veilleux2020,hasegawa2018} Standing values are
+55.0, 41.0, 13.0 and 60.0\si{\degree}.\cite{vialle2005}}
 \label{tab:spinopelvic}
 \begin{ruledtabular}
 \maxwidth{%
-\begin{tabular}{lcc}
-Measure & This dataset (supine, $n=575$) & Veilleux (supine CT) \\ \colrule
-Pelvic incidence & 52.6\si{\degree} & 52.1 \\
-Sacral slope & 33.1\si{\degree} & 36.5 \\
-Pelvic tilt & 19.6\si{\degree} & 15.6 \\
-Lumbar lordosis & 49.3\si{\degree} & --- \\
-PI $-$ LL mismatch & 4.1\si{\degree} & --- \\
+\begin{tabular}{lccc}
+Measure & This dataset (supine, $n=575$) & Veilleux ($n=200$) & Hasegawa ($n=24$) \\ \colrule
+Pelvic incidence & 52.6\si{\degree} & 52.1 & 53.4 \\
+Sacral slope & 33.1\si{\degree} & 36.5 & 34.1 \\
+Pelvic tilt & 19.6\si{\degree} & 15.6 & 19.2 \\
+Lumbar lordosis & 49.3\si{\degree} & --- & --- \\
+PI $-$ LL mismatch & 4.1\si{\degree} & --- & --- \\
 \end{tabular}
 }
 \end{ruledtabular}
@@ -751,8 +754,8 @@ anatomy sits, and which is present does not by itself determine what to call it.
 1.5\%). The co-occurrence reported there is testable here only where the junction was read; stump ribs accompany four of the 14 source-labeled sacralizations and 94 of the other 758 records (odds ratio 2.8, $p=0.09$, Fisher's exact test), and no lumbarization carries a lumbar rib.
 
 \emph{Spinopelvic measures} (Fig.~\ref{fig:validation}). Pelvic incidence sits on the
-standing reference, as a morphological property rather than a posture should. Sacral
-slope falls below it and pelvic tilt above, the direction recumbency predicts.
+standing reference, as a morphological property should; slope and tilt sit inside the
+published supine CT range.
 
 % Left full-width deliberately: narrowing this one to a column saved no page and cost
 % legibility in a five-panel figure. The hardware figure was worth narrowing; this is not.
@@ -1044,7 +1047,7 @@ A.~M. Du~Plessis, L.~M. Greyling, and B.~J. Page,
 \newblock doi:10.1111/joa.12781.
 
 \bibitem{poolman2023}
-A.~M. Poolman, Q.~Wessels, A.~V. Schoor, and N.~Keough,
+A.~M. Poolman et~al.,
 \newblock Thoracolumbar transitional vertebrae: Quantitative differentiation and associated numeric variation in the vertebral column using skeletal remains,
 \newblock J. Anat. {\bf 243}, 311--318 (2023),
 \newblock doi:10.1111/joa.13865.
@@ -1055,6 +1058,13 @@ M.~R. Zindrick et~al.,
 \newblock Spine (Phila. Pa. 1976) {\bf 12}, 160--166 (1987),
 \newblock doi:10.1097/00007632-198703000-00012.
 
+\bibitem{hasegawa2018}
+K.~Hasegawa et~al.,
+\newblock Difference in whole spinal alignment between supine and standing positions in
+patients with adult spinal deformity,
+\newblock BMC Musculoskelet. Disord. {\bf 19}, 437 (2018),
+\newblock doi:10.1186/s12891-018-2355-5.
+
 \bibitem{leeliu2022}
 C.~M. Lee and R.~W. Liu,
 \newblock Comparison of pelvic incidence measurement using lateral x-ray, standard CT versus
@@ -1063,7 +1073,7 @@ CT with 3D reconstruction,
 \newblock doi:10.1007/s00586-021-07024-7.
 
 \bibitem{veilleux2020}
-N.~J. Veilleux, N.~V. Kalore, J.~A. Vossen, and J.~S. Wayne,
+N.~J. Veilleux et~al.,
 \newblock Automatic characterization of pelvic and sacral measures from 200 subjects,
 \newblock J. Bone Joint Surg. Am. {\bf 102}, e130 (2020),
 \newblock doi:10.2106/JBJS.20.00343.
@@ -1081,7 +1091,7 @@ M.~M. Panjabi et~al.,
 \newblock doi:10.1097/00007632-199203000-00010.
 
 \bibitem{berry1987}
-J.~L. Berry, J.~M. Moran, W.~S. Berg, and A.~D. Steffee,
+J.~L. Berry et~al.,
 \newblock A morphometric study of human lumbar and selected thoracic vertebrae,
 \newblock Spine (Phila. Pa. 1976) {\bf 12}, 362--367 (1987),
 \newblock doi:10.1097/00007632-198705000-00010.
@@ -1151,7 +1161,7 @@ R.~Vialle et~al.,
 \newblock doi:10.2106/JBJS.D.02043.
 
 \bibitem{castellvi1984}
-A.~E. Castellvi, L.~A. Goldstein, and D.~P. Chan,
+A.~E. Castellvi et~al.,
 \newblock Lumbosacral transitional vertebrae and their relationship with lumbar extradural defects,
 \newblock Spine (Phila. Pa. 1976) {\bf 9}, 493--495 (1984),
 \newblock doi:10.1097/00007632-198407000-00014.

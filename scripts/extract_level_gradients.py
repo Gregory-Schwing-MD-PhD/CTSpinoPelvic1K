@@ -161,49 +161,62 @@ def one(path: str) -> dict:
             r[f"body_cut_failed_{name}"] = 1
             continue
 
-        # SUPERIOR ENDPLATE WIDTH, ISOLATED FROM THE TRANSVERSE PROCESSES.
-        # Cutting at the anterior wall of the canal separates body from posterior
-        # elements at L1-L4, but not at L5: the L5 transverse processes arise so far
-        # forward that they survive the cut, and the width came back 67.5 mm instead of
-        # about 51. So measure per axial slice, erode to snap the narrow isthmus that
-        # joins a process to the body, keep the largest remaining piece -- which is the
-        # body -- and add the eroded margin back.
+        # SUPERIOR ENDPLATE WIDTH, MEASURED ANTERIOR TO THE SHOULDERS THE CUT LEAVES.
+        #
+        # WHAT THE MASK ACTUALLY LOOKS LIKE, which three rounds of reasoning from the
+        # numbers did not settle and one render did. Cutting at the anterior wall of the
+        # canal keeps the vertebral body -- and, at L5 and often L4, two lateral SHOULDERS
+        # in the posterior few millimetres of what is kept: the roots of the transverse
+        # processes and pedicles, which at these levels arise far enough forward to fall
+        # in FRONT of the canal wall. The body dome is 50-60 mm across; dome plus
+        # shoulders is 70-86 mm. The published L5 transverse-process span is 85.9 mm
+        # (Bonczar et al., Surg Radiol Anat 46:2097, n=1481, which pools L5 EPWu at 48.8),
+        # and 95 of 760 L5 records were walking toward it.
+        #
+        # THE EROSION THIS REPLACES COULD NOT SEPARATE THEM. Its radius was specified in
+        # VOXELS, so its physical size was whatever the pitch happened to be -- 0.7 mm at
+        # 0.35 mm spacing. Specifying it in millimetres does not save it either: the
+        # shoulder isthmus is as thick as the end-plate rim the same erosion removes, so
+        # every radius that snaps the one eats the other. Nor does a depth-per-column
+        # rule: the shoulders are deep, being pedicle root rather than process wing, and
+        # the body own lateral edges taper, so the threshold trims the measurement before
+        # it trims the contaminant. Both were implemented and both were discarded.
+        #
+        # WHAT SEPARATES THEM IS WHERE THEY SIT. The shoulders occupy the posterior fringe
+        # of the retained mask and nothing else. So drop the posterior quarter of the
+        # body anteroposterior span and take the width as a high percentile of the
+        # per-row transverse extents over what is left: the body widest row IS its
+        # transverse diameter, and the percentile rather than the maximum keeps a rim
+        # osteophyte from setting it. This is Mastmeyer et al. (Med Image Anal 10:560)
+        # cutting the body out with a shape derived from the anatomy, rather than
+        # shrinking the whole mask and hoping the isthmus snaps first.
         ztop = int(np.percentile(bidx[:, 2], 80))
         zmax = int(bidx[:, 2].max())
         widths = []
-        ER = 2
+        KEEP_ANT = 0.75          # fraction of the body depth kept, measured forward
+        ROW_Q = 90.0             # percentile of per-row widths taken as the diameter
         for z in range(ztop, zmax + 1):
             sl = body[:, :, z]
             if sl.sum() < 40:
                 continue
-            def largest(mask):
-                cc, n = ndimage.label(mask)
-                if n == 0:
-                    return None
-                sizes = ndimage.sum(mask, cc, range(1, n + 1))
-                return cc == (int(np.argmax(sizes)) + 1)
-
-            # Erosion snaps the isthmus joining a transverse process to the body, but on
-            # a body that is small or clipped by the field of view it can eat almost
-            # everything -- that read L1 at 7.8 mm on one case. So if the eroded core
-            # keeps less than a third of the slice, the erosion did harm rather than
-            # good and the slice is measured as it is.
-            core = ndimage.binary_erosion(sl, iterations=ER)
-            big = largest(core) if core.any() else None
-            if big is None or big.sum() < 0.35 * sl.sum():
-                big = largest(sl)
-                margin = 0
-            else:
-                margin = 2 * ER
-            if big is None:
+            cc, ncc = ndimage.label(sl)
+            if ncc == 0:
                 continue
-            xs = np.nonzero(big.any(axis=1))[0]
-            if len(xs) < 3:
+            szs = ndimage.sum(sl, cc, range(1, ncc + 1))
+            big = cc == (int(np.argmax(szs)) + 1)
+            ys = np.nonzero(big.any(axis=0))[0]
+            if len(ys) < 4:
                 continue
-            # same robustness at the endplate: trim the extreme 2% of the coordinate so
-            # a rim osteophyte cannot widen the body
-            lo_x, hi_x = np.percentile(xs, [1, 99])
-            widths.append((hi_x - lo_x + 1 + margin) * sp[0])
+            y0, y1 = int(ys.min()), int(ys.max())
+            ycut = y0 + (1.0 - KEEP_ANT) * (y1 - y0)
+            rows = []
+            for y in range(int(np.ceil(ycut)), y1 + 1):
+                xs = np.nonzero(big[:, y])[0]
+                if len(xs) >= 3:
+                    rows.append(float(xs.max() - xs.min() + 1))
+            if not rows:
+                continue
+            widths.append(float(np.percentile(rows, ROW_Q)) * sp[0])
         if widths:
             r[f"endplate_width_{name}_mm"] = round(float(np.median(widths)), 1)
 
