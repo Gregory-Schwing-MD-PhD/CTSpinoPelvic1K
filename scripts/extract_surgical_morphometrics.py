@@ -58,6 +58,7 @@ import csv
 import json
 import sys
 from concurrent.futures import ProcessPoolExecutor
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -78,7 +79,43 @@ LUMBAR = {20: "L1", 21: "L2", 22: "L3", 23: "L4", 24: "L5", 25: "L6"}
 # minimises over -- a number already reported. Only the per-level loop widens.
 PER_LEVEL = {18: "T11", 19: "T12", **LUMBAR}
 SACRUM, S1, HIP_L, HIP_R, FEM_L, FEM_R = 26, 29, 30, 31, 32, 33
-RIB_L, RIB_R = 33, 45
+
+# RIB BASES ARE NOT CONSTANT ACROSS RELEASES, and getting them wrong is silent.
+# Rib n on a side is `base + n`. The left block starts immediately after femur_right, so
+# its base is 33 in every scheme here. The RIGHT block's base depends on how many slots
+# the left one reserves: 12 (right ribs 46-57) or 13, where a slot is kept for the T13
+# rib (right ribs 47-59). Hard-coding 45 is correct for the first and off by one for the
+# second, where it reads the left 13th rib as a right 1st and loses the right 12th
+# entirely -- a finite, plausible, wrong lowest-rib height, in a measure nothing else
+# cross-checks.
+#
+# This was found by md5-ing two label directories that both look like "the labels": their
+# vertebrae and pelvis are voxel-identical and their rib blocks differ by exactly this
+# off-by-one. So the bases are read from the `dataset_labels.json` shipped beside the
+# labels, which is the source of truth, and never assumed.
+RIB_L_DEFAULT, RIB_R_DEFAULT = 33, 45
+
+
+@lru_cache(maxsize=8)
+def _rib_bases(labels_dir: str) -> tuple:
+    """(left base, right base) from the scheme beside the labels, or the 12-slot default.
+
+    Cached per directory and resolved inside the worker, not in main(): a value computed
+    in main() reaches forked workers and not spawned ones, so it would be right on Linux
+    and silently stale on Windows.
+    """
+    d = Path(labels_dir).resolve()
+    for cand in (d / "dataset_labels.json", d.parent / "dataset_labels.json"):
+        if not cand.exists():
+            continue
+        try:
+            m = json.loads(cand.read_text()).get("name_to_id") or {}
+        except Exception:                                        # noqa: BLE001
+            continue
+        l1, r1 = m.get("rib_left_1"), m.get("rib_right_1")
+        if isinstance(l1, int) and isinstance(r1, int):
+            return l1 - 1, r1 - 1
+    return RIB_L_DEFAULT, RIB_R_DEFAULT
 MIN_VOX = 3000
 
 
@@ -525,7 +562,7 @@ def one(path: str) -> dict:
     # the other boundary: lowest rib to crest
     ribs = np.zeros_like(lab, bool)
     lowest = None
-    for base in (RIB_L, RIB_R):
+    for base in _rib_bases(str(Path(path).parent)):
         for n in range(1, 13):
             m = lab == base + n
             if m.sum() > 200:

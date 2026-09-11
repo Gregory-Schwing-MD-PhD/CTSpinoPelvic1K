@@ -190,33 +190,76 @@ def one(path: str) -> dict:
         # osteophyte from setting it. This is Mastmeyer et al. (Med Image Anal 10:560)
         # cutting the body out with a shape derived from the anatomy, rather than
         # shrinking the whole mask and hoping the isthmus snaps first.
+        # SUPERIOR ENDPLATE WIDTH, ISOLATED FROM THE TRANSVERSE PROCESSES.
+        # Cutting at the anterior wall of the canal separates body from posterior
+        # elements at L1-L4, but not at L5: the L5 transverse processes arise so far
+        # forward that they survive the cut, and the width came back 67.5 mm instead of
+        # about 51. So measure per axial slice, erode to snap the narrow isthmus that
+        # joins a process to the body, keep the largest remaining piece -- which is the
+        # body -- and add the eroded margin back.
+        #
+        # TWO REPLACEMENTS WERE BUILT, RUN OVER ALL 802, AND LOST. Both were aimed at the
+        # 95 L5 records reading over 60 mm against a pooled published mean of 48.8, which
+        # are measuring the transverse-process shoulders the canal cut leaves behind (the
+        # published L5 process span is 85.9 mm). Scored against the published mean, the
+        # widest published living-cohort SD, and the count of implausible records:
+        #
+        #   rule                          |median-published|   SD excess   implausible
+        #   this one                              7.2 mm          9.82         173
+        #   anterior band                         6.5 mm         13.59         230
+        #   anterior band + area gate            16.6 mm          5.85         161
+        #
+        # The anterior band -- drop the posterior quarter of the body's depth, take a high
+        # percentile of the per-row widths -- has the best medians and the worst spread:
+        # the slab runs past the end-plate into slices where a tilted body has collapsed
+        # to an oblique corner, and measuring the width of a corner put 60 L5 and 37 L4
+        # records newly below plausible. Gating those out by section area fixes the tail
+        # and gives back the gain, because the shoulders live in exactly the sections the
+        # gate keeps; its medians then run 1.2 to 4.6 mm high at every level.
+        #
+        # No rule dominates, so the one that shipped stays. What the experiment does show
+        # is that L5's spread is not only contamination: the area-gated rule, which reads
+        # a LOWER section of the body, cuts the L5 SD from 9.07 to 6.16. That is Museyko
+        # and Engelke's result (Bone 44:429) -- superior sub-VOI precision errors are 50
+        # to 100% worse than mid sub-VOI ones -- and it points at the real fix, which is
+        # to measure in the vertebra's own frame or to take the width from the SPINEPS
+        # corpus label this repository already generates. See docs/LEVEL_MORPHOMETRY.md.
         ztop = int(np.percentile(bidx[:, 2], 80))
         zmax = int(bidx[:, 2].max())
         widths = []
-        KEEP_ANT = 0.75          # fraction of the body depth kept, measured forward
-        ROW_Q = 90.0             # percentile of per-row widths taken as the diameter
+        ER = 2
         for z in range(ztop, zmax + 1):
             sl = body[:, :, z]
             if sl.sum() < 40:
                 continue
-            cc, ncc = ndimage.label(sl)
-            if ncc == 0:
+            def largest(mask):
+                cc, n = ndimage.label(mask)
+                if n == 0:
+                    return None
+                sizes = ndimage.sum(mask, cc, range(1, n + 1))
+                return cc == (int(np.argmax(sizes)) + 1)
+
+            # Erosion snaps the isthmus joining a transverse process to the body, but on
+            # a body that is small or clipped by the field of view it can eat almost
+            # everything -- that read L1 at 7.8 mm on one case. So if the eroded core
+            # keeps less than a third of the slice, the erosion did harm rather than
+            # good and the slice is measured as it is.
+            core = ndimage.binary_erosion(sl, iterations=ER)
+            big = largest(core) if core.any() else None
+            if big is None or big.sum() < 0.35 * sl.sum():
+                big = largest(sl)
+                margin = 0
+            else:
+                margin = 2 * ER
+            if big is None:
                 continue
-            szs = ndimage.sum(sl, cc, range(1, ncc + 1))
-            big = cc == (int(np.argmax(szs)) + 1)
-            ys = np.nonzero(big.any(axis=0))[0]
-            if len(ys) < 4:
+            xs = np.nonzero(big.any(axis=1))[0]
+            if len(xs) < 3:
                 continue
-            y0, y1 = int(ys.min()), int(ys.max())
-            ycut = y0 + (1.0 - KEEP_ANT) * (y1 - y0)
-            rows = []
-            for y in range(int(np.ceil(ycut)), y1 + 1):
-                xs = np.nonzero(big[:, y])[0]
-                if len(xs) >= 3:
-                    rows.append(float(xs.max() - xs.min() + 1))
-            if not rows:
-                continue
-            widths.append(float(np.percentile(rows, ROW_Q)) * sp[0])
+            # same robustness at the endplate: trim the extreme 2% of the coordinate so
+            # a rim osteophyte cannot widen the body
+            lo_x, hi_x = np.percentile(xs, [1, 99])
+            widths.append((hi_x - lo_x + 1 + margin) * sp[0])
         if widths:
             r[f"endplate_width_{name}_mm"] = round(float(np.median(widths)), 1)
 

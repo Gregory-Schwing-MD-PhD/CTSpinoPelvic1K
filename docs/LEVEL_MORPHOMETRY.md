@@ -74,7 +74,16 @@ widest anteroposterior chord of the region runs through a lateral recess. That i
 high-side bias *and* a shape-dependent variance source, at exactly the levels where shape
 varies most.
 
-### What the code does now
+### What the code does now, and what it bought
+
+Over all 802 records the rewrite took the count reading below 11 mm — under any canal
+diameter reported in a living adult — from **473 to 12**, and the per-level SD at T11–L4
+from 1.55–4.37 to **1.55–2.04**, inside the published consensus of 1.5–2.5. L3 alone went
+from 157 implausible records to 1. The L5 median moved from 21.0 to **17.4**, which sits
+inside every published series (Griffith 18.1–19.7, Čizmić 17.8, Cook & Baker 15.6) where
+21.0 was above all of them — that is the trefoil max-extent bias going away. It costs
+about 5% of levels, rejected by the continuity gate and reported missing rather than
+guessed.
 
 `scripts/extract_surgical_morphometrics.py`, `_canal_column` and `_canal_ap`:
 
@@ -129,15 +138,38 @@ looked right on paper:
   gaining only 2–4 mm at L5, and it collapsed two L4 records to 26 mm.
 
 **What settled it was rendering the mask.** The shoulders occupy the posterior fringe of
-what is kept and nothing else; the body occupies all of it. So the current rule drops the
-**posterior quarter of the body's anteroposterior span** and takes the width as the **90th
-percentile of the per-row transverse extents** of what is left. The body's widest row is
-its transverse diameter, which is the measurand; the percentile rather than the maximum
-keeps a rim osteophyte from setting it. This is Mastmeyer et al.'s geometric constraint
-(*Med Image Anal* 2006;10:560) — cut the body out with a shape derived from the anatomy,
-rather than shrink the whole mask and hope the isthmus snaps first.
+what is kept and nothing else; the body occupies all of it. So the fourth attempt dropped
+the **posterior quarter of the body's anteroposterior span** and took the width as the
+**90th percentile of the per-row transverse extents** of what is left — Mastmeyer's
+geometric constraint, cutting the body out with a shape derived from the anatomy.
 
----
+**It was run over all 802 and it lost too.** Scored against the pooled published mean per
+level, the widest SD published in any living cohort, and the count of records outside
+plausible bounds:
+
+| rule | total \|median − published\| | SD in excess of published | implausible records |
+|---|---|---|---|
+| **shipped (erode, whole slab)** | 7.2 mm | 9.82 | 173 |
+| anterior band | **6.5 mm** | 13.59 | 230 |
+| anterior band + area gate | 16.6 mm | **5.85** | **161** |
+
+The anterior band has the best medians and the worst spread. Its slab runs past the
+end-plate into slices where a tilted body has collapsed to an oblique corner — `ztop` is
+the 80th percentile of the body's extent along the **scanner's** z, not the vertebra's —
+and measuring the width of a corner put **60 L5 and 37 L4 records newly below plausible**.
+Gating those sections out by area fixes the tail and gives the gain straight back, because
+the shoulders live in exactly the sections the gate keeps; its medians then run 1.2 to
+4.6 mm high at every level.
+
+No rule dominates, so **the one that shipped stays**, and `endplate_width_*` is unchanged —
+verified bit-for-bit identical on all 741/773/764 records at L1, L4 and L5.
+
+**The experiment did produce one real finding.** The area-gated rule reads a *lower*
+section of the body and cuts the L5 SD from **9.07 to 6.16**. So L5's spread is not only
+transverse-process contamination: the superior slab is itself unstable. That is exactly
+Museyko and Engelke's result (*Bone* 2009;44:429) — superior sub-VOI precision errors are
+50–100% worse than mid sub-VOI ones — and it points at the two fixes that would actually
+work, both listed below.
 
 ## Still open
 
@@ -145,6 +177,13 @@ rather than shrink the whole mask and hope the isthmus snaps first.
   release reports, still slices on the scanner axes. The pedicle slab and the midsagittal
   chord remove most of the artefact, but resampling each vertebra into its own frame is
   the published fix (Maeder does it by hand via MPR in 1,050 patients) and is not done.
+- **The rib bases were hardcoded and are now read from the shipped scheme.** Rib n on a
+  side is `base + n`; the right block's base is 45 where the left reserves 12 slots and 46
+  where it reserves 13. Two directories that both look like "the labels" differ by exactly
+  that, with voxel-identical vertebrae and pelvis, and the constant was right for one and
+  wrong for the other. It changed `rib12_to_crest_mm` in **237 of 802 records**, worst
+  36 mm. Resolved per worker from `dataset_labels.json`, never in `main()` — a value
+  computed there reaches forked workers and not spawned ones.
 - **SPINEPS already emits a corpus label.** `scripts/spineps_ct_pipeline.py` produces the
   subregion semantic mask with the vertebral corpus as its own class (Möller et al., *Eur
   Radiol* 2025, avg. Dice 0.918–0.931). Taking end-plate width from that label would make
