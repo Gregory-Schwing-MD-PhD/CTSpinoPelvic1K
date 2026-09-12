@@ -53,7 +53,7 @@ def read_colours(path):
     return out
 
 
-def render(lab, colours, angle_deg, ignore):
+def render(lab, colours, angle_deg, ignore, return_ids=False):
     """First-hit surface render looking along +y after rotating about the z axis."""
     if angle_deg:
         # order=0 so labels stay labels: any interpolation invents ids that do not exist
@@ -94,8 +94,17 @@ def render(lab, colours, angle_deg, ignore):
     shade = shade * n[xs, zs]
 
     img[xs, zs] = np.clip(base * shade[:, None], 0, 255)
+    # WHICH LABEL WAS HIT AT EACH PIXEL. Returned alongside the picture so a caller can put
+    # a number beside a vertebra without inverting the projection: the first-hit id is
+    # already computed above, and recovering it afterwards from the RGB would confuse two
+    # structures that share a colour by role.
+    idmap = np.zeros(any_hit.shape, np.int32)
+    idmap[xs, zs] = ids
     # transpose so superior is up, and flip so the view reads as a radiograph would
     out = np.transpose(img, (1, 0, 2))[::-1]
+    idout = np.transpose(idmap, (1, 0))[::-1]
+    if return_ids:
+        return out.astype(np.uint8), idout
     return out.astype(np.uint8)
 
 

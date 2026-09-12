@@ -133,12 +133,20 @@ def by_sex(rows, k, lo=None, hi=None):
     return out
 
 
-def kde(v, lo, hi, n=200):
+def kde(v, lo, hi, n=200, bw=0.85):
     """Gaussian KDE with a robust bandwidth, reflected at both bounds.
 
     The robust scale matters: on the bimodal rib ratio a plain standard deviation is
     inflated by the separation between the modes, and Silverman's rule then returns a
     bandwidth wide enough to smooth the two into one.
+
+    WHICH IS WHY `bw` IS A PARAMETER AND NOT A CONSTANT. Narrowing below Silverman buys
+    resolution on a distribution that really has two modes and manufactures structure on one
+    that does not. The spinopelvic panels are the second case: gated pelvic tilt is a single
+    right-skewed hump (skew 0.34, kurtosis 0.05), and at 0.85 the curve showed an apparent
+    notch near 19 degrees that is 0.8 Poisson sigma deep, moves with the bin width, and
+    disappears entirely by 3-degree bins. A reader cannot tell that from the real
+    bimodality this figure used to carry, so those panels are drawn at Silverman.
     """
     v = np.asarray(v, float)
     v = v[(v >= lo) & (v <= hi)]
@@ -147,7 +155,7 @@ def kde(v, lo, hi, n=200):
     sd = v.std(ddof=1)
     iqr = np.subtract(*np.percentile(v, [75, 25]))
     scale = min(sd, iqr / 1.34) if iqr > 0 else sd
-    h = 0.85 * 0.9 * max(scale, 1e-6) * v.size ** -0.2
+    h = bw * 0.9 * max(scale, 1e-6) * v.size ** -0.2
     xs = np.linspace(lo, hi, n)
     acc = np.zeros(n)
     for src in (v, 2 * lo - v, 2 * hi - v):        # reflect at both bounds
@@ -364,7 +372,10 @@ def fig_validation(out):
     ]):
         ax = fig.add_subplot(gs[0, i])
         v = col(sg, KEYS[key], lo, hi)
-        xs, ys = kde(v, lo, hi)
+        # Silverman, not the narrowed bandwidth: see kde(). These three are unimodal, and
+        # undersmoothing them draws sampling noise as a notch a reader will read as a
+        # second population.
+        xs, ys = kde(v, lo, hi, bw=1.0)
         ax.axvspan(ref - sd, ref + sd, color=OCHRE, alpha=0.13, lw=0)
         ax.axvline(ref, color=OCHRE, ls="--", lw=1.0,
                    label="standing XR" if i == 0 else None)

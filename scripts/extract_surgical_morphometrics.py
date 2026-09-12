@@ -129,6 +129,114 @@ CANAL_CENTROID_TOL_MM = 8.0   # how far a slice canal may sit from the column ax
 MIDSAG_HALF_MM = 1.5          # half-width of the mid-sagittal strip the chord is read on
 
 
+
+SACRAL_PLATE_MAX_DROP_MM = 45.0    # deepest an S1 end-plate can plausibly descend
+SACRAL_BODY_FRAC = 0.45            # fallback corridor when no lumbar vertebra is present
+
+
+def _sacral_plate(sacrum, sp, lumbar_body=None):
+    """Superior end-plate of the WHOLE sacrum, isolated by the vertebra sitting on it.
+
+    WHY NOT A SLAB UNDER THE APEX. That was tried and it is wrong. The sacrum's highest
+    point is the PROMONTORY -- its antero-superior corner -- and the end-plate falls away
+    from there to its posterior edge, roughly 24 mm over a 35-degree plate. A slab measured
+    down from the apex therefore keeps the steep anterior lip and discards the plate, and
+    the fit it returns reads a sacral slope near 60 degrees with a negative pelvic tilt.
+    That is the same class of error as fitting the ventral ramp, arrived at from the other
+    direction.
+
+    THE END-PLATE IS DEFINED BY WHAT SITS ON IT. It is the surface under the L5-S1 disc, so
+    the lowest lumbar body's footprint -- in BOTH x and y -- names exactly the columns that
+    belong to it, and excludes the alae, the posterior elements and everything below S1
+    without needing a height rule at all. It is also the right corridor for pelvic
+    incidence, whose construction refers the plate to the column it carries.
+
+    Only then is a height bound applied, and a generous one, to stop a column running down
+    onto S2 where the sacrum is clipped or the disc space is absent.
+    """
+    if sacrum is None or not sacrum.any():
+        return None, None
+
+    xs_all = np.nonzero(sacrum.any(axis=(1, 2)))[0]
+    ys_all = np.nonzero(sacrum.any(axis=(0, 2)))[0]
+    if len(xs_all) < 4 or len(ys_all) < 4:
+        return None, None
+
+    if lumbar_body is not None and lumbar_body.any():
+        body = _body_mask(lumbar_body, sp)
+        if body.sum() < 50:
+            body = lumbar_body
+        lx = np.nonzero(body.any(axis=(1, 2)))[0]
+        ly = np.nonzero(body.any(axis=(0, 2)))[0]
+        x0, x1 = int(lx.min()), int(lx.max())
+        y0, y1 = int(ly.min()), int(ly.max())
+    else:
+        px = 0.5 * (1.0 - SACRAL_BODY_FRAC) * (xs_all.max() - xs_all.min())
+        x0, x1 = int(xs_all.min() + px), int(xs_all.max() - px)
+        # the body is the anterior half; the canal and crest are behind it
+        y0 = int(ys_all.min())
+        y1 = int(ys_all.min() + 0.55 * (ys_all.max() - ys_all.min()))
+
+    x0, x1 = max(x0, int(xs_all.min())), min(x1, int(xs_all.max()))
+    y0, y1 = max(y0, int(ys_all.min())), min(y1, int(ys_all.max()))
+    if x1 - x0 < 3 or y1 - y0 < 3:
+        return None, None
+
+    corridor = np.zeros_like(sacrum)
+    corridor[x0:x1 + 1, y0:y1 + 1, :] = sacrum[x0:x1 + 1, y0:y1 + 1, :]
+    if corridor.sum() < 80:
+        return None, None
+
+    # generous height bound, from the corridor's own apex, so a clipped sacrum cannot let a
+    # column run down onto S2 and tip the plane
+    zs = np.nonzero(corridor.any(axis=(0, 1)))[0]
+    dz = max(1, int(round(SACRAL_PLATE_MAX_DROP_MM / max(sp[2], 1e-6))))
+    z_lo = max(int(zs.min()), int(zs.max()) - dz)
+    corridor[:, :, :z_lo] = False
+    if corridor.sum() < 80:
+        return None, None
+
+    # the corridor is already the body: fit its top surface directly, without the
+    # anterior/posterior split _endplate would apply to a whole vertebra
+    return _endplate_surface(corridor, sp, superior=True)
+
+
+def _endplate_surface(body, sp, superior=True):
+    """_endplate's plane fit, on a mask that is ALREADY the region of interest."""
+    idx = np.argwhere(body)
+    if len(idx) < 80:
+        return None, None
+    xs, ys = idx[:, 0], idx[:, 1]
+    x0, x1 = np.percentile(xs, [12, 88])
+    y0, y1 = np.percentile(ys, [12, 88])
+    keep = (xs >= x0) & (xs <= x1) & (ys >= y0) & (ys <= y1)
+    idx = idx[keep]
+    if len(idx) < 60:
+        return None, None
+    order = np.lexsort((idx[:, 2], idx[:, 1], idx[:, 0]))
+    idx = idx[order]
+    col = idx[:, 0] * (body.shape[1] + 1) + idx[:, 1]
+    edge = np.nonzero(np.diff(col))[0]
+    starts = np.concatenate(([0], edge + 1))
+    ends = np.concatenate((edge, [len(idx) - 1]))
+    pick = ends if superior else starts
+    pts = idx[pick].astype(float) * sp
+    if len(pts) < 40:
+        return None, None
+
+    def fit(p):
+        c = p.mean(0)
+        n = np.linalg.svd(p - c, full_matrices=False)[2][-1]
+        return c, (n if n[2] >= 0 else -n)
+
+    c, n = fit(pts)
+    resid = np.abs((pts - c) @ n)
+    keep = resid <= np.percentile(resid, 80)
+    if keep.sum() >= 30:
+        c, n = fit(pts[keep])
+    return c, n
+
+
 def _canal_column(m, sp):
     """The canal as one continuous column, and the pedicle slab within it.
 
@@ -426,10 +534,29 @@ def one(path: str) -> dict:
         # bicoxofemoral axis is a midpoint either way
         cl, cr = _com(have[HIP_L], sp), _com(have[HIP_R], sp)
         fem = (cl + cr) / 2
-    s1c, s1n = (_endplate(have[S1], sp, True) if S1 in have
-                else (None, None))
+    # THE SACRAL PLATE COMES FROM THE WHOLE SACRUM NOW. The carved S1 (29) is withdrawn in
+    # v11: its plane estimate was degenerate on a substantial share of records, shaving the
+    # ventral cortex instead of cutting across the body, which left the SACRUM label missing
+    # its anterior wall and the plate fitted to that ramp. Measuring on the whole bone removes
+    # the carve from the path entirely -- the sacrum's own superior surface IS the S1
+    # end-plate, so nothing is approximated by doing it this way.
+    #
+    # `_sacral_plate` isolates the plate before fitting; `_endplate` alone would trace the
+    # alae, whose superior surfaces fall away laterally and drag the normal with them.
+    # The carved label is still honoured where a v10 volume is passed in, so the two
+    # releases remain comparable.
+    lowest_lumbar_mask = None
+    for _v in sorted((v for v in PER_LEVEL if v in have), reverse=True):
+        lowest_lumbar_mask = have[_v]
+        break
+    if S1 in have:
+        s1c, s1n = _endplate(have[S1], sp, True)
+    elif SACRUM in have:
+        s1c, s1n = _sacral_plate(have[SACRUM], sp, lowest_lumbar_mask)
+    else:
+        s1c, s1n = None, None
     if s1c is None and SACRUM in have:
-        s1c, s1n = _endplate(have[SACRUM], sp, True)
+        s1c, s1n = _sacral_plate(have[SACRUM], sp, lowest_lumbar_mask)
     # A PLATE WHOSE NORMAL IS NOT ROUGHLY CRANIAL IS NOT A PLATE. The S1 fit sometimes
     # latches onto the near-vertical anterior face of the promontory instead of the
     # superior surface; its normal then points forward rather than up (z-component 0.03 to

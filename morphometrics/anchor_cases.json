@@ -1,0 +1,50 @@
+[
+ {
+  "case": "0704",
+  "title": "five rib-free, last rib on T12",
+  "n_candidates": 735,
+  "n_non_rib_bearing": 5.0,
+  "lowest_rib_bearing": "T12",
+  "lowest_lumbar": "L5",
+  "rib12_11_ratio_min": 0.627,
+  "has_lumbar_rib": false,
+  "lstv_label": "NORMAL",
+  "castellvi": ""
+ },
+ {
+  "case": "0428",
+  "title": "four, long rib on L1",
+  "n_candidates": 15,
+  "n_non_rib_bearing": 4.0,
+  "lowest_rib_bearing": "L1",
+  "lowest_lumbar": "L5",
+  "rib12_11_ratio_min": 0.752,
+  "has_lumbar_rib": true,
+  "lstv_label": "NORMAL",
+  "castellvi": ""
+ },
+ {
+  "case": "0094",
+  "title": "four, stump ribs on T12, fused junction",
+  "n_candidates": 4,
+  "n_non_rib_bearing": 4.0,
+  "lowest_rib_bearing": "T12",
+  "lowest_lumbar": "L4",
+  "rib12_11_ratio_min": 0.223,
+  "has_lumbar_rib": false,
+  "lstv_label": "SACRALIZATION",
+  "castellvi": "IIIb"
+ },
+ {
+  "case": "0005",
+  "title": "six rib-free, last rib on T12",
+  "n_candidates": 18,
+  "n_non_rib_bearing": 6.0,
+  "lowest_rib_bearing": "T12",
+  "lowest_lumbar": "L6",
+  "rib12_11_ratio_min": 0.707,
+  "has_lumbar_rib": false,
+  "lstv_label": "SACRALIZATION",
+  "castellvi": "IV"
+ }
+]

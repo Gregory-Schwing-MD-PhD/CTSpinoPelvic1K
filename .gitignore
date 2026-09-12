@@ -78,3 +78,8 @@ IRB_ADDENDUM.md
 
 # internal correspondence and IRB drafts: never in the public repo
 proposals/
+
+# working copies and backups from the v11 / S1 withdrawal work
+paper/mpda/main.tex.pre_schehr
+morphometrics/surgical_morphometrics.v10.csv.bak
+paper/mpda/paper/
