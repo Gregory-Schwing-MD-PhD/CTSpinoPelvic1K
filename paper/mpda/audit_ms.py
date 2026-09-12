@@ -98,6 +98,9 @@ f = MORPH / "surgical_morphometrics.csv"
 if f.exists():
     rows = list(csv.DictReader(open(f)))
     claimed = {}
+    # the table reports MEAN +- SD: the reference series (Veilleux, Hasegawa) report
+    # means, and comparing our median against their mean was costing 0.5-0.6 degrees to
+    # the right skew in pelvic incidence and tilt. The check follows the table.
     m = re.search(r"Pelvic incidence & ([\d.]+)", s)
     if m:
         claimed["pelvic_incidence_deg"] = float(m.group(1))
@@ -108,14 +111,15 @@ if f.exists():
     if m:
         claimed["pelvic_tilt_deg"] = float(m.group(1))
     for k, want in claimed.items():
-        got = median(num(rows, k))
+        vals = num(rows, k)
+        got = (sum(vals) / len(vals)) if vals else None
         if got is None:
             warn(f"{k}: no values in {f.name}")
         elif abs(got - want) > 0.15:
-            fail(f"Table II {k}: manuscript {want}, data median {got:.1f}  ({f})")
+            fail(f"Table II {k}: manuscript {want}, data mean {got:.1f}  ({f})")
         else:
-            ok(f"Table II {k} = {want} matches the data ({got:.1f})")
-    m = re.search(r"median over the (\d+) of 802 records", s)
+            ok(f"Table II {k} = {want} matches the data mean ({got:.1f})")
+    m = re.search(r"over the (\d+) of 802 records", s)
     if m:
         want_n = int(m.group(1))
         got_n = len(num(rows, "pelvic_incidence_deg"))

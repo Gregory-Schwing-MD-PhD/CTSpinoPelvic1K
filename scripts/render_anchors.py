@@ -238,145 +238,79 @@ def main() -> int:
         panels.append((case, caption, rgb, len(between), ids2d, list(between), rostral))
         print(f"  {case}: rostral={rostral} between={between} lumbar_rib={lumbar_rib}")
 
-    def rows_of(ids2d, want):
-        """Row span of a set of label ids in the rendered id map."""
-        m = np.isin(ids2d, list(want))
-        r = np.nonzero(m.any(axis=1))[0]
-        return (int(r[0]), int(r[-1])) if r.size else None
+    def ink_box(rgb):
+        """Bounding box of everything that is not background."""
+        m = np.abs(rgb - BG.reshape(1, 1, 3)).sum(axis=2) > 12
+        if not m.any():
+            return None
+        rr = np.nonzero(m.any(axis=1))[0]
+        cc = np.nonzero(m.any(axis=0))[0]
+        return int(rr[0]), int(rr[-1]) + 1, int(cc[0]), int(cc[-1]) + 1
 
-    # ---- ONE SPAN FOR EVERY PANEL ------------------------------------------------
-    # the span is rostral anchor top -> caudal anchor top, which is the interval the
-    # figure counts across. Scaling to it makes the COUNT the only visible difference.
-    spans = []
-    for (_c, _cap, rgb, _n, ids2d, between, rostral) in panels:
-        top = rows_of(ids2d, [rostral])
-        bot = rows_of(ids2d, [SACRUM, S1])
-        spans.append(None if (top is None or bot is None) else max(1, bot[0] - top[0]))
-    if a.scale_mode == "image":
-        # RENDER NORMALLY, THEN ENLARGE THE SMALL ONES. Each panel keeps the proportions it
-        # was rendered with -- no anatomical feature is normalised away -- and the whole
-        # image is scaled so every panel's drawn extent matches the largest. A small patient
-        # is drawn as big as a large one, and nothing inside a panel is distorted relative
-        # to anything else in it.
-        spans = []
-        for (_c, _cap, rgb, _n, ids2d, between, rostral) in panels:
-            ink = np.nonzero((rgb.min(axis=2) < 245).any(axis=1))[0]
-            spans.append(float(ink[-1] - ink[0] + 1) if ink.size else None)
-        if all(v is not None for v in spans):
-            target = float(max(spans))          # the LARGEST, so nothing is shrunk
-            rescaled = []
-            for (c, cap, rgb, n, ids2d, between, rostral), sp_ in zip(panels, spans):
-                f = target / sp_
-                rgb2 = ndimage.zoom(rgb, (f, f, 1.0), order=1, mode="nearest")
-                ids2 = ndimage.zoom(ids2d, (f, f), order=0, mode="nearest")
-                rescaled.append((c, cap, rgb2, n, ids2, between, rostral))
-                print(f"  {c}: drawn extent {sp_:.0f} px -> x{f:.3f}")
-            panels = rescaled
-            print(f"  scale_mode=image: every panel enlarged to a {target:.0f} px extent")
-        spans = [None] * len(panels)            # the rescale is done; skip the block below
+    # ---- 1. CROP THE BORDER OFF. Everything after this is arithmetic; leaving the
+    # renderer's padding in place is what made three previous alignment attempts fail.
+    cropped = []
+    for (case, caption, rgb, n, ids2d, between, rostral) in panels:
+        bb = ink_box(rgb)
+        if bb is None:
+            cropped.append((case, caption, rgb, n, ids2d, between, rostral))
+            continue
+        r0, r1, c0, c1 = bb
+        cropped.append((case, caption, rgb[r0:r1, c0:c1], n,
+                        ids2d[r0:r1, c0:c1], between, rostral))
+        print(f"  {case}: cropped to {r1-r0}x{c1-c0} (was {rgb.shape[0]}x{rgb.shape[1]})")
+    panels = cropped
 
-    if a.scale_mode == "vertebra":
-        # equalise the SIZE OF A VERTEBRA instead, so a six-segment column is visibly
-        # taller than a four-segment one. The count is then read from the column's height
-        # as well as from the numerals, which is the more direct comparison for counting;
-        # the cost is that the panels no longer end level.
-        spans = []
-        for (_c, _cap, rgb, _n, ids2d, between, rostral) in panels:
-            hs = []
-            for vid in between:
-                r = rows_of(ids2d, [vid])
-                if r:
-                    hs.append(r[1] - r[0] + 1)
-            spans.append(float(np.median(hs)) if hs else None)
-    elif a.scale_mode == "mm":
-        spans = [None] * len(panels)          # leave the millimetre scale alone
+    # ---- 2. ONE SPAN. Scale every panel to the tallest, so the drawn heights match.
+    target_h = max(p_.shape[0] for _, _, p_, _, _, _, _ in panels)
+    scaled = []
+    for (case, caption, rgb, n, ids2d, between, rostral) in panels:
+        f = target_h / rgb.shape[0]
+        if abs(f - 1.0) > 1e-6:
+            rgb = ndimage.zoom(rgb, (f, f, 1.0), order=1, mode="nearest")
+            ids2d = ndimage.zoom(ids2d, (f, f), order=0, mode="nearest")
+        scaled.append((case, caption, rgb, n, ids2d, between, rostral))
+        print(f"  {case}: scaled x{f:.3f} -> {rgb.shape[0]}x{rgb.shape[1]}")
+    panels = scaled
 
-    if all(v is not None for v in spans):
-        target = float(np.median(spans))
-        rescaled = []
-        for (c, cap, rgb, n, ids2d, between, rostral), sp_ in zip(panels, spans):
-            f = target / sp_
-            rgb2 = ndimage.zoom(rgb, (f, f, 1.0), order=1, mode="nearest")
-            ids2 = ndimage.zoom(ids2d, (f, f), order=0, mode="nearest")
-            rescaled.append((c, cap, rgb2, n, ids2, between, rostral))
-            print(f"  {c}: anchor span {sp_} px -> x{f:.3f}")
-        panels = rescaled
-        print(f"  scale_mode={a.scale_mode}: every panel scaled to a common "
-              f"{target:.0f} px reference (absolute size is discarded)")
-    else:
-        print("  ! an anchor was missing in some panel; leaving the millimetre scale alone")
+    # ---- 3. ONE CANVAS, one offset. A little breathing room so the numerals beside the
+    # rightmost column are not clipped by the panel edge.
+    PAD_X = int(0.10 * max(p_.shape[1] for _, _, p_, _, _, _, _ in panels))
+    PAD_Y = 4
+    H = target_h + 2 * PAD_Y
+    W = max(p_.shape[1] for _, _, p_, _, _, _, _ in panels) + 2 * PAD_X
+    print(f"  every panel on a {H}x{W} canvas, top-aligned, spans equal")
 
-    def anchor_row_from_ids(ids2d):
-        """Topmost row where the caudal anchor is actually labelled.
-
-        FROM THE ID MAP, NOT THE PIXELS. Two colour-based attempts failed here: the first
-        took any pixel within tolerance of the anchor colour and latched onto an antialiased
-        edge, the second required a fraction of the widest anchor row and moved with the
-        sacrum's own shape. Both left the promontory on a different line in every panel --
-        4.6 pt of scatter, then 11.3.
-
-        render() returns which label was hit at each pixel. That is exact: no shading, no
-        interpolation, no threshold. The sacrum's topmost labelled row IS the promontory.
-        """
-        m = np.isin(ids2d, [SACRUM, S1])
-        r = np.nonzero(m.any(axis=1))[0]
-        return int(r[0]) if r.size else None
-
-    anchors = [anchor_row_from_ids(i_) for _, _, _, _, i_, _, _ in panels]
-    named = [a_ for a_ in anchors if a_ is not None]
-    if len(named) == len(panels):
-        # pad each panel so every anchor lands on the same row: `above` is how much room
-        # the tallest column above its anchor needs, `below` likewise underneath
-        above = max(anchors)
-        below = max(p_.shape[0] - a_ for (_, _, p_, _, _, _, _), a_ in zip(panels, anchors))
-        H, W = above + below, max(p_.shape[1] for _, _, p_, _, _, _, _ in panels)
-        print(f"  aligning on the caudal anchor: rows {anchors} -> {above}")
-    else:
-        # no anchor found in some panel: fall back to the old behaviour rather than
-        # silently mis-stacking, and say so
-        anchors = [None] * len(panels)
-        H = max(p_.shape[0] for _, _, p_, _, _, _, _ in panels)
-        W = max(p_.shape[1] for _, _, p_, _, _, _, _ in panels)
-        print("  ! caudal anchor not found in every panel; falling back to bottom-alignment")
-
-    for ax, (case, caption, rgb, n, ids2d, between, rostral), a_row in zip(
-            axes, panels, anchors):
-        # FILL WITH THE RENDERER'S OWN BACKGROUND, not a near-miss. render() pads with
-        # (250,250,248) and this used (250,250,250); two units of blue is enough to see,
-        # so the padding read as page-white and each panel appeared to be the size of
-        # its own render rather than of the shared canvas. Matching it makes every panel
-        # one uniform box of identical size, which is what the strip needs.
+    for ax, (case, caption, rgb, n, ids2d, between, rostral) in zip(axes, panels):
         canvas = np.full((H, W, 3), BG.reshape(1, 1, 3), np.float32)
         h, w = rgb.shape[:2]
         x0 = (W - w) // 2
-        if a_row is None:
-            canvas[H - h:, x0:x0 + w] = rgb
-        else:
-            y0 = above - a_row               # put this panel's anchor on the common row
-            canvas[y0:y0 + h, x0:x0 + w] = rgb
-        ax.imshow(np.clip(canvas, 0, 255).astype(np.uint8), interpolation="bilinear")
+        y0 = PAD_Y                      # top-aligned: the highest drawn pixel is on one line
+        canvas[y0:y0 + h, x0:x0 + w] = rgb
 
-        # NUMBER THE COUNTED VERTEBRAE FROM THE TOP DOWN, so 1 is the most cranial and
-        # the sequence reads the way the levels are named.
-        # Positions come from the id map, not the colours: every counted vertebra is drawn
-        # in the same colour by role, so a colour-based split would merge the column.
-        dy = (y0 if a_row is not None else H - h)
-        dx = x0
+        # numerals, from the id map so a shared colour cannot merge the column
         for k, vid in enumerate(sorted(between), start=1):
             m = (ids2d == vid)
             if not m.any():
                 continue
             rr, cc = np.nonzero(m)
-            cy_, cx_ = rr.mean() + dy, cc.mean() + dx
-            # always to the RIGHT of the body and close to it: a consistent side is
-            # easier to read down than one that switches, and the leader carries the eye
-            tx = cx_ + 0.5 * (cc.max() - cc.min()) + 0.022 * W
+            cy_, cx_ = rr.mean() + y0, cc.mean() + x0
+            tx = cx_ + 0.5 * (cc.max() - cc.min()) + 0.030 * W
             t = ax.annotate(str(k), xy=(cx_, cy_), xytext=(tx, cy_),
                             ha="center", va="center", fontsize=7.6, color="#141414",
-                            fontweight="medium",
                             arrowprops=dict(arrowstyle="-", lw=0.5, color="#9a9a9a",
                                             shrinkA=2.0, shrinkB=2.0))
             t.set_path_effects([pe.withStroke(linewidth=2.0, foreground="white")])
+
+        ax.imshow(np.clip(canvas, 0, 255).astype(np.uint8), interpolation="bilinear")
+        # PIN THE LIMITS TO THE CANVAS. ax.annotate expands the axes data limits to include
+        # its text, and the numerals sit at a different x in every panel -- so matplotlib
+        # autoscaled each axes differently and the same canvas landed at a different height
+        # in each. That is what was left of the misalignment after the borders were cropped:
+        # 12.5 pt of it, produced entirely by the labels rather than by the anatomy.
+        ax.set_xlim(-0.5, W - 0.5)
+        ax.set_ylim(H - 0.5, -0.5)
+
         ax.set_xticks([]); ax.set_yticks([])
         for sp in ax.spines.values():
             sp.set_visible(False)

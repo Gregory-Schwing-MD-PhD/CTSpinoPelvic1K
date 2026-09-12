@@ -134,7 +134,7 @@ def main() -> int:
     ap.add_argument("--margin_mm", type=float, default=35.0)
     ap.add_argument("--mm_per_px", type=float, default=0.6)
     ap.add_argument("--panel_in", type=float, default=1.75)
-    ap.add_argument("--height_in", type=float, default=2.6)
+    ap.add_argument("--height_in", type=float, default=1.85)
     ap.add_argument("--out", default="paper/mpda/figures")
     ap.add_argument("--name", default="fig_hardware")
     a = ap.parse_args()
@@ -165,16 +165,24 @@ def main() -> int:
     fig_w = a.panel_in * len(items)
     fig = plt.figure(figsize=(fig_w, a.height_in))
     gs = fig.add_gridspec(1, len(items), width_ratios=aspects, wspace=0.06,
-                          left=0.01, right=0.99, top=0.88, bottom=0.16)
+                          left=0.01, right=0.99, top=0.92, bottom=0.26)
     axes = [fig.add_subplot(gs[0, i]) for i in range(len(items))]
 
     px_per_5cm = 50.0 / a.mm_per_px
     for ax, (case, caption, rgb) in zip(axes, panels):
         ax.imshow(np.clip(rgb, 0, 255).astype(np.uint8), interpolation="bilinear")
         h, w = rgb.shape[:2]
-        # 5 cm bar, bottom left of each panel: the panels are at different scales
-        ax.plot([w * 0.06, w * 0.06 + px_per_5cm], [h * 0.95, h * 0.95], color="k", lw=1.4)
-        ax.text(w * 0.06, h * 0.93, "5 cm", fontsize=6.5, va="bottom")
+        # 5 CM BAR, BELOW THE PANEL RATHER THAN INSIDE IT. Inside, at 0.95 of the height,
+        # it was drawn over bone at the busiest part of the image and was hard to find at
+        # all -- and a scale a reader cannot locate is not a scale. Below the frame it sits
+        # on background, reads at a glance, and stops competing with the anatomy. It stays
+        # per-panel because the panels are at DIFFERENT scales: each is framed to fill, so
+        # one shared bar would be wrong in three of them.
+        y_bar = h * 1.035
+        ax.plot([w * 0.06, w * 0.06 + px_per_5cm], [y_bar, y_bar],
+                color="k", lw=2.0, clip_on=False, solid_capstyle="butt")
+        ax.text(w * 0.06 + px_per_5cm / 2, y_bar + h * 0.012, "5 cm", fontsize=6.5,
+                ha="center", va="top", clip_on=False)
         ax.set_xticks([]); ax.set_yticks([])
         for sp in ax.spines.values():
             sp.set_visible(False)
@@ -186,7 +194,7 @@ def main() -> int:
     # one row, anchored to the figure's bottom edge and clear of the panels above it
     fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False,
                fontsize=6.5, handlelength=1.2, columnspacing=1.2,
-               bbox_to_anchor=(0.5, 0.0), bbox_transform=fig.transFigure)
+               bbox_to_anchor=(0.5, 0.055), bbox_transform=fig.transFigure)
     out = Path(a.out) / f"{a.name}.pdf"
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, bbox_inches="tight", dpi=300)

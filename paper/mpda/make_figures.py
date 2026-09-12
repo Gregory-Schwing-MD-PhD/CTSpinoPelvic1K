@@ -378,22 +378,31 @@ def fig_validation(out):
         xs, ys = kde(v, lo, hi, bw=1.0)
         ax.axvspan(ref - sd, ref + sd, color=OCHRE, alpha=0.13, lw=0)
         ax.axvline(ref, color=OCHRE, ls="--", lw=1.0,
-                   label="standing XR" if i == 0 else None)
+                   label=None)
         for k, c in enumerate(ct_refs):
             ax.axvline(c, color=INK, ls=(0, (1.4, 1.2)), lw=1.0,
-                       label=("published CT" if (i == 0 and k == 0) else None))
+                       label=None)
         ax.fill_between(xs, ys, color=TEAL, alpha=0.18, lw=0)
         ax.plot(xs, ys, color=TEAL, lw=1.3)
         ax.set_xlabel(f"{title} (°)")
         ax.set_ylabel("density" if i == 0 else "")
         ax.set_title(f"({'abc'[i]}) {title.capitalize()}", loc="left", fontsize=8.5)
-        if i == 0:
-            ax.legend(fontsize=5.6, handlelength=1.4, frameon=False, loc="upper left")
-
     for ax in fig.axes:
         mp_ticks(ax)
         ax.spines[["top", "right"]].set_visible(False)
-    fig.savefig(out / "fig_validation.pdf")
+
+    # ONE KEY UNDER ALL THREE PANELS, not a box inside panel (a). The two reference lines
+    # mean the same thing in every panel, so a legend in one of them reads as though it
+    # applied only there -- and inside the axes it sat on the distribution it was
+    # explaining. Centred beneath the row, matching the anchors figure, and close to it:
+    # a key that floats is a key the eye has to hunt for.
+    from matplotlib.lines import Line2D
+    key = [Line2D([], [], color=OCHRE, ls="--", lw=1.0, label="standing radiograph"),
+           Line2D([], [], color=INK, ls=(0, (1.4, 1.2)), lw=1.0, label="published CT")]
+    fig.legend(handles=key, loc="lower center", ncol=2, frameon=False, fontsize=6.4,
+               handlelength=1.6, columnspacing=2.0, handletextpad=0.5,
+               bbox_to_anchor=(0.5, -0.20))
+    fig.savefig(out / "fig_validation.pdf", bbox_inches="tight", pad_inches=0.02)
     plt.close(fig)
     print("  fig_validation.pdf")
 
