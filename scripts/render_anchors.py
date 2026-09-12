@@ -329,12 +329,19 @@ def main() -> int:
         mp.Patch(color=C_BETWEEN / 255, label="the rib-free vertebrae counted between them"),
         mp.Patch(color=C_ANCHOR_BOT / 255, label="caudal anchor: the sacrum"),
     ]
+    # THE SAME GAP ABOVE AND BELOW THE KEY, AND THE SAME GAP FIG 1 HAS TO ITS CAPTION.
+    # Figure 1 sits 5.8 pt above its caption and that is the distance to match: content to
+    # key, then key to caption. The second half is set by how much white the tight crop
+    # leaves under the key, since LaTeX adds a fixed 3.6 pt caption skip on top of it -- so
+    # pad_inches goes NEGATIVE here, trimming the descender space matplotlib's tight bbox
+    # reserves below the text but does not draw in. Both numbers are checked by rasterising
+    # the reprint, not the figure: the figures are set at different scales on the page.
     fig.legend(handles=handles, loc="lower center", ncol=a.legend_cols, frameon=False,
-               fontsize=7.6, bbox_to_anchor=(0.5, -0.015))
+               fontsize=7.6, bbox_to_anchor=(0.5, 0.069))
     fig.tight_layout(rect=(0, 0.13 if a.legend_cols == 1 else 0.08, 1, 1))
     out = Path(a.out) / f"{a.name}.pdf"
     out.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out, bbox_inches="tight", dpi=300)
+    fig.savefig(out, bbox_inches="tight", pad_inches=0.001, dpi=300)
     print(f"wrote {out}")
     return 0
 

@@ -142,7 +142,7 @@
 \setlength{\dblfloatsep}{8pt plus 2pt minus 2pt}
 \setlength{\floatsep}{8pt plus 2pt minus 2pt}
 \setlength{\intextsep}{8pt plus 2pt minus 2pt}
-\setlength{\abovecaptionskip}{4pt plus 1pt minus 1pt}
+\setlength{\abovecaptionskip}{1.3pt plus 1pt minus 1pt}
 \setlength{\belowcaptionskip}{0pt}
 
 \title{CTSpinoPelvic1K: spine, pelvis, ribs and femora in one coordinate frame,
@@ -432,6 +432,11 @@ TotalSegmentator~\cite{totalsegmentator} & 1{,}204 & \has\no\has\has\has\has\no\
 \draw[ar] (v6.south) -- ($(v6.south)+(0,-2.5mm)$) -| (qc.north);
 \node[fin, below=of qc] (rel) {\textbf{802 released records}\\33 with a consensus Castellvi grade};
 \draw[ar] (qc.south) -- (rel.north);
+% The global abovecaptionskip is set for the spanning floats, which carry white of
+% their own under the artwork. This picture carries none, so its caption sat 2.7pt
+% closer than every other one. A path with a single coordinate draws nothing and
+% extends the bounding box, which is the white this chart is missing.
+\path ([yshift=-2.7pt]current bounding box.south);
 \end{tikzpicture}
 \caption{How the dataset was built. $n$ counts scans, or corrections, at each step.}
 \label{fig:pipeline}

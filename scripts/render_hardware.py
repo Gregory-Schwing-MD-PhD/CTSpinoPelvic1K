@@ -197,10 +197,10 @@ def main() -> int:
     # take the last inked row above the key, and compare.
     fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False,
                fontsize=6.5, handlelength=1.2, columnspacing=1.2,
-               bbox_to_anchor=(0.5, 0.129), bbox_transform=fig.transFigure)
+               bbox_to_anchor=(0.5, 0.141), bbox_transform=fig.transFigure)
     out = Path(a.out) / f"{a.name}.pdf"
     out.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out, bbox_inches="tight", pad_inches=0.02, dpi=300)
+    fig.savefig(out, bbox_inches="tight", pad_inches=0.007, dpi=300)
     fig.savefig(out.with_suffix(".png"), bbox_inches="tight", pad_inches=0.02,
                 dpi=150)
     print(f"wrote {out}")

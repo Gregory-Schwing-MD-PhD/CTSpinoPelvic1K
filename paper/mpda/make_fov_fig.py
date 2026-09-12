@@ -45,7 +45,11 @@ plt.rcParams.update({
     "xtick.major.size": 2.5, "ytick.major.size": 2.5,
     "xtick.minor.visible": False, "ytick.minor.visible": False,
     "legend.frameon": False, "figure.dpi": 600, "savefig.dpi": 600,
-    "savefig.bbox": "tight", "savefig.pad_inches": 0.02,
+    # MORE WHITE THAN THE OTHER FIGURES KEEP, and deliberately: this is the only
+    # single-column figure, and a single-column caption follows its artwork more
+    # closely than a spanning one does at the same abovecaptionskip. Without this the
+    # caption sits almost against the axis labels.
+    "savefig.bbox": "tight", "savefig.pad_inches": 0.032,
 })
 
 

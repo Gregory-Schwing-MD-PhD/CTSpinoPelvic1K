@@ -401,8 +401,8 @@ def fig_validation(out):
            Line2D([], [], color=INK, ls=(0, (1.4, 1.2)), lw=1.0, label="published CT")]
     fig.legend(handles=key, loc="lower center", ncol=2, frameon=False, fontsize=6.4,
                handlelength=1.6, columnspacing=2.0, handletextpad=0.5,
-               bbox_to_anchor=(0.5, -0.20))
-    fig.savefig(out / "fig_validation.pdf", bbox_inches="tight", pad_inches=0.02)
+               bbox_to_anchor=(0.5, -0.183))
+    fig.savefig(out / "fig_validation.pdf", bbox_inches="tight", pad_inches=0.022)
     plt.close(fig)
     print("  fig_validation.pdf")
 

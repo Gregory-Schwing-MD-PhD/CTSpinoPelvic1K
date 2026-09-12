@@ -456,7 +456,9 @@ def build(out: Path, reference: bool = True):
                       borderaxespad=0.0)
     fig.subplots_adjust(left=0.072, right=0.996, top=0.955, bottom=0.015)
     out.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out / "fig_levelatlas.pdf")
+    # trimmed to the same gap the other spanning figures show; the default crop left
+    # 5.4pt of white under the axis labels, which read as 10pt on the page
+    fig.savefig(out / "fig_levelatlas.pdf", bbox_inches="tight", pad_inches=-0.013)
     fig.savefig(out / "fig_levelatlas.png", dpi=200)   # for the website
     plt.close(fig)
 
