@@ -191,14 +191,18 @@ def main() -> int:
     handles = [mp.Patch(color=C_HW[i] / 255, label=f"{i} {HW[i]}")
                for i in (66, 68, 67, 63) if i in present]
     handles.append(mp.Patch(color=C_BONE / 255, label="bone (metal drawn through it)"))
-    # one row, anchored to the figure's bottom edge and clear of the panels above it
+    # ONE KEY, THE SAME DISTANCE BELOW ITS PANELS AS THE VALIDATION FIGURE'S IS BELOW
+    # ITS AXES. That gap is 7.9 pt there and was 17.7 pt here, which read as a hole in
+    # the middle of the strip. Measure it rather than eyeball it: rasterise both PDFs,
+    # take the last inked row above the key, and compare.
     fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False,
                fontsize=6.5, handlelength=1.2, columnspacing=1.2,
-               bbox_to_anchor=(0.5, 0.055), bbox_transform=fig.transFigure)
+               bbox_to_anchor=(0.5, 0.129), bbox_transform=fig.transFigure)
     out = Path(a.out) / f"{a.name}.pdf"
     out.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out, bbox_inches="tight", dpi=300)
-    fig.savefig(out.with_suffix(".png"), bbox_inches="tight", dpi=150)
+    fig.savefig(out, bbox_inches="tight", pad_inches=0.02, dpi=300)
+    fig.savefig(out.with_suffix(".png"), bbox_inches="tight", pad_inches=0.02,
+                dpi=150)
     print(f"wrote {out}")
     return 0
 
