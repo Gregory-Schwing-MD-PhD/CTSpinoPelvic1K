@@ -43,7 +43,7 @@ import matplotlib.patheffects as pe
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
-from render_turntable import render                                # noqa: E402
+from render_turntable import render, BG                                # noqa: E402
 
 plt.rcParams.update({"font.family": "sans-serif",
                      "font.sans-serif": ["Arial", "Helvetica", "Calibri", "DejaVu Sans"], "font.size": 9})
@@ -341,7 +341,12 @@ def main() -> int:
 
     for ax, (case, caption, rgb, n, ids2d, between, rostral), a_row in zip(
             axes, panels, anchors):
-        canvas = np.full((H, W, 3), 250.0, np.float32)
+        # FILL WITH THE RENDERER'S OWN BACKGROUND, not a near-miss. render() pads with
+        # (250,250,248) and this used (250,250,250); two units of blue is enough to see,
+        # so the padding read as page-white and each panel appeared to be the size of
+        # its own render rather than of the shared canvas. Matching it makes every panel
+        # one uniform box of identical size, which is what the strip needs.
+        canvas = np.full((H, W, 3), BG.reshape(1, 1, 3), np.float32)
         h, w = rgb.shape[:2]
         x0 = (W - w) // 2
         if a_row is None:
