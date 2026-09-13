@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  13 SEP 2026 09:07
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  13 SEP 2026 10:17
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -49,38 +49,47 @@ LaTeX Font Info:    ... okay on input line 6.
 LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 6.
 LaTeX Font Info:    ... okay on input line 6.
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <12> on input line 18.
+(Font)              <12> on input line 19.
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <8> on input line 18.
+(Font)              <8> on input line 19.
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <6> on input line 18.
+(Font)              <6> on input line 19.
 
 
-Package natbib Warning: Citation `hanhivaara2022' on page 1 undefined on input line 18.
+Package natbib Warning: Citation `carrino2011' on page 1 undefined on input line 19.
 
 
-Package natbib Warning: Citation `dicomps3' on page 1 undefined on input line 18.
+Package natbib Warning: Citation `farshad2015' on page 1 undefined on input line 19.
 
 
-Package natbib Warning: Citation `nifti1' on page 1 undefined on input line 18.
+Package natbib Warning: Citation `tureli2014' on page 1 undefined on input line 19.
 
 
-Package natbib Warning: Citation `li2016' on page 1 undefined on input line 18.
+Package natbib Warning: Citation `hanhivaara2022' on page 1 undefined on input line 19.
 
 
-Package natbib Warning: Citation `hasegawa2018' on page 1 undefined on input line 18.
+Package natbib Warning: Citation `dicomps3' on page 1 undefined on input line 19.
 
 
-Package natbib Warning: Citation `veilleux2020' on page 1 undefined on input line 18.
+Package natbib Warning: Citation `nifti1' on page 1 undefined on input line 19.
 
 
-Package natbib Warning: Citation `leeliu2022' on page 1 undefined on input line 18.
+Package natbib Warning: Citation `li2016' on page 1 undefined on input line 19.
 
 
-Package natbib Warning: Citation `hahn2017' on page 1 undefined on input line 18.
+Package natbib Warning: Citation `hasegawa2018' on page 1 undefined on input line 19.
+
+
+Package natbib Warning: Citation `veilleux2020' on page 1 undefined on input line 19.
+
+
+Package natbib Warning: Citation `leeliu2022' on page 1 undefined on input line 19.
+
+
+Package natbib Warning: Citation `hahn2017' on page 1 undefined on input line 19.
 
 (./bibtest.bbl
-Overfull \hbox (264.33363pt too wide) in paragraph at lines 7--1
+Overfull \hbox (289.5506pt too wide) in paragraph at lines 7--1
 []\OT1/cmr/m/n/12 Every ref-er-ence cited by main.tex:[] .
  []
 
@@ -89,38 +98,38 @@ Underfull \hbox (badness 10000) in paragraph at lines 7--1
 
  []
 
-! Undefined control sequence.
-l.18 ...can College of Radiology, Reston, VA. \url
-                                                  {https://www.asnr.org/wp-c...
-The control sequence at the end of the top line
-of your error message was never \def'ed. If you have
-misspelled it (e.g., `\hobx'), type `I' and the correct
-spelling (e.g., `I\hbox'). Otherwise just continue,
-and I'll forget about whatever was undefined.
 
-! Undefined control sequence.
-l.23 ...can College of Radiology, Reston, VA. \url
-                                                  {https://www.asnr.org/wp-c...
-The control sequence at the end of the top line
-of your error message was never \def'ed. If you have
-misspelled it (e.g., `\hobx'), type `I' and the correct
-spelling (e.g., `I\hbox'). Otherwise just continue,
-and I'll forget about whatever was undefined.
+Underfull \hbox (badness 3148) in paragraph at lines 45--49
+[]\OT1/cmr/m/n/12 H. M^^?oller et al.,  VERI-DAH: Solv-ing Enu-mer-a-tion Anomaly
+ []
 
 [1
 
 {/home/gschwing/.TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}]
-Underfull \hbox (badness 3148) in paragraph at lines 56--60
-[]\OT1/cmr/m/n/12 H. M^^?oller et al.,  VERI-DAH: Solv-ing Enu-mer-a-tion Anomaly
- []
-
-
-Underfull \hbox (badness 1158) in paragraph at lines 68--72
+Underfull \hbox (badness 1158) in paragraph at lines 57--61
 []\OT1/cmr/m/n/12 S.-f. L. Lo et al.,  Au-to-matic Lo-cal-iza-tion of Tar-get Ver-te-brae
  []
 
 ! Undefined control sequence.
-l.94 ...merican College of Surgeons, Chicago. \url
+l.83 ...can College of Radiology, Reston, VA. \url
+                                                  {https://www.asnr.org/wp-c...
+The control sequence at the end of the top line
+of your error message was never \def'ed. If you have
+misspelled it (e.g., `\hobx'), type `I' and the correct
+spelling (e.g., `I\hbox'). Otherwise just continue,
+and I'll forget about whatever was undefined.
+
+! Undefined control sequence.
+l.88 ...can College of Radiology, Reston, VA. \url
+                                                  {https://www.asnr.org/wp-c...
+The control sequence at the end of the top line
+of your error message was never \def'ed. If you have
+misspelled it (e.g., `\hobx'), type `I' and the correct
+spelling (e.g., `I\hbox'). Otherwise just continue,
+and I'll forget about whatever was undefined.
+
+! Undefined control sequence.
+l.99 ...merican College of Surgeons, Chicago. \url
                                                   {https://www.facs.org/medi...
 The control sequence at the end of the top line
 of your error message was never \def'ed. If you have
@@ -131,13 +140,13 @@ and I'll forget about whatever was undefined.
 ! Missing $ inserted.
 <inserted text> 
                 $
-l.94 ...tps://www.facs.org/media/oxdjw5zj/imaging_
+l.99 ...tps://www.facs.org/media/oxdjw5zj/imaging_
                                                   guidelines.pdf}, 2018.
 I've inserted a begin-math/end-math symbol since I think
 you left one out. Proceed, with fingers crossed.
 
 ! Extra }, or forgotten $.
-l.94 ...org/media/oxdjw5zj/imaging_guidelines.pdf}
+l.99 ...org/media/oxdjw5zj/imaging_guidelines.pdf}
                                                   , 2018.
 I've deleted a group-closing symbol because it seems to be
 spurious, as in `$x}$'. But perhaps the } is legitimate and
@@ -148,54 +157,54 @@ deleted material, e.g., by typing `I$}'.
 ! Missing $ inserted.
 <inserted text> 
                 $
-l.95 
-     
+l.100 
+      
 I've inserted a begin-math/end-math symbol since I think
 you left one out. Proceed, with fingers crossed.
 
 ! Missing } inserted.
 <inserted text> 
                 }
-l.95 
-     
+l.100 
+      
 I've inserted something that you may have forgotten.
 (See the <inserted text> above.)
 With luck, this will get me unwedged. But if you
 really didn't forget anything, try typing `2' now; then
 my insertion and my current dilemma will both disappear.
 
-
-Underfull \hbox (badness 1648) in paragraph at lines 97--101
+[2]
+Underfull \hbox (badness 1648) in paragraph at lines 102--106
 []\OT1/cmr/m/n/12 K. Smith et al.,  Data from CT COLONOG-RA-PHY (ACRIN
  []
 
 
-Underfull \hbox (badness 1062) in paragraph at lines 97--101
+Underfull \hbox (badness 1062) in paragraph at lines 102--106
 \OT1/cmr/m/n/12 6664),  The Can-cer Imag-ing Archive, ver-sion 2 [dataset], 2015,
  []
 
-[2] [3]
-Underfull \hbox (badness 1389) in paragraph at lines 217--221
+[3] [4]
+Underfull \hbox (badness 1389) in paragraph at lines 256--260
 []\OT1/cmr/m/n/12 M. G. Mody, A. Nour-bakhsh, D. L. Stahl, M. Gibbs, M. Al-
  []
 
-[4]
-Underfull \hbox (badness 2351) in paragraph at lines 223--227
+
+Underfull \hbox (badness 2351) in paragraph at lines 262--266
 []\OT1/cmr/m/n/12 N. Ep-stein,  A per-spec-tive on wrong level, wrong side, and
  []
 
 
-Underfull \hbox (badness 2027) in paragraph at lines 223--227
+Underfull \hbox (badness 2027) in paragraph at lines 262--266
 \OT1/cmr/m/n/12 wrong site spine surgery,  Surg. Neu-rol. Int. \OT1/cmr/bx/n/12 12\OT1/cmr/m/n/12 , 286 (2021),
  []
 
-
-Underfull \hbox (badness 3386) in paragraph at lines 235--239
+[5]
+Underfull \hbox (badness 3386) in paragraph at lines 279--283
 []\OT1/cmr/m/n/12 E. Beaulieu et al.,  A re-view of fi-nite el-e-ment anal-y-sis in
  []
 
 
-Underfull \hbox (badness 1286) in paragraph at lines 235--239
+Underfull \hbox (badness 1286) in paragraph at lines 279--283
 \OT1/cmr/m/n/12 spine surgery decision-making,  J. Clin. Med. \OT1/cmr/bx/n/12 15\OT1/cmr/m/n/12 , 2584 (2026),
  []
 
@@ -203,25 +212,30 @@ Underfull \hbox (badness 1286) in paragraph at lines 235--239
 
 Package natbib Warning: There were undefined citations.
 
-[5] (./bibtest.aux)
+[6] (./bibtest.aux
+
+Package natbib Warning: Citation(s) may have changed.
+(natbib)                Rerun to get citations correct.
+
+)
  ***********
 LaTeX2e <2026-06-01>
 L3 programming layer <2026-08-10>
  ***********
  ) 
 Here is how much of TeX's memory you used:
- 946 strings out of 469089
- 15267 string characters out of 5459054
+ 971 strings out of 469089
+ 15695 string characters out of 5459054
  443796 words of memory out of 5000000
- 30083 multiletter control sequences out of 15000+600000
+ 30108 multiletter control sequences out of 15000+600000
  632026 words of font info for 54 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 35i,5n,39p,551b,366s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 35i,5n,39p,586b,385s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12.pfb>
-Output written on bibtest.pdf (5 pages, 91220 bytes).
+Output written on bibtest.pdf (6 pages, 95520 bytes).
 PDF statistics:
- 55 PDF objects out of 1000 (max. 8388607)
- 33 compressed objects within 1 object stream
+ 58 PDF objects out of 1000 (max. 8388607)
+ 35 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 

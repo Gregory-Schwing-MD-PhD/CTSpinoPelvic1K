@@ -53,7 +53,7 @@ PANELS = [
                 and not flag(r, "has_lumbar_rib")),
      ("rib12_11_ratio_min", "ll_span_total_mm")),
 
-    ("four, long rib on L1",
+    ("four, short rib on L1, open junction",
      lambda r: (num(r, "n_non_rib_bearing") == 4
                 and flag(r, "has_lumbar_rib")),
      ("lumbar_rib_len_mm", "ll_span_total_mm")),

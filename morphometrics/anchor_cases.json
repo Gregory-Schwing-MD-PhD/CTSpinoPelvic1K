@@ -13,7 +13,7 @@
  },
  {
   "case": "0428",
-  "title": "four, long rib on L1",
+  "title": "four, short rib on L1, open junction",
   "n_candidates": 15,
   "n_non_rib_bearing": 4.0,
   "lowest_rib_bearing": "L1",

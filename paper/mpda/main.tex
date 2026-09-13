@@ -205,21 +205,20 @@ Abdominopelvic computed tomography (CT) holds the lumbar-only imaging span plus 
 making it a reasonable substitute for the preoperative view. When a
 lumbosacral transitional vertebra (LSTV) alters the count, however, the local anatomy is much more ambiguous. A person who has four rib-free lumbar vertebrae may have an L1 with a lumbar rib or an
 L5 assimilated to the sacrum, and a person who has six rib-free lumbar vertebrae may have an L6, a T12 with aplastic
-ribs, or a lumbarized S1. CTSpinoPelvic1K asks whether local morphology
+ribs, or a lumbarized S1. CTSpinoPelvic1K permits asking whether local morphology
 can resolve that ambiguity without counting caudally from C2. Two public label sets already covered this imaging, CTSpine1K's vertebrae and CTPelvic1K's pelvis, on the same colonography
-patients. This release joins them in one dataset with 802 CT records, per-level ribs and femora, and lumbar levels
-anchored on the lowest rib-bearing vertebra and the sacrum. It also introduces classes for L6, T13
-and lumbar ribs, so anomalies are accurately recorded and not forced into whichever normal count they happen to resemble.
+patients. This release joins them in one dataset of 802 CT records and adds ribs, femora and surgical hardware. It also introduces classes for L6, T13
+and lumbar ribs, a class vocabulary that describes more of the anomalies at this junction than any existing public CT collection.
 
-\textbf{Acquisition and Validation Methods:} Records pair CTSpine1K and CTPelvic1K labels on each patient's bone-richest acquisition under a VerSe-native scheme. Validation covered geometric invariants (802/802 pass), rib--vertebra incidence across 5{,}749 ribs (0.035\% offset), and spinopelvic measures matching published values.
+\textbf{Acquisition and Validation Methods:} Records pair CTSpine1K and CTPelvic1K masks on each patient's bone-richest TCIA acquisition, and the release carries the series keys that map every mask to its volume. Validation covered geometric invariants (802/802 pass), rib--vertebra incidence across 5{,}749 ribs (0.035\% offset), and spinopelvic measures matching published values.
 
 \textbf{Data Format and Usage Notes:} NIfTI image/label pairs with patient-grouped LSTV-stratified five-fold splits and a loader; archived at \doiurl{\datasetdoi}.
 
 \textbf{Potential Applications:} Classifying a vertebra from local features;
 updating cadaveric morphometry;
-spinopelvic assessment; opportunistic screening; and, absent a public preoperative lumbar cohort, surgical planning research (377 records prone).
+spinopelvic assessment; opportunistic screening; imaging-based prevalence of anatomical variants in an asymptomatic cohort; and spinopelvic biomechanical modelling from patient-matched prone and supine acquisitions.
 \emph{Limitations:} thoracic ground truth is field-of-view limited; postural
-angles are supine; no held-out test set; ribs are triaged-review pseudolabels;
+angles are non-standing; no held-out test set; ribs are triaged-review pseudolabels;
 Castellvi grades are two-reader consensus on 33 records.
 \end{abstract}
 
@@ -237,9 +236,9 @@ a lumbosacral one may be partly or completely assimilated to the sacrum
 (\emph{sacralization}), with an anteriorly wedged body, a reduced disc beneath it and
 hypoplastic facet joints, or separated from it (\emph{lumbarization}), with a
 squared body, lumbar-type facets and a full-height disc~\cite{koninwalz2010}. In addition, they
-change how many vertebrae each region holds: eleven or thirteen thoracic and four or six lumbar.
+change how many vertebrae each region holds: eleven or thirteen rib-bearing thoracic and four or six rib-free lumbar vertebrae.
 
-Together, these transitional variants make it difficult to classify the vertebra at these borders definitively. Each of those readings yields the same count (Fig.~\ref{fig:anchors}), and the morphology that would
+Together, these transitional variants leave the vertebra at each border without a definitive name. The one formal nomenclature at the lumbosacral junction, Castellvi's, grades the morphology of the transverse process and says nothing about whether the segment is L5 or S1~\cite{castellvi1984,koninwalz2010}; every imaging landmark proposed for numbering has proved unreliable in transitional cases~\cite{carrino2011,farshad2015,tureli2014}; and even a count from C2 yields a position, which a convention then converts to a name. Each of the readings above yields the same count (Fig.~\ref{fig:anchors}), and the morphology that would
 separate them is not always decisive to human readers. Whether it differs
 enough for a trained classifier to separate them, or at least to assign each reading a probable classification,
 is the question this release aims to answer. The gold standard for numeration in
@@ -566,13 +565,13 @@ read.
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_anchors.pdf}
-\caption{The two anchors, from the released labels, aligned on the sacrum. Red, lowest rib-bearing vertebra and
-its rib; blue, the sacrum; yellow, the rib-free vertebrae between. Cases 0704, 0428, 0094 and 0005, chosen by rule as the most ordinary member of each phenotype (\texttt{scripts/select\_anchor\_cases.py}). (b) and (c) both count four. In (b) a long rib sits on L1; in (c) the twelfth ribs are stumps and the segment below the fourth lumbar body is fused to the sacrum (Castellvi IIIb).}
+\caption{The two anchors, aligned on the sacrum. Red, lowest rib-bearing vertebra and its rib; blue, sacrum;
+yellow, rib-free vertebrae between. Cases 0704, 0428, 0094 and 0005, the most ordinary member of each phenotype by rule (\texttt{scripts/select\_anchor\_cases.py}). (b) and (c) share one upper border, a short rib pair under a full pair; they differ only at the junction, open in (b), fused in (c).}
 \label{fig:anchors}
 \end{figure*}
 
-Figure~\ref{fig:anchors} shows why the interval is the primitive and the label is derived.
-Among the records with four rib-free vertebrae, some reach that count from above, through a rib on L1, and some from below, through a lumbosacral segment fused to the sacrum, in Fig.~\ref{fig:anchors}(c) together with stump twelfth ribs; the count alone cannot tell them apart, and the release can because ribs, rib lengths and the lumbosacral junction are all labeled.
+Figure~\ref{fig:anchors} shows why the interval is the primitive and the label is derived. Panels (b) and (c) present the same upper border, a rib pair of about 40\,mm beneath a full pair, above four rib-free vertebrae; the source readers named it a lumbar rib on L1 in (b) and stump twelfth ribs on T12 in (c). Nothing in the rib decided that. Across the release the sixteen ribs labeled lumbar are a median 45\,mm and 0.32 of the rib above them, and the 98 labeled stump twelfth ribs 38\,mm and 0.28. What decided it was the lower border, open in (b) and fused to the sacrum in (c) (Castellvi IIIb), together with the convention of five lumbar vertebrae, which leaves one place for the anomaly in each. The count cannot separate the two; the rib length and the lumbosacral junction, both labeled here, can.
+
 
 Sixteen records carry a lumbar rib, thirteen bilateral and three unilateral, all on the right, too few to speak to side preference.
 
@@ -984,6 +983,27 @@ G.~Konin and D.~Walz,
 \newblock AJNR Am. J. Neuroradiol. {\bf 31}, 1778--1786 (2010),
 \newblock doi:10.3174/ajnr.A2036.
 
+\bibitem{castellvi1984}
+A.~E. Castellvi, L.~A. Goldstein, and D.~P. Chan,
+\newblock Lumbosacral transitional vertebrae and their relationship with lumbar extradural defects,
+\newblock Spine (Phila. Pa. 1976) {\bf 9}, 493--495 (1984),
+\newblock doi:10.1097/00007632-198407000-00014.
+
+\bibitem{carrino2011}
+J.~A. Carrino, P.~D. Campbell, D.~C. Lin, W.~B. Morrison, M.~E. Schweitzer, A.~E. Flanders, J.~Eng, and A.~R. Vaccaro,
+\newblock Effect of spinal segment variants on numbering vertebral levels at lumbar {MR} imaging,
+\newblock Radiology {\bf 259}, 196--202 (2011).
+
+\bibitem{farshad2015}
+N.~A. Farshad-Amacker, B.~Lurie, R.~J. Herzog, and M.~Farshad,
+\newblock Merits of different anatomical landmarks for correct numbering of the lumbar vertebrae in lumbosacral transitional anomalies,
+\newblock Eur. Spine J. {\bf 24}, 600--608 (2015).
+
+\bibitem{tureli2014}
+D.~Tureli, G.~Ekinci, and F.~Baltacioglu,
+\newblock Is any landmark reliable in vertebral enumeration? {A} study of 3.0-{Tesla} lumbar {MRI} comparing skeletal, neural, and vascular markers,
+\newblock Clin. Imaging {\bf 38}, 792--796 (2014).
+
 \bibitem{lian2018}
 J.~Lian, N.~Levine, and W.~Cho,
 \newblock A review of lumbosacral transitional vertebrae and associated vertebral numeration,
@@ -1211,12 +1231,6 @@ C.~M. Lee and R.~W. Liu,
 \newblock Comparison of pelvic incidence measurement using lateral x-ray, standard {CT} versus {CT} with {3D} reconstruction,
 \newblock Eur. Spine J. {\bf 31}, 241--247 (2022),
 \newblock doi:10.1007/s00586-021-07024-7.
-
-\bibitem{castellvi1984}
-A.~E. Castellvi, L.~A. Goldstein, and D.~P. Chan,
-\newblock Lumbosacral transitional vertebrae and their relationship with lumbar extradural defects,
-\newblock Spine (Phila. Pa. 1976) {\bf 9}, 493--495 (1984),
-\newblock doi:10.1097/00007632-198407000-00014.
 
 \bibitem{vialle2005}
 R.~Vialle, N.~Levassor, L.~Rillardon, A.~Templier, W.~Skalli, and P.~Guigui,
