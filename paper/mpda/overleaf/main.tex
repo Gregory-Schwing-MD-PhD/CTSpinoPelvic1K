@@ -548,27 +548,19 @@ the release-stage incidence is therefore a consistency check on that rule, and t
 stages are the independent measure of the pseudolabel and of the reviewers.
 
 \begin{table}[!ht]
-\caption{Rib quality control: the checks, when each ran, and what it found. Gate, blocks a
-review or a release; advisory, reported only. Incidence rows: raw pseudolabel $\rightarrow$
-after student correction $\rightarrow$ release.}
+\caption{Rib quality control by stage. Gates block a save or a release; rules run after
+review. Incidence: raw pseudolabel $\rightarrow$ after student correction $\rightarrow$
+release.}
 \label{tab:ribqc}
 \begin{ruledtabular}
 \maxwidth{%
-\begin{tabular}{lp{0.2\linewidth}p{0.31\linewidth}}
-Check & Stage & Finding \\ \colrule
-One bone, one number      & triage, gate    & 584 bones, 152 records \\
-Rib reaches the spine     & triage, gate    & in the same 152 \\
-One piece per number      & triage adv.; review gate & clipped ribs exempt \\
-Consecutive per side      & review, gate    & no number missing \\
-Rib $N$ on T$N$           & triage adv.; review gate & within 10\,mm, where T$N$ labeled \\
-Spine untouched           & review, gate    & no vertebra altered \\
-Unlabeled vertebra in view & triage, report & interior gap; rib above top label \\
-Lumbar rib $\rightarrow$ 60/61 & post-review rule & 16 records \\
-Whole-cage shift          & post-review rule & 11 of 27 cases; rest decided by hand \\
-Anchor, count outward     & post-review rule & left checked against right \\
-Geometry, ids, sides      & release, gate   & 802/802 \\
-Rib--vertebra incidence   & every stage     & offset 3.1\% $\rightarrow$ 1.9\% $\rightarrow$ 0.035\%; misnumbered records 24 $\rightarrow$ 16 $\rightarrow$ 0; evaluable 5{,}560 / 5{,}670 / 5{,}749 \\
-Physiological envelope    & release, report & 391 of $\sim$75{,}000 values \\
+\begin{tabular}{lp{0.34\linewidth}p{0.27\linewidth}}
+Stage & Checks & Finding \\ \colrule
+Triage gates  & one bone, one number; rib reaches the spine & 152 records, 584 bones \\
+Review gates  & one piece; consecutive; rib $N$ on T$N$; spine untouched & 148 corrected, 4 not \\
+Rules         & lumbar rib $\rightarrow$ 60/61; cage shift; anchor and count & 16 records; 11 of 27 shifted \\
+Release gates & geometry, ids, sides; physiological envelope & 802/802; 391 of $\sim$75{,}000 values \\
+Incidence     & offset ribs / misnumbered records & 3.1\%/24 $\rightarrow$ 1.9\%/16 $\rightarrow$ 0.035\%/0 \\
 \end{tabular}
 }
 \end{ruledtabular}
