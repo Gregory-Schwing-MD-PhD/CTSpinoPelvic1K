@@ -46,26 +46,26 @@ def label(r):
 
 # Each panel: a title, a predicate, and the columns whose medians define "most ordinary".
 PANELS = [
-    ("five rib-free, last rib on T12",
+    ("five rib-free, no LSTV",
      lambda r: (num(r, "n_non_rib_bearing") == 5
                 and (r.get("lowest_rib_bearing") or "").strip() == "T12"
                 and label(r) in ("NORMAL", "")
                 and not flag(r, "has_lumbar_rib")),
      ("rib12_11_ratio_min", "ll_span_total_mm")),
 
-    ("four, short rib on L1, open junction",
+    ("four, short rib on L1, no LSTV",
      lambda r: (num(r, "n_non_rib_bearing") == 4
                 and flag(r, "has_lumbar_rib")),
      ("lumbar_rib_len_mm", "ll_span_total_mm")),
 
-    ("four, stump ribs on T12, fused junction",
+    ("four, stump ribs on T12, Castellvi IIIb",
      lambda r: (num(r, "n_non_rib_bearing") == 4
                 and (num(r, "rib12_11_ratio_min") or 1.0) < 0.33
                 and (label(r) == "SACRALIZATION"
                      or (r.get("castellvi_type") or "").strip().startswith("III"))),
      ("rib12_11_ratio_min", "ll_span_total_mm")),
 
-    ("six rib-free, last rib on T12",
+    ("six rib-free, Castellvi IV",
      lambda r: (num(r, "n_non_rib_bearing") == 6
                 and (flag(r, "has_l6")
                      or (r.get("lowest_lumbar") or "").strip() == "L6")),
