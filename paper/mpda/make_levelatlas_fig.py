@@ -456,9 +456,17 @@ def build(out: Path, reference: bool = True):
                       borderaxespad=0.0)
     fig.subplots_adjust(left=0.072, right=0.996, top=0.955, bottom=0.015)
     out.mkdir(parents=True, exist_ok=True)
-    # trimmed to the same gap the other spanning figures show; the default crop left
-    # 5.4pt of white under the axis labels, which read as 10pt on the page
-    fig.savefig(out / "fig_levelatlas.pdf", bbox_inches="tight", pad_inches=-0.013)
+    # THE CROP IS ASYMMETRIC ON PURPOSE. The bottom is trimmed by 0.013 in so the caption sits
+    # the same distance below this figure as below the other spanning figures (the default
+    # crop left 5.4 pt of white under the axis labels, which read as 10 pt on the page). A
+    # negative pad_inches did that -- and trimmed the top by the same amount, which clipped
+    # the tops of the panel titles in the published PDF. So the tight box is taken explicitly
+    # and only its bottom edge is moved; the top gets a little air instead.
+    from matplotlib.transforms import Bbox
+    fig.canvas.draw()
+    tb = fig.get_tightbbox(fig.canvas.get_renderer())          # inches
+    crop = Bbox.from_extents(tb.x0, tb.y0 + 0.013, tb.x1, tb.y1 + 0.02)
+    fig.savefig(out / "fig_levelatlas.pdf", bbox_inches=crop)
     fig.savefig(out / "fig_levelatlas.png", dpi=200)   # for the website
     plt.close(fig)
 
