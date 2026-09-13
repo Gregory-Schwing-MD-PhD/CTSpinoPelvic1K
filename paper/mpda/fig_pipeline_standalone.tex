@@ -46,7 +46,7 @@
 \draw[ar] (fix.south) -- (dense.north);
 % versions
 \node[ver, anchor=north west] (v3) at ($(dense.south west)+(1mm,-5mm)$) {\textbf{1}};
-\node[det, anchor=north west] (d3) at ($(v3.north east)+(2.5mm,-0.5mm)$) {\textbf{femora}, lower thoracic levels, and \textbf{S1} carved from the sacrum};
+\node[det, anchor=north west] (d3) at ($(v3.north east)+(2.5mm,-0.5mm)$) {\textbf{femora}, lower thoracic levels, and the \textbf{sacrum}};
 \node[ver, anchor=north west] (v4) at ($(v3.south west |- d3.south)+(0,-3mm)$) {\textbf{2}};
 \node[det, anchor=north west] (d4) at ($(v4.north east)+(2.5mm,-0.5mm)$) {\textbf{ribs}: M\"oller's rib net unioned with TotalSegmentator, numbered from it; 152 cases reviewed};
 \node[ver, anchor=north west] (v5) at ($(v4.south west |- d4.south)+(0,-3mm)$) {\textbf{3}};
@@ -62,5 +62,10 @@
 \draw[ar] (v6.south) -- ($(v6.south)+(0,-2.5mm)$) -| (qc.north);
 \node[fin, below=of qc] (rel) {\textbf{802 released records}\\33 with a consensus Castellvi grade};
 \draw[ar] (qc.south) -- (rel.north);
+% The global abovecaptionskip is set for the spanning floats, which carry white of
+% their own under the artwork. This picture carries none, so its caption sat 2.7pt
+% closer than every other one. A path with a single coordinate draws nothing and
+% extends the bounding box, which is the white this chart is missing.
+\path ([yshift=-2.7pt]current bounding box.south);
 \end{tikzpicture}
 \end{document}

@@ -80,8 +80,7 @@ if out.exists():
     shutil.rmtree(out)
 (out / "figures").mkdir(parents=True)
 order = ["figures/fig_pipeline.pdf", "figures/fig_anchors.pdf", "figures/fig_hardware.pdf",
-         "figures/fig_countfree.pdf", "figures/fig_validation.pdf", "figures/fig_levelatlas.pdf",
-         "figures/fig_fov.pdf"]
+         "figures/fig_validation.pdf", "figures/fig_levelatlas.pdf", "figures/fig_fov.pdf"]
 # confirm the order against main.tex's includegraphics sequence (Fig. 1 is TikZ, not included)
 inc = re.findall(r"includegraphics\[[^\]]*\]\{figures/([a-z_]+)\.pdf\}", src)
 assert inc == [Path(p).stem for p in order[1:]], inc
