@@ -185,10 +185,9 @@ DISC = [
 # so the thoracic and lumbar papers are two reports of one series and their levels join
 # into a single curve rather than two references. Read from the tables, not from a figure.
 #
-# END-PLATE WIDTH IS ABSENT ON PURPOSE. Its thoracic values live in that paper's Table 3,
-# on page 892, which is missing from the scan we hold -- the copy runs 891 then 893. The
-# figures give end-plate width as a curve (Fig. 4A) and reading values off an axis would
-# put graph estimates into a published comparison, so T11 and T12 have no end-plate row.
+# END-PLATE WIDTH AND POSTERIOR BODY HEIGHT COME FROM TABLE 3, p. 892. Every scan of the
+# paper served from Ovid skips that page; the values below were read from a complete copy
+# obtained by interlibrary loan on 2026-09-13 (PANJABI_1991_FULL_fixed.pdf, page 7).
 THORACIC_LEVELS = ["T11", "T12"]
 THORACIC = {
     "canal_w":  ([19.4, 22.2], [0.95, 1.12], "Table 4, p. 893 (SCW)"),
@@ -197,31 +196,11 @@ THORACIC = {
     #   T11  PDWr 8.8 +- 0.43, PDWl 10.7 +- 0.84
     #   T12  PDWr 8.8 +- 0.81, PDWl  8.6 +- 0.68
     "pedicle":  ([9.75, 8.70], [0.635, 0.745], "Table 5, p. 894 (mean of PDWr and PDWl)"),
-    # END-PLATE WIDTH IS DIGITISED FROM THE PAPER'S OWN FIGURE, NOT READ FROM A TABLE.
-    # Table 3 holds the end-plate dimensions and sits on page 892, which is absent from
-    # every scan of this paper we have been able to obtain -- the two copies on hand are
-    # byte-identical and both skip it (p. 891 is followed by p. 893). Interlibrary loan is
-    # outstanding; when the table arrives these two values should be replaced by it.
-    #
-    # Until then they come from Figure 4A on p. 896, which plots EPWu, EPWl, EPDu and EPDl
-    # against T1-T12 -- the authors' own figure of their own data, not a textbook redraw.
-    # Benzel's Fig. 1.1 was considered and rejected: it pools four sources (Berry, both
-    # Panjabi papers and White & Panjabi), plots BODY DIAMETER rather than end-plate width,
-    # has no T11 tick, and the chapter states its figures may contain extrapolated data.
-    #
-    # Digitised by locating the open-square marker interiors against the axis ticks
-    # (44.0 px per mm, residual-free over 10-50). Four checks agree:
-    #   T1 24.54 -> T12 39.20 is a 59.7% increase, inside the 55% (EPWl) to 73% (EPDu)
-    #     range the paper states for the four dimensions;
-    #   the largest steps are T10->T11 (+4.60) and T11->T12 (+3.96) against ~1.3 for every
-    #     earlier level, matching "the increase in width was greatest for the two
-    #     distal-most vertebrae (T11 and T12)" on p. 890;
-    #   T12 39.2 runs continuously into L1 41.2 from the 1992 lumbar paper;
-    #   EPWl(T12) 42.3 exceeds EPWu(L1) 41.2, as the text requires.
-    # No SEM is recoverable from the figure, so the dispersion is left empty rather than
-    # invented.
-    "endplate": ([35.2, 39.2], [None, None],
-                 "Figure 4A, p. 896 (EPWu, digitised; Table 3 p. 892 missing from all scans)"),
+    # Table 3, p. 892: EPWu (upper end-plate width) and VBHp (posterior body height), mean
+    # over the upper SEM row. The values digitised earlier from Figure 4A (35.2, 39.2) were
+    # within 0.3 mm of the table; they are replaced, not kept.
+    "endplate": ([34.9, 39.0], [0.97, 0.58], "Table 3, p. 892 (EPWu)"),
+    "h_post":   ([21.3, 22.7], [0.71, 1.04], "Table 3, p. 892 (VBHp)"),
 }
 PANJABI_1991 = ("cadaveric dry bone", "12", "3-D digitiser", "SEM", "primary",
                 "Panjabi MM et al. Spine 1991;16(8):888-901 (same 12 spines as the 1992 paper)")
