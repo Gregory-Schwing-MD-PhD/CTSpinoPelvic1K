@@ -1,0 +1,18 @@
+{
+  "source": "/wsu/home/go/go24/go2432/data/CTSpinoPelvic1K/labels",
+  "cases": 802,
+  "unreadable": 0,
+  "buckets": {
+    "match": 5751,
+    "offset": 2,
+    "lumbar": 0,
+    "no_contact": 11,
+    "skipped": 5796
+  },
+  "misnumbered_cases": 0,
+  "lumbar_rib_cases": 0,
+  "offset_deltas": {
+    "1": 1,
+    "-1": 1
+  }
+}

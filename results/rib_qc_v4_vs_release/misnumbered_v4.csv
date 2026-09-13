@@ -1,0 +1,25 @@
+case,note,offset,lumbar,no_contact,match
+0179_label.nii.gz,8 ribs consistently off by -1 -> renumber,10,0,0,0
+1043_label.nii.gz,10 ribs consistently off by -1 -> renumber,10,0,0,0
+0672_label.nii.gz,9 ribs consistently off by -1 -> renumber,9,0,0,0
+0552_label.nii.gz,8 ribs consistently off by -1 -> renumber,8,0,0,0
+0837_label.nii.gz,8 ribs consistently off by -1 -> renumber,8,0,0,0
+0474_label.nii.gz,6 ribs consistently off by -1 -> renumber,6,0,0,0
+0660_label.nii.gz,6 ribs consistently off by +1 -> renumber,6,2,0,0
+0785_label.nii.gz,6 ribs consistently off by -1 -> renumber,6,0,0,0
+0875_label.nii.gz,6 ribs consistently off by -1 -> renumber,6,0,0,0
+1070_label.nii.gz,6 ribs consistently off by -1 -> renumber,6,0,1,3
+1090_label.nii.gz,6 ribs consistently off by +1 -> renumber,6,2,0,2
+0412_label.nii.gz,3 ribs consistently off by -1 -> renumber,5,0,0,4
+1000_label.nii.gz,3 ribs consistently off by -1 -> renumber,5,0,2,6
+0544_label.nii.gz,4 ribs consistently off by -1 -> renumber,4,0,0,0
+0601_label.nii.gz,4 ribs consistently off by -1 -> renumber,4,0,0,3
+0655_label.nii.gz,3 ribs consistently off by -1 -> renumber,4,0,2,2
+0680_label.nii.gz,4 ribs consistently off by +1 -> renumber,4,2,0,2
+0760_label.nii.gz,4 ribs consistently off by -1 -> renumber,4,0,0,2
+0847_label.nii.gz,4 ribs consistently off by -1 -> renumber,4,0,1,2
+0869_label.nii.gz,3 ribs consistently off by -1 -> renumber,4,0,0,5
+0172_label.nii.gz,3 ribs consistently off by +1 -> renumber,3,2,0,2
+0368_label.nii.gz,3 ribs consistently off by -1 -> renumber,3,0,1,3
+0964_label.nii.gz,3 ribs consistently off by +1 -> renumber,3,0,3,4
+1153_label.nii.gz,3 ribs consistently off by -1 -> renumber,3,0,2,5

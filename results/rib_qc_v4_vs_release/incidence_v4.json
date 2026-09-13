@@ -1,0 +1,19 @@
+{
+  "source": "/wsu/home/go/go24/go2432/tmp/v4_labels_v10/labels",
+  "cases": 802,
+  "unreadable": 0,
+  "buckets": {
+    "match": 5369,
+    "offset": 170,
+    "lumbar": 21,
+    "no_contact": 38,
+    "skipped": 5980
+  },
+  "misnumbered_cases": 24,
+  "lumbar_rib_cases": 14,
+  "offset_deltas": {
+    "-1": 129,
+    "1": 32,
+    "-2": 9
+  }
+}
