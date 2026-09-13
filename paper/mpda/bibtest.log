@@ -1,8 +1,8 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  10 SEP 2026 00:03
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  13 SEP 2026 09:07
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
-**bibtest
+**bibtest.tex
 (./bibtest.tex
 LaTeX2e <2026-06-01>
 L3 programming layer <2026-08-10>
@@ -49,20 +49,38 @@ LaTeX Font Info:    ... okay on input line 6.
 LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 6.
 LaTeX Font Info:    ... okay on input line 6.
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <12> on input line 16.
+(Font)              <12> on input line 18.
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <8> on input line 16.
+(Font)              <8> on input line 18.
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <6> on input line 16.
+(Font)              <6> on input line 18.
 
 
-Package natbib Warning: Citation `sixta2012' on page 1 undefined on input line 16.
+Package natbib Warning: Citation `hanhivaara2022' on page 1 undefined on input line 18.
 
 
-Package natbib Warning: Citation `berry1987' on page 1 undefined on input line 16.
+Package natbib Warning: Citation `dicomps3' on page 1 undefined on input line 18.
+
+
+Package natbib Warning: Citation `nifti1' on page 1 undefined on input line 18.
+
+
+Package natbib Warning: Citation `li2016' on page 1 undefined on input line 18.
+
+
+Package natbib Warning: Citation `hasegawa2018' on page 1 undefined on input line 18.
+
+
+Package natbib Warning: Citation `veilleux2020' on page 1 undefined on input line 18.
+
+
+Package natbib Warning: Citation `leeliu2022' on page 1 undefined on input line 18.
+
+
+Package natbib Warning: Citation `hahn2017' on page 1 undefined on input line 18.
 
 (./bibtest.bbl
-Overfull \hbox (192.17717pt too wide) in paragraph at lines 7--1
+Overfull \hbox (264.33363pt too wide) in paragraph at lines 7--1
 []\OT1/cmr/m/n/12 Every ref-er-ence cited by main.tex:[] .
  []
 
@@ -185,12 +203,7 @@ Underfull \hbox (badness 1286) in paragraph at lines 235--239
 
 Package natbib Warning: There were undefined citations.
 
-[5] (./bibtest.aux
-
-Package natbib Warning: Citation(s) may have changed.
-(natbib)                Rerun to get citations correct.
-
-)
+[5] (./bibtest.aux)
  ***********
 LaTeX2e <2026-06-01>
 L3 programming layer <2026-08-10>
@@ -199,13 +212,13 @@ L3 programming layer <2026-08-10>
 Here is how much of TeX's memory you used:
  946 strings out of 469089
  15267 string characters out of 5459054
- 442796 words of memory out of 5000000
+ 443796 words of memory out of 5000000
  30083 multiletter control sequences out of 15000+600000
  632026 words of font info for 54 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 35i,5n,39p,465b,362s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 35i,5n,39p,551b,366s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12.pfb>
-Output written on bibtest.pdf (5 pages, 91201 bytes).
+Output written on bibtest.pdf (5 pages, 91220 bytes).
 PDF statistics:
  55 PDF objects out of 1000 (max. 8388607)
  33 compressed objects within 1 object stream

@@ -1,50 +1,39 @@
 \begin{thebibliography}{10}
 
-\bibitem{lian2018}
-J.~Lian, N.~Levine, and W.~Cho,
-\newblock A review of lumbosacral transitional vertebrae and associated vertebral numeration,
-\newblock Eur. Spine J. {\bf 27}, 995--1004 (2018),
-\newblock doi:10.1007/s00586-018-5554-8.
-
-\bibitem{acr2021}
-T.~A. Hutchins et~al.,
-\newblock {ACR} {Appropriateness Criteria} Low Back Pain: 2021 Update,
-\newblock J. Am. Coll. Radiol. {\bf 18}, S361--S379 (2021),
-\newblock doi:10.1016/j.jacr.2021.08.002.
-
-\bibitem{acrct2022}
-{American College of Radiology},
-\newblock {ACR}--{ASNR}--{ASSR}--{SPR} practice parameter for the performance of computed tomography ({CT}) of the spine, revised 2022 ({Resolution} 23),
-\newblock American College of Radiology, Reston, VA. \url{https://www.asnr.org/wp-content/uploads/2019/06/CT-Spine-1.pdf}, 2022.
-
-\bibitem{acrmri2023}
-{American College of Radiology},
-\newblock {ACR}--{ASNR}--{SABI}--{SSR} practice parameter for the performance of magnetic resonance imaging ({MRI}) of the adult spine, revised 2023 ({Resolution} 6),
-\newblock American College of Radiology, Reston, VA. \url{https://www.asnr.org/wp-content/uploads/2019/06/MR-Adult-Spine.pdf}, 2023.
-
 \bibitem{koninwalz2010}
 G.~Konin and D.~Walz,
 \newblock Lumbosacral transitional vertebrae: classification, imaging findings, and clinical relevance,
 \newblock AJNR Am. J. Neuroradiol. {\bf 31}, 1778--1786 (2010),
 \newblock doi:10.3174/ajnr.A2036.
 
-\bibitem{ctspine1k}
-Y.~Deng et~al.,
-\newblock {CTSpine1K}: a large-scale dataset for spinal vertebrae segmentation in computed tomography,
-\newblock Mach. Learn. Biomed. Imaging {\bf 3}, 824--832 (2025),
-\newblock doi:10.59275/j.melba.2025-gf84.
+\bibitem{lian2018}
+J.~Lian, N.~Levine, and W.~Cho,
+\newblock A review of lumbosacral transitional vertebrae and associated vertebral numeration,
+\newblock Eur. Spine J. {\bf 27}, 995--1004 (2018),
+\newblock doi:10.1007/s00586-018-5554-8.
 
-\bibitem{ctpelvic1k}
-P.~Liu et~al.,
-\newblock Deep learning to segment pelvic bones: large-scale {CT} datasets and baseline models,
-\newblock Int. J. Comput. Assist. Radiol. Surg. {\bf 16}, 749--756 (2021),
-\newblock doi:10.1007/s11548-021-02363-8.
+\bibitem{hanhivaara2022}
+J.~Hanhivaara, J.~H. M{\"a}{\"a}tt{\"a}, J.~Karppinen, J.~Niinim{\"a}ki, and M.~T. Nevalainen,
+\newblock The association of lumbosacral transitional vertebrae with low back pain and lumbar degenerative findings in {MRI}: a large cohort study,
+\newblock Spine {\bf 47}, 153--162 (2022).
 
 \bibitem{nagata2025}
 S.~Nagata et~al.,
 \newblock Lumbosacral transitional vertebra on whole-spine {CT}: prevalence and association with rib abnormalities,
 \newblock Skeletal Radiol. {\bf 54}, 2169--2177 (2025),
 \newblock doi:10.1007/s00256-025-04952-z.
+
+\bibitem{totalsegmentator}
+J.~Wasserthal et~al.,
+\newblock {TotalSegmentator}: robust segmentation of 104 anatomic structures in {CT} images,
+\newblock Radiol. Artif. Intell. {\bf 5}, e230024 (2023),
+\newblock doi:10.1148/ryai.230024.
+
+\bibitem{verse2021}
+A.~Sekuboyina et~al.,
+\newblock {VerSe}: a vertebrae labelling and segmentation benchmark for multi-detector {CT} images,
+\newblock Med. Image Anal. {\bf 73}, 102166 (2021),
+\newblock doi:10.1016/j.media.2021.102166.
 
 \bibitem{spineps2025}
 H.~M{\"o}ller et~al.,
@@ -76,11 +65,27 @@ T.~De~Silva et~al.,
 \newblock Spine (Phila. Pa. 1976) {\bf 41}, E1249--E1256 (2016),
 \newblock doi:10.1097/BRS.0000000000001589.
 
+\bibitem{acr2021}
+T.~A. Hutchins et~al.,
+\newblock {ACR} {Appropriateness Criteria} Low Back Pain: 2021 Update,
+\newblock J. Am. Coll. Radiol. {\bf 18}, S361--S379 (2021),
+\newblock doi:10.1016/j.jacr.2021.08.002.
+
 \bibitem{nass2013}
 D.~S. Kreiner et~al.,
 \newblock An evidence-based clinical guideline for the diagnosis and treatment of degenerative lumbar spinal stenosis (update),
 \newblock Spine J. {\bf 13}, 734--743 (2013),
 \newblock doi:10.1016/j.spinee.2012.11.059.
+
+\bibitem{acrct2022}
+{American College of Radiology},
+\newblock {ACR}--{ASNR}--{ASSR}--{SPR} practice parameter for the performance of computed tomography ({CT}) of the spine, revised 2022 ({Resolution} 23),
+\newblock American College of Radiology, Reston, VA. \url{https://www.asnr.org/wp-content/uploads/2019/06/CT-Spine-1.pdf}, 2022.
+
+\bibitem{acrmri2023}
+{American College of Radiology},
+\newblock {ACR}--{ASNR}--{SABI}--{SSR} practice parameter for the performance of magnetic resonance imaging ({MRI}) of the adult spine, revised 2023 ({Resolution} 6),
+\newblock American College of Radiology, Reston, VA. \url{https://www.asnr.org/wp-content/uploads/2019/06/MR-Adult-Spine.pdf}, 2023.
 
 \bibitem{sixta2012}
 S.~Sixta et~al.,
@@ -104,6 +109,18 @@ K.~Clark et~al.,
 \newblock The {Cancer Imaging Archive} ({TCIA}): maintaining and operating a public information repository,
 \newblock J. Digit. Imaging {\bf 26}, 1045--1057 (2013),
 \newblock doi:10.1007/s10278-013-9622-7.
+
+\bibitem{ctpelvic1k}
+P.~Liu et~al.,
+\newblock Deep learning to segment pelvic bones: large-scale {CT} datasets and baseline models,
+\newblock Int. J. Comput. Assist. Radiol. Surg. {\bf 16}, 749--756 (2021),
+\newblock doi:10.1007/s11548-021-02363-8.
+
+\bibitem{ctspine1k}
+Y.~Deng et~al.,
+\newblock {CTSpine1K}: a large-scale dataset for spinal vertebrae segmentation in computed tomography,
+\newblock Mach. Learn. Biomed. Imaging {\bf 3}, 824--832 (2025),
+\newblock doi:10.59275/j.melba.2025-gf84.
 
 \bibitem{duplessis2018}
 A.~M. Du~Plessis, L.~M. Greyling, and B.~J. Page,
@@ -159,23 +176,39 @@ H.~Liebl et~al.,
 \newblock Sci. Data {\bf 8}, 284 (2021),
 \newblock doi:10.1038/s41597-021-01060-0.
 
-\bibitem{verse2021}
-A.~Sekuboyina et~al.,
-\newblock {VerSe}: a vertebrae labelling and segmentation benchmark for multi-detector {CT} images,
-\newblock Med. Image Anal. {\bf 73}, 102166 (2021),
-\newblock doi:10.1016/j.media.2021.102166.
-
 \bibitem{ribsegv2}
 L.~Jin et~al.,
 \newblock {RibSeg} v2: a large-scale benchmark for rib labeling and anatomical centerline extraction,
 \newblock IEEE Trans. Med. Imaging {\bf 43}, 570--581 (2024),
 \newblock doi:10.1109/TMI.2023.3313627.
 
-\bibitem{totalsegmentator}
-J.~Wasserthal et~al.,
-\newblock {TotalSegmentator}: robust segmentation of 104 anatomic structures in {CT} images,
-\newblock Radiol. Artif. Intell. {\bf 5}, e230024 (2023),
-\newblock doi:10.1148/ryai.230024.
+\bibitem{dicomps3}
+{National Electrical Manufacturers Association},
+\newblock Digital Imaging and Communications in Medicine ({DICOM}) Standard, Part 3: Information Object Definitions,
+\newblock Technical Report PS3.3, NEMA, Rosslyn, VA, 2024,
+\newblock Attributes (0010,0020), (0020,000D), (0020,000E), (0018,5100).
+
+\bibitem{nifti1}
+R.~W. Cox, J.~Ashburner, H.~Breman, K.~Fissell, C.~Haselgrove, C.~J. Holmes, J.~L. Lancaster, D.~E. Rex, S.~M. Smith, J.~B. Woodward, and S.~C. Strother,
+\newblock A (sort of) new image data format standard: {NIfTI-1},
+\newblock NeuroImage {\bf 22}, e1440 (2004),
+\newblock 10th Annual Meeting of the Organization for Human Brain Mapping, Budapest.
+
+\bibitem{li2016}
+X.~Li, P.~S. Morgan, J.~Ashburner, J.~Smith, and C.~Rorden,
+\newblock The first step for neuroimaging data analysis: {DICOM} to {NIfTI} conversion,
+\newblock J. Neurosci. Methods {\bf 264}, 47--56 (2016).
+
+\bibitem{hasegawa2018}
+K.~Hasegawa, M.~Okamoto, S.~Hatsushikano, G.~Caseiro, and K.~Watanabe,
+\newblock Difference in whole spinal alignment between supine and standing positions in patients with adult spinal deformity,
+\newblock BMC Musculoskelet. Disord. {\bf 19}, 437 (2018).
+
+\bibitem{nnunet}
+F.~Isensee, P.~F. Jaeger, S.~A.~A. Kohl, J.~Petersen, and K.~H. Maier-Hein,
+\newblock {nnU-Net}: a self-configuring method for deep learning-based biomedical image segmentation,
+\newblock Nat. Methods {\bf 18}, 203--211 (2021),
+\newblock doi:10.1038/s41592-020-01008-z.
 
 \bibitem{moller2026}
 H.~M{\"o}ller et~al.,
@@ -189,23 +222,29 @@ A.~Schehr, J.~Kim, and G.~Schwing,
 \newblock Cureus  (2026),
 \newblock doi:10.7759/cureus.112661.
 
-\bibitem{nnunet}
-F.~Isensee, P.~F. Jaeger, S.~A.~A. Kohl, J.~Petersen, and K.~H. Maier-Hein,
-\newblock {nnU-Net}: a self-configuring method for deep learning-based biomedical image segmentation,
-\newblock Nat. Methods {\bf 18}, 203--211 (2021),
-\newblock doi:10.1038/s41592-020-01008-z.
+\bibitem{veilleux2020}
+N.~J. Veilleux, N.~V. Kalore, J.~A. Vossen, and J.~S. Wayne,
+\newblock Automatic characterization of pelvic and sacral measures from 200 subjects,
+\newblock J. Bone Joint Surg. Am. {\bf 102}, e130 (2020),
+\newblock doi:10.2106/JBJS.20.00343.
 
-\bibitem{vialle2005}
-R.~Vialle, N.~Levassor, L.~Rillardon, A.~Templier, W.~Skalli, and P.~Guigui,
-\newblock Radiographic analysis of the sagittal alignment and balance of the spine in asymptomatic subjects,
-\newblock J. Bone Joint Surg. Am. {\bf 87}, 260--267 (2005),
-\newblock doi:10.2106/JBJS.D.02043.
+\bibitem{leeliu2022}
+C.~M. Lee and R.~W. Liu,
+\newblock Comparison of pelvic incidence measurement using lateral x-ray, standard {CT} versus {CT} with {3D} reconstruction,
+\newblock Eur. Spine J. {\bf 31}, 241--247 (2022),
+\newblock doi:10.1007/s00586-021-07024-7.
 
 \bibitem{castellvi1984}
 A.~E. Castellvi, L.~A. Goldstein, and D.~P. Chan,
 \newblock Lumbosacral transitional vertebrae and their relationship with lumbar extradural defects,
 \newblock Spine (Phila. Pa. 1976) {\bf 9}, 493--495 (1984),
 \newblock doi:10.1097/00007632-198407000-00014.
+
+\bibitem{vialle2005}
+R.~Vialle, N.~Levassor, L.~Rillardon, A.~Templier, W.~Skalli, and P.~Guigui,
+\newblock Radiographic analysis of the sagittal alignment and balance of the spine in asymptomatic subjects,
+\newblock J. Bone Joint Surg. Am. {\bf 87}, 260--267 (2005),
+\newblock doi:10.2106/JBJS.D.02043.
 
 \bibitem{pickhardt2013}
 P.~J. Pickhardt, B.~D. Pooler, T.~Lauder, A.~M. del Rio, R.~J. Bruce, and N.~Binkley,
@@ -230,6 +269,11 @@ E.~C. Benzel,
 \newblock {\em Biomechanics of Spine Stabilization},
 \newblock Thieme, New York, 3rd edition, 2015,
 \newblock ISBN 978-1-60406-924-2.
+
+\bibitem{hahn2017}
+G.~J. Hahn, W.~Q. Meeker, and L.~A. Escobar,
+\newblock {\em Statistical Intervals: A Guide for Practitioners and Researchers},
+\newblock Wiley, Hoboken, NJ, 2nd edition, 2017.
 
 \bibitem{fea2026}
 E.~Beaulieu et~al.,

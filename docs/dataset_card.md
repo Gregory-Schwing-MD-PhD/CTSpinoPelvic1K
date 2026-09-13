@@ -70,9 +70,21 @@ indistinguishable from a wrong-level plan. Four decisions shape this dataset:
    ground truth)
 
 Annotations are placed onto the TCIA CT volume with the highest bone coverage
-(HU > 200), separately per anatomy. For ~650 patients both annotations land on
-the same series (**fused** cases); for the rest, the spine label targets one
-acquisition (**spine_only**) and the pelvis is pseudolabelled.
+(HU > 200), separately per anatomy. For **342 of the 693 patients** that both
+sources annotated, the two land on the same series (**fused** cases); for the
+rest the spine label targets one acquisition and the pelvis is pseudolabelled
+(**separate**, 351). A further 89 have a spine annotation only
+(**spine_only**) and 20 a pelvic one only (**pelvic_native**), 802 in all.
+
+That 342 of 693 is 49.4%, against the 50% two independent coin flips would
+give. Every COLONOG patient was scanned prone and supine, and CTSpine1K and
+CTPelvic1K each state that they chose one position per patient at random; the
+agreement rate says the two choices were made independently, so on half the
+patients the two annotations describe different acquisitions. Turning a patient
+between prone and supine changes the shape of the bone, so those outlines are
+not interchangeable and no rigid realignment makes them so. That is why each
+annotation is re-resolved here to the series its own bone agrees with, and why
+the pelvis is pseudolabelled rather than borrowed on the 351.
 
 ---
 

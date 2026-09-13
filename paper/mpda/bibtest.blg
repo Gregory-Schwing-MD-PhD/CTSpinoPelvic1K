@@ -3,44 +3,44 @@ Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
 The top-level auxiliary file: bibtest.aux
 The style file: ./medphy.bst
 Database file #1: ./ctspinopelvic1k.bib
-You've used 40 entries,
+You've used 48 entries,
             1818 wiz_defined-function locations,
-            825 strings with 19370 characters,
-and the built_in function-call counts, 9707 in all, are:
-= -- 902
-> -- 449
-< -- 0
-+ -- 161
-- -- 98
-* -- 822
-:= -- 1431
-add.period$ -- 40
-call.type$ -- 40
-change.case$ -- 1
+            879 strings with 21308 characters,
+and the built_in function-call counts, 11670 in all, are:
+= -- 1055
+> -- 588
+< -- 1
++ -- 205
+- -- 134
+* -- 1009
+:= -- 1748
+add.period$ -- 48
+call.type$ -- 48
+change.case$ -- 2
 chr.to.int$ -- 0
-cite$ -- 40
-duplicate$ -- 369
-empty$ -- 915
-format.name$ -- 138
-if$ -- 2144
+cite$ -- 48
+duplicate$ -- 446
+empty$ -- 1077
+format.name$ -- 182
+if$ -- 2564
 int.to.chr$ -- 0
-int.to.str$ -- 40
-missing$ -- 35
-newline$ -- 240
-num.names$ -- 40
-pop$ -- 93
+int.to.str$ -- 48
+missing$ -- 43
+newline$ -- 284
+num.names$ -- 48
+pop$ -- 102
 preamble$ -- 1
 purify$ -- 0
 quote$ -- 0
-skip$ -- 204
+skip$ -- 248
 stack$ -- 0
-substring$ -- 813
-swap$ -- 105
-text.length$ -- 0
+substring$ -- 918
+swap$ -- 125
+text.length$ -- 1
 text.prefix$ -- 0
 top$ -- 0
 type$ -- 0
 warning$ -- 0
-while$ -- 99
-width$ -- 42
-write$ -- 445
+while$ -- 116
+width$ -- 50
+write$ -- 531

@@ -200,20 +200,18 @@
 %  STRUCTURED ABSTRACT - four named sections, under 300 words.
 % ---------------------------------------------------------------------------
 \begin{abstract}
-\textbf{Purpose:} A vertebra at the lumbosacral junction is named by counting. The gold
-standard counts caudally from C2 on whole-spine imaging~\cite{lian2018}; but in practice, a lumbar surgical case is planned on lumbar-only imaging~\cite{acr2021,acrct2022,acrmri2023} (T12 to S1) without C2.
-Abdominopelvic computed tomography (CT) holds that span plus the lowest ribs and pelvis,
-making it a reasonable stand-in for the preoperative view. When a
-lumbosacral transitional vertebra (LSTV) alters the count, the local anatomy is ambiguous. Four rib-free vertebrae may be an L1 with a lumbar rib or an
-L5 assimilated to the sacrum, and six may be a sixth lumbar vertebra, a T12 with aplastic
-ribs, or a lumbarized S1~\cite{koninwalz2010}. CTSpinoPelvic1K asks whether local morphology
-can resolve that ambiguity without the count. Two public label sets already covered this imaging, CTSpine1K's vertebrae and CTPelvic1K's pelvis, on the same colonography
-patients, never joined; this release joins them on one series and annotates the bones
-neither had. It provides 802 CT records, per-level ribs and femora, lumbar levels
-anchored on the lowest rib-bearing vertebra and the sacrum, and classes for L6, T13
-and lumbar ribs, so anomalies are recorded as themselves, not forced into whichever normal count they happen to resemble.
+\textbf{Purpose:} The gold standard for naming a vertebra at the lumbosacral junction is counting caudally from C2 on whole-spine imaging. In practice, a lumbar surgical case is planned on lumbar-only imaging (T12 to S1) without C2, making the gold standard method impossible.
+Abdominopelvic computed tomography (CT) holds the lumbar-only imaging span plus the lowest ribs and pelvis,
+making it a reasonable substitute for the preoperative view. When a
+lumbosacral transitional vertebra (LSTV) alters the count, however, the local anatomy is much more ambiguous. A person who has four rib-free lumbar vertebrae may have an L1 with a lumbar rib or an
+L5 assimilated to the sacrum, and a person who has six rib-free lumbar vertebrae may have an L6, a T12 with aplastic
+ribs, or a lumbarized S1. CTSpinoPelvic1K asks whether local morphology
+can resolve that ambiguity without counting caudally from C2. Two public label sets already covered this imaging, CTSpine1K's vertebrae and CTPelvic1K's pelvis, on the same colonography
+patients. This release joins them in one dataset with 802 CT records, per-level ribs and femora, and lumbar levels
+anchored on the lowest rib-bearing vertebra and the sacrum. It also introduces classes for L6, T13
+and lumbar ribs, so anomalies are accurately recorded and not forced into whichever normal count they happen to resemble.
 
-\textbf{Acquisition and Validation Methods:} Records pair CTSpine1K~\cite{ctspine1k} and CTPelvic1K~\cite{ctpelvic1k} labels on each patient's bone-richest acquisition under a VerSe-native scheme. Validation covered geometric invariants (802/802 pass), rib--vertebra incidence across 5{,}749 ribs (0.035\% offset), and spinopelvic measures matching published values.
+\textbf{Acquisition and Validation Methods:} Records pair CTSpine1K and CTPelvic1K labels on each patient's bone-richest acquisition under a VerSe-native scheme. Validation covered geometric invariants (802/802 pass), rib--vertebra incidence across 5{,}749 ribs (0.035\% offset), and spinopelvic measures matching published values.
 
 \textbf{Data Format and Usage Notes:} NIfTI image/label pairs with patient-grouped LSTV-stratified five-fold splits and a loader; archived at \doiurl{\datasetdoi}.
 
@@ -230,111 +228,98 @@ Castellvi grades are two-reader consensus on 33 records.
 % ---------------------------------------------------------------------------
 \section{Introduction}
 
-The spine commonly carries seven cervical, twelve thoracic and five lumbar vertebrae, and a
-vertebra is identified by where it falls in that sequence. Transitional variants sit at the
-two ends of the lumbar column, the thoracolumbar transitional vertebra (TLTV) above and the
-lumbosacral transitional vertebra (LSTV) below. Both disturb identification in two ways at once. First, they change what the border vertebra
-and its ribs \emph{look like}: a thoracolumbar border vertebra may carry a full rib, a hypoplastic stump, or none at all, and
+The spine typically has seven cervical, twelve thoracic, and five lumbar vertebrae. A
+vertebra is classified by where it falls in that sequence. Transitional variants sit at the
+two ends of the lumbar column, with the thoracolumbar transitional vertebra (TLTV) above and the
+lumbosacral transitional vertebra (LSTV) below. Both transitional variants disturb identification by changing what the border vertebra
+and its ribs \emph{look like}. For example, a thoracolumbar border vertebra may carry a full rib, a hypoplastic stump, or none at all, and
 a lumbosacral one may be partly or completely assimilated to the sacrum
 (\emph{sacralization}), with an anteriorly wedged body, a reduced disc beneath it and
-hypoplastic facet joints, or, conversely, separated from it (\emph{lumbarization}), with a
-squared body, lumbar-type facets and a full-height disc~\cite{koninwalz2010}. Second, they
-change \emph{how many} vertebrae each region contains, eleven or thirteen thoracic and four or six lumbar.
+hypoplastic facet joints, or separated from it (\emph{lumbarization}), with a
+squared body, lumbar-type facets and a full-height disc~\cite{koninwalz2010}. In addition, they
+change how many vertebrae each region holds: eleven or thirteen thoracic and four or six lumbar.
 
-Either change alone would be tractable, but together they make it difficult to state definitively
-what any vertebra at these borders \emph{is}. Each of those readings actually yields the same count (Fig.~\ref{fig:anchors}), and the morphology that would
-separate them is not decisive to a human reader in every case. Whether it differs
-enough for a learned classifier to separate them, or at least to assign each reading a probability,
-is the question this release is built to support. Short of that, what remains is the count
-itself. The gold standard for numeration in
+Together, these transitional variants make it difficult to classify the vertebra at these borders definitively. Each of those readings yields the same count (Fig.~\ref{fig:anchors}), and the morphology that would
+separate them is not always decisive to human readers. Whether it differs
+enough for a trained classifier to separate them, or at least to assign each reading a probable classification,
+is the question this release aims to answer. The gold standard for numeration in
 transitional anatomy is whole-spine imaging, counting caudally from C2~\cite{lian2018},
-which fixes how many vertebrae and how many rib pairs the column holds, and no
+which determines how many vertebrae and how many rib pairs the column holds. No
 spine-limited acquisition can supply either count. LSTV is common, reported at 10--29\% in the general
 population~\cite{hanhivaara2022} and in 16.3\% of a whole-spine CT
-series,~\cite{nagata2025} and wrong-level surgery is its most serious consequence.
+series~\cite{nagata2025}, and wrong-level surgery is its most serious consequence.
 
 Existing public collections cannot address this, and not for lack of size
-(Table~\ref{tab:priorart}): spine datasets omit the pelvis, pelvic datasets do not number
-the vertebrae, TotalSegmentator has no class for a sixth lumbar vertebra or for a rib on a
-lumbar vertebra, and VerSe, the one collection with an L6 class, stops at the sacrum and
-carries no ribs. None of these collections, then, can record a six-lumbar spine together with both of its
-borders, and a segmenter trained on them must, when it encounters an enumeration anomaly, shift the
-whole column by a level or absorb a vertebra into its neighbor. The size of that problem has now been measured
+(Table~\ref{tab:priorart}). Prior spine datasets omit the pelvis and pelvic datasets do not number
+the vertebrae. TotalSegmentator~\cite{totalsegmentator} has no class for a sixth lumbar vertebra or for a rib on a
+lumbar vertebra, and VerSe~\cite{verse2021}, the one collection with an L6 class, stops at the sacrum and
+carries no ribs. As such, none of these collections can record a spine with six lumbar vertebrae together with both of its
+borders, and a segmenter trained on them must shift the
+whole column by a level or absorb a vertebra into its neighbor when it encounters an enumeration anomaly. This problem has now been measured
 on CT, where prior labeling methods assigned every vertebra correctly in 77\% of subjects and
 an anomaly-aware extension of SPINEPS~\cite{spineps2025} raised that to
 99\%~\cite{veridah2026}. Its weights label L6 and T13 on CT, but its 1{,}536-scan CT cohort is in-house and
 unreleased, so what exists is a capability, not a dataset. 
 
-The intraoperative side has prior art of its own. LevelCheck registers the intraoperative
+When considering the intraoperative side, LevelCheck registers the intraoperative
 radiograph to the preoperative CT and projects the CT's vertebral labels onto
-it~\cite{otake2012,lo2015,desilva2016}, but those labels are placed by hand and verified by
+it~\cite{otake2012,lo2015,desilva2016}. Those labels, however, are placed by hand and verified by
 the surgeon~\cite{otake2012}, so the method assumes a correctly labeled CT and does not supply
-one. Automating that step for anatomy that itself is anomalous is what a dataset carrying the
-anomaly classes is for.
+one itself. As such, a dataset carrying the anomaly classes is vital for automating that step.
 
-CTSpinoPelvic1K places the spine, pelvis, ribs and femora in one coordinate frame and gives
-a class to each structure an enumeration anomaly produces, a sixth lumbar vertebra and a rib borne by a lumbar vertebra. A scheme without those classes simply lacks a class vocabulary
-expressive enough to describe anatomic anomalies.
+CTSpinoPelvic1K places the spine, pelvis, ribs and femora in one coordinate frame and classifies each structure an enumeration anomaly produces, including a sixth lumbar vertebra and lumbar ribs. A scheme without those classes is unable to adequately describe anatomic anomalies.
 
-The project began with a surgeon's question, whether a vertebra can be named from the anatomy in front of the reader, on the images a lumbar surgical case is actually planned on. By guideline those are lumbar-only~\cite{acr2021,nass2013,acrct2022,acrmri2023}; whole-spine coverage is reserved for trauma with an identified
+The project began with the question whether a vertebra can be named from the anatomy on the images a lumbar surgical case is actually planned on. By guideline those images are lumbar-only~\cite{acr2021,nass2013,acrct2022,acrmri2023} and whole-spine coverage is reserved for trauma with an identified
 injury~\cite{sixta2012,tqip2018} and for deformity
-radiographs. An abdominopelvic CT runs diaphragm to pelvic floor, so it captures
-that span with the lowest ribs and the whole pelvis, and lacks C2 exactly as the
-planning study does. Every record
+radiographs. An abdominopelvic CT runs from the diaphragm to the pelvic floor, so it captures
+that span with the lowest ribs and the whole pelvis, while lacking C2. Every record
 comes from one prospective trial protocol, ACRIN 6664~\cite{colonog,tcia}, which scanned 802 patients aged 50 and over, supine and prone, on multidetector CT at 15 centers, on five scanner
 vendors and nine models, with manufacturer, model and reconstruction kernel recorded per
 record. To our knowledge, it is the largest spine-and-pelvis annotated CT cohort acquired under a
-single protocol; the comparators, by contrast, pool collections, are multi-site by design, or are
-routine clinical scans under many protocols (Table~\ref{tab:priorart}). With the protocol
-held fixed, scanner effects on a model become measurable rather than confounded. The price
-is an abdominal field of view, in which only the lowest thoracic levels are present
+single protocol. The comparators, by contrast, pool collections, are multi-site by design, or are
+routine clinical scans under many protocols (Table~\ref{tab:priorart}). With the protocol for this study fixed, scanner effects on a model become measurable rather than confounded. The downside is the restriction to an abdominal field of view, in which only the lowest thoracic levels are present
 (Sec.~\ref{sec:applications}).
 
-The gap was evident. CTPelvic1K~\cite{ctpelvic1k} and CTSpine1K~\cite{ctspine1k},
-released months apart by an overlapping author group, each annotated the COLONOG
-collection under radiologist supervision, one the pelvis and the other the vertebrae, on the same patients, yet no one joined them, although the join needs no new imaging and no
-new radiologist. It is not a file merge, because each annotation had to be traced back to the series it was
-drawn on (Sec.~\ref{sec:sources}). Once completed, that crosswalk yielded a spine-and-pelvis frame
-at 802 patients, and the bones neither set had, ribs, femora and hardware, could then be
+The gap was evident. CTPelvic1K~\cite{ctpelvic1k} and CTSpine1K~\cite{ctspine1k} each annotated the COLONOG
+collection under radiologist supervision for the same patients, with one annotating the pelvis and the other annotating the vertebrae. The two had remained separate, although joining them needs no new imaging and no new radiologist. It was not a file merge, because each annotation had to be traced back to the series it was
+drawn on (Sec.~\ref{sec:sources}). Once completed, that merge yielded a combined spine-and-pelvis frame
+for 802 patients, and the bones neither set had, ribs, femora and hardware, could be
 annotated against it rather than from scratch.
 
 
 
 \subsection{Vertebra labeling when the scan cannot settle the count}
 
-The main limitation is that no scan in this corpus contains C2, so the
-conventional count cannot be performed, a property of abdominal imaging rather than of the
-annotation. A thirteenth thoracic vertebra and a lumbar rib are different phenotypes,
+The main limitation is that no scan in this dataset contains C2, so the gold standard
+conventional count cannot be performed. This is a property of abdominal imaging rather than of the
+annotation itself. A thirteenth thoracic vertebra and an L1 with a lumbar rib are different phenotypes,
 distinguished as separate subtypes in cadaveric classifications of the thoracolumbar
-junction~\cite{duplessis2018,poolman2023}: the first is an additional rib-bearing segment,
-usually above five lumbar vertebrae, so the column holds 25 presacral vertebrae; the second
-is a rudimentary rib on a lumbar-type L1 in a column of the usual 24. Neither is separable by counting at the two borders used here, the last rib-bearing vertebra and the sacrum, because four rib-free vertebrae can fit a lumbar rib, a cranially
-shifted T13 or an L5 assimilated to the sacrum, and six can fit an aplastic twelfth rib or a
-sixth lumbar vertebra. A \emph{stump rib}, hypoplastic and a cardinal indicator of a
-thoracolumbar transitional vertebra, is still a rib, so only its length records the
-anomaly. Rib anomalies travel with the lumbosacral border: on whole-spine CT hypoplastic
+junction~\cite{duplessis2018,poolman2023}. The first is an additional rib-bearing vertebra positioned above five lumbar vertebrae, so the column has 25 presacral vertebrae. The second
+is a rudimentary rib on a lumbar-type L1 in a column with the standard 24 presacral vertebrae. Neither is separable by counting from the last rib-bearing vertebra or from the sacrum because four rib-free vertebrae can fit a lumbar rib, a cranially
+shifted T13 or an L5 assimilated to the sacrum, and six rib-free vertebrae can fit an aplastic twelfth rib or a
+sixth lumbar vertebra. A \emph{stump rib} is a hypoplastic rib that is a key indicator of a
+thoracolumbar transitional vertebra. On whole-spine CT scans, rib anomalies travel with the lumbosacral border and hypoplastic
 twelfth ribs occur with sacralization and lumbar ribs with lumbarization.~\cite{nagata2025}
 
 In this release, every vertebra carries the identifier its
-radiologist-sourced annotation assigned, corrected where the source was wrong; those labels
-are the ground truth. In addition, every released measurement is expressed against the two landmarks
-present in essentially every abdominal scan, the sacrum below and the lowest rib-bearing
-vertebra above, so that the measurement is positional rather than nominal: a vertebra by how many rib-free
+radiologist-sourced annotation assigned as the ground truth, corrected where the source was wrong. In addition, every released measurement is expressed against the two landmarks
+present in essentially every abdominal CT scan: the sacrum inferiorly and the lowest rib-bearing
+vertebra superiorly. This makes the measurements positional rather than nominal, with a vertebra being classified by how many rib-free
 vertebrae separate it from the sacrum, a lowest rib by its length as a fraction of the rib
-above it, a transverse process by its span and its distance from the ala. None of these
-values shift with the name a reader gives the junction, so cases that disagree about the name
+above it, and a transverse process by its span and its distance from the ala. None of these
+values shift with the name a reader gives the junction, meaning that cases that disagree about the name
 remain comparable.
 
 \emph{But the vertebrae themselves are known to differ.} Level-specific morphometry is long
-established: pedicle width and height change systematically from the thoracic to the lumbar
+established in the literature: pedicle width and height change systematically from the thoracic to the lumbar
 spine,\cite{zindrick1987} vertebral body, endplate and canal dimensions differ by level,\cite{panjabi1991,panjabi1992,berry1987} and the transverse process and the
 iliolumbar ligament mark the last lumbar vertebra independently of any
-count.\cite{hughes2006,koninwalz2010} If those differences hold at the boundary itself the
-phenotype is decidable locally, and on this corpus it is. Separating T12 from L1 on shape
-alone gives an area under the curve of 0.990 and 97.3\% accuracy over 1485 vertebrae: a
-logistic regression on five released per-level measures and six ratios between them, each
-measure divided by the same patient's median across their levels, so that size, which
-separates thoracic from lumbar trivially and says nothing at the junction, is removed; folds
+count.\cite{hughes2006,koninwalz2010} If those differences hold at the boundary, the
+phenotype is decidable locally, and on this dataset it is. Separating T12 from L1 on shape
+alone gives an area under the curve of 0.990 and 97.3\% accuracy over 1485 vertebrae. This was calculated using a
+logistic regression on five released per-level measures and six ratios between them. Each
+measure was divided by the patient's median across their levels, so that size, which
+separates thoracic from lumbar trivially and says nothing at the junction, is removed. Folds
 are grouped by case and the curve is taken on pooled out-of-fold scores
 (\texttt{test\_morphometric\_separability.py} in the released code). Schinz et al.\ reach
 the same conclusion from the other side: on 1{,}242 whole-thoracolumbar CTs a shape-based
@@ -443,37 +428,65 @@ TotalSegmentator~\cite{totalsegmentator} & 1{,}204 & \has\no\has\has\has\has\no\
 \end{figure}
 
 \subsection{Sources, and why a crosswalk was necessary}\label{sec:sources}
+CTSpine1K's 1{,}005 volumes and CTPelvic1K's 1{,}184 come from four and seven collections of
+CT obtained for different indications. Only the Cancer Imaging Archive (TCIA) CT colonography
+collection (COLONOG)~\cite{colonog,tcia} is common to both, and it is the largest in each: a
+subset of a prospective screening trial of asymptomatic patients aged fifty and over, acquired
+under one protocol. Every COLONOG patient was scanned prone and supine at a minimum, with 12
+exceptions among the 825 patients the sources drew on. CTSpine1K states that one position was
+chosen at random by a released script; that script, since deleted but preserved in the
+repository's history, writes every series holding twelve or more files to the same filename,
+so the volume retained is whichever series the directory walk reached last. No code was
+released with CTPelvic1K. Consistent with two independent choices, the sources annotated the
+same series for 342 of the 693 patients both annotated (49.4\%), and the released records mix
+positions and reconstructions accordingly: 422 supine, 377 prone, three decubitus; 562 at
+1.0\,mm, 232 at 1.25\,mm and eight at other slice thicknesses.
 
-Both sources draw part of their imaging from The Cancer Imaging Archive (TCIA) CT
-colonography collection (COLONOG)~\cite{colonog,tcia}. CTSpine1K's 1{,}005 volumes come from four
-collections and CTPelvic1K's 1{,}184 from seven; COLONOG is the only collection common to
-both and the only one acquired under a single protocol, meaning one scan prescription and
-patient preparation for every case, so this release is its COLONOG subset, 782 patients with a CTSpine1K vertebral annotation and 20 with a CTPelvic1K pelvic
-annotation only, 802 in all. Neither source released the mapping from an annotation to the
-specific CT series it was drawn on.
+Recovering the archived series each annotation was drawn on is nontrivial because the DICOM
+attributes that identify an acquisition, the patient, study and series instance identifiers
+and the patient position,\cite{dicomps3} have no counterpart in the NIfTI-1
+header\cite{nifti1} and are discarded on conversion.\cite{li2016} CTSpine1K's
+\texttt{Path.csv} names the TCIA directory each label was converted from, but it carries no
+series identifier, names no position for 217 of the 782 annotated records, and for seven
+indicates an acquisition other than the one whose bone the label overlaps best.
+CTPelvic1K released no imaging and encoded the mapping in its mask filenames,
+\texttt{dataset2\_\allowbreak PatientID\_\allowbreak SeriesNumber\_\allowbreak
+undocumented\_\allowbreak [tag\_]\allowbreak mask\_4label.nii.gz}. One of the 714 masks names a
+patient with no archived series; of the other 713, the first two fields resolve 702 to the
+series selected here by bone overlap, five to a \texttt{SeriesNumber} two series share, and six
+to one no series carries. The third field matches nothing, and the fourth, on 32 masks, mixes
+phenotype (\texttt{sacralization} 7, \texttt{semisacralization} 2,
+\texttt{hard\_sacralization} 1), difficulty (\texttt{hard} 8, \texttt{veryhard} 2), image
+condition (\texttt{lowdose} 6; \texttt{metal}, \texttt{crop}, \texttt{IntestinalCalculus} once
+each) and two unexplained tags (\texttt{dqjoint} 2, \texttt{ydjoint} 1) in one string.
 
-That mapping matters because every patient in CT~COLONOGRAPHY was scanned \emph{twice},
-prone and supine, and an annotation carries a patient identifier and nothing finer, so
-neither collection recorded which acquisition it had labeled. Turning a patient from supine
-to prone alters lumbar lordosis and the alignment of each segment against the next, so
-outlines drawn on one series are the wrong \emph{shape} for the other and no rigid
-realignment recovers them. The crosswalk (Fig.~\ref{fig:pipeline}) therefore resolves each
-annotation to a patient and then, within that patient's volumes, to the series whose bone
-\emph{agrees} with it, with candidates thresholded at bone attenuation and scored by
-overlap with the mask. This step mattered for 351 patients, nearly half the cohort, whose two
-collections had labeled different acquisitions of the same person; those records are
-released but held out of any analysis assuming a single posture, since two labeled postures of
-one patient are a resource rather than a defect.
+The crosswalk (Fig.~\ref{fig:pipeline}) therefore resolved every annotation, not only the
+27.7\% with no stated position, by thresholding each of the patient's volumes at bone
+attenuation and keeping the series the mask overlaps most; where a source did name a series,
+558 of the 565 CTSpine1K records naming a position and 702 of the 713 CTPelvic1K masks naming
+an archived patient agree with it. The result is 342 records whose spine and pelvic labels
+land on the same series (\emph{fused}), 351 whose labels land on different series of one
+patient (\emph{separate}), 89 with a spine label only and 20 with a pelvic label only. Turning
+a patient between prone and supine alters lumbar alignment and the seating of the pelvis
+against it~\cite{hasegawa2018}, so a mask drawn on one series does not transfer rigidly to the
+other, and while a patient's two annotations lie on different scans no spinopelvic measurement
+can be taken across them.
 
 \subsection{Densification, and why it is asymmetric}
 
-A corpus in which half the records lack a pelvis is not a spinopelvic dataset, so the
-missing structures were pseudolabeled, asymmetrically (Fig.~\ref{fig:pipeline}). Pelvis onto spine-only records is the safe direction, since the sacrum and innominate bones
-carry no enumeration to get wrong, and quality is reported as held-out performance on the
-\emph{pelvic\_only} records, withheld from training for that purpose. The reverse direction
-carries the whole problem this dataset addresses, because a pseudolabeled spine must commit
-to a count, and on a transitional vertebra it commits to the commoner reading; those 20
-records were corrected by hand.
+A rigid carry-over of each separate patient's own pelvic annotation onto the spine's series is
+implemented in the released code but was not adopted. Instead, the missing region of every
+partially annotated record was pseudolabeled by a segmentation model~\cite{nnunet} trained on
+those records themselves, the unannotated region marked by nnU-Net's ignore label so that it
+contributes nothing to the loss, and predicted out of fold, so no record was completed by a
+model that had trained on it. The pelvis is thus radiologist-derived on the 362 fused and
+pelvis-only records and pseudolabeled on the other 440 (Fig.~\ref{fig:pipeline}). The
+direction is asymmetric because a pelvis carries no enumeration to get wrong, whereas a
+pseudolabeled spine must commit to a count and, on a transitional vertebra, commits to the
+commoner reading; the 20 pelvis-only spines were corrected by hand. The pelvic pseudolabels
+were not scored against withheld ground truth; they pass the release gates every structure
+passes (Sec.~\ref{sec:validation}), and the spinopelvic measures that depend on them agree with
+published supine values.
 
 \subsection{Ribs}
 
@@ -601,10 +614,10 @@ as a reusable implementation measuring in each vertebra's own frame; no open-sou
 implementation computing these parameters from CT segmentations was found elsewhere.
 
 \emph{Generative artificial intelligence.} A large language model (Claude, Anthropic)
-assisted with drafting and editing the manuscript text and with writing the analysis and
-figure code, all under author review. It was not used to generate, annotate or interpret
+assisted with writing the analysis and
+figure code and manuscript refinement after initial drafting. It was not used to generate, annotate or interpret
 imaging data; every number reported here is computed by the released code from the
-released volumes.
+released volumes. All content was independently reviewed, verified, and interpreted by the authors.
 
 \subsection{Validation}
 \label{sec:validation}
@@ -888,24 +901,26 @@ releases having been withdrawn as unreliable.
 \section{Discussion}
 
 \emph{Comparison with related material.}
-VerSe~\cite{verse2021,versedata2021} comes closest in intent, but carries no sacral mask for the
-structure a Castellvi grade describes, which this release segments as L6 or as sacrum,
-and neither the pelvis and femora a spinopelvic measurement needs nor prone
+VerSe~\cite{verse2021,versedata2021} comes closest in intent to this dataset, but carries no
+sacral mask for the structure a Castellvi grade describes, which this release segments as L6
+or as sacrum, and has neither the pelvis and femora a spinopelvic measurement needs nor prone
 acquisitions. What this release adds
-over TotalSegmentator~\cite{totalsegmentator} is the classes an anomaly needs, not more
+over TotalSegmentator~\cite{totalsegmentator} is the classes for anatomical anomalies, not necessarily more
 anatomy per scan.
 
 \emph{Future directions.} Applying the released weights to VerSe would add the sacral anchor
 and the anomaly classes to a bone-kernel collection. A Castellvi read of the whole cohort
 would test the co-occurrence of rib and lumbosacral anomalies at full power and supply the
-labels a lumbosacral classifier needs. A corpus label from substructure
+labels a lumbosacral classifier needs. A class label from substructure
 segmentation\cite{spineps2025} would measure the body without the canal cut that withholds
 L5 here.
 
 \section{Conclusion}
 
-CTSpinoPelvic1K places spine, pelvis, per-level ribs and femora on one coordinate frame in
-802 records, and gives the anatomy that makes lumbar numbering ambiguous a class of its own.
+CTSpinoPelvic1K places the radiologist-derived spine, the pelvis, radiologist-derived where
+the sources annotated the same series and pseudolabeled elsewhere, and pseudolabeled per-level
+ribs and femora on one validated coordinate frame in 802 records, and gives the anatomical
+anomalies that make lumbar numbering ambiguous classes of their own.
 Because both counting anchors are explicit, a level can be identified from a field of view
 that cannot support the conventional count downward from C2.
 
@@ -963,51 +978,22 @@ research under 45 CFR 46 and requires no oversight.
 % is a smaller cost than a line running into the margin.
 \sloppy
 
-\bibitem{lian2018}
-J.~Lian, N.~Levine, and W.~Cho,
-\newblock A review of lumbosacral transitional vertebrae and associated vertebral numeration,
-\newblock Eur. Spine J. {\bf 27}, 995--1004 (2018),
-\newblock doi:10.1007/s00586-018-5554-8.
-
-\bibitem{acr2021}
-T.~A. Hutchins et~al.,
-\newblock {ACR} {Appropriateness Criteria} Low Back Pain: 2021 Update,
-\newblock J. Am. Coll. Radiol. {\bf 18}, S361--S379 (2021),
-\newblock doi:10.1016/j.jacr.2021.08.002.
-
-\bibitem{acrct2022}
-{American College of Radiology},
-\newblock Practice parameter for the performance of {CT} of the spine, 2022,
-\newblock \url{https://www.asnr.org/wp-content/uploads/2019/06/CT-Spine-1.pdf}.
-
-\bibitem{acrmri2023}
-{American College of Radiology},
-\newblock Practice parameter for the performance of {MRI} of the adult spine, 2023,
-\newblock \url{https://www.asnr.org/wp-content/uploads/2019/06/MR-Adult-Spine.pdf}.
-
 \bibitem{koninwalz2010}
 G.~Konin and D.~Walz,
 \newblock Lumbosacral transitional vertebrae: classification, imaging findings, and clinical relevance,
 \newblock AJNR Am. J. Neuroradiol. {\bf 31}, 1778--1786 (2010),
 \newblock doi:10.3174/ajnr.A2036.
 
+\bibitem{lian2018}
+J.~Lian, N.~Levine, and W.~Cho,
+\newblock A review of lumbosacral transitional vertebrae and associated vertebral numeration,
+\newblock Eur. Spine J. {\bf 27}, 995--1004 (2018),
+\newblock doi:10.1007/s00586-018-5554-8.
+
 \bibitem{hanhivaara2022}
-J.~Hanhivaara et~al.,
+J.~Hanhivaara, J.~H. M{\"a}{\"a}tt{\"a}, J.~Karppinen, J.~Niinim{\"a}ki, and M.~T. Nevalainen,
 \newblock The association of lumbosacral transitional vertebrae with low back pain and lumbar degenerative findings in {MRI}: a large cohort study,
-\newblock Spine {\bf 47}, 153--162 (2022),
-\newblock doi:10.1097/BRS.0000000000004244.
-
-\bibitem{ctspine1k}
-Y.~Deng et~al.,
-\newblock {CTSpine1K}: a large-scale dataset for spinal vertebrae segmentation in computed tomography,
-\newblock Mach. Learn. Biomed. Imaging {\bf 3}, 824--832 (2025),
-\newblock doi:10.59275/j.melba.2025-gf84.
-
-\bibitem{ctpelvic1k}
-P.~Liu et~al.,
-\newblock Deep learning to segment pelvic bones: large-scale {CT} datasets and baseline models,
-\newblock Int. J. Comput. Assist. Radiol. Surg. {\bf 16}, 749--756 (2021),
-\newblock doi:10.1007/s11548-021-02363-8.
+\newblock Spine {\bf 47}, 153--162 (2022).
 
 \bibitem{nagata2025}
 S.~Nagata et~al.,
@@ -1015,9 +1001,21 @@ S.~Nagata et~al.,
 \newblock Skeletal Radiol. {\bf 54}, 2169--2177 (2025),
 \newblock doi:10.1007/s00256-025-04952-z.
 
+\bibitem{totalsegmentator}
+J.~Wasserthal et~al.,
+\newblock {TotalSegmentator}: robust segmentation of 104 anatomic structures in {CT} images,
+\newblock Radiol. Artif. Intell. {\bf 5}, e230024 (2023),
+\newblock doi:10.1148/ryai.230024.
+
+\bibitem{verse2021}
+A.~Sekuboyina et~al.,
+\newblock {VerSe}: a vertebrae labelling and segmentation benchmark for multi-detector {CT} images,
+\newblock Med. Image Anal. {\bf 73}, 102166 (2021),
+\newblock doi:10.1016/j.media.2021.102166.
+
 \bibitem{spineps2025}
 H.~M{\"o}ller et~al.,
-\newblock {SPINEPS}---automatic whole spine segmentation of {T2}-weighted {MR} images using a two-phase approach to multi-class semantic and instance segmentation,
+\newblock {SPINEPS}—automatic whole spine segmentation of {T2}-weighted {MR} images using a two-phase approach to multi-class semantic and instance segmentation,
 \newblock Eur. Radiol. {\bf 35}, 1178--1189 (2025),
 \newblock doi:10.1007/s00330-024-11155-y.
 
@@ -1045,11 +1043,27 @@ T.~De~Silva et~al.,
 \newblock Spine (Phila. Pa. 1976) {\bf 41}, E1249--E1256 (2016),
 \newblock doi:10.1097/BRS.0000000000001589.
 
+\bibitem{acr2021}
+T.~A. Hutchins et~al.,
+\newblock {ACR} {Appropriateness Criteria} Low Back Pain: 2021 Update,
+\newblock J. Am. Coll. Radiol. {\bf 18}, S361--S379 (2021),
+\newblock doi:10.1016/j.jacr.2021.08.002.
+
 \bibitem{nass2013}
 D.~S. Kreiner et~al.,
 \newblock An evidence-based clinical guideline for the diagnosis and treatment of degenerative lumbar spinal stenosis (update),
 \newblock Spine J. {\bf 13}, 734--743 (2013),
 \newblock doi:10.1016/j.spinee.2012.11.059.
+
+\bibitem{acrct2022}
+{American College of Radiology},
+\newblock {ACR}--{ASNR}--{ASSR}--{SPR} practice parameter for the performance of computed tomography ({CT}) of the spine, revised 2022 ({Resolution} 23),
+\newblock American College of Radiology, Reston, VA. \url{https://www.asnr.org/wp-content/uploads/2019/06/CT-Spine-1.pdf}, 2022.
+
+\bibitem{acrmri2023}
+{American College of Radiology},
+\newblock {ACR}--{ASNR}--{SABI}--{SSR} practice parameter for the performance of magnetic resonance imaging ({MRI}) of the adult spine, revised 2023 ({Resolution} 6),
+\newblock American College of Radiology, Reston, VA. \url{https://www.asnr.org/wp-content/uploads/2019/06/MR-Adult-Spine.pdf}, 2023.
 
 \bibitem{sixta2012}
 S.~Sixta et~al.,
@@ -1074,6 +1088,18 @@ K.~Clark et~al.,
 \newblock J. Digit. Imaging {\bf 26}, 1045--1057 (2013),
 \newblock doi:10.1007/s10278-013-9622-7.
 
+\bibitem{ctpelvic1k}
+P.~Liu et~al.,
+\newblock Deep learning to segment pelvic bones: large-scale {CT} datasets and baseline models,
+\newblock Int. J. Comput. Assist. Radiol. Surg. {\bf 16}, 749--756 (2021),
+\newblock doi:10.1007/s11548-021-02363-8.
+
+\bibitem{ctspine1k}
+Y.~Deng et~al.,
+\newblock {CTSpine1K}: a large-scale dataset for spinal vertebrae segmentation in computed tomography,
+\newblock Mach. Learn. Biomed. Imaging {\bf 3}, 824--832 (2025),
+\newblock doi:10.59275/j.melba.2025-gf84.
+
 \bibitem{duplessis2018}
 A.~M. Du~Plessis, L.~M. Greyling, and B.~J. Page,
 \newblock Differentiation and classification of thoracolumbar transitional vertebrae,
@@ -1081,7 +1107,7 @@ A.~M. Du~Plessis, L.~M. Greyling, and B.~J. Page,
 \newblock doi:10.1111/joa.12781.
 
 \bibitem{poolman2023}
-A.~M. Poolman et~al.,
+A.~M. Poolman, Q.~Wessels, A.~V. Schoor, and N.~Keough,
 \newblock Thoracolumbar transitional vertebrae: Quantitative differentiation and associated numeric variation in the vertebral column using skeletal remains,
 \newblock J. Anat. {\bf 243}, 311--318 (2023),
 \newblock doi:10.1111/joa.13865.
@@ -1091,26 +1117,6 @@ M.~R. Zindrick et~al.,
 \newblock Analysis of the morphometric characteristics of the thoracic and lumbar pedicles,
 \newblock Spine (Phila. Pa. 1976) {\bf 12}, 160--166 (1987),
 \newblock doi:10.1097/00007632-198703000-00012.
-
-\bibitem{hasegawa2018}
-K.~Hasegawa et~al.,
-\newblock Difference in whole spinal alignment between supine and standing positions in
-patients with adult spinal deformity,
-\newblock BMC Musculoskelet. Disord. {\bf 19}, 437 (2018),
-\newblock doi:10.1186/s12891-018-2355-5.
-
-\bibitem{leeliu2022}
-C.~M. Lee and R.~W. Liu,
-\newblock Comparison of pelvic incidence measurement using lateral x-ray, standard CT versus
-CT with 3D reconstruction,
-\newblock Eur. Spine J. {\bf 31}, 241--247 (2022),
-\newblock doi:10.1007/s00586-021-07024-7.
-
-\bibitem{veilleux2020}
-N.~J. Veilleux et~al.,
-\newblock Automatic characterization of pelvic and sacral measures from 200 subjects,
-\newblock J. Bone Joint Surg. Am. {\bf 102}, e130 (2020),
-\newblock doi:10.2106/JBJS.20.00343.
 
 \bibitem{panjabi1991}
 M.~M. Panjabi et~al.,
@@ -1125,7 +1131,7 @@ M.~M. Panjabi et~al.,
 \newblock doi:10.1097/00007632-199203000-00010.
 
 \bibitem{berry1987}
-J.~L. Berry et~al.,
+J.~L. Berry, J.~M. Moran, W.~S. Berg, and A.~D. Steffee,
 \newblock A morphometric study of human lumbar and selected thoracic vertebrae,
 \newblock Spine (Phila. Pa. 1976) {\bf 12}, 362--367 (1987),
 \newblock doi:10.1097/00007632-198705000-00010.
@@ -1148,23 +1154,39 @@ H.~Liebl et~al.,
 \newblock Sci. Data {\bf 8}, 284 (2021),
 \newblock doi:10.1038/s41597-021-01060-0.
 
-\bibitem{verse2021}
-A.~Sekuboyina et~al.,
-\newblock {VerSe}: a vertebrae labelling and segmentation benchmark for multi-detector {CT} images,
-\newblock Med. Image Anal. {\bf 73}, 102166 (2021),
-\newblock doi:10.1016/j.media.2021.102166.
-
 \bibitem{ribsegv2}
 L.~Jin et~al.,
 \newblock {RibSeg} v2: a large-scale benchmark for rib labeling and anatomical centerline extraction,
 \newblock IEEE Trans. Med. Imaging {\bf 43}, 570--581 (2024),
 \newblock doi:10.1109/TMI.2023.3313627.
 
-\bibitem{totalsegmentator}
-J.~Wasserthal et~al.,
-\newblock {TotalSegmentator}: robust segmentation of 104 anatomic structures in {CT} images,
-\newblock Radiol. Artif. Intell. {\bf 5}, e230024 (2023),
-\newblock doi:10.1148/ryai.230024.
+\bibitem{dicomps3}
+{National Electrical Manufacturers Association},
+\newblock Digital Imaging and Communications in Medicine ({DICOM}) Standard, Part 3: Information Object Definitions,
+\newblock Technical Report PS3.3, NEMA, Rosslyn, VA, 2024,
+\newblock Attributes (0010,0020), (0020,000D), (0020,000E), (0018,5100).
+
+\bibitem{nifti1}
+R.~W. Cox, J.~Ashburner, H.~Breman, K.~Fissell, C.~Haselgrove, C.~J. Holmes, J.~L. Lancaster, D.~E. Rex, S.~M. Smith, J.~B. Woodward, and S.~C. Strother,
+\newblock A (sort of) new image data format standard: {NIfTI-1},
+\newblock NeuroImage {\bf 22}, e1440 (2004),
+\newblock 10th Annual Meeting of the Organization for Human Brain Mapping, Budapest.
+
+\bibitem{li2016}
+X.~Li, P.~S. Morgan, J.~Ashburner, J.~Smith, and C.~Rorden,
+\newblock The first step for neuroimaging data analysis: {DICOM} to {NIfTI} conversion,
+\newblock J. Neurosci. Methods {\bf 264}, 47--56 (2016).
+
+\bibitem{hasegawa2018}
+K.~Hasegawa, M.~Okamoto, S.~Hatsushikano, G.~Caseiro, and K.~Watanabe,
+\newblock Difference in whole spinal alignment between supine and standing positions in patients with adult spinal deformity,
+\newblock BMC Musculoskelet. Disord. {\bf 19}, 437 (2018).
+
+\bibitem{nnunet}
+F.~Isensee, P.~F. Jaeger, S.~A.~A. Kohl, J.~Petersen, and K.~H. Maier-Hein,
+\newblock {nnU-Net}: a self-configuring method for deep learning-based biomedical image segmentation,
+\newblock Nat. Methods {\bf 18}, 203--211 (2021),
+\newblock doi:10.1038/s41592-020-01008-z.
 
 \bibitem{moller2026}
 H.~M{\"o}ller et~al.,
@@ -1173,41 +1195,43 @@ H.~M{\"o}ller et~al.,
 \newblock arXiv:2505.05004. doi:10.48550/arXiv.2505.05004.
 
 \bibitem{osc2026}
-\ifreview
-\newblock [Reference removed for double-anonymized review: a published description of the authors' student research program.]
-\else
 A.~Schehr, J.~Kim, and G.~Schwing,
 \newblock {OpenSpineConsortium}: an open-source framework for medical student engagement in computational spine imaging research,
 \newblock Cureus  (2026),
 \newblock doi:10.7759/cureus.112661.
-\fi
 
-\bibitem{nnunet}
-F.~Isensee et~al.,
-\newblock {nnU-Net}: a self-configuring method for deep learning-based biomedical image segmentation,
-\newblock Nat. Methods {\bf 18}, 203--211 (2021),
-\newblock doi:10.1038/s41592-020-01008-z.
+\bibitem{veilleux2020}
+N.~J. Veilleux, N.~V. Kalore, J.~A. Vossen, and J.~S. Wayne,
+\newblock Automatic characterization of pelvic and sacral measures from 200 subjects,
+\newblock J. Bone Joint Surg. Am. {\bf 102}, e130 (2020),
+\newblock doi:10.2106/JBJS.20.00343.
 
-\bibitem{vialle2005}
-R.~Vialle et~al.,
-\newblock Radiographic analysis of the sagittal alignment and balance of the spine in asymptomatic subjects,
-\newblock J. Bone Joint Surg. Am. {\bf 87}, 260--267 (2005),
-\newblock doi:10.2106/JBJS.D.02043.
+\bibitem{leeliu2022}
+C.~M. Lee and R.~W. Liu,
+\newblock Comparison of pelvic incidence measurement using lateral x-ray, standard {CT} versus {CT} with {3D} reconstruction,
+\newblock Eur. Spine J. {\bf 31}, 241--247 (2022),
+\newblock doi:10.1007/s00586-021-07024-7.
 
 \bibitem{castellvi1984}
-A.~E. Castellvi et~al.,
+A.~E. Castellvi, L.~A. Goldstein, and D.~P. Chan,
 \newblock Lumbosacral transitional vertebrae and their relationship with lumbar extradural defects,
 \newblock Spine (Phila. Pa. 1976) {\bf 9}, 493--495 (1984),
 \newblock doi:10.1097/00007632-198407000-00014.
 
+\bibitem{vialle2005}
+R.~Vialle, N.~Levassor, L.~Rillardon, A.~Templier, W.~Skalli, and P.~Guigui,
+\newblock Radiographic analysis of the sagittal alignment and balance of the spine in asymptomatic subjects,
+\newblock J. Bone Joint Surg. Am. {\bf 87}, 260--267 (2005),
+\newblock doi:10.2106/JBJS.D.02043.
+
 \bibitem{pickhardt2013}
-P.~J. Pickhardt et~al.,
+P.~J. Pickhardt, B.~D. Pooler, T.~Lauder, A.~M. del Rio, R.~J. Bruce, and N.~Binkley,
 \newblock Opportunistic screening for osteoporosis using abdominal computed tomography scans obtained for other indications,
 \newblock Ann. Intern. Med. {\bf 158}, 588--595 (2013),
 \newblock doi:10.7326/0003-4819-158-8-201304160-00003.
 
 \bibitem{mody2008}
-M.~G. Mody et~al.,
+M.~G. Mody, A.~Nourbakhsh, D.~L. Stahl, M.~Gibbs, M.~Alfawareh, and K.~J. Garges,
 \newblock The Prevalence of Wrong Level Surgery Among Spine Surgeons,
 \newblock Spine (Phila. Pa. 1976) {\bf 33}, 194--198 (2008),
 \newblock doi:10.1097/BRS.0b013e31816043d1.
@@ -1218,13 +1242,16 @@ N.~Epstein,
 \newblock Surg. Neurol. Int. {\bf 12}, 286 (2021),
 \newblock doi:10.25259/SNI\_402\_2021.
 
-\bibitem{hahn2017}
-G.~J. Hahn, W.~Q. Meeker and L.~A. Escobar, Statistical Intervals, Wiley, 2017.
-
 \bibitem{benzel2015}
 E.~C. Benzel,
 \newblock {\em Biomechanics of Spine Stabilization},
-\newblock Thieme, 3rd edition, 2015.
+\newblock Thieme, New York, 3rd edition, 2015,
+\newblock ISBN 978-1-60406-924-2.
+
+\bibitem{hahn2017}
+G.~J. Hahn, W.~Q. Meeker, and L.~A. Escobar,
+\newblock {\em Statistical Intervals: A Guide for Practitioners and Researchers},
+\newblock Wiley, Hoboken, NJ, 2nd edition, 2017.
 
 \bibitem{fea2026}
 E.~Beaulieu et~al.,
@@ -1233,6 +1260,7 @@ E.~Beaulieu et~al.,
 \newblock doi:10.3390/jcm15072584.
 
 \end{thebibliography}
+
 
 \ifcaptionlist\input{figure_captions}\fi
 
