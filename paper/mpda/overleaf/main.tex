@@ -535,15 +535,42 @@ Given these complementary gaps, the two approaches were combined (Fig.~\ref{fig:
 numbering and the medial-clipped cases, Möller the detection where its output is more
 complete.
 
-The result is a pseudolabel whose review was triaged rather than exhaustive. A label-based
-rule flagged every record in which one rib
-bone carried more than one identifier, or in which a rib failed to reach the vertebra it
-articulates with, since a single bone carrying two numbers is a numbering error whatever the anatomy. The
-rule selected 152 records; 148 were reviewed and corrected, and four
-were not and are identified in the release. Reviewers were medical students working through \consortium~\cite{osc2026}, trained against
-a written labeling protocol, with every correction attributed to its annotator. Records passing the rule were not individually inspected;
-the residual rib--vertebra offsets reported in Sec.~\ref{sec:validation} are the
-independent check on what the rule missed.
+The result of their union is a pseudolabel of all ribs in the volume. An extensive quality
+control pipeline was used to triage possible errors rather than exhaustively reviewing all the
+pseudolabels. A label-based rule flagged every record in which one rib bone carried more than
+one identifier, or in which a rib failed to reach the vertebra it articulates with, since a
+single bone carrying two numbers is a numbering error whatever the anatomy. On the raw union
+the rule selected 152 records, with 584 rib bones carrying two identifiers among them; 148
+were reviewed and corrected, and four were not and are identified in the release. Reviewers
+were medical students working through \consortium~\cite{osc2026}, trained against a written
+labeling protocol, with every correction attributed to its annotator. Records passing the rule
+were not individually inspected; the rib--vertebra incidence check of
+Sec.~\ref{sec:validation}, run at each stage, is the independent measure of what the rule and
+the reviewers missed (Table~\ref{tab:ribqc}). On the raw pseudolabel 3.1\% of the evaluable
+ribs sat one or two levels from the vertebra their number implies and 24 records carried a
+misnumbered cage; the students' corrections cut both by a third (1.9\%, 16 records). What
+remained were whole-side shifts that no reviewer had been asked to look for: once a rib on a
+lumbar body received its own class, each side could be anchored on its most confident
+articulation and renumbered by counting, which left two offset ribs in 5{,}749 and no
+misnumbered record.
+
+\begin{table}[!ht]
+\caption{Rib--vertebra incidence at three stages: the raw union pseudolabel, after the
+students corrected the 148 triaged records, and the release after the lumbar-rib class and
+rule-based renumbering. Evaluable ribs are those whose expected vertebra lies in the field of
+view; a record is misnumbered when its ribs are consistently offset.}
+\label{tab:ribqc}
+\begin{ruledtabular}
+\maxwidth{%
+\begin{tabular}{lrrrr}
+Stage & Evaluable ribs & On own vertebra & Offset & Misnumbered records \\ \colrule
+Raw pseudolabel          & 5{,}560 & 96.6\%  & 170 (3.1\%)   & 24 \\
+After student correction & 5{,}670 & 97.6\%  & 109 (1.9\%)   & 16 \\
+Release                  & 5{,}749 & 99.97\% & 2 (0.035\%)   & 0  \\
+\end{tabular}
+}
+\end{ruledtabular}
+\end{table}
 
 \subsection{Label scheme and counting anchors}\label{sec:anchors}
 
