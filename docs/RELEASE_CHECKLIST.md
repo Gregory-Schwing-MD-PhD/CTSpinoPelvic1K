@@ -114,6 +114,23 @@ have completely different fixes:
 | hundreds of connected components, all within ~1 mm of a neighbouring rib | **speckle**, not a rib | engulf per component (`scripts/postprocess_halo.py`) |
 | whole side consistently one level out | genuine **off-by-one** | shift that side |
 
+### 2.2b Rib in two pieces — `scripts/rib_fragments_detail.py`
+
+A rib label in two or more substantial pieces (second piece at least 50 voxels and 15% of the largest) is a
+segmentation defect **only when both pieces sit inside the reconstructed field**. Colonography reconstructions
+clip the lateral body wall, and a rib that curves out of the circle and back in is two pieces on the label through
+no fault of the labeller. The rule therefore ignores a split whose second piece touches the reconstruction
+boundary (CT at or below -1000 HU outside the circle, eroded two voxels) or a face of the volume. The same
+exception is in `results/rib_qc_v4_vs_release/rib_qc_stages.py` (`--ct`), so the paper's count and this check
+agree. `rib_fragments_detail.py` names every split with the piece sizes, the gap, and whether it is at the edge,
+and writes a coronal projection per rib so the call can be checked by eye.
+
+| signature | what it is | fix |
+|---|---|---|
+| second piece touches the circle or a face | rib **left the field and came back** | none; not a defect |
+| second piece medial, near the spine | rib **head segmented separately** | merge, or accept if the gap is under 25 mm |
+| second piece touching another rib id | **mislabelled fragment** | relabel the piece |
+
 ### 2.3 Morphometrics plausibility — built into `extract_surgical_morphometrics.py`
 
 The script holds published adult ranges for the measures that have them, flags any

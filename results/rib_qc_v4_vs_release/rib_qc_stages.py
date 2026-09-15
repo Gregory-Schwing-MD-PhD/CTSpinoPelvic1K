@@ -31,8 +31,13 @@ import review_anatomy_qc as RA  # noqa: E402
 import label_scheme as LS  # noqa: E402
 
 
-def fragments(lab):
-    """Rib ids present in two or more substantial pieces (second piece >= 15% and >= 50 voxels)."""
+def fragments(lab, inside=None):
+    """Rib ids present in two or more substantial pieces (second piece >= 15% and >= 50 voxels) INSIDE the field.
+
+    A rib that leaves the reconstruction circle and comes back is in two pieces on the label through no fault of
+    the segmentation, so a split whose second piece touches the reconstruction boundary (CT <= -1000 HU outside the
+    circle, eroded two voxels) or a volume face is not counted. Pass `inside` (bool array, True inside the
+    reconstructed field) to apply that exception; without a CT only the volume-face test applies."""
     st = ndimage.generate_binary_structure(3, 3)
     bad = 0
     for rid in range(LS.RIB_LEFT_OFFSET + 1, LS.RIB_RIGHT_OFFSET + 13 + 1):
@@ -42,16 +47,36 @@ def fragments(lab):
         cc, k = ndimage.label(m, structure=st)
         if k < 2:
             continue
-        sizes = np.sort(np.bincount(cc.ravel())[1:])[::-1]
-        if sizes[1] >= 50 and sizes[1] >= 0.15 * sizes[0]:
+        counts = np.bincount(cc.ravel())[1:]
+        order = np.argsort(counts)[::-1]
+        if counts[order[1]] < 50 or counts[order[1]] < 0.15 * counts[order[0]]:
+            continue
+        second = cc == (order[1] + 1)
+        idx = np.argwhere(second)
+        on_face = bool((idx.min(0) <= 1).any() or (idx.max(0) >= np.array(lab.shape) - 2).any())
+        at_edge = on_face or (inside is not None and (ndimage.binary_dilation(second, iterations=2) & ~inside).any())
+        if not at_edge:
             bad += 1
     return bad
+
+
+def field_mask(ct_path):
+    """True inside the reconstructed field: CT above -1000 HU, eroded two voxels so the rim itself counts as edge."""
+    try:
+        ct = np.asanyarray(nib.load(str(ct_path)).dataobj)
+        return ndimage.binary_erosion(ct > -1000, iterations=2)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+CT_DIR = os.environ.get("RIB_QC_CT_DIR")
 
 
 def one(p):
     t0 = time.time()
     try:
         im = nib.load(str(p)); lab = np.asanyarray(im.dataobj).astype(np.int16)
+        inside = field_mask(Path(CT_DIR) / p.name.replace("_label", "_ct")) if CT_DIR else None
         mix_ok, mix_msg = RA.rib_label_mixing(lab, im.affine)
         gap_ok, gap_msg = RA.rib_spine_gap(lab, im.affine)
         vm_ok, vm_msg = RA.rib_vertebra_match(lab, im.affine)
@@ -60,7 +85,7 @@ def one(p):
                 "vm_fail": not vm_ok, "n_misnumbered": sum(1 for m in vm_msg if m.startswith("X")),
                 "n_lumbar_rib_notes": sum(1 for m in vm_msg if m.startswith("note") and "lumbar" in m.lower()),
                 "n_nearest_notes": sum(1 for m in vm_msg if m.startswith("note") and "nearest vertebra" in m),
-                "n_fragmented_ribs": fragments(lab), "vm_msgs": [m for m in vm_msg if m.startswith("X")][:20],
+                "n_fragmented_ribs": fragments(lab, inside), "vm_msgs": [m for m in vm_msg if m.startswith("X")][:20],
                 "seconds": round(time.time() - t0, 1)}
     except Exception as e:  # noqa: BLE001
         return {"case": p.name, "error": repr(e)[:200], "seconds": round(time.time() - t0, 1)}
@@ -81,11 +106,15 @@ def summarise(rows, d):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--labels")
+    ap.add_argument("--ct", default=None, help="CT directory; enables the field-edge exception in the fragment count")
     ap.add_argument("--name")
     ap.add_argument("--out", required=True, help="prefix; <out>.<name>.rows.jsonl and <out>.json")
     ap.add_argument("--workers", type=int, default=int(os.environ.get("SLURM_CPUS_PER_TASK", 8)))
     ap.add_argument("--summarise", action="store_true")
     a = ap.parse_args()
+    global CT_DIR
+    if a.ct:
+        CT_DIR = a.ct; os.environ["RIB_QC_CT_DIR"] = a.ct
     if a.summarise:
         out = {}
         for p in sorted(Path(a.out).parent.glob(Path(a.out).name + ".*.rows.jsonl")):
