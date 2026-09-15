@@ -294,7 +294,7 @@ def run_prediction(force: bool, device: str) -> None:
         "nnUNetv2_predict", "-d", "803", "-c", "3d_fullres",
         "-p", "nnUNetResEncUNetPlans_100G",
         "-tr", "nnUNetTrainerWandB_500ep_LSTVOversample",
-        "-f", "0", "-chk", "checkpoint_best.pth",
+        "-f", "0", "1", "2", "3", "4", "-chk", "checkpoint_best.pth",
         "-npp", "1", "-nps", "1", "-device", device,
         "--disable_tta", "--continue_prediction",
     ]
