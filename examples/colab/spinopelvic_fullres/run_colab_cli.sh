@@ -31,7 +31,7 @@ if ! "${COLAB}" "${COLAB_AUTH[@]}" status -s "${SESSION}" >/dev/null 2>&1; then
 fi
 
 echo "Preparing remote folders..."
-printf 'from pathlib import Path\nPath("%s").mkdir(parents=True, exist_ok=True)\nPath("%s").mkdir(parents=True, exist_ok=True)\n' "${REMOTE_INPUT}" "${REMOTE_CHUNKS}" | "${COLAB}" "${COLAB_AUTH[@]}" exec --timeout "${EXEC_TIMEOUT}" -s "${SESSION}"
+printf 'import shutil\nfrom pathlib import Path\nshutil.rmtree("%s", ignore_errors=True)\nPath("%s").mkdir(parents=True, exist_ok=True)\nPath("%s").mkdir(parents=True, exist_ok=True)\n' "${REMOTE_INPUT}" "${REMOTE_INPUT}" "${REMOTE_CHUNKS}" | "${COLAB}" "${COLAB_AUTH[@]}" exec --timeout "${EXEC_TIMEOUT}" -s "${SESSION}"
 
 echo "Uploading runner..."
 "${COLAB}" "${COLAB_AUTH[@]}" upload -s "${SESSION}" "${ROOT}/ai_spine_feasibility/colab/spinopelvic_fullres_fresh/spinopelvic_fullres_nrrd_colab.py" "${REMOTE_ROOT}/spinopelvic_fullres_nrrd_colab.py"
