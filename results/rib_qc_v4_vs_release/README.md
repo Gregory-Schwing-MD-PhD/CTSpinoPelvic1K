@@ -23,3 +23,20 @@ account for ribs cut by the scan edge; the incidence script does.
 
 Files: `gates_v4_vs_release.json`, `incidence_v4.json`, `incidence_release.json`,
 `misnumbered_*.csv`, and the two scripts.
+
+## "148 reviewed, four not" was an artifact, and what the ledger says
+
+`rib_qc_fail.csv` marks a record `reviewed` when its token is in `rib_worklist.json`. The copy of the worklist
+that column was computed against lacked four tokens (69, 518, 711, CTC-1018399231; cases 0100, 0730, 1016, 1121),
+so the paper said 148 of 152 were reviewed. The review ledger (`anonymous-mlhc/CTSpinoPelvic1K-reviews-ribs`,
+task `ribs`, source revision v4) says otherwise, checked 2026-09-14 for all 152 worklist tokens:
+
+| status in the ledger | tokens |
+|---|---|
+| finalised label (two completed reads) | 149 |
+| corrected once, never finalised | 3: token 46 (case 0068, the deferred instrumented record), 61 (0090), 518 (0730, one read by the PI, second claim expired) |
+| never opened | 0 |
+
+Tokens 69, 711 and CTC-1018399231 each have two completed reads and a final label. In the release neither gate
+fires on any record, because the rule-based rib rebuild numbers ribs against their vertebrae; the three
+unfinalised records' release labels come from that rebuild rather than from a finalised correction.

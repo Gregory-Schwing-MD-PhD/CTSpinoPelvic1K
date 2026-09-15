@@ -539,8 +539,9 @@ The result of their union is a pseudolabel of all ribs in the volume. An extensi
 control pipeline was used to triage possible errors rather than exhaustively reviewing all the
 pseudolabels (Table~\ref{tab:ribqc}). Two label-based checks gated the triage: a rib bone
 carrying two identifiers, and a rib that never reaches the spine. They selected 152 records;
-148 were reviewed and corrected, and four were not and are identified in the release, which
-is where the residue in the first two rows sits.
+every one was corrected by a reviewer and 149 finalised by a second read. Neither gate fires
+on any release record; what remains is thirteen ribs in two pieces, two offset ribs and eleven
+whose medial end stops short of a vertebra.
 Reviewers were medical students working through \consortium~\cite{osc2026}, trained against a
 written labeling protocol, with every correction attributed to its annotator, and a save was
 refused until the review checks passed. Ribs are named for the vertebra they articulate with,
@@ -549,22 +550,20 @@ the release-stage incidence is therefore a consistency check on that rule, and t
 stages are the independent measure of the pseudolabel and of the reviewers.
 
 \begin{table}[!ht]
-\caption{Rib checks on the raw pseudolabel and after the student corrections. The first two
-gated the review; the rest were measured on every record at both stages. Pairs are records /
-ribs, or records / pieces.}
+\caption{Rib checks on the pseudolabel and on the release, the same code on both; the first
+two gated the review. Pairs are records / ribs; a piece is a second component of at least
+50 voxels and 15\% of the largest.}
 \label{tab:ribqc}
 \begin{ruledtabular}
-\maxwidth{%
-\begin{tabular}{lrr}
-Check & Before & After \\ \colrule
-Two numbers on one bone   & 151 / 584 & 3 / --- \\
-Rib detached from the spine & 38      & 2 \\
-Number in several pieces  & 463 / 1{,}146 & 330 / 378 \\
-Rib offset from its vertebra & 24 / 170 & 16 / 109 \\
-No vertebra within reach  & --- / 38  & --- / 12 \\
-Rib on a lumbar body      & --- / 21  & --- / 25 \\
+\begin{tabular}{@{}l@{\hspace{1.4em}}r@{\hspace{1.4em}}r@{}}
+Check & Pseudolabel & Release \\ \colrule
+Two numbers on one bone       & 151 / 584 & 0 / 0 \\
+Rib detached from the spine   & 37 / 40   & 0 / 0 \\
+Rib in two or more pieces     & 153 / 510 & 10 / 13 \\
+Rib offset from its vertebra  & 24 / 170  & 0 / 2 \\
+No vertebra within reach      & --- / 38  & --- / 11 \\
+Rib on a lumbar body          & 14 / 21   & 0 / 0 \\
 \end{tabular}
-}
 \end{ruledtabular}
 \end{table}
 
