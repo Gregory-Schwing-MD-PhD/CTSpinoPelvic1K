@@ -540,8 +540,9 @@ control pipeline was used to triage possible errors rather than exhaustively rev
 pseudolabels (Table~\ref{tab:ribqc}). Two label-based checks gated the triage: a rib bone
 carrying two identifiers, and a rib that never reaches the spine. They selected 152 records;
 every one was corrected by a reviewer and 149 finalised by a second read. Neither gate fires
-on any release record; what remains is thirteen ribs in two pieces, two offset ribs and eleven
-whose medial end stops short of a vertebra.
+on any release record; what remains is seven ribs split inside the field (five carrying a
+piece of a neighbour, two with the head apart), two offset ribs and eleven whose medial end
+stops short of a vertebra.
 Reviewers were medical students working through \consortium~\cite{osc2026}, trained against a
 written labeling protocol, with every correction attributed to its annotator, and a save was
 refused until the review checks passed. Ribs are named for the vertebra they articulate with,
@@ -550,14 +551,15 @@ and the release column tests that rule as much as the reviewers.
 
 \begin{table}[!ht]
 \caption{Rib checks, pseudolabel and release, same code; the first two gated the review.
-Pairs are records / ribs; a piece is at least 50 voxels and 15\% of the largest.}
+Pairs are records / ribs; a piece is at least 50 voxels and 15\% of the largest, and a rib
+that leaves the reconstructed field and re-enters is not counted as split.}
 \label{tab:ribqc}
 \begin{ruledtabular}
 \begin{tabular}{@{}l@{\hspace{1.4em}}r@{\hspace{1.4em}}r@{}}
 Check & Pseudolabel & Release \\ \colrule
 Two numbers on one bone       & 151 / 584 & 0 / 0 \\
 Rib detached from the spine   & 37 / 40   & 0 / 0 \\
-Rib in two or more pieces     & 153 / 510 & 10 / 13 \\
+Rib in two pieces inside the field & 119 / 280 & 6 / 7 \\
 Rib offset from its vertebra  & 24 / 170  & 0 / 2 \\
 No vertebra within reach      & --- / 38  & --- / 11 \\
 Rib on a lumbar body          & 14 / 21   & 0 / 0 \\

@@ -1,0 +1,14 @@
+case,rib,rid,pieces,big,second,gap_mm,fov_edge,on_face,spine_side,other_rib_touch,centroid_sep_mm
+0007,right 9,55,2,11648,8823,90.6,True,True,True,,151.3
+0007,right 10,56,2,35150,7350,45.6,True,True,False,,152.7
+0153,left 7,40,2,21150,9041,101.8,True,True,True,,171.8
+0153,right 7,53,2,21498,12359,59.9,True,True,True,,168.0
+0158,left 12,45,6,2478,2052,32.4,False,False,False,left 11,74.8
+0158,right 12,58,20,3190,654,65.5,False,False,False,right 11,97.8
+0197,right 5,51,30,151,93,1.6,False,False,False,right 6,2.5
+0355,left 12,45,18,3015,1416,19.5,False,False,False,left 11,66.5
+0390,right 7,53,2,6384,4608,27.5,True,True,True,,139.4
+0409,right 6,52,25,483,158,1.6,False,False,False,right 7,20.5
+0855,left 12,45,2,5244,4202,12.5,False,False,True,,73.5
+0910,left 5,38,2,8846,8504,84.8,True,True,False,,168.0
+1058,left 12,45,12,5156,3047,23.3,False,False,True,,62.8

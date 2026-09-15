@@ -1,0 +1,15 @@
+{
+ "labels": 802,
+ "flagged_ribs": 13,
+ "records": 10,
+ "fov_edge": 6,
+ "spine_side": 6,
+ "touching_other_rib": 5,
+ "gap_under_25mm": 5,
+ "errors": [
+  {
+   "case": "0533_label.nii.gz",
+   "error": "EOFError('Compressed file ended before the end-of-stream marker was reached')"
+  }
+ ]
+}

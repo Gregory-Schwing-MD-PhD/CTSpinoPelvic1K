@@ -40,3 +40,19 @@ task `ribs`, source revision v4) says otherwise, checked 2026-09-14 for all 152 
 Tokens 69, 711 and CTC-1018399231 each have two completed reads and a final label. In the release neither gate
 fires on any record, because the rule-based rib rebuild numbers ribs against their vertebrae; the three
 unfinalised records' release labels come from that rebuild rather than from a finalised correction.
+
+## Ribs in two pieces, classified (2026-09-15, `scripts/rib_fragments_detail.py`)
+
+A split whose second piece touches the reconstruction boundary or a volume face is a rib that left the field and
+came back, not a defect. Under that rule (now in `rib_qc_stages.py --ct` and RELEASE_CHECKLIST 2.2b):
+
+| stage | split ribs (all) | at the field edge | inside the field | of which a piece touching another rib id | clean split (head apart) |
+|---|---|---|---|---|---|
+| v4 pseudolabel | 510 in 153 records | 230 | 280 in 119 records | 261 | 19 |
+| release | 13 in 10 records | 6 | 7 in 6 records | 5 | 2 |
+
+The seven inside the field in the release: 0158 left 12 and right 12, 0355 left 12, 0197 right 5 and 0409 right 6
+(each a piece touching the neighbouring rib's id, the last two under 500 voxels), and 0855 left 12 and 1058 left 12
+(the rib head segmented apart from the shaft, gaps 12.5 and 23.3 mm). Per-rib rows with piece sizes, gaps and the
+edge test: `fragments_release/rib_fragments_release.csv`, `fragments_v4/rib_fragments_release.csv`; coronal
+projections per rib on the grid under `~/rib_fragments_release/png`.
