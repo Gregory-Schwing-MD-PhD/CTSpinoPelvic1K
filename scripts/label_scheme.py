@@ -2,12 +2,12 @@
 
 VerSe-native: the spine keeps its VerSe ids VERBATIM (no remap — that was the v3 bug),
 and every structure NOT in VerSe gets a fixed id ABOVE the VerSe range, so no two
-structures can ever share an id. The space is contiguous, 0..68; the two VerSe ids
-27 (coccyx) and 28 (T13) are kept and no released record uses them.
+structures can ever share an id. The space runs 0..68 with one hole at the retired 29;
+the two VerSe ids 27 (coccyx) and 28 (T13) are kept and no released record uses them.
 
     spine   (VerSe, from CTSpine1K) : 1–7 C1–C7 · 8–19 T1–T12 · 20–25 L1–L6 · 26 sacrum
                                        · 27 coccyx · 28 T13           ← passed through AS-IS
-    pelvis  (CTPelvic1K + TS femurs): 26 sacrum [shared] · 29 S1 · 30 left_hip · 31 right_hip
+    pelvis  (CTPelvic1K + TS femurs): 26 sacrum [shared] · 30 left_hip · 31 right_hip
                                        · 32 femur_left · 33 femur_right
     ribs    (numbered off GT thoracic): 34–46 rib_left_1..13 · 47–59 rib_right_1..13
                                        (rib 13 = the true rib of a T13; empty so far)
@@ -37,9 +37,23 @@ IGNORE_LABEL = 255
 # ── spine: VerSe verbatim (NO remap) ─────────────────────────────────────────
 # VerSe-2020 numbering. CTSpine1K uses exactly this, so the spine mask passes through.
 VERSE_SPINE: Dict[int, int] = {v: v for v in range(1, 29)}     # 1..28 -> identity
-SACRUM_ID = 26                                                 # VerSe sacrum (below S1)
-S1_ID = 29                                                     # S1 body — carved from sacrum top
-                                                               # (needed for spinopelvic angles)
+SACRUM_ID = 26                                                 # VerSe sacrum, entire
+
+# ID 29 IS RETIRED, NOT REUSED. Through v10 it held an S1 carved off the top of the
+# sacrum on an automatic S1/S2 estimate. That estimate was unreliable (median extent
+# 57.6 mm against a real first sacral segment near 30, and on 222 of 802 records the
+# plane took more than half the sacrum, sometimes shaving the ventral cortex so the
+# retained sacrum lost its anterior wall), so v11 dissolved it back into 26.
+#
+# It is retired rather than renumbered: closing the gap by shifting 30-68 down one
+# would rename the hips, femora and all twenty-six ribs, and every consumer keyed to
+# the released ids would silently read the wrong structure.
+#
+# THERE IS DELIBERATELY NO "S1" KEY BELOW. A map that still answered 29 would hand
+# back an id no voxel carries, and the caller would measure an empty mask and get a
+# plausible zero instead of an error. KeyError is the correct answer to a request for
+# a class this release does not have.
+S1_ID_RETIRED = 29
 
 # ── pelvis: CTPelvic1K 4-class (1 sacrum, 2 left_hip, 3 right_hip, 4 lumbar spine) ──
 # Sacrum folds into the VerSe sacrum (26); CTPelvic1K's lumbar class (4) is DROPPED (the
@@ -102,7 +116,6 @@ def label_dict() -> Dict[str, int]:
     d["sacrum"] = SACRUM_ID                                    # 26
     d["coccyx"] = 27
     d["T13"] = 28
-    d["S1"] = S1_ID                                            # 29 (carved from sacrum top)
     d["left_hip"] = 30
     d["right_hip"] = 31
     d["femur_left"] = FEMUR_LEFT                               # 32
@@ -141,8 +154,12 @@ def verify() -> None:
     for nm in ["left_hip", "right_hip", "femur_left", "femur_right",
                "rib_left_1", "rib_right_13", "rib_left_lumbar", "rib_right_lumbar"]:
         assert d[nm] >= 26, f"{nm}={d[nm]} collides with the VerSe vertebra range (1–25)"
-    # the space is contiguous: every id from 0 to MAX_ID is assigned exactly once
-    assert sorted(d.values()) == list(range(0, MAX_ID + 1)), "gap or overlap in the id space"
+    # The space runs 0..MAX_ID with exactly one hole, the retired 29 (see S1_ID_RETIRED).
+    # Spelling the hole out is the point: a bare contiguity assert would have to be deleted
+    # to let v11 through, and deleting it would also stop catching a real gap.
+    expected = [i for i in range(0, MAX_ID + 1) if i != S1_ID_RETIRED]
+    assert sorted(d.values()) == expected, "gap or overlap in the id space"
+    assert S1_ID_RETIRED not in d.values(), "id 29 is retired and must not be reissued"
     # ribs don't overlap femurs/pelvis; right ribs follow left; lumbar ribs and hardware follow
     assert RIB_LEFT_OFFSET + 1 > FEMUR_RIGHT, "ribs overlap femurs"
     assert RIB_RIGHT_OFFSET == RIB_LEFT_OFFSET + N_RIBS, "right ribs must follow rib_left_13"

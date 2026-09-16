@@ -12,18 +12,26 @@ lumbosacral junction without counting down from C2. The dataset article is in `p
 
 ## Things that are true and cost time to rediscover
 
-**There are two label schemes and mixing them does not raise.** The release is v10
-(VerSe-native): L1=20 … L5=24, sacrum=26, S1=29, hips=30/31, femurs=32/33. The legacy ostk
-map puts L1 at 1 and the femurs at 11/12. Resolving "S1" against the wrong one returns **C7**,
-and "femur_left" returns **T4** — a finite, plausible-looking, wrong answer. Call
+**There are two label schemes and mixing them does not raise.** The release is v11
+(VerSe-native): L1=20 … L5=24, sacrum=26, hips=30/31, femurs=32/33. The legacy ostk
+map puts L1 at 1 and the femurs at 11/12. Resolving a name against the wrong one returns a
+finite, plausible-looking, wrong answer — "femur_left" comes back **T4**. Call
 `ostk.labels.labels_for(volume)`; never import a fixed map. This shipped once: pelvic
 incidence was computed for the whole release against the legacy map and the only symptom was
 a QC flag saying S1 had too few voxels while S1 sat there with 200,000.
 
-**The released labels are not `data/v5_final`.** They differ by the S1 carve and nothing
-else — `level_gradients.csv` regenerates bit-for-bit identical. Anything touching sacrum, S1,
-the lumbosacral disc or the pelvis must be recomputed from the released labels; anything
-purely vertebral need not be.
+**Identifier 29 is retired, and a check on it is not inert.** v10 carved an S1 (29) out of
+the sacrum on an automatic S1/S2 estimate. It was unreliable — a median craniocaudal extent
+of 57.6 mm against a real segment near 30, and on 222 records the plane took more than half
+the sacrum, sometimes shaving the ventral cortex so the retained sacrum lost its anterior
+wall. **v11 dissolves 29 back into 26** and retires the id rather than renumbering 30–68,
+which would rename the hips, femora and every rib under ids consumers are keyed to. Two
+things follow. Anything touching the sacrum, the lumbosacral disc or the pelvis must be
+recomputed from v11; anything purely vertebral is untouched, and `level_gradients.csv`
+regenerates bit-for-bit identical. And **code that gates on 29 must be retired with it**:
+`select_anchor_cases.py` kept testing whether the carve was plausible, found a stale tree
+that still had 29, and silently swapped a case out of Figure 2 while the caption named the
+old one.
 
 **Case ids are zero-padded in the release (`0001`) and were not in the old CSVs (`1`).**
 `zfill(4)` before diffing or every row looks changed.
