@@ -324,10 +324,9 @@ def main() -> int:
 
     import matplotlib.patches as mp
     handles = [
-        mp.Patch(color=C_ANCHOR_TOP / 255, label="rostral anchor: lowest rib-bearing "
-                                                 "vertebra, with its rib"),
-        mp.Patch(color=C_BETWEEN / 255, label="the rib-free vertebrae counted between them"),
-        mp.Patch(color=C_ANCHOR_BOT / 255, label="caudal anchor: the sacrum"),
+        mp.Patch(color=C_ANCHOR_TOP / 255, label="lowest rib-bearing vertebra, with its rib"),
+        mp.Patch(color=C_BETWEEN / 255, label="the lumbar bodies"),
+        mp.Patch(color=C_ANCHOR_BOT / 255, label="the sacrum"),
     ]
     # THE SAME GAP ABOVE AND BELOW THE KEY, AND THE SAME GAP FIG 1 HAS TO ITS CAPTION.
     # Figure 1 sits 5.8 pt above its caption and that is the distance to match: content to

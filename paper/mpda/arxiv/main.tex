@@ -205,8 +205,8 @@
 \textbf{Purpose:} The gold standard for naming a vertebra at the lumbosacral junction is counting caudally from C2 on whole-spine imaging. In practice, a lumbar surgical case is planned on lumbar-only imaging (T12 to S1) without C2, making the gold standard method impossible.
 Abdominopelvic computed tomography (CT) holds the lumbar-only imaging span plus the lowest ribs and pelvis,
 making it a reasonable substitute for the preoperative view. When a
-lumbosacral transitional vertebra (LSTV) alters the count, however, the local anatomy is much more ambiguous. A person who has four rib-free lumbar vertebrae may have an L1 with a lumbar rib or an
-L5 assimilated to the sacrum, and a person who has six rib-free lumbar vertebrae may have an L6, a T12 with aplastic
+lumbosacral transitional vertebra (LSTV) alters the count, however, the local anatomy is much more ambiguous. A person with four lumbar vertebrae may have an L1 bearing a lumbar rib or an
+L5 assimilated to the sacrum, and a person with six may have an L6, a T12 with aplastic
 ribs, or a lumbarized S1. CTSpinoPelvic1K permits asking whether local morphology
 can resolve that ambiguity without counting caudally from C2. Two public label sets already covered this imaging, CTSpine1K's vertebrae and CTPelvic1K's pelvis, on the same colonography
 patients. This release joins them in one dataset of 802 CT records and adds ribs, femora and surgical hardware. It also introduces classes for L6, T13
@@ -238,7 +238,7 @@ a lumbosacral one may be partly or completely assimilated to the sacrum
 (\emph{sacralization}), with an anteriorly wedged body, a reduced disc beneath it and
 hypoplastic facet joints, or separated from it (\emph{lumbarization}), with a
 squared body, lumbar-type facets and a full-height disc~\cite{koninwalz2010}. In addition, they
-change how many vertebrae each region holds: eleven or thirteen rib-bearing thoracic and four or six rib-free lumbar vertebrae.
+change how many vertebrae each region holds: eleven or thirteen thoracic and four or six lumbar.
 
 Together, these transitional variants leave the vertebra at each border without a definitive name. The one formal nomenclature at the lumbosacral junction, Castellvi's, grades the morphology of the transverse process and says nothing about whether the segment is L5 or S1~\cite{castellvi1984,koninwalz2010}; every imaging landmark proposed for numbering has proved unreliable in transitional cases~\cite{carrino2011,farshad2015,tureli2014}; and even a count from C2 yields a position, which a convention then converts to a name. Each of the readings above yields the same count (Fig.~\ref{fig:anchors}), and the morphology that would
 separate them is not always decisive to human readers. Whether it differs
@@ -295,28 +295,32 @@ The main limitation is that no scan in this dataset contains C2, so the gold sta
 conventional count cannot be performed. This is a property of abdominal imaging rather than of the
 annotation itself. A thirteenth thoracic vertebra and an L1 with a lumbar rib are different phenotypes,
 distinguished as separate subtypes in cadaveric classifications of the thoracolumbar
-junction~\cite{duplessis2018,poolman2023}. The first is an additional rib-bearing vertebra positioned above five lumbar vertebrae, so the column has 25 presacral vertebrae. The second
-is a rudimentary rib on a lumbar-type L1 in a column with the standard 24 presacral vertebrae. Neither is separable by counting from the last rib-bearing vertebra or from the sacrum because four rib-free vertebrae can fit a lumbar rib, a cranially
-shifted T13 or an L5 assimilated to the sacrum, and six rib-free vertebrae can fit an aplastic twelfth rib or a
-sixth lumbar vertebra. A \emph{stump rib} is a hypoplastic rib that is a key indicator of a
+junction~\cite{duplessis2018,poolman2023}, which separate them on quantitative shape rather
+than on position. The first is a thirteenth rib-bearing vertebra above five lumbar vertebrae,
+so the column has 25 presacral vertebrae; the second is a rudimentary rib on a lumbar-type L1
+in a column with the standard 24. Counting distinguishes neither, because four lumbar vertebrae
+can mean a lumbar rib, a cranially shifted T13 or an L5 assimilated to the sacrum, and six can
+mean an aplastic twelfth rib or a sixth lumbar vertebra. A \emph{stump rib} is a hypoplastic rib that is a key indicator of a
 thoracolumbar transitional vertebra. On whole-spine CT scans, rib anomalies travel with the lumbosacral border and hypoplastic
 twelfth ribs occur with sacralization and lumbar ribs with lumbarization.~\cite{nagata2025}
 
-In this release, every vertebra carries the identifier its
-radiologist-sourced annotation assigned as the ground truth, corrected where the source was wrong. In addition, every released measurement is expressed against the two landmarks
-present in essentially every abdominal CT scan: the sacrum inferiorly and the lowest rib-bearing
-vertebra superiorly. This makes the measurements positional rather than nominal, with a vertebra being classified by how many rib-free
-vertebrae separate it from the sacrum, a lowest rib by its length as a fraction of the rib
-above it, and a transverse process by its span and its distance from the ala. None of these
-values shift with the name a reader gives the junction, meaning that cases that disagree about the name
-remain comparable.
+In this release, every vertebra carries the identifier its radiologist-sourced annotation
+assigned as the ground truth, corrected where the source was wrong. What is measured, however,
+is the bone and not its place in a sequence: body height, end-plate width, canal width and
+depth, pedicle width, wedge ratio, transverse-process span and its distance from the ala, and
+the length of the lowest rib as a fraction of the one above it. Each describes a vertebra in
+its own right. None of them shifts with the name a reader gives the junction, so cases that
+disagree about the name remain comparable, and a criterion built on them is not a count under
+another name.
 
-\emph{But the vertebrae themselves are known to differ.} Level-specific morphometry is long
-established in the literature: pedicle width and height change systematically from the thoracic to the lumbar
-spine,\cite{zindrick1987} vertebral body, endplate and canal dimensions differ by level,\cite{panjabi1991,panjabi1992,berry1987} and the transverse process and the
-iliolumbar ligament mark the last lumbar vertebra independently of any
-count.\cite{hughes2006,koninwalz2010} If those differences hold at the boundary, the
-phenotype is decidable locally, and on this dataset it is. Separating T12 from L1 on shape
+\emph{A vertebra can be named from its own morphology.} That a level has a characteristic
+shape is long established: pedicle width and height change systematically from the thoracic to
+the lumbar spine,\cite{zindrick1987} vertebral body, end-plate and canal dimensions differ by
+level,\cite{panjabi1991,panjabi1992,berry1987} and the transverse process and the iliolumbar
+ligament mark the last lumbar vertebra independently of any
+count.\cite{hughes2006,koninwalz2010} Cadaveric series of the thoracolumbar junction classify
+a border vertebra by quantitative shape alone.\cite{duplessis2018,poolman2023} If those
+differences hold at the boundary, the phenotype is decidable locally, and on this dataset it is. Separating T12 from L1 on shape
 alone gives an area under the curve of 0.990 and 97.3\% accuracy over 1485 vertebrae. This was calculated using a
 logistic regression on five released per-level measures and six ratios between them. Each
 measure was divided by the patient's median across their levels, so that size, which
@@ -561,7 +565,7 @@ Rib on a lumbar body          & 14 / 21   & 0 / 0 \\
 
 
 
-\subsection{Label scheme and counting anchors}\label{sec:anchors}
+\subsection{Label scheme, and the phenotypes it expresses}\label{sec:anchors}
 
 The scheme is VerSe-native: vertebrae keep their VerSe identifiers (C1--C7 = 1--7,
 T1--T12 = 8--19, L1--L6 = 20--25, sacrum 26, coccyx 27, T13 = 28), and every non-VerSe structure
@@ -573,12 +577,9 @@ every rib under identifiers consumers are already keyed to. Rib 13 is the true r
 is empty in this release, so a thirteenth thoracic vertebra and a lumbar rib are labeled as the
 distinct phenotypes they are.
 
-Two anchors give every record the same positional frame, the lowest rib-bearing vertebra above
-and the sacrum below (Fig.~\ref{fig:anchors}). With both present, L5 and L6 are distinguishable
-where a spine-limited view alone would not be. The sacrum is not sub-divided: it is the source
-annotation's own outer boundary, no S1 class is asserted, and the superior end-plate that sacral
-slope and pelvic incidence are measured from is fitted to the whole sacrum, isolated by the
-lowest lumbar body's footprint.
+The sacrum is not sub-divided: it is the source annotation's own outer boundary, no S1 class is
+asserted, and the superior end-plate that sacral slope and pelvic incidence are measured from
+is fitted to the whole sacrum, isolated by the lowest lumbar body's footprint.
 
 VerSe~\cite{verse2021} carries L6, whose identifier this release keeps, so its L6 \emph{is}
 VerSe's. A rib on a lumbar body, however, takes its own class, the one class here with no
@@ -594,12 +595,25 @@ vertebra could not be settled, the source reading stands rather than being overr
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\linewidth,keepaspectratio]{figures/fig_anchors.pdf}
-\caption{The two anchors, aligned on the sacrum. Red, lowest rib-bearing vertebra and its rib; blue, sacrum;
-yellow, rib-free vertebrae between. Cases 0704, 0428, 0094, 0005, chosen by rule. (b) and (c) share one upper border, a short rib pair under a full pair; (b) has no LSTV; (c) is Castellvi IIIb, its fifth lumbar segment fused to the sacrum.}
+\caption{Four phenotypes at the lumbar borders, aligned on the sacrum. Red, lowest rib-bearing
+vertebra and its rib; blue, sacrum; yellow, the lumbar bodies. Cases 0704, 0428, 0094,
+0005, each the most ordinary member of its phenotype by rule. (b) and (c) present the same
+upper border, a short rib pair under a full pair, and were named differently.}
 \label{fig:anchors}
 \end{figure*}
 
-Figure~\ref{fig:anchors} shows why the interval is the primitive and the label is derived. Panels (b) and (c) present the same upper border, a rib pair of about 40\,mm beneath a full pair, above four rib-free vertebrae; the source readers named it a lumbar rib on L1 in (b) and stump twelfth ribs on T12 in (c). Nothing in the rib decided that. Across the release the sixteen ribs labeled lumbar are a median 45\,mm and 0.32 of the rib above them, and the 98 labeled stump twelfth ribs 38\,mm and 0.28. What decided it was the lower border, no transitional vertebra in (b) and a fifth lumbar segment fused to the sacrum in (c) (Castellvi IIIb), together with the convention of five lumbar vertebrae, which leaves one place for the anomaly in each. The count cannot separate the two; the rib length and the lumbosacral junction, both labeled here, can.
+Figure~\ref{fig:anchors} shows the four phenotypes the scheme has to express, and why a count
+does not settle any of them. (a) is the ordinary column, five lumbar bodies and no transitional
+vertebra. (b) and (c) present the same upper border --- a rib pair of about 40\,mm beneath a
+full pair, above four lumbar bodies --- and were named differently: a lumbar rib on L1 in (b),
+stump twelfth ribs on T12 in (c). Nothing in the rib decided that, and the two populations
+barely separate on rib length alone, the sixteen ribs labeled lumbar running a median 45\,mm
+and 0.32 of the rib above them against 38\,mm and 0.28 for the 98 labeled stump twelfth ribs.
+What decided it was the convention of five lumbar vertebrae, which leaves exactly one place for
+the anomaly once the lower border is read, transitional in (c) and not in (b). (d) is the
+sixth lumbar body. A scheme carrying only ribs 1--12, five lumbar identifiers and no sacrum
+cannot write down (b), (c) and (d) as the distinct things they are; this one can, which is what
+makes them separable data rather than three readings of one count.
 
 So the name a border vertebra carries in this release is a reader's, not a measurement's. Every
 vertebra keeps the identifier its radiologist-sourced annotation gave it, corrected only where
@@ -703,9 +717,8 @@ series are supine, so posture cannot account for it; it tracks cohort and not co
 Every record whose lumbar vertebra count differs from five carries a Castellvi
 grade~\cite{castellvi1984} in the release, 33 cases typed I--IV with the $a$/$b$
 unilateral--bilateral qualifier. The grade and the count are \emph{different axes}, the count
-being the number of rib-free vertebrae between the lowest rib-bearing vertebra and the sacrum.
-Grade IIIb occurs here at rib-free counts of four, five and
-six alike, and seven of the 33 graded cases carry a normal count of five.
+being how many lumbar bodies the column holds. Grade IIIb occurs here at lumbar counts of four,
+five and six alike, and seven of the 33 graded cases carry a normal count of five.
 
 Two radiology resident physicians graded every case independently and resolved their six
 disagreements by consensus; both reads and the consensus are in the manifest. The distinction
@@ -828,8 +841,8 @@ and 345 male, 11 carrying DICOM's \emph{other} value and 53 no sex field, with a
 for 709 (median 59, range 50--89). All 802 are counted in totals; the eleven outside the
 female/male dichotomy are excluded from sex-stratified measures.
 
-\emph{Count-free measures.} Five rib-free vertebrae above the sacrum is typical; four and six are where transitional
-anatomy sits, and which is present does not by itself determine what to call it. The lowest-rib length ratio is bimodal, and its lower mode, below 0.33 of the rib above, marks a stump twelfth rib in 98 of the 789 records with a measurable pair (12.4\%, against
+\emph{Measures that do not depend on the count.} Five lumbar bodies is typical; four and six
+are where transitional anatomy sits, and which is present does not by itself determine what to call it. The lowest-rib length ratio is bimodal, and its lower mode, below 0.33 of the rib above, marks a stump twelfth rib in 98 of the 789 records with a measurable pair (12.4\%, against
 12.6\% on whole-spine CT~\cite{nagata2025}); 16 records carry a lumbar rib (2.0\%, against
 1.5\%). The co-occurrence reported there is testable here only where the junction was read, and only within those 789: they hold 14 of the 17 source-labeled sacralizations, and stump ribs accompany four of those 14 and 94 of the other 775 (odds ratio 2.9, $p=0.08$, Fisher's exact test). No lumbarization carries a lumbar rib.
 
@@ -879,8 +892,8 @@ decision.
 3{,}110 spinal procedures, and among the predominant contributing factors is the
 transitional anatomy this cohort was assembled around.\cite{mody2008,epstein2021} Per-level body height, canal width,
 endplate width, transverse-process span and wedge ratio are released across all
-802 records, and because the labels were assigned against the twelfth rib rather than by
-enumeration, a model trained on them is not learning the convention that fails.
+802 records, so a model can be trained on the shape of a vertebra rather than on its position
+in a count --- which is the convention that fails at exactly the vertebrae in question.
 
 \begin{figure*}[t]
 \centering
@@ -941,7 +954,7 @@ segment must delineate one.
 \emph{Absent structures, and no classifier at the lower border.} Sacrum, hips and femora are
 present in all 802 records; one lacks T12, outside the FOV. Nine carry no L5 identifier because
 their source annotation counted four lumbar vertebrae; all nine are Castellvi IIIb, the fused
-segment is delineated with the sacrum as the caudal anchor, and the manifest names them. No shape-based classifier is attempted at the lumbosacral junction: 15 records in each rare stratum leave three per fold. The 0.990 area under the curve above is the thoracolumbar boundary, not this one.
+segment is delineated with the sacrum, and the manifest names them. No shape-based classifier is attempted at the lumbosacral junction: 15 records in each rare stratum leave three per fold. The 0.990 area under the curve above is the thoracolumbar boundary, not this one.
 
 \section{Discussion}
 
@@ -953,8 +966,8 @@ acquisitions. What this release adds
 over TotalSegmentator~\cite{totalsegmentator} is the classes for anatomical anomalies, not necessarily more
 anatomy per scan.
 
-\emph{Future directions.} Applying the released weights to VerSe would add the sacral anchor
-and the anomaly classes to a bone-kernel collection. A Castellvi read of the whole cohort
+\emph{Future directions.} Applying the released weights to VerSe would add the sacrum and the
+anomaly classes to a bone-kernel collection. A Castellvi read of the whole cohort
 would test the co-occurrence of rib and lumbosacral anomalies at full power and supply the
 labels a lumbosacral classifier needs. A class label from substructure
 segmentation\cite{spineps2025} would measure the body without the canal cut that withholds
@@ -966,8 +979,11 @@ CTSpinoPelvic1K places the radiologist-derived spine, the pelvis, radiologist-de
 the sources annotated the same series and pseudolabeled elsewhere, and pseudolabeled per-level
 ribs and femora on one validated coordinate frame in 802 records, and gives the anatomical
 anomalies that make lumbar numbering ambiguous classes of their own.
-Because both counting anchors are explicit, a level can be identified from a field of view
-that cannot support the conventional count downward from C2.
+Because every vertebra is measured in its own right rather than by its place in a sequence, a
+level can be named from the morphology in a field of view that cannot support the conventional
+count downward from C2. This release demonstrates that at the thoracolumbar border and leaves
+it open at the lumbosacral one, where it supplies the classes and the measurements to settle it
+but not yet the number of transitional records a classifier would need.
 
 \section*{Data Availability}
 The release described here is \datasetversion{}, permanently archived at

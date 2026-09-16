@@ -46,7 +46,7 @@ def label(r):
 
 # Each panel: a title, a predicate, and the columns whose medians define "most ordinary".
 PANELS = [
-    ("five rib-free, no LSTV",
+    ("five lumbar bodies, no LSTV",
      lambda r: (num(r, "n_non_rib_bearing") == 5
                 and (r.get("lowest_rib_bearing") or "").strip() == "T12"
                 and label(r) in ("NORMAL", "")
@@ -65,7 +65,7 @@ PANELS = [
                      or (r.get("castellvi_type") or "").strip().startswith("III"))),
      ("rib12_11_ratio_min", "ll_span_total_mm")),
 
-    ("six rib-free, Castellvi IV",
+    ("six lumbar bodies, Castellvi IV",
      lambda r: (num(r, "n_non_rib_bearing") == 6
                 and (flag(r, "has_l6")
                      or (r.get("lowest_lumbar") or "").strip() == "L6")),
@@ -78,16 +78,23 @@ S1_FRAC_MIN, S1_FRAC_MAX = 0.15, 0.50
 
 
 def s1_carve_ok(case: str, labels_dir: Path | None):
-    """Is this case's S1 carve plausible, measured on the label itself?
+    """RETIRED, and kept only so --labels stays a valid argument. Always accepts.
 
-    The carve is an automatic estimate of the S1--S2 boundary and it fails on about a
-    hundred records, taking either most of the sacrum or almost none of it. A figure whose
-    whole point is to show the caudal anchor must not define the category with a case where
-    that anchor is wrong -- and the first selection did exactly that, picking a record whose
-    "S1" was nearly the entire sacrum. Numbers alone did not reveal it; rendering did.
+    This gate rejected a case whose carved S1 (id 29) took an implausible share of the
+    sacrum. That carve is withdrawn: no released label asserts an S1, and the caudal
+    structure is now the sacrum exactly as the source annotation drew it, which has no
+    carve to be implausible.
 
-    Returns (ok, fraction) or (None, None) when the volume cannot be read.
+    THE GATE DID NOT BECOME HARMLESS WHEN THE LABEL WENT AWAY. Run against a label tree
+    that still carried 29 -- and on 2026-09-16 every tree on disk and on the grid still
+    did -- it went on rejecting cases on the old criterion, and silently moved panel (b)
+    from 0428 to 0172 while the caption still named 0428. A check on a withdrawn label is
+    not inert; it is a check nobody is reading any more.
     """
+    return None, None
+
+
+def _dead_s1_carve_ok(case: str, labels_dir: Path | None):
     if labels_dir is None:
         return None, None
     p = Path(labels_dir) / f"{case}_label.nii.gz"
