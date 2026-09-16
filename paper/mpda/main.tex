@@ -566,35 +566,19 @@ Rib on a lumbar body          & 14 / 21   & 0 / 0 \\
 The scheme is VerSe-native: vertebrae keep their VerSe identifiers (C1--C7 = 1--7,
 T1--T12 = 8--19, L1--L6 = 20--25, sacrum 26, coccyx 27, T13 = 28), and every non-VerSe structure
 takes a fixed identifier above that range --- hips 30--31, femora 32--33, thirteen ribs per side
-34--46 left and 47--59 right, lumbar ribs 60--61 and surgical hardware 62--68. Identifier 29 is
-retired and unused. Rib 13 is the true rib of a T13 and is empty in this release, so a
-thirteenth thoracic vertebra and a lumbar rib are labeled as the distinct phenotypes they are.
+34--46 left and 47--59 right, lumbar ribs 60--61 and surgical hardware 62--68.
+Identifier 29 is retired and unused, an earlier scheme having given it to a separate S1 class,
+and is not reused because renumbering 30--68 to close the gap would rename the hips, femora and
+every rib under identifiers consumers are already keyed to. Rib 13 is the true rib of a T13 and
+is empty in this release, so a thirteenth thoracic vertebra and a lumbar rib are labeled as the
+distinct phenotypes they are.
 
 Two anchors give every record the same positional frame, the lowest rib-bearing vertebra above
-and the sacrum below (Fig.~\ref{fig:anchors}). The sacrum's superior end-plate is the landmark
-sacral slope and pelvic incidence are measured from, and with both anchors present L5 and L6 are
-distinguishable where a spine-limited view alone would not be.
-
-\emph{A separate S1 label was withdrawn, and why.} Earlier releases segmented the cranial
-portion of the sacrum as its own S1 class, on an automatic estimate of the S1--S2 boundary.
-Measured against the anatomy on all 802 records, that estimate is unreliable: S1's craniocaudal
-extent is a median 57.6\,mm where a first sacral segment is near 30\,mm, only 26\% of records
-fall in a defensible range, and in 222 the plane takes more than half the sacrum. Where the fit
-degenerates the plane comes out nearly parallel to the sacral long axis and shaves the ventral
-cortex, so the retained sacrum is left without its anterior wall --- wrong for every use of the
-label, not only for the end-plate. Rendering one such record is what showed this; no summary
-statistic did.
-
-The consequence was confined to the parameters fitted to that surface. The cohort splits on
-the fraction of the sacrum the carve took. Averaged
-over the 580 sound records, pelvic incidence is 52.7\textdegree{} and pelvic tilt
-19.6\textdegree{}, against Hasegawa's supine-CT 53.4\textdegree{} and 19.2\textdegree{};
-averaged over the 221 degenerate ones, 68.5\textdegree{} and 33.6\textdegree{}. One record is
-in neither group, the carve having returned no S1 there and left no fraction to classify it
-by. The end-plate gate of Sec.~\ref{sec:tools} fires on 96\% of the degenerate group and 4\%
-of the sound one. The measurement was never at fault; the surface it was handed was. So S1 was
-merged back into the sacrum, restoring the bone the source annotation delineated, and the
-end-plate was fitted to the whole sacrum instead.
+and the sacrum below (Fig.~\ref{fig:anchors}). With both present, L5 and L6 are distinguishable
+where a spine-limited view alone would not be. The sacrum is not sub-divided: it is the source
+annotation's own outer boundary, no S1 class is asserted, and the superior end-plate that sacral
+slope and pelvic incidence are measured from is fitted to the whole sacrum, isolated by the
+lowest lumbar body's footprint.
 
 VerSe~\cite{verse2021} carries L6, whose identifier this release keeps, so its L6 \emph{is}
 VerSe's. A rib on a lumbar body, however, takes its own class, the one class here with no
@@ -616,6 +600,16 @@ yellow, rib-free vertebrae between. Cases 0704, 0428, 0094, 0005, chosen by rule
 \end{figure*}
 
 Figure~\ref{fig:anchors} shows why the interval is the primitive and the label is derived. Panels (b) and (c) present the same upper border, a rib pair of about 40\,mm beneath a full pair, above four rib-free vertebrae; the source readers named it a lumbar rib on L1 in (b) and stump twelfth ribs on T12 in (c). Nothing in the rib decided that. Across the release the sixteen ribs labeled lumbar are a median 45\,mm and 0.32 of the rib above them, and the 98 labeled stump twelfth ribs 38\,mm and 0.28. What decided it was the lower border, no transitional vertebra in (b) and a fifth lumbar segment fused to the sacrum in (c) (Castellvi IIIb), together with the convention of five lumbar vertebrae, which leaves one place for the anomaly in each. The count cannot separate the two; the rib length and the lumbosacral junction, both labeled here, can.
+
+So the name a border vertebra carries in this release is a reader's, not a measurement's. Every
+vertebra keeps the identifier its radiologist-sourced annotation gave it, corrected only where
+that source was internally wrong, and no morphometric criterion was applied to overrule a
+reading: a T12 and an L1 at this border are separated here by the eye that read them. That is
+the convention every public collection follows, and it is worth stating rather than assuming,
+because the measurements released beside these labels are what a morphometric criterion would
+be built from, and some of these labels may not survive one. A user testing such a criterion
+should treat the border labels as the reference standard they are --- expert reads --- and not
+as ground truth independent of the reader.
 
 
 Of the sixteen, thirteen are bilateral and three unilateral, all on the right, too few to speak
@@ -722,7 +716,7 @@ the one that matters clinically, and four of the six disagreements were III agai
 \caption{Spinopelvic measures, mean $\pm$ SD over the 756 of 802 records passing the geometric
 gates, against two supine CT series that report means.\cite{veilleux2020,hasegawa2018} Standing values are
 55.0, 41.0, 13.0 and 60.0\si{\degree}.\cite{vialle2005} The end-plate is fitted to the whole
-sacrum; the gate rejects 14 records where the previous carved-S1 fit lost 239. Pelvic incidence and
+sacrum, and the plate gate rejects 44 records. Pelvic incidence and
 tilt are right-skewed (0.25 and 0.33), so their medians---51.5 and 15.0\si{\degree}---sit below
 these means and the modal peak in Fig.~\ref{fig:validation} sits below both.}
 \label{tab:spinopelvic}
@@ -749,22 +743,24 @@ Metal is trivial to detect in CT and hard to interpret, and the difference matte
 one}: a cage-bridged interspace reads as ``no gap'' exactly as a fused transitional vertebra
 does.
 
-\paragraph{Detection over-calls by a factor of five.} A 2500\,HU threshold inside a shell
-around the labeled skeleton flags 52\ of the 802\ records. All 52\ were reviewed
-manually, confirming 11 and rejecting 41\ (79\%) as contrast, calcification and
-reconstruction artifact. Attenuation does not separate the two groups, both saturating, but
-site and volume do: every confirmed implant at 2,586\,mm$^3$ or above and every rejection at
-1,768\,mm$^3$ or below.
+\paragraph{How metal is labeled.} A 2500\,HU threshold inside a shell around the labeled
+skeleton proposes candidates, and every candidate is confirmed or rejected by manual review,
+because attenuation alone does not separate an implant from contrast, calcification or
+reconstruction artifact --- all of them saturate. Site and volume do separate them, every
+confirmed implant here measuring 2,586\,mm$^3$ or more and every rejection 1,768\,mm$^3$ or
+less, and the confirmed object is typed from its site and shape. Identifiers 62--65 name spinal
+instrumentation (generic, cage, screw-and-rod, plate), to which this release adds \textbf{66
+arthroplasty}, \textbf{67 sacroiliac screw} and \textbf{68 osteosynthesis}: osteosynthesis
+holds parts of one bone together where arthroplasty replaces a joint, and without the
+distinction a shape rule calls a femoral stem a rod. Eleven records carry hardware --- eight
+arthroplasties, one osteosynthesis, one sacroiliac fixation and one pair of interbody cages
+(Fig.~\ref{fig:hardware}).
 
-\paragraph{The subtype block had to be extended.} Identifiers 62--65 name spinal instrumentation (generic, cage, screw-and-rod, plate) and cannot describe what this cohort holds, so \textbf{66 arthroplasty}, \textbf{67 sacroiliac screw} and \textbf{68 osteosynthesis} were added. Osteosynthesis holds parts of one bone together where
-arthroplasty replaces a joint, and a shape rule calls a femoral stem a rod. The confirmed
-cases are eight arthroplasties, one osteosynthesis, one sacroiliac fixation and one pair of
-interbody cages (Fig.~\ref{fig:hardware}).
-
-\paragraph{Metal outranks bone, and that is a subtraction.} In every confirmed case the
-implant was already inside a bone label, so naming it reclaims 1,538,852\ voxels rather
-than adding them. In eight of these cases the femoral head that pelvic incidence and tilt are
-measured from is an implant.
+\paragraph{Metal outranks bone, and that is a subtraction.} An implant lies inside the bone
+label that surrounds it, so the hardware class is taken \emph{out} of that label rather than
+added beside it, reclaiming 1,538,852\ voxels across the eleven records. A user measuring bone
+gets bone, and one measuring the implant gets the implant. In eight of the eleven the femoral
+head that pelvic incidence and tilt are measured from is an implant.
 
 \begin{figure*}[t]
 \centering
@@ -939,8 +935,8 @@ rib layer is a pseudolabel whose review was triaged, so its guarantee is the abs
 failure modes that rule detects. Transitional labels come from two independent sources and are not uniformly adjudicated,
 which is why the measures reported here are count-free; the Castellvi grades are a consensus
 of two radiology resident physicians. The sacrum is the source annotation's own outer
-boundary throughout; no sub-division of it is asserted, the separate S1 label of earlier
-releases having been withdrawn as unreliable.
+boundary throughout and no sub-division of it is asserted, so a user needing a first sacral
+segment must delineate one.
 
 \emph{Absent structures, and no classifier at the lower border.} Sacrum, hips and femora are
 present in all 802 records; one lacks T12, outside the FOV. Nine carry no L5 identifier because

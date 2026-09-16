@@ -83,3 +83,7 @@ proposals/
 paper/mpda/main.tex.pre_schehr
 morphometrics/surgical_morphometrics.v10.csv.bak
 paper/mpda/paper/
+
+# Overleaf round-trip downloads: the source of record is paper/mpda/main.tex
+paper/mpda/CTSpinoPelvic1K_MDPA_overleaf/
+paper/mpda/*.docx
