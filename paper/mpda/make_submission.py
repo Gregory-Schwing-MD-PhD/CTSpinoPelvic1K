@@ -15,6 +15,7 @@ as a separate item; supporting information separately. This script:
 from __future__ import annotations
 
 import re
+import sys
 try:
     import fitz
 except ImportError:
@@ -101,6 +102,19 @@ print("supporting figures: %s" % (", ".join(si_figs) if si_figs else "(none)"))
 copies = {"CTSpinoPelvic1K_dataset_article.pdf": "Main_Document_CTSpinoPelvic1K.pdf",
           "title_page.pdf": "Title_Page_CTSpinoPelvic1K.pdf",
           "supplementary.pdf": "Supporting_Information_CTSpinoPelvic1K.pdf"}
+# The journal takes supporting information as separately numbered uploads, so the
+# combined PDF above is a convenience copy and these are what get attached.
+# Routed through wsl for the same reason the Fig. 1 export is: pdflatex is TinyTeX
+# inside WSL, and this script runs from Windows.
+_ss = "/mnt/" + str(HERE / "make_supplemental_files.py").replace(":", "").replace("\\", "/")
+_ss = _ss[:5] + _ss[5].lower() + _ss[6:]
+_rs = subprocess.run(
+    ["wsl", "-e", "bash", "-lc",
+     "export PATH=$HOME/.TinyTeX/bin/x86_64-linux:$PATH; python3 " + _ss],
+    capture_output=True, text=True)
+print(_rs.stdout.strip())
+if _rs.returncode != 0:
+    raise SystemExit("supplemental build failed:\n" + _rs.stdout[-800:] + _rs.stderr[-800:])
 refs = set(re.findall(r"(?:Fig\.|Figure|Table)~(S\d+)", src))
 sup_pdf = fitz.open(str(HERE / "supplementary.pdf")) if fitz else None
 if sup_pdf is not None:
