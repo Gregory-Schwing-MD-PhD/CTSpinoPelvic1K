@@ -15,6 +15,10 @@ as a separate item; supporting information separately. This script:
 from __future__ import annotations
 
 import re
+try:
+    import fitz
+except ImportError:
+    fitz = None
 import shutil
 import subprocess
 import zipfile
@@ -91,20 +95,28 @@ print("main text figures: %s" % ", ".join(["fig_pipeline"] + inc))
 print("supporting figures: %s" % (", ".join(si_figs) if si_figs else "(none)"))
 # build.sh writes CTSpinoPelvic1K_dataset_article.pdf, NOT main.pdf. Copying main.pdf
 # shipped whatever the previous hand-copy left there, one build behind the source.
-# MPDA allows no supplementary material: everything must fit the ten published pages.
-# supplementary.pdf is deliberately NOT shipped, and main.tex must not reference any.
+# MPDA DOES allow supplementary material, and it does not count against the ten published
+# pages. supplementary.pdf therefore ships, and main.tex may reference Fig. Sn / Table Sn --
+# but every such reference must resolve to something the supplement actually contains.
 copies = {"CTSpinoPelvic1K_dataset_article.pdf": "Main_Document_CTSpinoPelvic1K.pdf",
-          "title_page.pdf": "Title_Page_CTSpinoPelvic1K.pdf"}
-bad = re.findall(r"supporting information|supplementary|supplemental|Table~S\d|Fig\.~S\d",
-                 src, flags=re.I)
-if bad:
-    raise SystemExit("main.tex references material that cannot be submitted: %s" % set(bad))
+          "title_page.pdf": "Title_Page_CTSpinoPelvic1K.pdf",
+          "supplementary.pdf": "Supporting_Information_CTSpinoPelvic1K.pdf"}
+refs = set(re.findall(r"(?:Fig\.|Figure|Table)~(S\d+)", src))
+sup_pdf = fitz.open(str(HERE / "supplementary.pdf")) if fitz else None
+if sup_pdf is not None:
+    sup_txt = "".join(p.get_text() for p in sup_pdf)
+    for r in sorted(refs):
+        kind = "FIG" if r.startswith("S") else ""
+        if r not in sup_txt.replace(" ", ""):
+            raise SystemExit("main.tex cites %s but supplementary.pdf does not contain it" % r)
+    print("supplementary references resolved: %s" % (", ".join(sorted(refs)) or "(none)"))
+
 for s_, d_ in copies.items():
     shutil.copy(HERE / s_, out / d_)
 for k, rel in enumerate(order, 1):
     shutil.copy(HERE / rel, out / "figures" / f"Figure_{k}.pdf")
 if si_figs:
-    print("NOT submitted (no supplementary material is permitted): %s" % ", ".join(si_figs))
+    print("carried in supplementary.pdf, not as numbered main figures: %s" % ", ".join(si_figs))
 # the Overleaf project: sources, the six included figures (Fig. 1 is TikZ inside main.tex),
 # the caption list, and the README that says how to set the main document
 z = ROOT / "dist" / "CTSpinoPelvic1K_overleaf.zip"

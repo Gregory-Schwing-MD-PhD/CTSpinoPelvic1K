@@ -489,7 +489,7 @@ out-of-fold inference so that no pelvis was pseudolabelled by a model that had s
 training. This detail is important because it permitted comparing the accuracy of the model
 against the ground-truth radiologist-annotated pelvises: on the manual pelvic labels of each
 held-out fold the model reaches a Dice of 0.980 for the sacrum and 0.97 for each hip
-The pelvis is thus radiologist-derived on the 362 fused and
+(Table~S1). The pelvis is thus radiologist-derived on the 362 fused and
 pelvis-only records and pseudolabeled on the other 440 (Fig.~\ref{fig:pipeline}). Those 440 pseudolabelled pelves are close to radiologist quality: a sacrum Dice of $0.980 \pm 0.003$ with no fold below 0.977, and hip Dice of $0.970 \pm 0.016$ and $0.971 \pm 0.015$ with no fold below 0.953, mean the model and the radiologist agree on 97--98\% of the voxels of every pelvic bone on records the model never saw; the per-fold values are released with the data (\texttt{results/pseudolabel\_dice/}). A pelvis carries no enumeration to get wrong,
 whereas a pseudolabelled spine must commit to a count, so the 20 pelvis-only spines were
 corrected by hand.
@@ -748,7 +748,7 @@ Site and volume can: every confirmed implant measures 2,586\,mm$^3$ or more and 
 62--65 name spinal instrumentation (generic, cage, screw-and-rod, plate), to which this release
 adds \textbf{66 arthroplasty}, \textbf{67 sacroiliac screw} and \textbf{68 osteosynthesis}.
 Eleven records carry hardware: eight arthroplasties, one osteosynthesis, one sacroiliac
-fixation and one pair of interbody cages.
+fixation and one pair of interbody cages, each shown in Fig.~S1.
 
 An implant lies inside the bone label that surrounds it, so the hardware class is taken
 \emph{out} of that label rather than added beside it, reclaiming 1,538,852\ voxels across
@@ -786,6 +786,8 @@ places. A reader who wants folds balanced on the label volumes instead --- on wh
 carry a sixth lumbar identifier, say --- must regenerate them, because the shipped splits do
 not encode that.
 
+Per-field record counts across the manifest are given in Table~S2.
+
 The archive of record is Zenodo (\doiurl{\datasetdoi}). Code and documentation are on GitHub at
 the tagged release commit; any model-hub copy is a convenience mirror, not the archive.
 
@@ -814,8 +816,7 @@ rib types occurring together, that is testable here. It is testable only where t
 was read, and only within those 789: they hold 14 of the 17 source-labeled sacralizations, and stump ribs accompany four of those 14 and 94 of the other 775 (odds ratio 2.9, $p=0.08$, Fisher's exact test). No lumbarization case carries a lumbar rib.
 
 Pelvic incidence sits on the standing reference, as a morphological property should, while
-sacral slope and pelvic tilt fall above and below the published CT values
-; Table~\ref{tab:spinopelvic} places all three against two
+sacral slope and pelvic tilt fall above and below the published CT values (Fig.~S2); Table~\ref{tab:spinopelvic} places all three against two
 series.
 
 % Left full-width deliberately: narrowing this one to a column saved no page and cost
@@ -876,7 +877,7 @@ frame, which is provided by this release. 351 patients in this dataset give a wi
 postural change to check a prediction against.
 
 \label{sec:limitations}Thoracic ground truth for this release is
-FOV limited and does not reach T1. In addition, the postural angles measured are supine. While pelvic incidence is not postural, it is modality-sensitive, and the measurements read below
+FOV limited and does not reach T1 (Fig.~S3). In addition, the postural angles measured are supine. While pelvic incidence is not postural, it is modality-sensitive, and the measurements read below
 radiography for the same subjects.\cite{leeliu2022} End-plate and pedicle width are
 withheld at L5 because the transverse processes arise in front of the canal wall the body is cut at. Those measurements along with the spinopelvic angles are
 the provisional part of this release. The planned revision takes the vertebral body and the sacral plate from a substructure
@@ -937,6 +938,14 @@ conventional count downward from C2. This release demonstrates that at the thora
 border and leaves it open at the lumbosacral one, where it supplies the classes and the
 measurements to settle the question but not yet the number of transitional records a
 classifier would need. 
+
+\section*{Supporting Information}
+Supporting information is available online and is not part of the article PDF.
+Fig.~S1, the instrumentation gallery, one exemplar of each implant class drawn through
+bone. Fig.~S2, the spinopelvic measures against standing reference bands. Fig.~S3, the
+records carrying each vertebral level. Table~S1, the pelvic pseudolabeller's held-out
+fold Dice. Table~S2, data types and metadata and the records populating each.
+Table~S3, the per-identifier label census.
 
 \section*{Data Availability}
 The release described here is \datasetversion{}, permanently archived at
