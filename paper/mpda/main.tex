@@ -206,15 +206,14 @@
 %  STRUCTURED ABSTRACT - four named sections, under 300 words.
 % ---------------------------------------------------------------------------
 \begin{abstract}
-\textbf{Purpose:} The gold standard for naming a vertebra at the lumbosacral junction is counting caudally from C2 on whole-spine imaging. In practice, a lumbar surgical case is planned on lumbar-only imaging (T12 to S1) without C2, making the gold standard method impossible.
-Abdominopelvic computed tomography (CT) holds the lumbar-only imaging span plus the lowest ribs and pelvis,
-making it a reasonable substitute for the preoperative view. When a
-lumbosacral transitional vertebra (LSTV) alters the count, however, the local anatomy is much more ambiguous. A person with four lumbar vertebrae may have an L1 bearing a lumbar rib or an
-L5 assimilated to the sacrum, and a person with six may have an L6, a T12 with aplastic
-ribs, or a lumbarized S1. CTSpinoPelvic1K permits asking whether local morphology
-can resolve that ambiguity without counting caudally from C2. Two public label sets already covered this imaging, CTSpine1K's vertebrae and CTPelvic1K's pelvis, on the same colonography
-patients. This release joins them in one dataset of 802 CT records and adds ribs, femora and surgical hardware. It also introduces classes for L6, T13
-and lumbar ribs, a class vocabulary that describes more of the anomalies at this junction than any existing public CT collection.
+\textbf{Purpose:} The gold standard for naming a vertebra at the lumbosacral junction is counting caudally from C2 on whole-spine imaging. In practice a lumbar case is planned on lumbar-only imaging (T12 to S1), without C2, so that
+standard cannot be applied. Abdominopelvic computed tomography (CT) holds that span with the
+lowest ribs and pelvis, a reasonable substitute for the preoperative view. When a
+lumbosacral transitional vertebra (LSTV) alters the count, however, the local anatomy is much more ambiguous. Four lumbar vertebrae may mean an L1 bearing a lumbar rib or an L5 assimilated to the sacrum;
+six may mean an L6, a T12 with aplastic ribs, or a lumbarized S1. CTSpinoPelvic1K permits asking whether local morphology can resolve that ambiguity. CTSpine1K's vertebrae and CTPelvic1K's pelvis already covered these colonography patients;
+this release joins them in one dataset of 802 CT records and adds ribs, femora and surgical
+hardware. It introduces classes for L6, T13 and lumbar ribs, describing more anomalies at this
+junction than any existing public CT collection.
 
 \textbf{Acquisition and Validation Methods:} Records pair CTSpine1K and CTPelvic1K masks on each patient's bone-richest TCIA acquisition, and the release carries the series keys that map every mask to its volume. Validation covered geometric invariants (802/802 pass), rib--vertebra incidence across 5{,}753 ribs (0.035\% offset), and spinopelvic measures matching published values.
 
