@@ -91,17 +91,20 @@ print("main text figures: %s" % ", ".join(["fig_pipeline"] + inc))
 print("supporting figures: %s" % (", ".join(si_figs) if si_figs else "(none)"))
 # build.sh writes CTSpinoPelvic1K_dataset_article.pdf, NOT main.pdf. Copying main.pdf
 # shipped whatever the previous hand-copy left there, one build behind the source.
+# MPDA allows no supplementary material: everything must fit the ten published pages.
+# supplementary.pdf is deliberately NOT shipped, and main.tex must not reference any.
 copies = {"CTSpinoPelvic1K_dataset_article.pdf": "Main_Document_CTSpinoPelvic1K.pdf",
-          "title_page.pdf": "Title_Page_CTSpinoPelvic1K.pdf",
-          "supplementary.pdf": "Supporting_Information_CTSpinoPelvic1K.pdf"}
+          "title_page.pdf": "Title_Page_CTSpinoPelvic1K.pdf"}
+bad = re.findall(r"supporting information|supplementary|supplemental|Table~S\d|Fig\.~S\d",
+                 src, flags=re.I)
+if bad:
+    raise SystemExit("main.tex references material that cannot be submitted: %s" % set(bad))
 for s_, d_ in copies.items():
     shutil.copy(HERE / s_, out / d_)
 for k, rel in enumerate(order, 1):
     shutil.copy(HERE / rel, out / "figures" / f"Figure_{k}.pdf")
 if si_figs:
-    (out / "supporting_figures").mkdir(exist_ok=True)
-    for k, f in enumerate(si_figs, 1):
-        shutil.copy(HERE / "figures" / f"{f}.pdf", out / "supporting_figures" / f"Figure_S{k}.pdf")
+    print("NOT submitted (no supplementary material is permitted): %s" % ", ".join(si_figs))
 # the Overleaf project: sources, the six included figures (Fig. 1 is TikZ inside main.tex),
 # the caption list, and the README that says how to set the main document
 z = ROOT / "dist" / "CTSpinoPelvic1K_overleaf.zip"

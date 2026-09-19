@@ -748,7 +748,7 @@ Site and volume can: every confirmed implant measures 2,586\,mm$^3$ or more and 
 62--65 name spinal instrumentation (generic, cage, screw-and-rod, plate), to which this release
 adds \textbf{66 arthroplasty}, \textbf{67 sacroiliac screw} and \textbf{68 osteosynthesis}.
 Eleven records carry hardware: eight arthroplasties, one osteosynthesis, one sacroiliac
-fixation and one pair of interbody cages and each is shown in the supporting information.
+fixation and one pair of interbody cages.
 
 An implant lies inside the bone label that surrounds it, so the hardware class is taken
 \emph{out} of that label rather than added beside it, reclaiming 1,538,852\ voxels across
@@ -786,8 +786,6 @@ places. A reader who wants folds balanced on the label volumes instead --- on wh
 carry a sixth lumbar identifier, say --- must regenerate them, because the shipped splits do
 not encode that.
 
-Per-field record counts across the manifest are tabulated in the supporting information.
-
 The archive of record is Zenodo (\doiurl{\datasetdoi}). Code and documentation are on GitHub at
 the tagged release commit; any model-hub copy is a convenience mirror, not the archive.
 
@@ -817,7 +815,7 @@ was read, and only within those 789: they hold 14 of the 17 source-labeled sacra
 
 Pelvic incidence sits on the standing reference, as a morphological property should, while
 sacral slope and pelvic tilt fall above and below the published CT values
-(supporting information); Table~\ref{tab:spinopelvic} places all three against two
+; Table~\ref{tab:spinopelvic} places all three against two
 series.
 
 % Left full-width deliberately: narrowing this one to a column saved no page and cost
@@ -841,7 +839,7 @@ be planned across a junction whose segments cannot be named, so the transitional
 that use rather than competing with it.
 
 \emph{A proxy for the preoperative view.} We are not aware of a public preoperative lumbar CT cohort, which makes this release the
-closest available stand-in for the view that lumbar cases are planned on. This dataset contains the T12-to-S1 span, including the lowest ribs and the pelvis. 377 of its 802 records were acquired prone, the position of posterior lumbar surgery, and it contains classes for the anomalies that make level identification fail. The cohort is a colonography screening population, not a surgical series, so it supports method development for anatomical level identification and instrumentation geometry rather than validation of a preoperative planning decision.
+closest available stand-in for the view that lumbar cases are planned on. This dataset contains the T12-to-S1 span, including the lowest ribs and the pelvis. 377 of its 802 records were acquired prone, the position of posterior lumbar surgery, and it contains classes for the anomalies that make level identification fail. The cohort is a screening population at colonography dose, not a surgical series, so it supports method development for anatomical level identification and instrumentation geometry rather than validation of a preoperative planning decision.
 
 \subsection{Three uses the released measurements support}
 
@@ -878,8 +876,7 @@ frame, which is provided by this release. 351 patients in this dataset give a wi
 postural change to check a prediction against.
 
 \label{sec:limitations}Thoracic ground truth for this release is
-FOV limited and does not reach T1, and the supporting information counts the records
-carrying each level. In addition, the postural angles measured are supine. While pelvic incidence is not postural, it is modality-sensitive, and the measurements read below
+FOV limited and does not reach T1. In addition, the postural angles measured are supine. While pelvic incidence is not postural, it is modality-sensitive, and the measurements read below
 radiography for the same subjects.\cite{leeliu2022} End-plate and pedicle width are
 withheld at L5 because the transverse processes arise in front of the canal wall the body is cut at. Those measurements along with the spinopelvic angles are
 the provisional part of this release. The planned revision takes the vertebral body and the sacral plate from a substructure
