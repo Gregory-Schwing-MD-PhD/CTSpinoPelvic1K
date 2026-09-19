@@ -81,9 +81,11 @@ print("Figure 1 recompiled ->", (HERE / "figures" / "fig_pipeline.pdf").stat().s
 
 # ---- 3. assemble -------------------------------------------------------------------------
 out = ROOT / "dist" / "submission"
-if out.exists():
-    shutil.rmtree(out)
-out.mkdir(parents=True)
+# Overwrite in place rather than rmtree: a PDF open in a viewer makes the delete fail on
+# Windows, and a half-deleted packet is worse than a stale file. Anything the build writes
+# is replaced; anything it no longer produces is reported below.
+out.mkdir(parents=True, exist_ok=True)
+_before = {p.name for p in out.iterdir() if p.is_file()}
 # Numbered figures are whatever main.tex actually includes, read off the source rather
 # than listed here -- a hard-coded list breaks the moment a figure moves to supporting
 # information, which is how the ten-page limit was met. Fig. 1 is TikZ and is not included.
@@ -151,6 +153,36 @@ with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as zf:
     zf.write(HERE / "overleaf_README.md", "README.md")
     for rel in order[1:]:
         zf.write(HERE / rel, rel)
-shutil.copy(z, out / "LaTeX_source_CTSpinoPelvic1K.zip")
+
+# THE SUBMITTED ZIP IS NOT THE OVERLEAF PROJECT. The journal's length estimator compiles
+# the .tex files it finds, and a fragment is not a document: census_table.tex opens with a
+# table environment and no preamble, so the estimator failed on it with "Environment table
+# undefined". The submission gets ONE self-contained main.tex and its figures, so there is
+# nothing else that can be compiled by mistake.
+_src = (HERE / "main.tex").read_text(encoding="utf-8")
+_caps = (HERE / "figure_captions.tex").read_text(encoding="utf-8")
+_hook = "\\ifcaptionlist\\input{figure_captions}\\fi"
+if _hook not in _src:
+    raise SystemExit("caption-list hook not found in main.tex")
+_src = _src.replace(_hook, "\\ifcaptionlist\n" + _caps.rstrip() + "\n\\fi")
+_a = _src.find(chr(92) + "ifsupplement" + chr(10) + chr(92) + "clearpage")
+if _a != -1:
+    _b = _src.find("\\fi", _src.find("\\input{supplement_body}", _a))
+    _src = _src[:_a] + _src[_b + 3:]
+if "\\input{" in _src:
+    raise SystemExit("submitted main.tex still has an input: "
+                     + _src[_src.find("\\input{"):][:60])
+
+_zs = ROOT / "dist" / "CTSpinoPelvic1K_submitted_source.zip"
+with zipfile.ZipFile(_zs, "w", zipfile.ZIP_DEFLATED) as zf:
+    zf.writestr("main.tex", _src)
+    for rel in order[1:]:
+        zf.write(HERE / rel, rel)
+shutil.copy(_zs, out / "LaTeX_source_CTSpinoPelvic1K.zip")
+print("submitted source: one self-contained main.tex + %d figure(s)" % len(order[1:]))
 shutil.copy(HERE / "cover_letter.md", out / "Cover_Letter.md")
+_after = {p.name for p in out.iterdir() if p.is_file()}
+_stale = sorted(_before - _after)
+if _stale:
+    print("STALE, not produced by this build:", ", ".join(_stale))
 print("assembled:", sorted(p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file()))
