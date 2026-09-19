@@ -5,15 +5,15 @@ The style file: ./medphy.bst
 Database file #1: ./ctspinopelvic1k.bib
 You've used 51 entries,
             1818 wiz_defined-function locations,
-            898 strings with 22058 characters,
-and the built_in function-call counts, 12522 in all, are:
-= -- 1124
+            904 strings with 22230 characters,
+and the built_in function-call counts, 12576 in all, are:
+= -- 1136
 > -- 645
 < -- 1
 + -- 223
 - -- 149
-* -- 1096
-:= -- 1877
+* -- 1102
+:= -- 1889
 add.period$ -- 51
 call.type$ -- 51
 change.case$ -- 2
@@ -22,13 +22,13 @@ cite$ -- 51
 duplicate$ -- 476
 empty$ -- 1149
 format.name$ -- 200
-if$ -- 2744
+if$ -- 2756
 int.to.chr$ -- 0
 int.to.str$ -- 51
 missing$ -- 46
-newline$ -- 299
+newline$ -- 305
 num.names$ -- 51
-pop$ -- 105
+pop$ -- 99
 preamble$ -- 1
 purify$ -- 0
 quote$ -- 0
@@ -43,4 +43,4 @@ type$ -- 0
 warning$ -- 0
 while$ -- 125
 width$ -- 53
-write$ -- 558
+write$ -- 570

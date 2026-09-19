@@ -1,3 +1,6 @@
+% NOTE ON DOIs. medphy.bst does not emit the `doi` field -- a DOI reaches the page
+% only via `note = {doi:...}`. Keep both: `doi` is the machine-readable one, `note`
+% is what prints. An entry with `doi` and no `note` shows no DOI at all.
 % ctspinopelvic1k.bib -- references for the Medical Physics Dataset and Software Article.
 %
 % Use with the journal's medphy.bst:
@@ -509,7 +512,7 @@
   title        = {{ACR}--{ASNR}--{SABI}--{SSR} practice parameter for the performance of magnetic
                   resonance imaging ({MRI}) of the adult spine, revised 2023 ({Resolution} 6)},
   howpublished = {American College of Radiology, Reston, VA.
-                  \url{https://www.asnr.org/wp-content/uploads/2019/06/MR-Adult-Spine.pdf}},
+                  \url{https://gravitas.acr.org/PPTS/GetDocumentView?docId=4}},
   year         = {2023},
 }
 
@@ -518,7 +521,7 @@
   title        = {{ACR}--{ASNR}--{ASSR}--{SPR} practice parameter for the performance of computed
                   tomography ({CT}) of the spine, revised 2022 ({Resolution} 23)},
   howpublished = {American College of Radiology, Reston, VA.
-                  \url{https://www.asnr.org/wp-content/uploads/2019/06/CT-Spine-1.pdf}},
+                  \url{https://gravitas.acr.org/PPTS/GetDocumentView?docId=133}},
   year         = {2022},
 }
 
@@ -630,6 +633,7 @@
   pages   = {437},
   year    = {2018},
   doi     = {10.1186/s12891-018-2355-5},
+  note    = {doi:10.1186/s12891-018-2355-5},
 }
 
 @techreport{dicomps3,
@@ -665,7 +669,8 @@
   volume  = {264},
   pages   = {47--56},
   year    = {2016},
-  doi     = {10.1016/j.jneumeth.2016.03.001}
+  doi     = {10.1016/j.jneumeth.2016.03.001},
+  note    = {doi:10.1016/j.jneumeth.2016.03.001},
 }
 
 @article{hanhivaara2022,
@@ -678,7 +683,8 @@
   number  = {2},
   pages   = {153--162},
   year    = {2022},
-  doi     = {10.1097/BRS.0000000000004244}
+  doi     = {10.1097/BRS.0000000000004244},
+  note    = {doi:10.1097/BRS.0000000000004244},
 }
 
 @article{carrino2011,
@@ -690,11 +696,12 @@
   number  = {1},
   pages   = {196--202},
   year    = {2011},
-  doi     = {10.1148/radiol.11081511}
+  doi     = {10.1148/radiol.11081511},
+  note    = {doi:10.1148/radiol.11081511},
 }
 
 @article{farshad2015,
-  author  = {Farshad-Amacker, Nadja A. and Lurie, Brett and Herzog, Richard J. and Farshad, Mazda},
+  author  = {Farshad-Amacker, Nadja A. and Aichmair, Alexander and Herzog, Richard J. and Farshad, Mazda},
   title   = {Merits of different anatomical landmarks for correct numbering of the lumbar vertebrae
              in lumbosacral transitional anomalies},
   journal = {Eur. Spine J.},
@@ -702,7 +709,8 @@
   number  = {3},
   pages   = {600--608},
   year    = {2015},
-  doi     = {10.1007/s00586-014-3573-7}
+  doi     = {10.1007/s00586-014-3573-7},
+  note    = {doi:10.1007/s00586-014-3573-7},
 }
 
 @article{tureli2014,
@@ -714,5 +722,6 @@
   number  = {6},
   pages   = {792--796},
   year    = {2014},
-  doi     = {10.1016/j.clinimag.2014.05.001}
+  doi     = {10.1016/j.clinimag.2014.05.001},
+  note    = {doi:10.1016/j.clinimag.2014.05.001},
 }

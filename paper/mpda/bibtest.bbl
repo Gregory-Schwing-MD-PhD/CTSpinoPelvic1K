@@ -15,17 +15,20 @@ A.~E. Castellvi, L.~A. Goldstein, and D.~P. Chan,
 \bibitem{carrino2011}
 J.~A. Carrino, P.~D. Campbell, D.~C. Lin, W.~B. Morrison, M.~E. Schweitzer, A.~E. Flanders, J.~Eng, and A.~R. Vaccaro,
 \newblock Effect of spinal segment variants on numbering vertebral levels at lumbar {MR} imaging,
-\newblock Radiology {\bf 259}, 196--202 (2011).
+\newblock Radiology {\bf 259}, 196--202 (2011),
+\newblock doi:10.1148/radiol.11081511.
 
 \bibitem{farshad2015}
-N.~A. Farshad-Amacker, B.~Lurie, R.~J. Herzog, and M.~Farshad,
+N.~A. Farshad-Amacker, A.~Aichmair, R.~J. Herzog, and M.~Farshad,
 \newblock Merits of different anatomical landmarks for correct numbering of the lumbar vertebrae in lumbosacral transitional anomalies,
-\newblock Eur. Spine J. {\bf 24}, 600--608 (2015).
+\newblock Eur. Spine J. {\bf 24}, 600--608 (2015),
+\newblock doi:10.1007/s00586-014-3573-7.
 
 \bibitem{tureli2014}
 D.~Tureli, G.~Ekinci, and F.~Baltacioglu,
 \newblock Is any landmark reliable in vertebral enumeration? {A} study of 3.0-{Tesla} lumbar {MRI} comparing skeletal, neural, and vascular markers,
-\newblock Clin. Imaging {\bf 38}, 792--796 (2014).
+\newblock Clin. Imaging {\bf 38}, 792--796 (2014),
+\newblock doi:10.1016/j.clinimag.2014.05.001.
 
 \bibitem{lian2018}
 J.~Lian, N.~Levine, and W.~Cho,
@@ -36,7 +39,8 @@ J.~Lian, N.~Levine, and W.~Cho,
 \bibitem{hanhivaara2022}
 J.~Hanhivaara, J.~H. M{\"a}{\"a}tt{\"a}, J.~Karppinen, J.~Niinim{\"a}ki, and M.~T. Nevalainen,
 \newblock The association of lumbosacral transitional vertebrae with low back pain and lumbar degenerative findings in {MRI}: a large cohort study,
-\newblock Spine {\bf 47}, 153--162 (2022).
+\newblock Spine {\bf 47}, 153--162 (2022),
+\newblock doi:10.1097/BRS.0000000000004244.
 
 \bibitem{nagata2025}
 S.~Nagata et~al.,
@@ -101,12 +105,12 @@ D.~S. Kreiner et~al.,
 \bibitem{acrct2022}
 {American College of Radiology},
 \newblock {ACR}--{ASNR}--{ASSR}--{SPR} practice parameter for the performance of computed tomography ({CT}) of the spine, revised 2022 ({Resolution} 23),
-\newblock American College of Radiology, Reston, VA. \url{https://www.asnr.org/wp-content/uploads/2019/06/CT-Spine-1.pdf}, 2022.
+\newblock American College of Radiology, Reston, VA. \url{https://gravitas.acr.org/PPTS/GetDocumentView?docId=133}, 2022.
 
 \bibitem{acrmri2023}
 {American College of Radiology},
 \newblock {ACR}--{ASNR}--{SABI}--{SSR} practice parameter for the performance of magnetic resonance imaging ({MRI}) of the adult spine, revised 2023 ({Resolution} 6),
-\newblock American College of Radiology, Reston, VA. \url{https://www.asnr.org/wp-content/uploads/2019/06/MR-Adult-Spine.pdf}, 2023.
+\newblock American College of Radiology, Reston, VA. \url{https://gravitas.acr.org/PPTS/GetDocumentView?docId=4}, 2023.
 
 \bibitem{sixta2012}
 S.~Sixta et~al.,
@@ -218,12 +222,14 @@ R.~W. Cox, J.~Ashburner, H.~Breman, K.~Fissell, C.~Haselgrove, C.~J. Holmes, J.~
 \bibitem{li2016}
 X.~Li, P.~S. Morgan, J.~Ashburner, J.~Smith, and C.~Rorden,
 \newblock The first step for neuroimaging data analysis: {DICOM} to {NIfTI} conversion,
-\newblock J. Neurosci. Methods {\bf 264}, 47--56 (2016).
+\newblock J. Neurosci. Methods {\bf 264}, 47--56 (2016),
+\newblock doi:10.1016/j.jneumeth.2016.03.001.
 
 \bibitem{hasegawa2018}
 K.~Hasegawa, M.~Okamoto, S.~Hatsushikano, G.~Caseiro, and K.~Watanabe,
 \newblock Difference in whole spinal alignment between supine and standing positions in patients with adult spinal deformity,
-\newblock BMC Musculoskelet. Disord. {\bf 19}, 437 (2018).
+\newblock BMC Musculoskelet. Disord. {\bf 19}, 437 (2018),
+\newblock doi:10.1186/s12891-018-2355-5.
 
 \bibitem{nnunet}
 F.~Isensee, P.~F. Jaeger, S.~A.~A. Kohl, J.~Petersen, and K.~H. Maier-Hein,

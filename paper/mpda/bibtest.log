@@ -1,8 +1,8 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  13 SEP 2026 10:17
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.8.23)  18 SEP 2026 23:35
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
-**bibtest.tex
+**bibtest
 (./bibtest.tex
 LaTeX2e <2026-06-01>
 L3 programming layer <2026-08-10>
@@ -54,42 +54,8 @@ LaTeX Font Info:    External font `cmex10' loaded for size
 (Font)              <8> on input line 19.
 LaTeX Font Info:    External font `cmex10' loaded for size
 (Font)              <6> on input line 19.
-
-
-Package natbib Warning: Citation `carrino2011' on page 1 undefined on input line 19.
-
-
-Package natbib Warning: Citation `farshad2015' on page 1 undefined on input line 19.
-
-
-Package natbib Warning: Citation `tureli2014' on page 1 undefined on input line 19.
-
-
-Package natbib Warning: Citation `hanhivaara2022' on page 1 undefined on input line 19.
-
-
-Package natbib Warning: Citation `dicomps3' on page 1 undefined on input line 19.
-
-
-Package natbib Warning: Citation `nifti1' on page 1 undefined on input line 19.
-
-
-Package natbib Warning: Citation `li2016' on page 1 undefined on input line 19.
-
-
-Package natbib Warning: Citation `hasegawa2018' on page 1 undefined on input line 19.
-
-
-Package natbib Warning: Citation `veilleux2020' on page 1 undefined on input line 19.
-
-
-Package natbib Warning: Citation `leeliu2022' on page 1 undefined on input line 19.
-
-
-Package natbib Warning: Citation `hahn2017' on page 1 undefined on input line 19.
-
-(./bibtest.bbl
-Overfull \hbox (289.5506pt too wide) in paragraph at lines 7--1
+ (./bibtest.bbl
+Overfull \hbox (316.56233pt too wide) in paragraph at lines 7--1
 []\OT1/cmr/m/n/12 Every ref-er-ence cited by main.tex:[] .
  []
 
@@ -98,38 +64,64 @@ Underfull \hbox (badness 10000) in paragraph at lines 7--1
 
  []
 
-
-Underfull \hbox (badness 3148) in paragraph at lines 45--49
-[]\OT1/cmr/m/n/12 H. M^^?oller et al.,  VERI-DAH: Solv-ing Enu-mer-a-tion Anomaly
- []
-
 [1
 
 {/home/gschwing/.TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}]
-Underfull \hbox (badness 1158) in paragraph at lines 57--61
+Underfull \hbox (badness 3148) in paragraph at lines 66--70
+[]\OT1/cmr/m/n/12 H. M^^?oller et al.,  VERI-DAH: Solv-ing Enu-mer-a-tion Anomaly
+ []
+
+
+Underfull \hbox (badness 1158) in paragraph at lines 78--82
 []\OT1/cmr/m/n/12 S.-f. L. Lo et al.,  Au-to-matic Lo-cal-iza-tion of Tar-get Ver-te-brae
  []
 
 ! Undefined control sequence.
-l.83 ...can College of Radiology, Reston, VA. \url
-                                                  {https://www.asnr.org/wp-c...
+l.104 ...an College of Radiology, Reston, VA. \url
+                                                  {https://gravitas.acr.org/...
 The control sequence at the end of the top line
 of your error message was never \def'ed. If you have
 misspelled it (e.g., `\hobx'), type `I' and the correct
 spelling (e.g., `I\hbox'). Otherwise just continue,
 and I'll forget about whatever was undefined.
 
+
+Underfull \hbox (badness 10000) in paragraph at lines 102--105
+\OT1/cmr/m/n/12 VA. https://gravitas.acr.org/PPTS/GetDocumentView?docId=133,
+ []
+
+[2]
 ! Undefined control sequence.
-l.88 ...can College of Radiology, Reston, VA. \url
-                                                  {https://www.asnr.org/wp-c...
+l.109 ...an College of Radiology, Reston, VA. \url
+                                                  {https://gravitas.acr.org/...
 The control sequence at the end of the top line
 of your error message was never \def'ed. If you have
 misspelled it (e.g., `\hobx'), type `I' and the correct
 spelling (e.g., `I\hbox'). Otherwise just continue,
 and I'll forget about whatever was undefined.
 
+
+Underfull \hbox (badness 10000) in paragraph at lines 107--110
+[]\OT1/cmr/m/n/12 American Col-lege of Ra-di-ol-ogy,  ACR--ASNR--SABI--SSR
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 107--110
+\OT1/cmr/m/n/12 prac-tice pa-ram-e-ter for the per-for-mance of mag-netic res-o-
+ []
+
+
+Underfull \hbox (badness 3601) in paragraph at lines 107--110
+\OT1/cmr/m/n/12 nance imag-ing (MRI) of the adult spine, re-vised 2023 (Res-
+ []
+
+
+Underfull \hbox (badness 7273) in paragraph at lines 107--110
+\OT1/cmr/m/n/12 o-lu-tion 6),  Amer-i-can Col-lege of Ra-di-ol-ogy, Re-ston, VA.
+ []
+
 ! Undefined control sequence.
-l.99 ...merican College of Surgeons, Chicago. \url
+l.120 ...erican College of Surgeons, Chicago. \url
                                                   {https://www.facs.org/medi...
 The control sequence at the end of the top line
 of your error message was never \def'ed. If you have
@@ -140,13 +132,13 @@ and I'll forget about whatever was undefined.
 ! Missing $ inserted.
 <inserted text> 
                 $
-l.99 ...tps://www.facs.org/media/oxdjw5zj/imaging_
+l.120 ...ps://www.facs.org/media/oxdjw5zj/imaging_
                                                   guidelines.pdf}, 2018.
 I've inserted a begin-math/end-math symbol since I think
 you left one out. Proceed, with fingers crossed.
 
 ! Extra }, or forgotten $.
-l.99 ...org/media/oxdjw5zj/imaging_guidelines.pdf}
+l.120 ...rg/media/oxdjw5zj/imaging_guidelines.pdf}
                                                   , 2018.
 I've deleted a group-closing symbol because it seems to be
 spurious, as in `$x}$'. But perhaps the } is legitimate and
@@ -157,7 +149,7 @@ deleted material, e.g., by typing `I$}'.
 ! Missing $ inserted.
 <inserted text> 
                 $
-l.100 
+l.121 
       
 I've inserted a begin-math/end-math symbol since I think
 you left one out. Proceed, with fingers crossed.
@@ -165,7 +157,7 @@ you left one out. Proceed, with fingers crossed.
 ! Missing } inserted.
 <inserted text> 
                 }
-l.100 
+l.121 
       
 I've inserted something that you may have forgotten.
 (See the <inserted text> above.)
@@ -173,69 +165,60 @@ With luck, this will get me unwedged. But if you
 really didn't forget anything, try typing `2' now; then
 my insertion and my current dilemma will both disappear.
 
-[2]
-Underfull \hbox (badness 1648) in paragraph at lines 102--106
+
+Underfull \hbox (badness 1648) in paragraph at lines 123--127
 []\OT1/cmr/m/n/12 K. Smith et al.,  Data from CT COLONOG-RA-PHY (ACRIN
  []
 
 
-Underfull \hbox (badness 1062) in paragraph at lines 102--106
+Underfull \hbox (badness 1062) in paragraph at lines 123--127
 \OT1/cmr/m/n/12 6664),  The Can-cer Imag-ing Archive, ver-sion 2 [dataset], 2015,
  []
 
-[3] [4]
-Underfull \hbox (badness 1389) in paragraph at lines 256--260
+[3] [4] [5]
+Underfull \hbox (badness 1389) in paragraph at lines 271--275
 []\OT1/cmr/m/n/12 M. G. Mody, A. Nour-bakhsh, D. L. Stahl, M. Gibbs, M. Al-
  []
 
 
-Underfull \hbox (badness 2351) in paragraph at lines 262--266
+Underfull \hbox (badness 2351) in paragraph at lines 277--281
 []\OT1/cmr/m/n/12 N. Ep-stein,  A per-spec-tive on wrong level, wrong side, and
  []
 
 
-Underfull \hbox (badness 2027) in paragraph at lines 262--266
+Underfull \hbox (badness 2027) in paragraph at lines 277--281
 \OT1/cmr/m/n/12 wrong site spine surgery,  Surg. Neu-rol. Int. \OT1/cmr/bx/n/12 12\OT1/cmr/m/n/12 , 286 (2021),
  []
 
-[5]
-Underfull \hbox (badness 3386) in paragraph at lines 279--283
+
+Underfull \hbox (badness 3386) in paragraph at lines 294--298
 []\OT1/cmr/m/n/12 E. Beaulieu et al.,  A re-view of fi-nite el-e-ment anal-y-sis in
  []
 
 
-Underfull \hbox (badness 1286) in paragraph at lines 279--283
+Underfull \hbox (badness 1286) in paragraph at lines 294--298
 \OT1/cmr/m/n/12 spine surgery decision-making,  J. Clin. Med. \OT1/cmr/bx/n/12 15\OT1/cmr/m/n/12 , 2584 (2026),
  []
 
-)
-
-Package natbib Warning: There were undefined citations.
-
-[6] (./bibtest.aux
-
-Package natbib Warning: Citation(s) may have changed.
-(natbib)                Rerun to get citations correct.
-
-)
+) [6] (./bibtest.aux)
  ***********
 LaTeX2e <2026-06-01>
 L3 programming layer <2026-08-10>
  ***********
  ) 
 Here is how much of TeX's memory you used:
- 971 strings out of 469089
- 15695 string characters out of 5459054
+ 978 strings out of 469089
+ 15844 string characters out of 5459054
  443796 words of memory out of 5000000
- 30108 multiletter control sequences out of 15000+600000
- 632026 words of font info for 54 fonts, out of 8000000 for 9000
+ 30116 multiletter control sequences out of 15000+600000
+ 631717 words of font info for 53 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 35i,5n,39p,586b,385s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12.pfb>
-Output written on bibtest.pdf (6 pages, 95520 bytes).
+ 35i,5n,39p,584b,402s stack positions out of 10000i,1000n,20000p,200000b,200000s
+</home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></home/gschwing/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12.pfb>
+Output written on bibtest.pdf (6 pages, 88240 bytes).
 PDF statistics:
- 58 PDF objects out of 1000 (max. 8388607)
- 35 compressed objects within 1 object stream
+ 53 PDF objects out of 1000 (max. 8388607)
+ 32 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 
