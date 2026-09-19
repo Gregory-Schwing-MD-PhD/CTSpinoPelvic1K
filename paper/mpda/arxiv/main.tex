@@ -46,8 +46,8 @@
 % should land on the release this manuscript describes rather than a superseded one.
 \newcommand{\datasetdoi}{10.5281/zenodo.22139642}
 % The exact version this manuscript describes, for reproducibility.
-\newcommand{\datasetversiondoi}{10.5281/zenodo.22642578}
-\newcommand{\datasetversion}{v10}
+\newcommand{\datasetversiondoi}{10.5281/zenodo.22797014}
+\newcommand{\datasetversion}{v11}
 % DOUBLE-ANONYMIZED REVIEW. \reviewfalse redacts the consortium's name and the self-citation.
 % The DOIs are NOT redacted: PUB 3-C requires the dataset DOI to exist and be cited in the
 % text, and a referee is instructed to verify it. Flip to \reviewfalse for camera-ready.
@@ -313,7 +313,7 @@ its own right. None of them shifts with the name a reader gives the junction, so
 disagree about the name remain comparable, and a criterion built on them is not a count under
 another name.
 
-\emph{A vertebra can be named from its own morphology.} That a level has a characteristic
+A vertebra can be named from its own morphology, and that a level has a characteristic
 shape is long established: pedicle width and height change systematically from the thoracic to
 the lumbar spine,\cite{zindrick1987} vertebral body, end-plate and canal dimensions differ by
 level,\cite{panjabi1991,panjabi1992,berry1987} and the transverse process and the iliolumbar
@@ -639,11 +639,11 @@ computed from the released label volumes by counting identifiers 25 and 60--61.
 
 \subsection{Computational tools}\label{sec:tools}
 
-\emph{Access.} Every step in this pipeline is performed by open-source code archived with the
+Every step in this pipeline is performed by open-source code archived with the
 dataset, together with the reference loader, the label scheme and the quality-control scripts
 that generated the figures and tables in this manuscript.
 
-\emph{Versions and parameters.} Segmentation of the femora, the sacral sub-division and the
+Segmentation of the femora, the sacral sub-division and the
 per-level rib numbering used TotalSegmentator~\cite{totalsegmentator} (\texttt{total} task,
 release 2.x) on a single graphics processing unit. The binary rib network is
 M\"oller's~\cite{moller2026} released weights, applied through the nnU-Net v2
@@ -654,7 +654,7 @@ data (\ifreview the repository URL identifies the authors; it is on the title pa
 restored here for the camera-ready version\else\url{https://huggingface.co/OpenSpineConsortium/spinopelvic-seg-checkpoints}, trained with \url{https://github.com/Gregory-Schwing-MD-PhD/spinesurg-ct-nnunet} at commit 50b209f\fi). Image handling throughout used NiBabel and SciPy; no image is resampled or reoriented when a
 label is written, so every label shares its image's grid and affine exactly.
 
-\emph{Measurement.} Dimensions and spinopelvic parameters come from code released with the
+Dimensions and spinopelvic parameters come from code released with the
 dataset. A sacral plate whose fitted normal lies more than 60\si{\degree} off the cranial axis is
 rejected and the case reported missing, since such a fit has found the near-vertical anterior
 face of the promontory, not the endplate. Gating on the geometry rather than on the
@@ -663,7 +663,7 @@ value leaves unusual patients in. \Toolkit{} is released separately
 as a reusable implementation measuring in each vertebra's own frame. No open-source
 implementation computing these parameters from CT segmentations was found elsewhere.
 
-\emph{Generative artificial intelligence.} A large language model (Claude, Anthropic) assisted
+A large language model (Claude, Anthropic) assisted
 with writing the analysis and figure code and with manuscript outlining and refinement. It was
 not used to generate, annotate or interpret imaging data; every number reported here is computed by the released code from the
 released volumes. All content was independently reviewed, verified, and interpreted by the authors.
@@ -675,7 +675,7 @@ released volumes. All content was independently reviewed, verified, and interpre
 Validation has three levels. Geometry is checked first, because a measurement taken on a
 structure with a geometric fault still returns a plausible-looking number.
 
-\emph{Geometric invariants.} Every case is checked for label geometry agreeing with its CT in
+Every case is checked for label geometry agreeing with its CT in
 shape, affine and voxel spacing; for identifiers within the published scheme; for a non-empty
 label; and for sided structures falling on the correct sides, with the left--right axis read
 from the affine rather than assumed. 
@@ -686,7 +686,7 @@ pooling every sided structure into one test still missed one of those four, beca
 correctly-sided structure masks a smaller transposed one. A gate that passes everything is not
 evidence of a clean corpus until it has been shown capable of failing.
 
-\emph{Rib--vertebra incidence.} Each rib is matched to its nearest vertebra and compared
+Each rib is matched to its nearest vertebra and compared
 against its corresponding vertebra. Of 11{,}560 ribs, 5{,}796 are not evaluable
 because the expected vertebra lies outside the FOV and 11 have no vertebra within
 the anchor distance. Of the 5{,}753 evaluable, 5{,}751 match and two (0.035\%) are offset by
@@ -703,7 +703,7 @@ carrying one, because a lumbar rib takes class 60 or 61 and never enters the num
 test examines. A numbered rib landing on a lumbar vertebra would be the labeling error this
 dataset exists to expose.
 
-\emph{Agreement with published values.} Pelvic incidence is the strongest of these checks
+Pelvic incidence is the strongest of these checks
 because it is a morphological property rather than a posture. This cohort's mean agrees to
 within a tenth of a degree with the automated supine CT series of Veilleux \emph{et
 al.}~\cite{veilleux2020} and sits below the standing figure, the direction reported for subjects
@@ -756,24 +756,21 @@ Metal is trivial to detect in CT and hard to interpret, and the difference matte
 one}: a cage-bridged interspace reads as ``no gap'' exactly as a fused transitional vertebra
 does.
 
-\paragraph{How metal is labeled.} A 2500\,HU threshold inside a shell around the labeled
-skeleton proposes candidates, and every candidate is confirmed or rejected by manual review,
-because attenuation alone does not separate an implant from contrast, calcification or
-reconstruction artifact --- all of them saturate. Site and volume do separate them, every
-confirmed implant here measuring 2,586\,mm$^3$ or more and every rejection 1,768\,mm$^3$ or
-less, and the confirmed object is typed from its site and shape. Identifiers 62--65 name spinal
-instrumentation (generic, cage, screw-and-rod, plate), to which this release adds \textbf{66
-arthroplasty}, \textbf{67 sacroiliac screw} and \textbf{68 osteosynthesis}: osteosynthesis
-holds parts of one bone together where arthroplasty replaces a joint, and without the
-distinction a shape rule calls a femoral stem a rod. Eleven records carry hardware --- eight
-arthroplasties, one osteosynthesis, one sacroiliac fixation and one pair of interbody cages
-(Fig.~\ref{fig:hardware}).
+A 2500\,HU threshold inside a shell around the labeled skeleton proposes candidates, and every
+candidate is confirmed or rejected by manual review, because attenuation alone cannot separate
+an implant from contrast, calcification or reconstruction artifact --- all of them saturate.
+Site and volume can: every confirmed implant measures 2,586\,mm$^3$ or more and every rejection
+1,768\,mm$^3$ or less, and the confirmed object is typed from its site and shape. Identifiers
+62--65 name spinal instrumentation (generic, cage, screw-and-rod, plate), to which this release
+adds \textbf{66 arthroplasty}, \textbf{67 sacroiliac screw} and \textbf{68 osteosynthesis}.
+Eleven records carry hardware: eight arthroplasties, one osteosynthesis, one sacroiliac
+fixation and one pair of interbody cages (Fig.~\ref{fig:hardware}).
 
-\paragraph{Metal outranks bone, and that is a subtraction.} An implant lies inside the bone
-label that surrounds it, so the hardware class is taken \emph{out} of that label rather than
-added beside it, reclaiming 1,538,852\ voxels across the eleven records. A user measuring bone
-gets bone, and one measuring the implant gets the implant. In eight of the eleven the femoral
-head that pelvic incidence and tilt are measured from is an implant.
+An implant lies inside the bone label that surrounds it, so the hardware class is taken
+\emph{out} of that label rather than added beside it, reclaiming 1,538,852\ voxels across
+the eleven records: a user measuring bone gets bone, and one measuring the implant gets the
+implant. In eight of the eleven, the femoral head that pelvic incidence and tilt are measured
+from is an implant.
 
 \begin{figure*}[t]
 \centering
@@ -786,22 +783,31 @@ head that pelvic incidence and tilt are measured from is an implant.
 \section{Data Format and Usage Notes}\label{sec:format}
 
 Each record is a gzipped NIfTI image/label pair sharing an identical $4\times4$ affine,
-canonicalized to PIR, requiring no resampling. Masks are NIfTI rather than DICOM, which is what volumetric segmentation tooling expects.
+canonicalized to PIR, requiring no resampling. Masks are NIfTI rather than DICOM, which is what
+volumetric segmentation tooling expects.
 
 Splits are patient-grouped and LSTV-stratified five-fold, frozen and shipped with the data
-as \texttt{splits\_5fold.json}. The five validation folds partition all 802 records, so the
-release provides cross-validation and \emph{not} a held-out test set; users reporting a
-single held-out number should carve one out and state which records it holds.
+as \texttt{splits\_5fold.json}. Every record is a validation record in exactly one of the
+five folds, so the five validation sets together cover the whole cohort. The release
+therefore supports cross-validation, but it contains no set of records held back from all
+five folds. A reader who wants to quote one accuracy figure on data a model has never seen
+must set records aside before training, keep them out of every fold, and say which records
+those were.
 
 Stratification is on the transitional subtype rather than a binary LSTV flag. Across all
 802 records the source transitional label reads lumbarization in 14, sacralization in 17
-and semi-sacralization in two; separately, 18 records carry a sixth lumbar-type vertebra,
-nine carry only four lumbar labels, and 33 carry a consensus Castellvi grade. A record
-called sacralization by its four lumbar labels enters the same stratum as one called
-sacralization by the source label, so the two rare strata hold 15 records each and every
-validation fold carries three of each. That is the most stratification can guarantee, and
-it is why a fold-level metric on the rare classes carries an error bar far wider than its
-own decimal places.
+and semi-sacralization in two. Eighteen records carry a sixth lumbar-type vertebra, nine
+carry only four lumbar identifiers, and 33 have a consensus Castellvi grade.
+
+The strata themselves are read from the source transitional label, not from the lumbar
+count: the released file holds 768 normal, 15 sacralization, 15 lumbarization, two
+semi-sacralization and two whose two sources disagree. The two strata of 15 put three
+records in every validation fold; the two strata of two cannot appear in every fold at all.
+That is the most stratification can guarantee with these numbers, and it is why a
+fold-level metric on the rare classes carries an error bar far wider than its own decimal
+places. A reader who wants folds balanced on the label volumes instead --- on which records
+carry a sixth lumbar identifier, say --- must regenerate them, because the shipped splits do
+not encode that.
 
 \begin{table*}[t]
 \caption{\label{tab:completeness}Data types and metadata, and the records populating
@@ -836,19 +842,25 @@ the tagged release commit; any model-hub copy is a convenience mirror, not the a
 % subject rather than a descriptive aside. Every number it plotted is stated in the text
 % below, so nothing is lost here but the plot.
 
-The cohort is a colorectal cancer screening population of 802 records: 393 recorded female
-and 345 male, 11 carrying DICOM's \emph{other} value and 53 no sex field, with age present
-for 709 (median 59, range 50--89). All 802 are counted in totals; the eleven outside the
-female/male dichotomy are excluded from sex-stratified measures.
+The cohort is a colorectal cancer screening population of 802 records: 393 female, 345 male,
+11 carrying DICOM's \emph{other} value and 53 with no sex field, with age present for 709
+(median 59, range 50--89). All 802 are counted in totals, and the 64 who are not recorded as female or male --- the 11
+carrying DICOM's \emph{other} value and the 53 with no sex field --- are excluded from
+sex-stratified measures, which therefore rest on 738 records.
 
-\emph{Measures that do not depend on the count.} Five lumbar bodies is typical; four and six
-are where transitional anatomy sits, and which is present does not by itself determine what to call it. The lowest-rib length ratio is bimodal, and its lower mode, below 0.33 of the rib above, marks a stump twelfth rib in 98 of the 789 records with a measurable pair (12.4\%, against
-12.6\% on whole-spine CT~\cite{nagata2025}); 16 records carry a lumbar rib (2.0\%, against
-1.5\%). The co-occurrence reported there is testable here only where the junction was read, and only within those 789: they hold 14 of the 17 source-labeled sacralizations, and stump ribs accompany four of those 14 and 94 of the other 775 (odds ratio 2.9, $p=0.08$, Fisher's exact test). No lumbarization carries a lumbar rib.
+Five lumbar bodies is typical; four and six are where transitional anatomy sits, and which is
+present does not by itself determine what to call it. The lowest-rib length ratio is bimodal,
+its lower mode lying below 0.33 of the rib above. Its lower mode marks a stump twelfth rib in 98 of the 789 records with a measurable pair
+(12.4\%), and a lumbar rib is present in 16 (2.0\%), against 12.6\% and 1.5\% in a
+whole-spine CT series that reports both~\cite{nagata2025}. That series also reports that the two rib anomalies travel with the
+lumbosacral border --- stump twelfth ribs with sacralization, lumbar ribs with lumbarization
+--- and it is that pairing of a rib anomaly with a transitional junction, rather than the two
+rib types occurring together, that is testable here. It is testable only where the junction
+was read, and only within those 789: they hold 14 of the 17 source-labeled sacralizations, and stump ribs accompany four of those 14 and 94 of the other 775 (odds ratio 2.9, $p=0.08$, Fisher's exact test). No lumbarization case carries a lumbar rib.
 
-\emph{Spinopelvic measures} (Fig.~\ref{fig:validation}). Pelvic incidence sits on the
-standing reference, as a morphological property should; slope and tilt sit below and above
-the published CT values, which Table~\ref{tab:spinopelvic} places against two series.
+Pelvic incidence sits on the standing reference, as a morphological property should, while
+sacral slope and pelvic tilt fall above and below the published CT values
+(Fig.~\ref{fig:validation}); Table~\ref{tab:spinopelvic} places all three against two series.
 
 % Left full-width deliberately: narrowing this one to a column saved no page and cost
 % legibility in a five-panel figure. The hardware figure was worth narrowing; this is not.
@@ -862,38 +874,33 @@ SD)~\cite{vialle2005}.}
 
 
 
-\emph{Opportunistic measures.} Every scan carries a
-vertebral bone density measurement at no additional dose.\cite{pickhardt2013} L1 trabecular attenuation is
-reported at the published standard site.
+Every scan already contains the information needed to measure vertebral bone density, so it
+can be read off a study acquired for another indication without exposing the patient to any
+further radiation.\cite{pickhardt2013} L1 trabecular attenuation is reported here at the
+published standard site.
 
 % ---------------------------------------------------------------------------
 \section{Potential Applications and Limitations}\label{sec:applications}
 
 The principal use is the \emph{spinopelvic interface}. Spine and pelvis carry
-radiologist-sourced annotation on one coordinate frame in 802 records, making sacral
-morphology measurable against the lumbar column rather than in isolation, among them the sacral endplate and its slope, the alar corridors constraining S2-alar-iliac and iliac screw
-trajectories, and the L5--S1 geometry a lumbosacral fusion must cross. Pelvic incidence is derived from the segmented sacrum and femoral heads, so it is reproducible from the labels themselves.
+radiologist-sourced annotation on one coordinate frame in 802 records, so sacral morphology is
+measurable against the lumbar column rather than in isolation: the sacral endplate and its
+slope, the alar corridors constraining S2-alar-iliac and iliac screw trajectories, and the
+L5--S1 geometry a lumbosacral fusion must cross. Pelvic incidence is derived from the segmented
+sacrum and femoral heads, so it is reproducible from the labels themselves. No trajectory can
+be planned across a junction whose segments cannot be named, so the transitional layer serves
+that use rather than competing with it.
 
-The transitional layer serves that use rather than competing with it, since no trajectory can be
-planned across a junction whose segments cannot be named.
-
-\emph{A proxy for the preoperative view.} No public preoperative lumbar CT cohort exists
-that we know of, so this release is the closest available stand-in for the view a lumbar
-case is planned on: it holds the T12-to-S1 span with the lowest ribs and the pelvis, 377 of
-its 802 records were acquired prone, the position of posterior lumbar surgery, and it
-carries classes for the anomalies that make level identification fail. It is a screening
-population at colonography dose, not a surgical series, so it supports method development
-for level identification and instrumentation geometry rather than validation of a planning
-decision.
+\emph{A proxy for the preoperative view.} We are not aware of a public preoperative lumbar CT cohort, which makes this release the
+closest available stand-in for the view that lumbar cases are planned on. This dataset contains the T12-to-S1 span, including the lowest ribs and the pelvis. 377 of its 802 records were acquired prone, the position of posterior lumbar surgery, and it contains classes for the anomalies that make level identification fail. The cohort is a colonography screening population, not a surgical series, so it supports method development for anatomical level identification and instrumentation geometry rather than validation of a preoperative planning decision.
 
 \subsection{Three uses the released measurements support}
 
-\emph{Naming a level from its own geometry.} Wrong-level spine surgery runs at roughly one in
-3{,}110 spinal procedures, and among the predominant contributing factors is the
-transitional anatomy this cohort was assembled around.\cite{mody2008,epstein2021} Per-level body height, canal width,
-endplate width, transverse-process span and wedge ratio are released across all
-802 records, so a model can be trained on the shape of a vertebra rather than on its position
-in a count --- which is the convention that fails at exactly the vertebrae in question.
+Wrong-level spine surgery runs at roughly one in 3{,}110 procedures, and among the predominant
+contributing factors is the transitional anatomy this cohort was assembled
+around.\cite{mody2008,epstein2021} Per-level body height, canal width, end-plate width,
+transverse-process span and wedge ratio are released across all 802 records, so a model can be
+trained on the shape of a vertebra rather than on its position in a count.
 
 \begin{figure*}[t]
 \centering
@@ -906,20 +913,19 @@ SD recovered from the reported SEM; T11--T12 EPWu is digitised from his Figure 4
 \label{fig:levelatlas}
 \end{figure*}
 
-\emph{Reference morphometry with its spread.} The values a surgeon consults for endplate
+The values a surgeon uses for endplate
 and canal dimensions and pedicle width come from cadaveric series of ten to thirty
 specimens\cite{panjabi1991,panjabi1992,berry1987} redrawn in the textbooks as one curve per
-level\cite{benzel2015}, and a standard error describes the mean, not the spread of individuals. The same
-measures are given here from 802 records with the distribution attached
-(Fig.~\ref{fig:levelatlas}), reproducing the classical pedicle widening into the lower
-lumbar spine. Both layers of that figure are population intervals rather than confidence
-intervals, and that distinction is what makes their widths comparable: a confidence interval bounds a
-parameter, a population interval bounds individuals,\cite{hahn2017} and at $n=12$ the two
-differ by $\sqrt{12}$.
+level\cite{benzel2015}, and a standard error describes the mean, not the spread of
+individuals. The same measures are given here from 802 records with the distribution attached
+(Fig.~\ref{fig:levelatlas}), reproducing the classical pedicle widening into the lower lumbar
+spine. Both layers of that figure are population intervals, not confidence intervals, and that
+is what makes their widths comparable: a confidence interval bounds a parameter, a population
+interval bounds individuals,\cite{hahn2017} and at $n=12$ the two differ by $\sqrt{12}$.
 
-\emph{Patient-specific models.} Patient-specific finite-element modeling for alignment
+Patient-specific finite-element modeling for surgical alignment
 planning and implant design\cite{fea2026} needs spine, pelvis and femoral heads in one
-frame, which is this release's construction, and 351 patients give a within-patient
+frame, which is provided by this release. 351 patients in this dataset give a within-patient
 postural change to check a prediction against.
 
 \begin{figure}[t]
@@ -930,35 +936,43 @@ in Table~S1.}
 \label{fig:fov}
 \end{figure}
 
-\emph{Limitations: coverage and cohort.}\label{sec:limitations} Thoracic ground truth is
-field-of-view limited (Fig.~\ref{fig:fov}) and does not reach T1. Postural angles are
-supine; pelvic incidence is not postural, but it is modality-sensitive, reading below
+\label{sec:limitations}Thoracic ground truth for this release is
+FOV limited (Fig.~\ref{fig:fov}) and does not reach T1. In addition, the postural angles measured are supine. While pelvic incidence is not postural, it is modality-sensitive, and the measurements read below
 radiography for the same subjects.\cite{leeliu2022} End-plate and pedicle width are
-withheld at L5, where the transverse processes arise in front of the canal wall the body is
-cut at. Those two and the spinopelvic angles, which rest on the sacral end-plate, are
-the provisional part of this release; the planned revision takes body and sacral plate from a substructure label, and the version DOI carries it. The cohort is one protocol of a colorectal screening population
-aged 50 and over, so its distributions should not be read as a surgical one.
+withheld at L5 because the transverse processes arise in front of the canal wall the body is cut at. Those measurements along with the spinopelvic angles are
+the provisional part of this release. The planned revision takes the vertebral body and the sacral plate from a substructure
+label, and the version DOI carries it. The cohort is also one protocol of a colorectal
+screening population aged 50 and over, so its distributions should not be read as those of a
+surgical series.
 
 
 
-\emph{Label strength varies by structure, and the release does not average over that.}
-Vertebral labels derive from radiologist-supervised source annotations, corrected where
-those sources were wrong; pelvic labels on records that lacked one are pseudolabeled. The
-rib layer is a pseudolabel whose review was triaged, so its guarantee is the absence of the
-failure modes that rule detects. Transitional labels come from two independent sources and are not uniformly adjudicated,
-which is why the measures reported here are count-free; the Castellvi grades are a consensus
-of two radiology resident physicians. The sacrum is the source annotation's own outer
-boundary throughout and no sub-division of it is asserted, so a user needing a first sacral
+Label strength varies by structure, and the release does not average over it.
+Vertebral labels derive from radiologist-supervised source annotations. Where those source
+labels were wrong they were corrected by trained medical-student reviewers working to a
+written protocol, with any case whose junction they could not settle escalated to a
+radiologist rather than overwritten. Pelvic labels on records that lacked one are
+pseudolabeled.
+
+The ribs are pseudolabels, and their review was triaged rather than exhaustive: a rule
+selected the records most likely to be wrong and those were corrected, so what the release
+can promise is that the specific failures that rule detects are absent, not that every rib
+in every record has been inspected. The transitional labels come from two independent
+sources and are not uniformly adjudicated, which is why the measures reported here do not
+depend on the count; the Castellvi grades are a consensus of two radiology resident
+physicians. The sacrum is from the source annotation's own outer
+boundary and there is no sub-division of it asserted, so a user that needs a first sacral
 segment must delineate one.
 
-\emph{Absent structures, and no classifier at the lower border.} Sacrum, hips and femora are
-present in all 802 records; one lacks T12, outside the FOV. Nine carry no L5 identifier because
-their source annotation counted four lumbar vertebrae; all nine are Castellvi IIIb, the fused
-segment is delineated with the sacrum, and the manifest names them. No shape-based classifier is attempted at the lumbosacral junction: 15 records in each rare stratum leave three per fold. The 0.990 area under the curve above is the thoracolumbar boundary, not this one.
+Sacrum, hips and femora are present in all 802 records; one lacks T12, outside the FOV. Nine
+carry no L5 identifier because their source annotation counted four lumbar vertebrae; all nine
+are Castellvi IIIb, the fused segment is delineated with the sacrum, and the manifest names
+them. No shape-based classifier is attempted at the lumbosacral junction, where 15 records in
+each rare stratum leave three per fold; the 0.990 area under the curve above is the
+thoracolumbar boundary, not this one.
 
 \section{Discussion}
 
-\emph{Comparison with related material.}
 VerSe~\cite{verse2021,versedata2021} comes closest in intent to this dataset, but carries no
 sacral mask for the structure a Castellvi grade describes, which this release segments as L6
 or as sacrum, and has neither the pelvis and femora a spinopelvic measurement needs nor prone
@@ -966,24 +980,24 @@ acquisitions. What this release adds
 over TotalSegmentator~\cite{totalsegmentator} is the classes for anatomical anomalies, not necessarily more
 anatomy per scan.
 
-\emph{Future directions.} Applying the released weights to VerSe would add the sacrum and the
+Applying the released weights to VerSe would add the sacrum and the
 anomaly classes to a bone-kernel collection. A Castellvi read of the whole cohort
 would test the co-occurrence of rib and lumbosacral anomalies at full power and supply the
 labels a lumbosacral classifier needs. A class label from substructure
 segmentation\cite{spineps2025} would measure the body without the canal cut that withholds
-L5 here.
+L5 in this dataset.
 
 \section{Conclusion}
 
-CTSpinoPelvic1K places the radiologist-derived spine, the pelvis, radiologist-derived where
-the sources annotated the same series and pseudolabeled elsewhere, and pseudolabeled per-level
-ribs and femora on one validated coordinate frame in 802 records, and gives the anatomical
+CTSpinoPelvic1K places the radiologist-derived spine and pelvis and the pseudolabeled per-level
+ribs and femora on one validated coordinate frame in 802 records, giving the anatomical
 anomalies that make lumbar numbering ambiguous classes of their own.
 Because every vertebra is measured in its own right rather than by its place in a sequence, a
-level can be named from the morphology in a field of view that cannot support the conventional
-count downward from C2. This release demonstrates that at the thoracolumbar border and leaves
-it open at the lumbosacral one, where it supplies the classes and the measurements to settle it
-but not yet the number of transitional records a classifier would need.
+level can be named from the morphology in a field of view that does not allow the
+conventional count downward from C2. This release demonstrates that at the thoracolumbar
+border and leaves it open at the lumbosacral one, where it supplies the classes and the
+measurements to settle the question but not yet the number of transitional records a
+classifier would need. 
 
 \section*{Data Availability}
 The release described here is \datasetversion{}, permanently archived at
