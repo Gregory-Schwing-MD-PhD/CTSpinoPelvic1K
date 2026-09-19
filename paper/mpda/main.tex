@@ -489,26 +489,10 @@ out-of-fold inference so that no pelvis was pseudolabelled by a model that had s
 training. This detail is important because it permitted comparing the accuracy of the model
 against the ground-truth radiologist-annotated pelvises: on the manual pelvic labels of each
 held-out fold the model reaches a Dice of 0.980 for the sacrum and 0.97 for each hip
-(Table~\ref{tab:pseudodice}). The pelvis is thus radiologist-derived on the 362 fused and
+The pelvis is thus radiologist-derived on the 362 fused and
 pelvis-only records and pseudolabeled on the other 440 (Fig.~\ref{fig:pipeline}). Those 440 pseudolabelled pelves are close to radiologist quality: a sacrum Dice of $0.980 \pm 0.003$ with no fold below 0.977, and hip Dice of $0.970 \pm 0.016$ and $0.971 \pm 0.015$ with no fold below 0.953, mean the model and the radiologist agree on 97--98\% of the voxels of every pelvic bone on records the model never saw; the per-fold values are released with the data (\texttt{results/pseudolabel\_dice/}). A pelvis carries no enumeration to get wrong,
 whereas a pseudolabelled spine must commit to a count, so the 20 pelvis-only spines were
 corrected by hand.
-
-
-\begin{table}[!ht]
-\caption{Held-out fold Dice of the pelvic pseudolabeller against manual CTPelvic1K labels,
-mean $\pm$ SD over the five folds at each fold's selected checkpoint (nnU-Net validation
-Dice, ignore regions excluded; \texttt{results/pseudolabel\_dice/} in the repository).}
-\label{tab:pseudodice}
-\begin{ruledtabular}
-\begin{tabular}{lc}
-Structure & Dice \\ \colrule
-Sacrum    & 0.980 $\pm$ 0.003 \\
-Left hip  & 0.970 $\pm$ 0.016 \\
-Right hip & 0.971 $\pm$ 0.015 \\
-\end{tabular}
-\end{ruledtabular}
-\end{table}
 
 \subsection{Ribs}
 
@@ -731,7 +715,7 @@ gates, against two supine CT series that report means.\cite{veilleux2020,hasegaw
 55.0, 41.0, 13.0 and 60.0\si{\degree}.\cite{vialle2005} The end-plate is fitted to the whole
 sacrum, and the plate gate rejects 44 records. Pelvic incidence and
 tilt are right-skewed (0.25 and 0.33), so their medians---51.5 and 15.0\si{\degree}---sit below
-these means and the modal peak in Fig.~\ref{fig:validation} sits below both.}
+these means and the modal peak sits below both.}
 \label{tab:spinopelvic}
 \begin{ruledtabular}
 \maxwidth{%
@@ -764,20 +748,13 @@ Site and volume can: every confirmed implant measures 2,586\,mm$^3$ or more and 
 62--65 name spinal instrumentation (generic, cage, screw-and-rod, plate), to which this release
 adds \textbf{66 arthroplasty}, \textbf{67 sacroiliac screw} and \textbf{68 osteosynthesis}.
 Eleven records carry hardware: eight arthroplasties, one osteosynthesis, one sacroiliac
-fixation and one pair of interbody cages (Fig.~\ref{fig:hardware}).
+fixation and one pair of interbody cages and each is shown in the supporting information.
 
 An implant lies inside the bone label that surrounds it, so the hardware class is taken
 \emph{out} of that label rather than added beside it, reclaiming 1,538,852\ voxels across
 the eleven records: a user measuring bone gets bone, and one measuring the implant gets the
 implant. In eight of the eleven, the femoral head that pelvic incidence and tilt are measured
 from is an implant.
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_hardware.pdf}
-\caption{Instrumentation in the release, one exemplar each, drawn through bone. (a) Hip arthroplasty, 66, $n=8$. (b) Femoral-neck screws, 68, $n=1$. (c) Sacroiliac screws, 67, $n=1$. (d) Interbody cages, 63, $n=1$. Bar, 5\,cm.}
-\label{fig:hardware}
-\end{figure*}
 
 % ---------------------------------------------------------------------------
 \section{Data Format and Usage Notes}\label{sec:format}
@@ -809,27 +786,7 @@ places. A reader who wants folds balanced on the label volumes instead --- on wh
 carry a sixth lumbar identifier, say --- must regenerate them, because the shipped splits do
 not encode that.
 
-\begin{table*}[t]
-\caption{\label{tab:completeness}Data types and metadata, and the records populating
-each, from the released manifest.}
-\begin{ruledtabular}
-\begin{tabular}{lrr}
-Field & Records & Available \\
-\hline
-Identifiers and paths, configuration, match type, image/label alignment check & 802 & 100.0\% \\
-Patient position, tube potential, section thickness, kernel & 802 & 100.0\% \\
-Transitional label and class, annotation origin, instrumentation flags & 802 & 100.0\% \\
-Spine series identifier; bone-fraction check & 782 & 97.5\% \\
-Scanner manufacturer and model & 768 & 95.8\% \\
-Sex & 749 & 93.4\% \\
-Age & 709 & 88.4\% \\
-Pelvic series identifier & 713 & 88.9\% \\
-Castellvi grade (consensus of two readers) & 33 & 4.1\% \\
-\end{tabular}
-\end{ruledtabular}
-\end{table*}
-
-
+Per-field record counts across the manifest are tabulated in the supporting information.
 
 The archive of record is Zenodo (\doiurl{\datasetdoi}). Code and documentation are on GitHub at
 the tagged release commit; any model-hub copy is a convenience mirror, not the archive.
@@ -860,19 +817,11 @@ was read, and only within those 789: they hold 14 of the 17 source-labeled sacra
 
 Pelvic incidence sits on the standing reference, as a morphological property should, while
 sacral slope and pelvic tilt fall above and below the published CT values
-(Fig.~\ref{fig:validation}); Table~\ref{tab:spinopelvic} places all three against two series.
+(supporting information); Table~\ref{tab:spinopelvic} places all three against two
+series.
 
 % Left full-width deliberately: narrowing this one to a column saved no page and cost
 % legibility in a five-panel figure. The hardware figure was worth narrowing; this is not.
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_validation.pdf}
-\caption{Spinopelvic measures against standing reference bands (mean $\pm$
-SD)~\cite{vialle2005}.}
-\label{fig:validation}
-\end{figure*}
-
-
 
 Every scan already contains the information needed to measure vertebral bone density, so it
 can be read off a study acquired for another indication without exposing the patient to any
@@ -928,16 +877,9 @@ planning and implant design\cite{fea2026} needs spine, pelvis and femoral heads 
 frame, which is provided by this release. 351 patients in this dataset give a within-patient
 postural change to check a prediction against.
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_fov.pdf}
-\caption{Records carrying each vertebral level, cranial to caudal. Counts per identifier
-in Table~S1.}
-\label{fig:fov}
-\end{figure}
-
 \label{sec:limitations}Thoracic ground truth for this release is
-FOV limited (Fig.~\ref{fig:fov}) and does not reach T1. In addition, the postural angles measured are supine. While pelvic incidence is not postural, it is modality-sensitive, and the measurements read below
+FOV limited and does not reach T1, and the supporting information counts the records
+carrying each level. In addition, the postural angles measured are supine. While pelvic incidence is not postural, it is modality-sensitive, and the measurements read below
 radiography for the same subjects.\cite{leeliu2022} End-plate and pedicle width are
 withheld at L5 because the transverse processes arise in front of the canal wall the body is cut at. Those measurements along with the spinopelvic angles are
 the provisional part of this release. The planned revision takes the vertebral body and the sacral plate from a substructure

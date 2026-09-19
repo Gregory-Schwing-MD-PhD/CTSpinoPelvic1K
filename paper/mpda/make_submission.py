@@ -79,11 +79,16 @@ out = ROOT / "dist" / "submission"
 if out.exists():
     shutil.rmtree(out)
 (out / "figures").mkdir(parents=True)
-order = ["figures/fig_pipeline.pdf", "figures/fig_anchors.pdf", "figures/fig_hardware.pdf",
-         "figures/fig_validation.pdf", "figures/fig_levelatlas.pdf", "figures/fig_fov.pdf"]
-# confirm the order against main.tex's includegraphics sequence (Fig. 1 is TikZ, not included)
+# Numbered figures are whatever main.tex actually includes, read off the source rather
+# than listed here -- a hard-coded list breaks the moment a figure moves to supporting
+# information, which is how the ten-page limit was met. Fig. 1 is TikZ and is not included.
 inc = re.findall(r"includegraphics\[[^\]]*\]\{figures/([a-z_]+)\.pdf\}", src)
-assert inc == [Path(p).stem for p in order[1:]], inc
+order = ["figures/fig_pipeline.pdf"] + ["figures/%s.pdf" % f for f in inc]
+# figures built but no longer numbered in the main text ship as supporting information
+ALL_FIGS = ["fig_anchors", "fig_hardware", "fig_validation", "fig_levelatlas", "fig_fov"]
+si_figs = [f for f in ALL_FIGS if f not in inc]
+print("main text figures: %s" % ", ".join(["fig_pipeline"] + inc))
+print("supporting figures: %s" % (", ".join(si_figs) if si_figs else "(none)"))
 # build.sh writes CTSpinoPelvic1K_dataset_article.pdf, NOT main.pdf. Copying main.pdf
 # shipped whatever the previous hand-copy left there, one build behind the source.
 copies = {"CTSpinoPelvic1K_dataset_article.pdf": "Main_Document_CTSpinoPelvic1K.pdf",
@@ -93,6 +98,10 @@ for s_, d_ in copies.items():
     shutil.copy(HERE / s_, out / d_)
 for k, rel in enumerate(order, 1):
     shutil.copy(HERE / rel, out / "figures" / f"Figure_{k}.pdf")
+if si_figs:
+    (out / "supporting_figures").mkdir(exist_ok=True)
+    for k, f in enumerate(si_figs, 1):
+        shutil.copy(HERE / "figures" / f"{f}.pdf", out / "supporting_figures" / f"Figure_S{k}.pdf")
 # the Overleaf project: sources, the six included figures (Fig. 1 is TikZ inside main.tex),
 # the caption list, and the README that says how to set the main document
 z = ROOT / "dist" / "CTSpinoPelvic1K_overleaf.zip"
