@@ -23,7 +23,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-OUT = ROOT / "dist" / "submission" / "supplemental"
+# FLAT, deliberately: the submission site uploads files and ignores folders,
+# so anything in a subdirectory is silently left behind.
+OUT = ROOT / "dist" / "submission"
 
 PREAMBLE = r"""\documentclass[aapm,mph,amsmath,amssymb,reprint]{revtex4-2}
 \usepackage{graphicx}
@@ -95,9 +97,7 @@ def main() -> int:
         print("no floats found in supplement_body.tex")
         return 1
 
-    if OUT.exists():
-        shutil.rmtree(OUT)
-    OUT.mkdir(parents=True)
+    OUT.mkdir(parents=True, exist_ok=True)
 
     work = HERE / "_supp_build"
     work.mkdir(exist_ok=True)

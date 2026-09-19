@@ -83,7 +83,7 @@ print("Figure 1 recompiled ->", (HERE / "figures" / "fig_pipeline.pdf").stat().s
 out = ROOT / "dist" / "submission"
 if out.exists():
     shutil.rmtree(out)
-(out / "figures").mkdir(parents=True)
+out.mkdir(parents=True)
 # Numbered figures are whatever main.tex actually includes, read off the source rather
 # than listed here -- a hard-coded list breaks the moment a figure moves to supporting
 # information, which is how the ten-page limit was met. Fig. 1 is TikZ and is not included.
@@ -101,7 +101,7 @@ print("supporting figures: %s" % (", ".join(si_figs) if si_figs else "(none)"))
 # but every such reference must resolve to something the supplement actually contains.
 copies = {"CTSpinoPelvic1K_dataset_article.pdf": "Main_Document_CTSpinoPelvic1K.pdf",
           "title_page.pdf": "Title_Page_CTSpinoPelvic1K.pdf",
-          "supplementary.pdf": "Supporting_Information_CTSpinoPelvic1K.pdf"}
+          }
 # The journal takes supporting information as separately numbered uploads, so the
 # combined PDF above is a convenience copy and these are what get attached.
 # Routed through wsl for the same reason the Fig. 1 export is: pdflatex is TinyTeX
@@ -113,6 +113,16 @@ _rs = subprocess.run(
      "export PATH=$HOME/.TinyTeX/bin/x86_64-linux:$PATH; python3 " + _ss],
     capture_output=True, text=True)
 print(_rs.stdout.strip())
+
+# the abstract as plain text for the form's paste box; written here because the directory
+# is rebuilt on every run and a file dropped in by hand would not survive
+_ab = "/mnt/" + str(HERE / "make_abstract_text.py").replace(":", "").replace(chr(92), "/")
+_ab = _ab[:5] + _ab[5].lower() + _ab[6:]
+_ra = subprocess.run(["wsl", "-e", "bash", "-lc", "python3 " + _ab],
+                     capture_output=True, text=True)
+if _ra.returncode != 0:
+    raise SystemExit("abstract extraction failed:" + _ra.stdout[-400:] + _ra.stderr[-400:])
+print([l for l in _ra.stdout.splitlines() if "words" in l][-1])
 if _rs.returncode != 0:
     raise SystemExit("supplemental build failed:\n" + _rs.stdout[-800:] + _rs.stderr[-800:])
 refs = set(re.findall(r"(?:Fig\.|Figure|Table)~(S\d+)", src))
@@ -128,7 +138,7 @@ if sup_pdf is not None:
 for s_, d_ in copies.items():
     shutil.copy(HERE / s_, out / d_)
 for k, rel in enumerate(order, 1):
-    shutil.copy(HERE / rel, out / "figures" / f"Figure_{k}.pdf")
+    shutil.copy(HERE / rel, out / f"Figure_{k}.pdf")
 if si_figs:
     print("carried in supplementary.pdf, not as numbered main figures: %s" % ", ".join(si_figs))
 # the Overleaf project: sources, the six included figures (Fig. 1 is TikZ inside main.tex),

@@ -7,10 +7,14 @@ no line breaking to undo; only the handful of macros need resolving, and they ar
 here so a change to one is visible.
 """
 import io
+import os
 import re
 import sys
 
-TEX = r"C:\Users\grego\OneDrive\Desktop\CTSpinoPelvic1K-1\paper\mpda\main.tex"
+# relative to this file: the packet build runs it from inside WSL
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(HERE))
+TEX = os.path.join(HERE, "main.tex")
 s = io.open(TEX, encoding="utf-8").read()
 
 MACROS = {
@@ -49,5 +53,7 @@ n = len([w for w in re.split(r"\s+", t) if re.search(r"[A-Za-z0-9]", w)])
 print("\n" + "-" * 72)
 print("%d words (limit 300)%s" % (n, "  -- OVER by %d" % (n - 300) if n > 300 else "  ok"))
 
-open(r"C:\Users\grego\OneDrive\Desktop\CTSpinoPelvic1K-1\dist\submission\Abstract.txt",
-     "w", encoding="utf-8").write(t + "\n")
+OUTF = os.path.join(ROOT, "dist", "submission", "Abstract.txt")
+os.makedirs(os.path.dirname(OUTF), exist_ok=True)
+io.open(OUTF, "w", encoding="utf-8", newline="\n").write(t + "\n")
+print("written to dist/submission/Abstract.txt")
