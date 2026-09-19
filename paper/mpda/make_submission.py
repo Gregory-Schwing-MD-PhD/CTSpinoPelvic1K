@@ -173,11 +173,15 @@ if "\\input{" in _src:
     raise SystemExit("submitted main.tex still has an input: "
                      + _src[_src.find("\\input{"):][:60])
 
+# FLAT ZIP. The estimator flattens the upload, so figures/ is lost and every
+# \includegraphics fails with "File not found: using draft setting". Figures go at the
+# root and the paths are rewritten to match.
+_src = _src.replace("{figures/", "{")
 _zs = ROOT / "dist" / "CTSpinoPelvic1K_submitted_source.zip"
 with zipfile.ZipFile(_zs, "w", zipfile.ZIP_DEFLATED) as zf:
     zf.writestr("main.tex", _src)
     for rel in order[1:]:
-        zf.write(HERE / rel, rel)
+        zf.write(HERE / rel, Path(rel).name)
 shutil.copy(_zs, out / "LaTeX_source_CTSpinoPelvic1K.zip")
 print("submitted source: one self-contained main.tex + %d figure(s)" % len(order[1:]))
 shutil.copy(HERE / "cover_letter.md", out / "Cover_Letter.md")
