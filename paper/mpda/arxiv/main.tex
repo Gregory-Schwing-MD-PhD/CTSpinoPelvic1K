@@ -55,6 +55,10 @@
 % The submission form wants the figure captions listed again after the references (the
 % submitted preprint). The ten-page typeset check sets this false so they are counted once.
 \newif\ifcaptionlist \captionlistfalse
+% APPEND THE SUPPLEMENT TO THE ARTICLE. False for the journal, whose supplement is a
+% separate online-only upload and must NOT be in the article PDF. True for arXiv, which
+% has no separate slot for it. make_arxiv.sh flips this.
+\newif\ifsupplement \supplementtrue
 \newcommand{\doiurl}[1]{\url{https://doi.org/#1}}
 \newcommand{\consortium}{\ifreview a student research consortium\else OpenSpineConsortium\fi}
 \newcommand{\toolkit}{\ifreview an open-source measurement toolkit\else OpenSpineToolkit, a unit-tested open-source package\fi}
@@ -1307,5 +1311,12 @@ E.~Beaulieu et~al.,
 
 
 \ifcaptionlist\input{figure_captions}\fi
+
+\ifsupplement
+\clearpage
+\onecolumngrid
+\begin{center}{\large\bfseries Supporting Information}\end{center}
+\input{supplement_body}
+\fi
 
 \end{document}

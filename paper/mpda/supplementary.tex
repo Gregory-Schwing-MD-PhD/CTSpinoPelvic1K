@@ -7,24 +7,26 @@
 %  per-fold Dice, the manifest completeness table, and the per-identifier census.
 %
 %  The journal estimates published pages as 4.3 + words/3000 + floats/1.9, which charges
-%  1/1.9 of a page per float whatever its size; that is why these five had to leave the
-%  main text, and why they are not simply moved back now.
+%  1/1.9 of a page per float whatever its size; that is why these six are here.
+%
+%  SAME DOCUMENT CLASS AS THE MANUSCRIPT, DELIBERATELY. This was an `article` once, and
+%  the tables use REVTeX's `ruledtabular`: LaTeX hit an undefined environment, bailed out
+%  of each table, and silently produced a supplement with the tables mangled and the three
+%  figures missing altogether. It still wrote a PDF and still reported a page count. The
+%  floats are shared verbatim with the manuscript through supplement_body.tex, so the
+%  class that sets them has to be the one they were written for.
 % ============================================================================
-\documentclass[12pt]{article}
-% PORTRAIT, narrow margins. The drawing is 175 x 240 mm: portrait gives it about 250 mm
-% of text height, so it sets at full size here rather than being scaled to fit a column.
-\usepackage[margin=0.5in]{geometry}
-\usepackage[T1]{fontenc}
+\documentclass[aapm,mph,amsmath,amssymb,reprint]{revtex4-2}
+
 \usepackage{graphicx}
+\usepackage[table]{xcolor}
 \usepackage{booktabs}
 \usepackage{siunitx}
-\usepackage{tikz}
-\usetikzlibrary{arrows.meta, positioning, fit, backgrounds}
+\usepackage[colorlinks=true,allcolors=blue]{hyperref}
 
-% Carried over from the manuscript preamble, unchanged: the figure calls both, and a
-% re-implementation here would be a second version of them free to drift.
+% Carried over from the manuscript preamble, unchanged: the floats call \maxwidth and a
+% re-implementation here would be a second version free to drift.
 \newsavebox{\fitbox}
-\newsavebox{\capbox}
 \newcommand{\maxwidth}[1]{%
   \sbox{\fitbox}{#1}%
   \ifdim\wd\fitbox>\linewidth
@@ -33,102 +35,29 @@
     \usebox{\fitbox}%
   \fi
 }
-\newcommand{\fitfloat}[2]{%
-  \sbox{\capbox}{\parbox{\linewidth}{\caption{#2}}}%
-  \sbox{\fitbox}{#1}%
-  \ifdim \wd \fitbox>\linewidth
-    \sbox{\fitbox}{\resizebox{\linewidth}{!}{\usebox{\fitbox}}}%
-  \fi
-  \dimen0=\dimexpr \ht \fitbox+\dp \fitbox \relax
-  \dimen2=\dimexpr \textheight-\ht \capbox-\dp \capbox-\baselineskip \relax
-  \ifdim \dimen0>\dimen2
-    \sbox{\fitbox}{\resizebox{!}{\dimen2}{\usebox{\fitbox}}}%
-  \fi
-  \usebox{\fitbox}\par \usebox{\capbox}%
-}
-
-\renewcommand{\figurename}{Figure S}
-\makeatletter
-\renewcommand{\thefigure}{1}
-\makeatother
 
 \begin{document}
-\pagestyle{empty}
 
+% REVTeX's maketitle needs a real author; an empty one raises a vertical-mode error.
+% A plain centred heading is all this document needs.
+\onecolumngrid
 \begin{center}
-{\large\bfseries Supplementary Material}\\[2pt]
-CTSpinoPelvic1K: spine, pelvis, ribs and femora in one coordinate frame,
+{\large\bfseries Supplementary Material}\\[3pt]
+CTSpinoPelvic1K: spine, pelvis, ribs and femora in one coordinate frame,\\
 annotated for lumbosacral transitional anatomy
 \end{center}
+\vspace{6pt}
 
+\input{supplement_body}
 
-\setcounter{figure}{0}\renewcommand{\thefigure}{S\arabic{figure}}
-\setcounter{table}{0}\renewcommand{\thetable}{S\arabic{table}}
-
-% Figures S1-S3 and Tables S1-S2 were in the manuscript until the ten-page
-% limit moved them here. They are unchanged apart from float placement.
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_hardware.pdf}
-\caption{Instrumentation in the release, one exemplar each, drawn through bone. (a) Hip arthroplasty, 66, $n=8$. (b) Femoral-neck screws, 68, $n=1$. (c) Sacroiliac screws, 67, $n=1$. (d) Interbody cages, 63, $n=1$. Bar, 5\,cm.}
-\label{fig:hardware}
-\end{figure}
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_validation.pdf}
-\caption{Spinopelvic measures against standing reference bands (mean $\pm$
-SD)~\cite{vialle2005}.}
-\label{fig:validation}
-\end{figure}
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth,keepaspectratio]{figures/fig_fov.pdf}
-\caption{Records carrying each vertebral level, cranial to caudal. Counts per identifier
-in Table~S1.}
-\label{fig:fov}
-\end{figure}
-
-\clearpage
-
-\begin{table}[htbp]
-\caption{Held-out fold Dice of the pelvic pseudolabeller against manual CTPelvic1K labels,
-mean $\pm$ SD over the five folds at each fold's selected checkpoint (nnU-Net validation
-Dice, ignore regions excluded; \texttt{results/pseudolabel\_dice/} in the repository).}
-\label{tab:pseudodice}
-\begin{ruledtabular}
-\begin{tabular}{lc}
-Structure & Dice \\ \colrule
-Sacrum    & 0.980 $\pm$ 0.003 \\
-Left hip  & 0.970 $\pm$ 0.016 \\
-Right hip & 0.971 $\pm$ 0.015 \\
-\end{tabular}
-\end{ruledtabular}
-\end{table}
-
-\begin{table}[htbp]
-\caption{\label{tab:completeness}Data types and metadata, and the records populating
-each, from the released manifest.}
-\begin{ruledtabular}
-\begin{tabular}{lrr}
-Field & Records & Available \\
-\hline
-Identifiers and paths, configuration, match type, image/label alignment check & 802 & 100.0\% \\
-Patient position, tube potential, section thickness, kernel & 802 & 100.0\% \\
-Transitional label and class, annotation origin, instrumentation flags & 802 & 100.0\% \\
-Spine series identifier; bone-fraction check & 782 & 97.5\% \\
-Scanner manufacturer and model & 768 & 95.8\% \\
-Sex & 749 & 93.4\% \\
-Age & 709 & 88.4\% \\
-Pelvic series identifier & 713 & 88.9\% \\
-Castellvi grade (consensus of two readers) & 33 & 4.1\% \\
-\end{tabular}
-\end{ruledtabular}
-\end{table}
-
-% Generated by scripts/make_census_table.py from morphometrics/label_census.csv.
-\input{census_table}
+% One entry only: the sole citation inside the supplement. The manuscript's full list is
+% generated from ctspinopelvic1k.bib through medphy.bst; this is not a second copy of it.
+\begin{thebibliography}{1}
+\bibitem{vialle2005}
+R.~Vialle, N.~Levassor, L.~Rillardon, A.~Templier, W.~Skalli, and P.~Guigui,
+\newblock Radiographic analysis of the sagittal alignment and balance of the spine in asymptomatic subjects,
+\newblock J. Bone Joint Surg. Am. {\bf 87}, 260--267 (2005),
+\newblock doi:10.2106/JBJS.D.02043.
+\end{thebibliography}
 
 \end{document}

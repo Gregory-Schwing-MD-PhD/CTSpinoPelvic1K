@@ -30,11 +30,16 @@ rm -rf "$OUT" && mkdir -p "$OUT/figures"
 # no line numbers. The three switches are single words, so no escaping is needed.
 sed -e 's/,preprint,linenumbers]{revtex4-2}/,reprint]{revtex4-2}/' \
     -e 's/reviewtrue/reviewfalse/' -e 's/captionlisttrue/captionlistfalse/' \
+    -e 's/supplementfalse/supplementtrue/' \
     "$HERE/main.tex" > "$OUT/main.tex"
 
 cp "$HERE/figure_captions.tex" "$OUT/" 2>/dev/null || true
+# the supplement rides along, from the single source the journal PDF also uses
+cp "$HERE/supplement_body.tex" "$OUT/" || { echo "  MISSING supplement_body.tex"; exit 1; }
+cp "$HERE/census_table.tex" "$OUT/" || { echo "  MISSING census_table.tex"; exit 1; }
 # only the figures main.tex actually includes
-grep -o 'figures/[A-Za-z0-9_.-]*\.pdf' "$HERE/main.tex" | sort -u > /tmp/figs.txt
+grep -oh 'figures/[A-Za-z0-9_.-]*\.pdf' "$HERE/main.tex" "$HERE/supplement_body.tex" \
+  | sort -u > /tmp/figs.txt
 while read -r f; do
   [ -f "$HERE/$f" ] || { echo "  MISSING $f"; exit 1; }
   cp "$HERE/$f" "$OUT/$f"
