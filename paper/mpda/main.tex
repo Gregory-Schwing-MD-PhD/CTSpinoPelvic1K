@@ -16,6 +16,9 @@
 %
 %  See PLAN.md for the full requirements and the order of work.
 % ============================================================================
+% With no abstract, page 1 of the submitted document is the title block alone. That is the
+% journal's template, not a defect: aapm4-2.rtx switches \titlepage@sw on for preprint in
+% its setup hook, after the class options are read, so `notitlepage' has no effect here.
 \documentclass[aapm,mph,amsmath,amssymb,preprint,linenumbers]{revtex4-2}
 
 \usepackage{graphicx}
@@ -59,6 +62,13 @@
 % separate online-only upload and must NOT be in the article PDF. True for arXiv, which
 % has no separate slot for it. make_arxiv.sh flips this.
 \newif\ifsupplement \supplementfalse
+% THE ABSTRACT IS NOT PART OF THE MAIN DOCUMENT. For a Dataset and Software article the
+% structured abstract is entered in the submission form, and the journal's main document
+% begins at the Introduction; the editorial office returned the 2026-09-19 submission
+% because the main document carried one. It stays in this file as the single source of the
+% form's text (make_abstract_text.py) and is switched on for the two builds that print it:
+% the reprint page count, because the published article carries it, and arXiv.
+\newif\ifabstract \abstractfalse
 \newcommand{\doiurl}[1]{\url{https://doi.org/#1}}
 \newcommand{\consortium}{\ifreview a student research consortium\else OpenSpineConsortium\fi}
 \newcommand{\toolkit}{\ifreview an open-source measurement toolkit\else OpenSpineToolkit, a unit-tested open-source package\fi}
@@ -203,8 +213,10 @@
 \date{\today}
 
 % ---------------------------------------------------------------------------
-%  STRUCTURED ABSTRACT - four named sections, under 300 words.
+%  STRUCTURED ABSTRACT - four named sections, under 300 words. Printed only when
+%  \ifabstract is on; see the switch in the preamble.
 % ---------------------------------------------------------------------------
+\ifabstract
 \begin{abstract}
 \textbf{Purpose:} The gold standard for naming a vertebra at the lumbosacral junction is counting caudally from C2 on whole-spine imaging. In practice a lumbar case is planned on lumbar-only imaging (T12 to S1), without C2, so that
 standard cannot be applied. Abdominopelvic computed tomography (CT) holds that span with the
@@ -226,6 +238,7 @@ spinopelvic assessment; opportunistic screening; imaging-based prevalence of ana
 angles are non-standing; no held-out test set; ribs are triaged-review pseudolabels;
 Castellvi grades are two-reader consensus on 33 records.
 \end{abstract}
+\fi
 
 \maketitle
 

@@ -2,7 +2,9 @@ r"""paper/mpda/make_submission.py -- the upload set for the journal's submission
 
 The form wants: the manuscript with figures embedded and captions beneath them AND a list of
 figure captions after the references; each figure as its own numbered file; the title page
-as a separate item; supporting information separately. This script:
+as a separate item; supporting information separately; and NO abstract in the main document
+-- for a Dataset and Software article the structured abstract goes in the form's own box,
+from Abstract.txt, and a main document carrying one was returned unreviewed. This script:
 
   1. writes figure_captions.tex from the \caption{} of every figure in main.tex, in order,
      which main.tex \input{}s after the bibliography when \captionlisttrue (the preprint;
@@ -137,6 +139,18 @@ if sup_pdf is not None:
             raise SystemExit("main.tex cites %s but supplementary.pdf does not contain it" % r)
     print("supplementary references resolved: %s" % (", ".join(sorted(refs)) or "(none)"))
 
+# The main document is written by build.sh, not here, so a packet assembled before a
+# rebuild would ship the returned version with its abstract. Read the PDF and refuse.
+if fitz is None:
+    raise SystemExit("pymupdf is needed to check the main document for an abstract")
+_mt = " ".join(p.get_text() for p in fitz.open(str(HERE / "CTSpinoPelvic1K_dataset_article.pdf")))
+_mt = re.sub(r"\s+", " ", _mt)
+for _mark in ("Purpose:", "Data Format and Usage Notes:", "Potential Applications:"):
+    if _mark in _mt:
+        raise SystemExit("the main document PDF still carries the abstract (%r) -- run "
+                         "build.sh first" % _mark)
+print("main document: no abstract (it goes in the form, from Abstract.txt)")
+
 for s_, d_ in copies.items():
     shutil.copy(HERE / s_, out / d_)
 for k, rel in enumerate(order, 1):
@@ -172,6 +186,15 @@ if _a != -1:
 if "\\input{" in _src:
     raise SystemExit("submitted main.tex still has an input: "
                      + _src[_src.find("\\input{"):][:60])
+# NO ABSTRACT. \abstractfalse already keeps it off the page; it is cut from the submitted
+# source too, so an editor opening the .tex does not find the text they asked to remove.
+_open, _close = "\\ifabstract\n\\begin{abstract}", "\\end{abstract}\n\\fi"
+_a = _src.find(_open)
+if _a == -1 or _src.find(_close, _a) == -1:
+    raise SystemExit("abstract block not found in main.tex -- expected it behind \\ifabstract")
+_src = _src[:_a] + _src[_src.find(_close, _a) + len(_close):]
+if "\\begin{abstract}" in _src:
+    raise SystemExit("submitted main.tex still carries an abstract")
 
 # FLAT ZIP. The estimator flattens the upload, so figures/ is lost and every
 # \includegraphics fails with "File not found: using draft setting". Figures go at the

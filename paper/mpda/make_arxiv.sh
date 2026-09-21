@@ -27,10 +27,12 @@ TAR="$HERE/CTSpinoPelvic1K_arxiv.tar.gz"
 
 rm -rf "$OUT" && mkdir -p "$OUT/figures"
 # arXiv posts the authors' own manuscript: names in, redactions out, no caption list,
-# no line numbers. The three switches are single words, so no escaping is needed.
+# no line numbers, and the abstract printed -- the journal's main document omits it
+# because its form carries it, and arXiv has no such form for the PDF.
+# The switches are single words, so no escaping is needed.
 sed -e 's/,preprint,linenumbers]{revtex4-2}/,reprint]{revtex4-2}/' \
     -e 's/reviewtrue/reviewfalse/' -e 's/captionlisttrue/captionlistfalse/' \
-    -e 's/supplementfalse/supplementtrue/' \
+    -e 's/supplementfalse/supplementtrue/' -e 's/abstractfalse/abstracttrue/' \
     "$HERE/main.tex" > "$OUT/main.tex"
 
 cp "$HERE/figure_captions.tex" "$OUT/" 2>/dev/null || true

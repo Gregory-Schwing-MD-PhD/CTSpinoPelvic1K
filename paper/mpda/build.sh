@@ -50,7 +50,9 @@ if [ "$MODE" = "--reprint" ]; then
   # affiliations; the review copy replaces all of that with one bracketed line. Measuring
   # the blinded form under-reports the published page count by a whole page, which is
   # exactly the number the ten-page limit is about.
-  sed -E 's/,preprint(,linenumbers)?\]\{revtex4-2\}/,reprint]{revtex4-2}/; s/captionlisttrue/captionlistfalse/; s/reviewtrue/reviewfalse/' "$HERE/main.tex" > "$WORK/main.tex"
+  # AND abstracttrue. The submitted main document has no abstract -- the form carries it --
+  # but the published article prints it on page one, so it counts against the ten pages.
+  sed -E 's/,preprint(,linenumbers)?\]\{revtex4-2\}/,reprint]{revtex4-2}/; s/captionlisttrue/captionlistfalse/; s/reviewtrue/reviewfalse/; s/abstractfalse/abstracttrue/' "$HERE/main.tex" > "$WORK/main.tex"
 else
   cp "$HERE/main.tex" "$WORK/main.tex"
 fi
