@@ -769,19 +769,21 @@ the release supports cross-validation but holds no records back from all five. A
 wants one accuracy figure on data a model has never seen must set records aside before
 training, keep them out of every fold, and say which they were.
 
-Stratification is on the transitional subtype rather than a binary LSTV flag. Across all
-802 records the source transitional label reads lumbarization in 14, sacralization in 17
-and semi-sacralization in two. Eighteen records carry a sixth lumbar-type vertebra, nine
-carry only four lumbar identifiers, and 33 have a consensus Castellvi grade.
+Stratification is on the transitional subtype rather than a binary LSTV flag, read from the
+source transitional labels and not from the lumbar count. Across all 802 records the source
+label reads lumbarization in 14, sacralization in 17 and semi-sacralization in two; 18
+records carry a sixth lumbar-type vertebra, nine only four lumbar identifiers, and 33 a
+consensus Castellvi grade.
 
-The strata themselves are read from the source transitional label, not from the lumbar
-count: the released file holds 768 normal, 15 sacralization, 15 lumbarization, two
-semi-sacralization and two whose two sources disagree. The two strata of 15 put three
-records in every validation fold; the two strata of two cannot appear in every fold at all,
-so a fold-level metric on the rare classes carries an error bar far wider than its own
-decimal places. A reader who wants folds balanced on the label volumes instead --- on which records
-carry a sixth lumbar identifier, say --- must regenerate them, because the shipped splits do
-not encode that.
+The released file holds 768 normal, 15 sacralization, 15 lumbarization, two
+semi-\hspace{0pt}sacralization and two ambiguous records. The ambiguous two are source-labeled
+sacralizations whose vertebral source reads lumbarization. The fifteenth lumbarization is
+record 0500, which the file lists as carrying an L6 although its released label has five
+lumbar vertebrae and no L6; why the splitter saw one is not known. It read an L6 on no other
+record, so one L6 record sits in the normal stratum. The two strata of 15 put three records
+in every validation fold; the two strata of two cannot appear in every fold at all, so a
+fold-level metric on the rare classes carries an error bar far wider than its own decimal
+places. A reader who wants folds balanced on the label volumes must regenerate them.
 
 Per-field record counts across the manifest are given in Table~S2.
 
@@ -804,11 +806,11 @@ The cohort is a colorectal cancer screening population of 802 records: 393 femal
 The lowest-rib length ratio is bimodal,
 its lower mode lying below 0.33 of the rib above. Its lower mode marks a stump twelfth rib in 98 of the 789 records with a measurable pair
 (12.4\%), and a lumbar rib is present in 16 (2.0\%), against 12.6\% and 1.5\% in a
-whole-spine CT series that reports both~\cite{nagata2025}. That series also reports that the two rib anomalies travel with the
-lumbosacral border --- stump twelfth ribs with sacralization, lumbar ribs with lumbarization
---- and it is that pairing of a rib anomaly with a transitional junction, rather than the two
-rib types occurring together, that is testable here. It is testable only where the junction
-was read, and only within those 789: they hold 14 of the 17 source-labeled sacralizations, and stump ribs accompany four of those 14 and 94 of the other 775 (odds ratio 2.9, $p=0.08$, Fisher's exact test). No lumbarization case carries a lumbar rib.
+whole-spine CT series that reports both~\cite{nagata2025}. That series also reports that the
+two rib anomalies travel with the lumbosacral border, stump twelfth ribs with sacralization
+and lumbar ribs with lumbarization. The 789 hold 14 of the 17 source-labeled
+sacralizations; stump ribs accompany four of those 14 and 94 of the other 775, and no
+lumbarization case carries a lumbar rib.
 
 % Left full-width deliberately: narrowing this one to a column saved no page and cost
 % legibility in a five-panel figure. The hardware figure was worth narrowing; this is not.
