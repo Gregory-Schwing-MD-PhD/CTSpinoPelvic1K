@@ -206,29 +206,25 @@ _src = _src[:_a] + _src[_src.find(_close, _a) + len(_close):]
 if "\\begin{abstract}" in _src:
     raise SystemExit("submitted main.tex still carries an abstract")
 
-# FLAT ZIP. The estimator flattens the upload, so figures/ is lost and every
-# \includegraphics fails with "File not found: using draft setting". Figures go at the
-# root, NAMED AS THEIR UPLOADS ARE (Figure_2.pdf, ...), so the source and the numbered figure
-# files in the packet say the same thing. Fig. 1 is TikZ inside main.tex and has no file.
-# Written straight into the packet: a second copy under dist/ is one more thing to go stale.
-_fig_names = {}
+# NO ZIP: THE SOURCE SITS LOOSE IN THE PACKET. The estimator flattens the upload, so a
+# figures/ directory is lost and every \includegraphics fails with "File not found: using
+# draft setting". The .tex therefore names each figure as its upload is named (Figure_2.pdf,
+# ...), and those files are already beside it in this folder, so it compiles where it is.
+# Fig. 1 is TikZ inside the .tex and needs no file.
 for k, rel in enumerate(order[1:], 2):
-    _fig_names[rel] = "Figure_%d.pdf" % k
     if "{%s}" % rel not in _src:
         raise SystemExit("submitted main.tex does not include %s" % rel)
     _src = _src.replace("{%s}" % rel, "{Figure_%d.pdf}" % k)
 if "{figures/" in _src:
     raise SystemExit("submitted main.tex still names a figures/ path: "
                      + _src[_src.find("{figures/"):][:60])
-_zs = out / "LaTeX_source_CTSpinoPelvic1K.zip"
-with zipfile.ZipFile(_zs, "w", zipfile.ZIP_DEFLATED) as zf:
-    zf.writestr("main.tex", _src)
-    for rel, name in _fig_names.items():
-        zf.write(HERE / rel, name)
-_old = ROOT / "dist" / "CTSpinoPelvic1K_submitted_source.zip"
-if _old.exists():
-    _old.unlink()
-print("submitted source: main.tex + %s" % ", ".join(_fig_names.values()))
+(out / "Main_Document_CTSpinoPelvic1K.tex").write_text(_src, encoding="utf-8", newline="\n")
+for _old in (out / "LaTeX_source_CTSpinoPelvic1K.zip",
+             ROOT / "dist" / "CTSpinoPelvic1K_submitted_source.zip"):
+    if _old.exists():
+        _old.unlink()
+print("submitted source: Main_Document_CTSpinoPelvic1K.tex, using %s from this folder"
+      % ", ".join("Figure_%d.pdf" % k for k in range(2, len(order) + 1)))
 shutil.copy(HERE / "cover_letter.md", out / "Cover_Letter.md")
 _after = {p.name for p in out.iterdir() if p.is_file()}
 _stale = sorted(_before - _after)
