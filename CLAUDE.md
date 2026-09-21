@@ -82,6 +82,9 @@ Partition `reqp` with `--qos=requeue` for CPU work; GPU work uses `gmsap`/`gvohp
 - `/tmp` is node-local **and swept**. A cleaner deleted the multiprocessing listener sockets
   of two 18-hour training runs at the same minute; put IPC under `/dev/shm`.
 - Python env with nibabel/scipy: `~/mambaforge/envs/spineps/bin/python`.
+- **Large outputs go on the CephFS volume**, not the home directory: `/rs/rs_grp_oschome/go2432/`
+  (20 TB, group `oschome`, allocated 2026-09-21; `df-ceph oschome` for usage; `model_night/`, `data/`,
+  `archive/`, `tmp/` under it). The home directory is a 4.3 TB Panasas soft quota and was 93 % full.
 
 ## Standing preferences
 
