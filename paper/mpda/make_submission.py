@@ -159,14 +159,24 @@ if si_figs:
     print("carried in supplementary.pdf, not as numbered main figures: %s" % ", ".join(si_figs))
 # the Overleaf project: sources, the six included figures (Fig. 1 is TikZ inside main.tex),
 # the caption list, and the README that says how to set the main document
+# supplementary.tex \input{}s supplement_body.tex and includes the supporting figures; the
+# zip once shipped it without either, so it could not compile in Overleaf.
 z = ROOT / "dist" / "CTSpinoPelvic1K_overleaf.zip"
 with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as zf:
-    for name in ["main.tex", "title_page.tex", "supplementary.tex", "census_table.tex",
-                 "figure_captions.tex"]:
+    for name in ["main.tex", "title_page.tex", "supplementary.tex", "supplement_body.tex",
+                 "census_table.tex", "figure_captions.tex"]:
         zf.write(HERE / name, name)
     zf.write(HERE / "overleaf_README.md", "README.md")
-    for rel in order[1:]:
+    for rel in order[1:] + ["figures/%s.pdf" % f for f in si_figs]:
         zf.write(HERE / rel, rel)
+_zn = set(zipfile.ZipFile(z).namelist())
+for _tex in ("main.tex", "supplementary.tex", "supplement_body.tex"):
+    _t = (HERE / _tex).read_text(encoding="utf-8")
+    _need = set(re.findall(r"\{(figures/[A-Za-z0-9_]+\.pdf)\}", _t))
+    _need |= {n + ".tex" for n in re.findall(r"\\input\{([A-Za-z0-9_]+)\}", _t)}
+    if _need - _zn:
+        raise SystemExit("Overleaf zip is missing what %s needs: %s" % (_tex, sorted(_need - _zn)))
+print("Overleaf project: %d files, every input and figure present" % len(_zn))
 
 # THE SUBMITTED ZIP IS NOT THE OVERLEAF PROJECT. The journal's length estimator compiles
 # the .tex files it finds, and a fragment is not a document: census_table.tex opens with a

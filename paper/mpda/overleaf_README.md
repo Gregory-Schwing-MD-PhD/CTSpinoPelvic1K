@@ -1,6 +1,7 @@
-# CTSpinoPelvic1K — Medical Physics dataset article
+# CTSpinoPelvic1K — Medical Physics Dataset and Software article
 
-Upload this whole folder to Overleaf (New Project -> Upload Project, or drag the zip in).
+Upload this whole zip to Overleaf (New Project -> Upload Project). It is built by
+`paper/mpda/make_submission.py`; edit the sources in the repository, not only here.
 
 ## First: set the main document
 
@@ -8,56 +9,61 @@ Overleaf does not always pick it automatically, and when it does not you get
 `Emergency stop / job aborted, file error in nonstop mode` with a log that used almost no
 memory — which looks alarming and means only that it tried to compile the wrong file.
 
-**Menu -> Main document -> `main.tex`**, then recompile. Or open `main.tex` in the editor
-and click *Recompile* from there.
+**Menu -> Main document -> `main.tex`**, then recompile.
 
-## Compiling
-
-- Main document: `main.tex`
-- Compiler: **pdfLaTeX**
-- Two passes are needed for cross-references. Overleaf does this automatically; if a
-  reference shows as `??`, recompile once.
-- No bibtex/biber pass. The bibliography is an inline `thebibliography` environment, so
-  everything is in `main.tex`.
-
-## The page limit is real, and it is not the number Overleaf shows you
-
-Medical Physics allows **ten published pages**. `main.tex` is set to `preprint`, which is
-single column and double spaced, so Overleaf will show roughly twice that. To check the real
-count, change one word on line 16:
-
-    \documentclass[aapm,mph,amsmath,amssymb,preprint]{revtex4-2}
-    \documentclass[aapm,mph,amsmath,amssymb,reprint]{revtex4-2}
-
-and recompile. It is currently **10 pages** in `reprint`. Please change it back to
-`preprint` before committing, and if you add text, check the reprint count — the article is
-at the limit, so anything added has to be paid for.
-
-## Figures
-
-`figures/` holds four built PDFs. They are generated from the released measurements and the
-label volumes, neither of which is in this project, so edit the captions here and ask for a
-regenerated figure if the plot itself needs to change.
+## What compiles
 
 | file | what it is |
 |---|---|
-| `fig_priorart.pdf` | the comparison against other public collections |
-| `fig_anchors.pdf` | the two anchors and the interval between them, rendered from the labels |
-| `fig_countfree.pdf` | count-free measures |
-| `fig_validation.pdf` | derived measures against published reference ranges |
-| `fig_opportunistic.pdf` | opportunistic screening measures |
+| `main.tex` | the article, as submitted: review format, anonymised, no abstract |
+| `supplementary.tex` | the supporting information (inputs `supplement_body.tex`, `census_table.tex`) |
+| `title_page.tex` | the separate title page: authors, affiliations, declarations |
 
-Figure 1 is drawn in TikZ inside `main.tex` and needs no file.
+Compiler **pdfLaTeX**, two passes (Overleaf does this; if a reference shows `??`, recompile).
+No bibtex/biber: each bibliography is an inline `thebibliography`.
 
-## Before submission
+## Four switches at the top of `main.tex`
 
-Grep the source for `[CO-AUTHOR]` and `PENDING`. Outstanding at the time of writing:
+| switch | as shipped | meaning |
+|---|---|---|
+| `\reviewtrue` | on | redacts authors, the consortium name and the repository URLs |
+| `\captionlisttrue` | on | lists the figure captions again after the references, as the form asks |
+| `\supplementfalse` | off | appends the supplement (on only for arXiv) |
+| `\abstractfalse` | off | the abstract is entered in the submission form, not the main document |
 
-- the Zenodo DOI is a placeholder (`\datasetdoi` on line 27)
-- every author must confirm their own affiliation and supply a conflict-of-interest
-  statement; the current declaration covers all authors and only the first has been asked
-- the IRB determination is marked PENDING in the Ethics section and must not be submitted
-  as written
-- the repository URL in Data Availability
-- twelve of seventeen references still have unverified volume/page fields; the five that
-  were checked are named in a comment above the bibliography
+The abstract stays in `main.tex` behind `\ifabstract` because it is the source of the
+form's text. Do not switch it on for the journal: the submission was returned once for
+carrying one.
+
+## The page limit is ten PUBLISHED pages, not what Overleaf shows
+
+The shipped form is single column and double spaced, so it runs to about 25 pages. To see
+the published count, change all four of these and recompile:
+
+    preprint,linenumbers]{revtex4-2}  ->  reprint]{revtex4-2}     (line 22)
+    \reviewtrue                       ->  \reviewfalse            (real authors add a page)
+    \captionlisttrue                  ->  \captionlistfalse       (captions print once)
+    \abstractfalse                    ->  \abstracttrue           (the published article prints it)
+
+That is what `build.sh --reprint` does. It is **10 pages with about six body lines to
+spare**; anything added has to be paid for. Change all four back before committing.
+
+## Figures
+
+Figure 1 is drawn in TikZ inside `main.tex`. The rest are built from the released
+measurements and label volumes, which are not in this project, so edit captions here and
+ask for a regenerated figure if a plot must change. Captions stay at 60 words or fewer.
+
+| file | where |
+|---|---|
+| `figures/fig_anchors.pdf` | Fig. 2, four phenotypes at the lumbar borders |
+| `figures/fig_levelatlas.pdf` | Fig. 3, morphometry by level |
+| `figures/fig_hardware.pdf` | Fig. S1, instrumentation gallery |
+| `figures/fig_validation.pdf` | Fig. S2, spinopelvic measures against standing references |
+| `figures/fig_fov.pdf` | Fig. S3, records carrying each vertebral level |
+
+## Still open
+
+- `[CO-AUTHOR]` in `main.tex`: every author must supply their own conflict-of-interest
+  statement; the current declaration covers all of them and only the first author has been
+  asked.
