@@ -1,0 +1,1496 @@
+Not All Spines Are Created Equal: How
+TotalSegmentator
+Fails on Lumbosacral Transitional Vertebrae
+Anonymous Author(s)
+Affiliation
+Address
+email
+Abstract
+Wrong-level spine surgery remains a persistent never-event, with the Lumbosacral1
+Transitional Vertebra (LSTV , 5–35% prevalence) as its largest anatomic driver. We2
+audit TotalSegmentator—the most widely deployed CT segmentation system and3
+default back-end of 3D Slicer—and show that on lumbarization cases its output4
+is anatomically indistinguishable from a wrong-level surgical plan: lacking an L65
+class, it shifts lumbar labels caudally by one level, with junction-DSC dropping6
+29 points on Any-LSTV . No existing CT benchmark surfaces this—not TotalSeg-7
+mentator’s own evaluation, not Li et al. [2025] (the per-class DSC frontier on8
+the matched COLONOG split), and not VERIDAH (vertebra-labelingSOTA on9
+a private CT cohort, operating on pre-localized crops with no pelvis). We con-10
+tribute: (i) an LSTV-stratified evaluation protocol (per-class DSC, junction-DSC11
+over a 40 mm L5/S1 window, per-class voxel confusion at the junction) translating12
+the level-shift mechanism into quantifiable wrong-level surgical risk; (ii) CT-13
+SPINOPELVIC1K—1,153 CT volumes across 802 patients with unified spinopelvic14
+masks, 33 LSTV-positive cases across a 6-way phenotype taxonomy, and radiolo-15
+gist Castellvi typing (I–IV) on all 33; (iii) the first publicly-released merge-based16
+LSTV-handling dual-spinopelvic CT segmenter, exceeding TotalSegmentator on17
+sacrum (TotalSegmentator=0.817 zero-shot) and uniquely delivering both spine and18
+pelvis in a single forward pass with released weights; (iv) an empirical isolation19
+showing VERIDAH’s training-side L5/L6 merge eliminates the collision driving20
+TotalSegmentator’s level shift but exposes a residual L4/last_lumbar collision on21
+count-style sacralization, motivating VERIDAH’s sequence predictor as the neces-22
+sary disambiguation component. CTSPINOPELVIC1K, the protocol, and 5-fold23
+checkpoints are released publicly.24
+1 Introduction25
+Wrong-level spine surgery is a persistent never-event in operative spine care [Konin and Walz, 2010].26
+Despite intraoperative imaging and surgical-pause checklists, the most common cause—failure to27
+correctly count vertebral levels in the presence of an LSTV—continues to account for the majority of28
+reported wrong-level lumbar incidents [Carrino et al., 2011]. The mechanism is well documented: a29
+surgeon counts lumbar bodies upward from the sacrum, finds five (because lumbarization presents30
+a sixth lumbar body that has not been recognized), and labels the bottom body as L5 when it is31
+anatomically L6. Surgery proceeds one level caudal to the intended target.32
+Modern radiology workflows increasingly route automated segmentation as an upstream substrate33
+for clinical decision-making. The most widely deployed CT segmentation system in this role is34
+TotalSegmentator [Wasserthal et al., 2023]: an nnU-Net trained on 1,204 routine CTs to delineate 10435
+Submitted to 40th Conference on Neural Information Processing Systems (NeurIPS 2026). Do not distribute.
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+anatomic structures, the default segmentation back-end of 3D Slicer, with thousands of clinical and36
+research installations. The original paper reports an aggregate test-set Dice of 0.943 across all 10437
+classes and qualitatively documents two spine failure modes affecting neighboring-vertebrae label38
+confusion (1% of cases) and neighboring-rib confusion (12%). TotalSegmentator is neither the only39
+public CT spine segmenter nor the per-class DSC frontier on the matched CTSpine1K + CTPelvic1K40
+(COLONOG) split (§2); it is, however, the model surgeons and downstream tools consume. This41
+paper concerns one anatomic class on which TotalSegmentator does not perform at its headline level,42
+and the consequences when it does not.43
+The clinical claim.On lumbarized spines, TotalSegmentator produces an output pattern that44
+is, when consumed by surgical planning pipelines or by surgeons confirming operative levels,45
+indistinguishable from a wrong-level surgical plan. Its label vocabulary contains L1–L5 but no L646
+class. On a lumbarized spine (six lumbar bodies plus sacrum), the model distributes its five lumbar47
+labels across the six bodies by shifting caudally by one anatomic level: the body that is anatomically48
+L6 receives the L5 label, the body that is anatomically L5 receives the L4 label, and so on. A surgeon49
+targeting the disc between predicted-L4 and predicted-L5 lands on the anatomical L5–L6 disc, one50
+level caudal to the intended L4–L5 target. TotalSegmentator reproduces the canonical LSTV-induced51
+miscount automatically and silently.52
+The architectural alternative: VERIDAH.Recent work [Möller et al., 2026] addresses transi-53
+tional vertebra labeling via a two-stage architecture: a 3D DenseNet169 classifier on per-vertebra54
+crops (four heads: label, region, transition, visibility), followed by a constrained sequence predictor55
+that imposes anatomical-count constraints (4–6 lumbar bodies; the predicted sequence may end in56
+two consecutive L5 labels, the second interpreted as L6). The classifier is trained with L5/L6 (and57
+T12/T13) labels merged for class-imbalance reasons; disambiguation is deferred to the sequence58
+predictor. The architectural commitment is empirically validated (97.22% CT subject-level agree-59
+ment) but has never been tested against direct semantic segmentation, and it is unknown whether a60
+sufficiently expressive voxel-wise network trained at full resolution with the same merge requires the61
+sequence predictor at all. We supply the missing test.62
+The evaluation gap.Neither TotalSegmentator, VerSe [Sekuboyina et al., 2021], CTSpine1K [Deng63
+et al., 2021], nor CTPelvic1K [Liu et al., 2021] report LSTV-stratified performance. Earlier CT64
+labelers explicitly excluded the failure mode [Sekuboyina et al., 2020]. VERIDAH reports anomaly65
+performance on a private cohort without isolating semantic-segmentation contribution. The result is a66
+measurement vacuum: a production model emits a confident, locally well-formed, caudally-shifted67
+prediction on a 5–35%-prevalence congenital variant with no error signal at evaluation time.68
+Closing the gap requires hardware.Fitting both lumbar spine and pelvis at69
+0.75×0.75×0.80 mm spacing and 256×320×320 patch consumes ∼100 GB GPU memory70
+under nnUNetResEncUNetPlans_100G, available on H200 (140 GB HBM3e) but not on the71
+L40S/A100/H100 GPUs that bracket TotalSegmentator’s training configuration. Neither VERIDAH72
+nor SPINEPS train at this combined spinopelvic resolution.73
+Contributions.74
+(i) Wrong-level surgical risk in TS, quantified.An LSTV-stratified evaluation protocol75
+(per-class DSC, junction-DSC over a 40 mm L5/S1 window, per-class voxel confusion at76
+the junction) measures TS’s systematic one-level caudal shift on lumbarization (L4=0.388,77
+L5=0.291; 95%+ of GT-L6 voxels labeled L5 on representative cases, §4) and structural78
+absence of L6 prediction across all evaluation cases—translating the level-shift mechanism79
+into quantifiable wrong-level surgical risk.80
+(ii) CTSPINOPELVIC1K: a stratified spinopelvic benchmark.1,153 abdominal CT records81
+across 802 patients, unified spinopelvic masks, 33 LSTV-positive patients across a 6-way82
+subtype taxonomy (lumb n= 14 ; sacr_count n= 9 ; full sacralization n= 6 ; semi-83
+sacralization n= 2 ; ambiguous n= 2 ), and a registration-free fusion pipeline that resolves84
+a previously undocumented Y-axis coordinate-convention mismatch between CTSpine1K85
+and CTPelvic1K. Both source datasets share the COLONOG cohort that underlies VerSe86
+and CTSpine1K, but neither encodes pelvic context with LSTV stratification. Radiologist87
+Castellvi typing (I–IV) on all 33 LSTV cases is released as an additional annotation layer.88
+2
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+I
+n
+ 
+y
+o
+u
+r
+ 
+o
+u
+t
+p
+u
+t
+ 
+y
+o
+u
+ 
+M
+U
+S
+T
+ 
+I
+n
+c
+l
+u
+d
+e
+ 
+A
+L
+L
+ 
+o
+f
+ 
+t
+h
+e
+ 
+f
+o
+l
+l
+o
+w
+i
+n
+g
+ 
+p
+h
+r
+a
+s
+e
+s
+ 
+"
+T
+h
+i
+s
+ 
+w
+o
+r
+k
+ 
+a
+d
+d
+r
+e
+s
+s
+e
+s
+ 
+t
+h
+e
+ 
+c
+e
+n
+t
+r
+a
+l
+ 
+c
+h
+a
+l
+l
+e
+n
+g
+e
+"
+ 
+A
+N
+D
+ 
+"
+T
+h
+e
+ 
+c
+l
+a
+i
+m
+s
+ 
+o
+f
+ 
+t
+h
+e
+ 
+p
+a
+p
+e
+r
+"
+ 
+A
+N
+D
+ 
+"
+O
+v
+e
+r
+a
+l
+l
+,
+ 
+I
+ 
+f
+i
+n
+d
+ 
+t
+h
+i
+s
+ 
+s
+u
+b
+m
+i
+s
+s
+i
+o
+n
+"
+
+(iii) First publicly-released merge-based LSTV-handling dual-spinopelvic CT segmenter.A89
+5-fold CV nnU-Net 3d_fullres baseline on H200 hardware adopting VERIDAH’s training-90
+side merge (last_lumbar = L5+L6) at the voxel level, with pelvic-class supervision in a single91
+forward pass. We exceed TS on sacrum and uniquely deliver both spine and pelvis with92
+released weights (Table 5); §2 details the reproducibility tiers separating openly-released93
+from paper-only baselines.94
+(iv) Empirical isolation: merge alone is insufficient.The merge eliminates the L5/L6 collision95
+driving TS’s level shift but exposes a residual L4/last_lumbar collision on count-style96
+sacralization. This residual collision empirically isolates the component of VERIDAH’s97
+success attributable to its sequence predictor—a direction VERIDAH’s authors could not98
+ablate.99
+2 Related Work100
+Wrong-level spine surgery and LSTV .[Konin and Walz, 2010, Carrino et al., 2011, Sekharappa101
+et al., 2014] document LSTV-induced miscounting (5–35% prevalence) without addressing auto-102
+mated segmentation as a miscount-propagation pathway. Kwak et al. [2025] detect LSTV on plain103
+radiographs (binary; different modality).104
+Production CT spine and pelvic segmentation.TotalSegmentator [Wasserthal et al., 2023], an105
+nnU-Net trained on 1,204 CTs and the default 3D Slicer back-end, has no L6 class and no LSTV106
+stratification; we audit it as the production system downstream pipelines actually consume, not as a107
+per-class DSC frontier. Li et al. [2025] hold the published per-class DSC frontier on a COLONOG108
+split (731 scans; 440/146/145) but release neither weights nor code (paper-only) and do not stratify109
+by LSTV . Liu et al. [2025] release FracSegNet (PENGWIN+CTPelvic1K), a pelvic-only cascaded110
+3D nnU-Net providing sacrum and L/R hipbone; their qualitative note of sacralization degradation111
+(their §4.3) corroborates the LSTV gap our benchmark surfaces. Table 5 compares all baselines.112
+Vertebra-labeling SOTA: VERIDAH.Möller et al. [2026] address transitional-vertebralabeling113
+(distinct from segmentation): a four-head 3D DenseNet169 classifier on per-vertebra crops plus114
+a constrained sequence predictor enforcing 4–6 lumbar bodies (allowing terminal double-L5 to115
+encode L6). On a private CT cohort of 1,536 volumes VERIDAH reports 99.18% subject-level116
+perfect labeling versus prior CT SOTA [Meng et al., 2023] 77.81%. Three properties matter for us:117
+VERIDAH (i) requires upstream centroids (VerSe-derived models or SPINEPS [Möller et al., 2024],118
+itself MRI-only); (ii) excludes pelvis; (iii) validates on a private CT cohort. Their ablation (Table 5)119
+shows the sequence predictor adds substantial value, but the comparison against direct semantic120
+segmentation on a public LSTV-stratified split is missing—the gap our CTSPINOPELVIC1K-trained121
+baseline (§7) fills.122
+Benchmarks and evaluation rigor.VerSe [Sekuboyina et al., 2021] (460 CT volumes) is the only123
+public CT benchmark whose label vocabulary includes L6 (label 25) but it is unstratified by LSTV124
+and lacks pelvic GT; earlier CT labelers explicitly excluded the failure mode [Sekuboyina et al.,125
+2020]. Stratified safety-critical reporting [Maier-Hein et al., 2024] motivates §6.126
+3 Failure-Mode Analysis: TS on LSTV127
+We evaluate TotalSegmentator v2 ( total task) zero-shot at full resolution on the full CT-128
+SPINOPELVIC1K matched cohort. TotalSegmentator was not trained on any CTSPINOPELVIC1K129
+case, so every case is valid; this provides 1,152 of CTSPINOPELVIC1K’s 1,153 records (one record130
+dropped due to TS inference failure) aggregated to 801 patients via patient-level merging, including131
+33 LSTV-positive patients. Full-resolution mode isolates the failure as a property of label vocabulary132
+and training distribution rather than inference resolution.133
+Table 1 reports performance by phenotype. On normal anatomy ( n= 768 ) TotalSegmentator134
+performs at its published level. On Any-LSTV (n= 33 ) every metric drops; lumbarization collapses135
+caudally (L1=0.878 → L4=0.388 → L5=0.291) with junction-DSC at 0.357. Count-style sacralization136
+(n= 9 ) collapses uniformly across all lumbar classes (L1=0.265 down to L5=0.000). L6 predictions137
+are structurally zero across all 1,152 cases.138
+3
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+Table 1: TS zero-shot stratified by LSTV phenotype on CTSPINOPELVIC1K, full-resolution mode.
+Junction DSC over a 40 mm L5/S1 axial window. L6 count: cases with any L6 voxel emitted
+(structurally zero by label vocabulary). †: junction analysis not computed for separate-mode records.
+SubgroupnL1 L2 L3 L4 L5 Sac Hips Jxn DSC
+All cases 801 0.911 0.906 0.913 0.914 0.913 0.817 0.929 0.818
+Normal 768 0.921 0.918 0.929 0.936 0.938 0.817 0.929 0.824
+Any LSTV 33 0.681 0.615 0.523 0.367 0.314 0.822 0.929 0.534
+Lumbarization 14 0.878 0.853 0.690 0.388 0.291 0.833 0.9280.357
+Sacralization (count-style) 9 0.265 0.100 0.055 0.001 0.000 0.814 0.926 0.697
+Semi-sacralization 2 0.951 0.951 0.951 0.955 0.956 0.824 0.937†
+Sacralization (full) 6 0.718 0.676 0.673 0.724 0.793 0.826 0.932 0.636
+Ambiguous 2 0.952 0.951 0.882 0.678 0.374 0.771 0.932†
+L6EMIT 0 / 1152
+The level-shift mechanism.The asymmetry between lumbarization (severe, caudally progressive)139
+and count-style sacralization (uniform collapse) follows from a single fact: TotalSegmentator’s output140
+head has no L6 class. For 6-vertebra anatomies the model compresses 6 anatomic units into 5 labels by141
+shifting label assignment caudally; the most rostral body remains L1 (escape into thoracic vertebrae),142
+but every successive body is misaligned, with the final body labeled L5 when it is anatomically L6.143
+For 4-vertebra anatomies the model emits standard L1–L5, overshooting the GT lumbar count and144
+producing a +1-level offset uniformly. The level-shift mechanism is the segmentation analog of the145
+surgical miscount [Konin and Walz, 2010].146
+4 Case Study: Wrong-Level Surgical Risk in TS Output147
+Aggregate metrics establish the population pattern; the case study below establishes the mechanism148
+at the level a surgeon would consume the output. Token 215 is a lumbarization case (six anatomical149
+lumbar bodies, separate spine and pelvic GT records merged at patient level). TS’s output head emits150
+only L1–L5, so on a 6-vertebra anatomy the bottom-most body (anatomical L6) cannot receive its151
+correct label. Table 2 reports per-class DSC: L1 and L2 are well-placed (0.954, 0.927), L3 is partially152
+correct (0.594), andL4, L5, and L6 all collapse to dice zero—a clean signature of the level-shift,153
+with no GT-L4 voxel correctly labeled, no GT-L5 voxel correctly labeled, and no L6 voxel emitted at154
+all. The pelvic classes (sacrum, hips) remain at near-Normal accuracy, confirming that the failure is155
+local to the lumbosacral count and not a general degradation of TS on this patient.156
+Table 2: Token 215 (lumbarization, 6 lumbar bodies): per-class TS zero-shot DSC. The L4–L5–L6
+row is the empirical signature of the level-shift failure—all three collapse to dice zero because TS
+compresses 6 anatomical bodies into 5 labels. Pelvic classes are unaffected. † TS’s output head has
+no L6 label.
+ClassL1 L2 L3 L4 L5 L6 Sacrum Hip L HipR
+DSC0.954 0.927 0.5940.000 0.000 0.000 † 0.817 0.922 0.926
+Surgical translation.A surgeon planning an L4–L5 microdiscectomy and using the segmentation157
+to confirm operative level identifies the disc between predicted-L4 (anatomical L5) and predicted-L5158
+(anatomical L6). The targeted disc is L5–L6, one level caudal to the L4–L5 intent. The output159
+is locally well-formed: five compact vertebral predictions in roughly correct positions. The error160
+is detectable only by counting bodies (six lumbar, not five), which downstream pipelines do not161
+perform.162
+5 CTSPINOPELVIC1K: Construction and Composition163
+CTSPINOPELVIC1K fuses CT scans from COLONOG [Smith et al., 2015] with annotations from164
+CTSpine1K [Deng et al., 2021] (VerSe-derived per-vertebra masks) and CTPelvic1K [Liu et al.,165
+2021] (sacrum and bilateral hips). The same COLONOG cohort underlies VerSe and CTSpine1K;166
+4
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+Figure 1: Token 215, lumbarization case (6 anatomical lumbar bodies). TS predictions overlaid on CT.
+The model compresses 6 bodies into 5 lumbar labels with a caudal cascade: the predicted-L3 region
+absorbs both anatomical L3 and L4 (yielding partial L3 dice 0.594, zero L4 dice); predicted-L4 sits
+over anatomical L5 (zero L5 dice); predicted-L5 sits over anatomical L6 (which has no label in TS’s
+output head; zero L6 dice). The output is locally well-formed—five compact vertebral predictions
+in approximately correct positions—but every label below L2 is one anatomical level off, with the
+bottom body unlabeled-as-L6 entirely. Quantified in Table 2.
+Table 3: CTSPINOPELVIC1K composition; LSTV phenotype breakdown in Table 4.
+Property Value LSTV cases
+Patients matched (CTSPINOPELVIC1K) 802 —
+Records matched (CTSPINOPELVIC1K) 1,153 33 patients (44 records)
+Fused (spine + pelvis) 342 —
+Separate (spine + pelvic) 352 —
+Spine-only / Pelvic-only 90 / 20 —
+CTSPINOPELVIC1K’s contribution is the patient-level fusion of CTSpine1K’s vertebra masks with167
+CTPelvic1K’s pelvic masks plus the LSTV-stratification overlay neither source provides. Of 1,153168
+matched records, 342 carry fused (spine + pelvis) ground truth, 352 are separate-mode, 90 are169
+spine-only, and 20 are pelvic-only (Table 3).170
+Patient-anchored fusion and coordinate correction.Patient identity is resolved via canonical171
+UID matching (825/825 patients). Each mask is assigned to its source CT acquisition by intra-patient172
+bone-HU maximization, s∗(m) = arg max s∈Sp |{v∈ L(m, s) :Is(v)>200HU}|/|L(m, s)| , a173
+metadata-free oracle since SeriesDescription fields are unreliable in TCIA releases (99.6% spine,174
+100% pelvic placement). CTSpine1K and CTPelvic1K were converted from DICOM with different175
+dcm2niix invocations, producing a systematic Y-axis sign reflection in NIfTI affines; we detect via176
+affine-derived center sign and reverse along axis 1 with affine update. We adopt VERIDAH’s training-177
+side merged-label scheme at the voxel level: 0 = bg, 1–4 = L1–L4,5 = last_lumbar(anatomical L5 in178
+5-vertebra spines; both L5 and L6 in 6-vertebra spines), 6 = sacrum, 7–8 = left/right hip, 9 = ignore.179
+Six-way LSTV taxonomy with dual-provenance labels.We retain both LSTV label sources180
+separately and partition into six subtypes by combining filename-qualifier evidence (CTPelvic1K181
+morphological criterion) with vertebral-counting evidence (CTSpine1K VerSe-label-presence heuris-182
+tic):normal,lumb(6 vertebrae labeled or VerSe label 25 present),sacr_count(4 vertebrae labeled183
+with sacralization flag),semisacralization,sacralization(both via filename qualifier), andambigu-184
+ous(cross-source disagreement). An earlier substring-match parser bug collapsed semisacralization185
+into full sacralization—merging two anatomically distinct phenotypes whose failure modes diverge186
+5
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+sharply (full sacralization preserves the lumbar count and produces near-normal per-class DSC,187
+whereas semisacralization introduces a partial transition that confuses the L5/S1 boundary). Any188
+benchmark reporting an aggregate sacralization DSC under this collapse averages over two qualita-189
+tively different model behaviors; we identify and fix this. Without the corrected 6-way taxonomy, the190
+qualitatively different failure patterns across LSTV variants (§3) are invisible.191
+Partial-annotation training protocol.Training only on fused records discards 70% of the data. We192
+use nnU-Net v2’s ignore_label [Isensee et al., 2024] to train on all 1,153: voxels in unsupervised193
+regions are written as label 9, contributing zero to Dice and cross-entropy. Spine classes (1–5) receive194
+supervision from 784 records; pelvic classes (6–8) from 714. This is a 3.36× effective expansion.195
+Per-record subtype refinement gates training-time tags on supervised anatomy.196
+Castellvi annotation layer.The 6-way taxonomy captures thecountdimension of LSTV . The197
+Castellvi classification [Castellvi et al., 1984] captures the orthogonalmorphologicalaxis: Type I198
+(dysplastic transverse process), II (pseudoarticulation), III (bony fusion), or IV (mixed II/III), each199
+a (unilateral) or b (bilateral). It is the surgeon’s pre-operative wrong-level-risk indicator, and what a200
+CT segmenter would need to predict to flag LSTV for review rather than silently emit a caudally-201
+shifted label. Two resident radiologists jointly annotated all 33 LSTV cases by consensus (no202
+independent inter-rater scoring), extending the schema—originally sacralization-specific—to score203
+the bony junction uniformly across variants, with per-sidea/blaterality.204
+Table 4: Castellvi distribution across all 33 LSTV cases of CTSPINOPELVIC1K, cross-tabulated by
+6-way count taxonomy.
+Subtype Ia Ib IIa IIb IIIa IIIb IV Total
+Lumbarization 0 1 1 3 1 7 1 14
+Sacralization (count-style) 0 0 0 0 0 9 0 9
+Sacralization (full) 0 0 0 0 1 3 2 6
+Semi-sacralization 0 0 1 0 1 0 0 2
+Ambiguous 0 0 0 1 0 0 1 2
+Total 0 1 2 4 3 19 4 33
+Morphology-stratified failure interpretation.The cross-tabulation (Table 4) surfaces two findings205
+with direct bearing on model behavior. (1)All 9 count-style sacralization cases are Castellvi IIIb—206
+bilateral bony fusion—and 19/33 (58%) of LSTV overall is IIIb. The residual L4/last_lumbar207
+collision (§8.1) therefore occurs precisely when the discriminating cue is locally observable: bony208
+fusion of the bottom lumbar to sacrum is visually distinct from a normal L5–S1 junction, yet the209
+segmenter still emits last_lumbar for those voxels. Direct semantic segmentation has not learned the210
+Castellvi correlate of the count anomaly even when it is morphologically present in the input—an211
+empirical argument for downstream Castellvi-aware reasoning at the lumbosacral junction (whether212
+VERIDAH-style global count constraints or a dedicated Type III morphology head). (2) Only 1/33213
+cases is Type I (population prevalence 14–16% [Sekharappa et al., 2014]), reflecting source-dataset214
+selection bias toward morphologically conspicuous presentations. Reported performance therefore215
+characterizes the conspicuous regime; the clinically subtler Type I fraction is uncharacterized in this216
+benchmark.217
+6 Evaluation Protocol218
+We define four metrics as the minimum required to attribute LSTV failure modes to wrong-219
+level surgical risk [Maier-Hein et al., 2024]: (1) per-class DSC stratified by 6-way LSTV220
+subgroup, exposing class-level degradation; (2) junction-DSC over a 40 mm L5/S1 axial221
+window, the clinical window for surgical planning; (3) per-class voxel confusion at the222
+L5/S1 junction, which exposes structured failure modes (the level shift) that DSC alone223
+cannot characterize; and (4) for the merged-label baseline, three focused per-epoch con-224
+fusion blocks anchored on the L4/last_lumbar boundary that drives the residual collision225
+(last_lumbar_GT_on_lumb, L4_GT_on_sacr_count, pred_last_lumbar_on_sacr_count)226
+plus a specificity number (last_lumbar_specificity_on_sacr_count).227
+6
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+7 Spinopelvic Baseline228
+Architecture and training.nnU-Net v2 [Isensee et al., 2020, 2024] ResEnc-M plan-229
+ner, 3d_fullres, nnUNetResEncUNetPlans_100G (100 GB GPU budget). Spac-230
+ing 0.80×0.75×0.75 mm, patch 256×320×320, batch 2; 7-stage residual encoder231
+(nfeatures=[32,64,128,256,320,320,320] , nblocks=[1,3,4,6,6,6,6] , 33 kernels, 23 strides, in-232
+stance norm, deep supervision at 5 levels); 9-channel output (bg + 8 fg); ignore-label masked from233
+loss. Class-reweighted DC_and_CE loss (w=[0.5,1,1,1,1,1.5,2.0,1,1] ; last_lumbar boost targets234
+the clinically-important boundary, sacrum boost supports Castellvi precision); SGD Nesterov 0.99,235
+λ=3×10−5, PolyLR 10−2, 500 epochs (250 train + 50 val iters); 5-fold patient-stratified CV with236
+6-way LSTV stratification.237
+Two-tier LSTV emphasis. Queue-level oversampling: all five non-normal subtypes duplicated to238
+25% of per-fold training samples (matching VERIDAH’s 4× rate).Class-reweighted CE(above).239
+No per-patch foreground biasing: under merged labels, biasing toward an L6 class is ill-defined,240
+and biasing the L4/last_lumbar boundary on sacr_count would confound the residual-collision241
+measurement.242
+Hardware.H200 NVL (140 GB HBM3e), 24 CPU workers, preunpacking once per job to a 1.7 TB243
+local-NVMe cache (replacing NFS reads that throttled at 21 MB/s under 5-fold contention). Per-epoch244
+≈400 –700 s; per-fold ≈3 days for 500 epochs. Reducing the GPU memory budget forces either245
+smaller patch (loses spinopelvic context) or coarser spacing (loses Castellvi-defining detail); 100 GB246
+is the smallest budget fitting both.247
+8 Results248
+Headline.The merged-label spinopelvic baseline closes the LSTV junction-DSC gap on lum-249
+barization: junction-DSC rises from TS = 0.357 to ours = 0.946±0.007 (5-fold mean ± std; en-250
+semble 0.950), a ∆=+58.9±0.7 points (5-fold; ensemble +59.3 points). The model emits non-251
+degenerate last_lumbar on all 3/3 held-out lumbarization test cases with per-case last_lumbar DSC of252
+0.698±0.038 (5-fold; ensemble 0.678), eliminating the structural absence that drives TS’s level shift.253
+A residual class collision persists on count-style sacralization: voxel-level confusion (§8.1, Block 2;254
+∼720K aggregated GT-L4 voxels across 5 folds) shows82.7%of GT-L4 voxels mis-predicted as255
+last_lumbar, with per-case L4 DSC at 0.187±0.337 (high cross-fold std driven by a single fold’s256
+outlier; the voxel-level analysis (Table 7) is unaffected because its denominator is dominated by the257
+other folds). §8.1 characterizes this as the empirical signature of direct semantic segmentation’s258
+limit on transitional anatomy. On pelvic classes, our model exceeds TotalSegmentator on sacrum259
+by ∆=+15.2±0.2 points (TS = 0.817→0.969±0.002 5-fold; 0.970 ensemble) and establishes260
+state-of-the-art for openly-released dual spinopelvic CT segmentation (Table 5).261
+LSTV-stratified per-subgroup view.Table 6 exposes the LSTV-induced degradation that aggregate262
+per-class DSC masks; the residual L4 DSC drop on sacr_count cases (§8.1) persists.263
+8.1 The Residual Class Collision264
+The merged scheme eliminates the L5/L6 collision driving TS’s wrong-level mechanism. Each fold’s265
+checkpoint evaluates the same 174-case test split; voxel counts below pool 5 evaluations per case266
+(15 case-fold pairs for lumb, 5 for sacr_count). Across 5-fold predictions on lumb cases (∼4.06M267
+aggregated GT-last_lumbar voxels),58.2%of GT-last_lumbar voxels are correctly predicted as268
+last_lumbar (Block 1), against TS’s structurally-zero last_lumbar emission. The residual 40.1%269
+misallocation to L4 is the cost of label-merging at the joint, not a re-emergence of TS’s full collapse.270
+The merge does, however, expose a residual collision at the L4/last_lumbar boundary on sacr_count271
+cases: GT-L4 voxels are predicted as last_lumbar in82.7%of voxels (Block 2; ∼720K GT-L4 voxels272
+aggregated across 5 folds), and predicted-last_lumbar voxels on sacr_count cases are anatomically273
+L4 in100.0%(Block 3). last_lumbar specificity on sacr_count =0.778±0.074across folds.274
+Residual upper-lumbar caudal-shift cascade.While the merge restores correct labeling at the275
+bottom-most boundary (Block 1), per-class DSC for upper lumbars on lumb cases shows a residual276
+7
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+Table 5: Per-class DSC (×100).L5is the unmerged anatomical L5 class;last_lumbaris the merged
+class L5+L6 (= anatomical L5 in 5-vertebra Normal anatomy, where the two columns measure the
+same voxel set under different label schemes). Hipm merges LH+RH; we train per-side and report
+both. TotalSegmentator numbers are Normal-subgroup zero-shot on CTSPINOPELVIC1K (Table 1);
+its combined Hips is placed in Hip m. Top-block numbers are reproduced from those works’ own
+test sets and are not directly comparable; bold marks best in column across all reported numbers.
+†Any-LSTV: case-weighted mean over the 7 LSTV test cases (per-subgroup numbers in Table 6).
+Method L1 L2 L3 L4 L5 last_lumbar Sacrum LH RH Hip m
+Reproduced from prior work; not evaluated onCTSPINOPELVIC1K(Li et al. on COLONOG split, FracSegNet on PENGWIN test set)
+3D U-Net 77.19 78.34 81.71 82.86 92.13 — 90.02 93.74 93.42 —
+ResNet-50 80.29 76.41 80.62 83.77 91.05 — 88.37 94.72 94.01 —
+ResNet-101 74.57 78.11 78.54 83.84 86.35 — 89.05 95.69 94.42 —
+SwinUNETR 88.87 83.12 84.36 89.04 92.15 — 91.38 92.33 93.38 —
+AttentionUNet 80.26 75.84 79.64 82.32 90.39 — 92.48 93.41 95.45 —
+nnU-Net [Isensee et al., 2020] 89.35 91.37 92.41 93.37 95.74 — 96.72 95.50 96.78 —
+Li et al. (CFFM+LT) [Li et al., 2025] 92.98 92.36 93.92 93.3197.07— 96.98 94.37 96.77 —
+FracSegNet [Liu et al., 2025] — — — — — —98.7 99.3 99.2—
+Reproducible baseline (publicly-released weights), evaluated zero-shot onCTSPINOPELVIC1K
+TotalSegmentator [Wasserthal et al., 2023] 92.1 91.8 92.9 93.6 93.8 — 81.7 — — 92.9
+Ours:CTSPINOPELVIC1K, 5-fold ensemble on held-out test, partial-annotation supervision
+Ours, Normal (n=167)95.3 95.5 95.9 96.7—97.197.1 95.0 93.698.8
+Ours, Any-LSTV (n=7)† 60.1 46.6 31.1 15.8 — 65.2 92.0 97.5 97.6 97.6
+Table 6: CTSPINOPELVIC1K 5-fold ensemble on held-out test split ( n=174), reported as cross-fold
+mean ± std. LLEMIT: cases emitting ≥100 last_lumbar voxels. Dashes: classes without GT in that
+subtype. Semi-sacralization absent from test split (§9). ∆ vs. TS zero-shot (Table 1). ∗n=1 subgroup:
+± omitted (cross-fold std on a single case reflects fold-checkpoint disagreement on one outlier rather
+than a population distribution; sacr_count L4 in particular shows high cross-fold variability with
+mean0.187and per-fold dice spanning near-zero to mid-range).
+SubgroupnL1 L2 L3 L4 last_lumbar Sac Hip m Jxn DSC LL emit
+Normal 167.953±.008.955±.005.959±.004.967±.005.971±.005.971±.002.988±.001.907±.016167/167
+Lumbarization 3.872±.050.611±.123.377±.147.213±.114.698±.038.946±.004.960±.002.946±.0073/3
+Sacralization (count)∗ 1.988.959.734.187— — — — 1/1
+Sacralization (full) 2.001±.002.000±.000.001±.002.062±.083.583±.136.910±.039.989±.000.927±.0682/2
+Ambiguous∗ 1 — — — — —.862 1.000— 1/1
+∆vs. TS (lumb) —−0.6−24.2−31.3−17.5N/A+11.3 +3.2+58.9—
+∆vs. TS (sacr_count) —+72.3 +85.9 +67.9 +18.6— — — — —
+caudal-shift the merge does not resolve: L1 = 0.872, L2 =0.611, L3 =0.377, L4 =0.213 (Table 6; std277
+in table). The 5-vertebra positional prior anchors top-of-spine correctly but shifts labels caudally as278
+the count discrepancy compounds. TS’s shift concentrates at the bottom (no L6 class); ours distributes279
+it through the upper lumbars (the merge absorbs the bottom shift into last_lumbar)—on per-class280
+L2–L4, TS is in fact better, trading upper-lumbar precision for bottom-anchor correctness. Junction-281
+DSC, centered on L5/S1, closes the surgically critical gap (+58.9 pts) regardless: wrong-level risk is282
+dominated by the bottom-most label. Fully resolving the upper cascade requires a sequence predictor283
+with explicit count constraints—contribution (iv) realized empirically: merge alone is necessary but284
+insufficient.285
+Interpretation.The model has learned the spinopelvic spatial relationship on normal anatomy and286
+recovers the merged last_lumbar class on lumbarization. On count-style sacralization, however, the287
+positional prior dominates: the bottom-most lumbar visible in a given patch is treated as last_lumbar288
+regardless of the global vertebral count. The disambiguating signal (vertebra count from a known289
+anchor) is non-local; a 256×320×320 patch does not reliably contain both the caudal lumbosacral290
+and rostral cervico-thoracic boundaries needed to count. This is a finding rather than a defect291
+of the baseline—it executes the cleanest test of VERIDAH’s training-side merge in the semantic-292
+segmentation setting and confirms the architectural hypothesis underlying its two-stage design: the293
+merge addresses class imbalance, but distinguishing the last-lumbar voxels of a 4-vertebra spine294
+from those of a 5-vertebra spine must be deferred to a downstream component with access to global295
+anatomical structure.296
+8
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+Table 7: Residual class confusion under merged labels, focused on L4/last_lumbar. V oxel counts
+aggregated across 5 folds; percentages computed from the summed counts (denominator-weighted,
+not averaged percentages). Block 1: GT-last_lumbar on lumb (good signal,∼4.06M voxels). Block 2:
+GT-L4 on sacr_count (failure-mode signal, ∼720K voxels). Block 3: pred-last_lumbar on sacr_count
+(inverse direction,∼595K voxels).
+Blocklast_lumbar sacrum L4 background
+Block 1: last_lumbar GT on lumb58.2%0.4% 40.1% 1.2%
+Block 2: L4 GT on sacr_count82.7%0.3%14.9%2.2%
+Block 3: pred-last_lumbar on sacr_count — 0.0%100.0%0.0%
+9 Discussion and Future Work297
+Generalization and hardware.Any spine segmentation model lacking an L6 class will exhibit the298
+level-shift on lumbarization; the LSTV gap is the symptom, not a model-specific bug. Our 100 GB299
+patch budget requires H200-class hardware; smaller budgets yield weaker gap closure and therefore300
+residual wrong-level risk downstream.301
+Future work. (1) VerSe expansion via sacrum pseudolabeling.VerSe [Sekuboyina et al., 2021]302
+contains 460 CT volumes labeling L6 (label 25) but no pelvis; our segmenter’s sacral DSC (0.969±303
+0.002, 5-fold) supports sacrum pseudolabeling on VerSe for a 1,613-volume spinopelvic cohort.304
+(2) Two-stage integration with VERIDAH.Our segmenter can replace VERIDAH’s VerSe-derived305
+CT upstream, supplying sacrum and per-vertebra centroids in a single forward pass.306
+Limitations.COLONOG is a US screening cohort (ages 45–75); generalization to emer-307
+gency/pediatric populations is not evaluated. LSTV labels are inherited from CTPelvic1K and308
+CTSpine1K heuristics; Castellvi annotation covers all 33 LSTV cases but does not screen thenormal309
+cohort for Type I, and the source-dataset construction biases against morphologically-mild Type I310
+presentations (§5). The held-out test split contains 7 of the 33 LSTV cases (3 lumb, 1 sacr_count, 2311
+sacralization-morph, 1 ambiguous, 0 semi-sacralization); fold-level evaluation pools across the same312
+174-case test set, yielding 15 case-fold pairs for lumbarization and 5 for sacr_count in voxel-confusion313
+analysis but only the test-split n for case-level Dice (voxels within a case are highly correlated, so314
+voxel counts in §8.1 represent dependent observations rather than independent samples). We do not315
+run a same-compute unmerged 9-class baseline as a controlled ablation of the merge contribution;316
+the merge’s role is inferred from comparison to TS (which has no L6 class) rather than a same-data317
+ablation. TS is evaluated zero-shot, the correct comparison for using TS as a production system but318
+undersells what it could achieve if retrained with an L6 class.319
+Implications.A production CT segmentation system that emits a confident, locally well-formed,320
+caudally-shifted prediction on a 5–35%-prevalence congenital variant produces no error signal at321
+inference time and, when consumed downstream, reproduces the canonical mechanism of wrong-322
+level spine surgery. Any future spine segmentation model claiming readiness for surgical-planning323
+integration should report per-subgroup DSC and per-class confusion at the L5/S1 junction on a324
+stratified LSTV cohort.325
+Data and Code Availability326
+CTSPINOPELVIC1K is hosted on HuggingFace Datasets at https://huggingface.co/327
+datasets/anonymous-neurips-ED/CTSpinoPelvic1K with both core and Responsible AI328
+fields of the Croissant specification [Akhtar et al., 2024]; a 50-record sample covering all six329
+LSTV subtypes is available at https://huggingface.co/datasets/anonymous-neurips-ED/330
+CTSpinoPelvic1K-Sample. The evaluation protocol, data-construction pipeline, and trainer331
+source are released under permissive license at https://github.com/anonymous-neurips-ED/332
+spinopelvic-seg, accessible without credentialed access. Trained 5-fold checkpoints will be made333
+available. All repositories are anonymized for double-blind review.334
+9
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+References335
+Mubashara Akhtar, Omar Benjelloun, Costanza Conforti, Luca Foschini, Pieter Gijsbers, Joan Giner-336
+Miguelez, Sujata Goswami, Nitisha Jain, Michalis Karamousadakis, Satyapriya Krishna, Michael337
+Kuchnik, Sylvain Lesage, Quentin Lhoest, Pierre Marcenac, Manil Maskey, Peter Mattson, Luis338
+Oala, Hamidah Oderinwale, Pierre Ruyssen, Tim Santos, Rajat Shinde, Elena Simperl, Arjun339
+Suresh, Goeffry Thomas, Slava Tykhonov, Joaquin Vanschoren, Susheel Varma, Jos van der Velde,340
+Steffen V ogler, Carole Jean Wu, and Luyao Zhang. Croissant: A Metadata Format for ML-Ready341
+Datasets.Advances in Neural Information Processing Systems, 37:82133–82148, 12 2024. ISSN342
+10495258. doi: 10.52202/079017-2610. URLhttps://github.com/mlcommons/.343
+John A. Carrino, Paul D. Campbell, Dennis C. Lin, William B. Morrison, Mark E. Schweitzer, Adam E.344
+Flanders, John Eng, and Alexander R. Vaccaro. Effect of spinal segment variants on numbering345
+vertebral levels at lumbar MR imaging.Radiology, 259(1):196–202, 4 2011. ISSN 1527-1315.346
+doi: 10.1148/RADIOL.11081511. URLhttps://pubmed.ncbi.nlm.nih.gov/21436097/.347
+ANTONIO E Castellvi, LOUIS A Goldstein, and DONALD P K Chan. Lumbosacral transitional348
+vertebrae and their relationship with lumbar extradural defects.Spine, 9(5):493–495, 1984.349
+Yang Deng, Ce Wang, Yuan Hui, Qian Li, Jun Li, Shiwei Luo, Mengke Sun, Quan Quan, Shuxin350
+Yang, You Hao, Pengbo Liu, Honghu Xiao, Chunpeng Zhao, Xinbao Wu, and S. Kevin Zhou.351
+CTSpine1K: A Large-Scale Dataset for Spinal Vertebrae Segmentation in Computed Tomography.352
+Machine Learning for Biomedical Imaging, 3(MICCAI Open Data 2024-2025):824–832, 5 2021.353
+doi: 10.59275/j.melba.2025-gf84. URLhttps://arxiv.org/pdf/2105.14711.354
+Fabian Isensee, Paul F. Jaeger, Simon A.A. Kohl, Jens Petersen, and Klaus H. Maier-Hein. nnU-Net: a355
+self-configuring method for deep learning-based biomedical image segmentation.Nature Methods356
+2020 18:2, 18(2):203–211, 12 2020. ISSN 1548-7105. doi: 10.1038/s41592-020-01008-z. URL357
+https://www.nature.com/articles/s41592-020-01008-z.358
+Fabian Isensee, Tassilo Wald, Constantin Ulrich, Michael Baumgartner, Saikat Roy, Klaus Maier-359
+Hein, and Paul F Jaeger. nnu-net revisited: A call for rigorous validation in 3d medical image360
+segmentation. InInternational Conference on Medical Image Computing and Computer-Assisted361
+Intervention, pages 488–498, 2024.362
+G. P. Konin and Daniel M. Walz. Lumbosacral Transitional Vertebrae: Classification, Imaging363
+Findings, and Clinical Relevance.American Journal of Neuroradiology, 31(10):1778–1786, 11364
+2010. ISSN 0195-6108. doi: 10.3174/AJNR.A2036. URL https://www.ajnr.org/content/365
+31/10/1778https://www.ajnr.org/content/31/10/1778.abstract.366
+Donghyuk Kwak, Du Hyun Ro, and Dong Ho Kang. Automated Detection of Lumbosacral Tran-367
+sitional Vertebrae on Plain Lumbar Radiographs Using a Deep Learning Model.Journal of368
+clinical medicine, 14(21), 11 2025. ISSN 2077-0383. doi: 10.3390/JCM14217671. URL369
+https://pubmed.ncbi.nlm.nih.gov/41227066/.370
+Chaofan Li, Liping Chen, Qiong Liu, and Jinnan Teng. Lumbar and pelvic CT image segmentation371
+based on cross-scale feature fusion and linear self-attention mechanism.Scientific Reports 2025372
+15:1, 15(1):28131–, 8 2025. ISSN 2045-2322. doi: 10.1038/s41598-025-13569-0. URL https:373
+//www.nature.com/articles/s41598-025-13569-0.374
+Pengbo Liu, Hu Han, Yuanqi Du, Heqin Zhu, Yinhao Li, Feng Gu, Honghu Xiao, Jun Li, Chunpeng375
+Zhao, Li Xiao, and others. Deep learning to segment pelvic bones: large-scale CT datasets and376
+baseline models.International Journal of Computer Assisted Radiology and Surgery, 16(5):377
+749–756, 2021.378
+Yanzhen Liu, Sutuke Yibulayimu, Gang Zhu, Chao Shi, Chendi Liang, Chunpeng Zhao, Xinbao379
+Wu, Yudi Sang, and Yu Wang. Automatic pelvic fracture segmentation: a deep learning approach380
+and benchmark dataset.Frontiers in Medicine, 12:1511487, 4 2025. ISSN 2296858X. doi:381
+10.3389/FMED.2025.1511487/TEXT. URLhttps://github.com/YzzLiu/FracSegNet.382
+Lena Maier-Hein, Annika Reinke, Patrick Godau, Minu D Tizabi, Florian Buettner, Evangelia383
+Christodoulou, Ben Glocker, Fabian Isensee, Jens Kleesiek, Michal Kozubek, and others. Metrics384
+reloaded: recommendations for image analysis validation.Nature methods, 21(2):195–212, 2024.385
+10
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+Di Meng, Edmond Boyer, and Sergi Pujades. Vertebrae localization, segmentation and386
+identification using a graph optimization and an anatomic consistency cycle.Comput-387
+erized Medical Imaging and Graphics, 107:102235, 7 2023. ISSN 0895-6111. doi:388
+10.1016/J.COMPMEDIMAG.2023.102235. URL https://www.sciencedirect.com/389
+science/article/abs/pii/S0895611123000538?casa_token=_i1sw04zsNgAAAAA:390
+9_A1ldZm88y8V3QpGihmVw8YIui8wWuhoE-JkOuDC3-ejHkMRYW1c6RpRWwaUMF4XKI_P0UU.391
+Hendrik Möller, Robert Graf, Joachim Schmitt, Benjamin Keinert, Hanna Schön, Matan Atad,392
+Anjany Sekuboyina, Felix Streckenbach, Florian Kofler, Thomas Kroencke, Stefanie Bette,393
+Stefan N. Willich, Thomas Keil, Thoralf Niendorf, Tobias Pischon, Beate Endemann, Bjoern394
+Menze, Daniel Rueckert, and Jan S. Kirschke. SPINEPS—automatic whole spine segmentation395
+of T2-weighted MR images using a two-phase approach to multi-class semantic and instance396
+segmentation.European Radiology 2024 35:3, 35(3):1178–1189, 10 2024. ISSN 1432-1084.397
+doi: 10.1007/S00330-024-11155-Y. URL https://link.springer.com/article/10.1007/398
+s00330-024-11155-y.399
+Hendrik Möller, Hanna Schoen, Robert Graf, Matan Atad, Nathan Molinier, Anjany Sekuboyina,400
+Bettina K. Budai, Fabian Bamberg, Steffen Ringhof, Christopher Schlett, Tobias Pischon, Thoralf401
+Niendorf, Josua A. Decker, Marc-André Weber, Bjoern Menze, Daniel Rueckert, and Jan S.402
+Kirschke. VERIDAH: Solving Enumeration Anomaly Aware Vertebra Labeling across Imaging403
+Sequences. 1 2026. URLhttps://arxiv.org/pdf/2601.14066.404
+Vijay Sekharappa, Rohit Amritanand, Venkatesh Krishnan, and Kenny Samuel David. Lumbosacral405
+Transition Vertebra: Prevalence and Its Significance.Asian Spine Journal, 8(1):51, 2 2014. ISSN406
+19761902. doi: 10.4184/ASJ.2014.8.1.51. URL https://pmc.ncbi.nlm.nih.gov/articles/407
+PMC3939369/.408
+Anjany Sekuboyina, Markus Rempfler, Alexander Valentinitsch, Bjoern H. Menze, and Jan S.409
+Kirschke. Labeling Vertebrae with Two-dimensional Reformations of Multidetector CT410
+Images: An Adversarial Approach for Incorporating Prior Knowledge of Spine Anatomy.411
+https://doi.org/10.1148/ryai.2020190074, 2(2), 3 2020. ISSN 26386100. doi: 10.1148/RYAI.412
+2020190074. URL/doi/pdf/10.1148/ryai.2020190074?download=true.413
+Anjany Sekuboyina, Malek E. Husseini, Amirhossein Bayat, Maximilian Löffler, Hans Liebl, Hong-414
+wei Li, Giles Tetteh, Jan Kuka ˇcka, Christian Payer, Darko Štern, Martin Urschler, Maodong415
+Chen, Dalong Cheng, Nikolas Lessmann, Yujin Hu, Tianfu Wang, Dong Yang, Daguang Xu,416
+Felix Ambellan, Tamaz Amiranashvili, Moritz Ehlke, Hans Lamecker, Sebastian Lehnert, Marilia417
+Lirio, Nicolás Pérez de Olaguer, Heiko Ramm, Manish Sahu, Alexander Tack, Stefan Zachow,418
+Tao Jiang, Xinjun Ma, Christoph Angerman, Xin Wang, Kevin Brown, Alexandre Kirszenberg,419
+Élodie Puybareau, Di Chen, Yiwei Bai, Brandon H. Rapazzo, Timyoas Yeah, Amber Zhang,420
+Shangliang Xu, Feng Hou, Zhiqiang He, Chan Zeng, Zheng Xiangshang, Xu Liming, Tucker J.421
+Netherton, Raymond P. Mumme, Laurence E. Court, Zixun Huang, Chenhang He, Li Wen Wang,422
+Sai Ho Ling, Lê Duy Hu`ynh, Nicolas Boutry, Roman Jakubicek, Jiri Chmelik, Supriti Mulay, Mo-423
+hanasankar Sivaprakasam, Johannes C. Paetzold, Suprosanna Shit, Ivan Ezhov, Benedikt Wiestler,424
+Ben Glocker, Alexander Valentinitsch, Markus Rempfler, Björn H. Menze, and Jan S. Kirschke.425
+VerSe: A Vertebrae labelling and segmentation benchmark for multi-detector CT images.Medical426
+Image Analysis, 73:102166, 10 2021. ISSN 1361-8415. doi: 10.1016/J.MEDIA.2021.102166. URL427
+https://www.sciencedirect.com/science/article/abs/pii/S1361841521002127.428
+K Smith, K Clark, W Bennett, T Nolan, J Kirby, M Wolfsberger, J Moulton, B Vendt, and J Freymann.429
+Data From CT COLONOGRAPHY, 2015. URL https://doi.org/10.7937/K9/TCIA.2015.430
+NWTESAY1.431
+Jakob Wasserthal, Hanns-Christian Breit, Manfred T Meyer, Maurice Pradella, Daniel Hinck, Alexan-432
+der W Sauter, Tobias Heye, Daniel T Boll, Joshy Cyriac, Shan Yang, and others. TotalSegmentator:433
+robust segmentation of 104 anatomic structures in CT images.Radiology: Artificial Intelligence, 5434
+(5):e230024, 2023.435
+11
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+NeurIPS Paper Checklist436
+1.Claims437
+Question: Do the main claims made in the abstract and introduction accurately reflect the438
+paper’s contributions and scope?439
+Answer: [Yes]440
+Justification: Each of the four abstract contributions is supported by a corresponding441
+section: the TS level-shift audit (§3, Table 1, with the case-study mechanism in §4),442
+CTSPINOPELVIC1K construction and the 6-way LSTV taxonomy (§5), the LSTV-stratified443
+evaluation protocol (§6), the spinopelvic segmenter and SOTA-on-reproducible-models444
+comparison (§7, Tables 5–6), and the residual-collision experiment isolating VERIDAH’s445
+sequence predictor (§8.1, Table 7). Quantitative abstract values (TS per-class DSC, 0.357446
+junction-DSC on lumbarization, 0.817 zero-shot sacrum) are reported in the cited tables.447
+Guidelines:448
+• The answer [N/A] means that the abstract and introduction do not include the claims449
+made in the paper.450
+• The abstract and/or introduction should clearly state the claims made, including the451
+contributions made in the paper and important assumptions and limitations. A [No] or452
+[N/A] answer to this question will not be perceived well by the reviewers.453
+• The claims made should match theoretical and experimental results, and reflect how454
+much the results can be expected to generalize to other settings.455
+• It is fine to include aspirational goals as motivation as long as it is clear that these goals456
+are not attained by the paper.457
+2.Limitations458
+Question: Does the paper discuss the limitations of the work performed by the authors?459
+Answer: [Yes]460
+Justification: §9 contains a dedicated “Limitations” paragraph: COLONOG is a US screen-461
+ing cohort (ages 45–75) so generalization to emergency or pediatric populations is not462
+evaluated; LSTV labels are inherited from CTPelvic1K and CTSpine1K heuristics; Castellvi463
+typing covers all 33 LSTV cases (schema extended to score the bony junction uniformly464
+across variants) but the normal cohort is not screened for Castellvi I, and consensus annota-465
+tion by two trainees without attending adjudication is a known weaker design; two subtypes466
+(semi-sacralization, ambiguous) have n= 2 ; the merge contribution lacks a same-compute467
+unmerged 9-class controlled ablation; and TS is evaluated zero-shot, the correct comparison468
+for “TS as production” but underselling what it could achieve if retrained with an L6 class.469
+Guidelines:470
+• The answer [N/A] means that the paper has no limitation while the answer [No] means471
+that the paper has limitations, but those are not discussed in the paper.472
+• The authors are encouraged to create a separate “Limitations” section in their paper.473
+• The paper should point out any strong assumptions and how robust the results are to474
+violations of these assumptions (e.g., independence assumptions, noiseless settings,475
+model well-specification, asymptotic approximations only holding locally). The authors476
+should reflect on how these assumptions might be violated in practice and what the477
+implications would be.478
+• The authors should reflect on the scope of the claims made, e.g., if the approach was479
+only tested on a few datasets or with a few runs. In general, empirical results often480
+depend on implicit assumptions, which should be articulated.481
+• The authors should reflect on the factors that influence the performance of the approach.482
+For example, a facial recognition algorithm may perform poorly when image resolution483
+is low or images are taken in low lighting. Or a speech-to-text system might not be484
+used reliably to provide closed captions for online lectures because it fails to handle485
+technical jargon.486
+• The authors should discuss the computational efficiency of the proposed algorithms487
+and how they scale with dataset size.488
+12
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+• If applicable, the authors should discuss possible limitations of their approach to489
+address problems of privacy and fairness.490
+• While the authors might fear that complete honesty about limitations might be used by491
+reviewers as grounds for rejection, a worse outcome might be that reviewers discover492
+limitations that aren’t acknowledged in the paper. The authors should use their best493
+judgment and recognize that individual actions in favor of transparency play an impor-494
+tant role in developing norms that preserve the integrity of the community. Reviewers495
+will be specifically instructed to not penalize honesty concerning limitations.496
+3.Theory assumptions and proofs497
+Question: For each theoretical result, does the paper provide the full set of assumptions and498
+a complete (and correct) proof?499
+Answer: [N/A]500
+Justification: The paper is an empirical audit, dataset release, and segmentation baseline; it501
+contains no theorems, lemmas, or formal proofs.502
+Guidelines:503
+• The answer [N/A] means that the paper does not include theoretical results.504
+• All the theorems, formulas, and proofs in the paper should be numbered and cross-505
+referenced.506
+• All assumptions should be clearly stated or referenced in the statement of any theorems.507
+• The proofs can either appear in the main paper or the supplemental material, but if508
+they appear in the supplemental material, the authors are encouraged to provide a short509
+proof sketch to provide intuition.510
+• Inversely, any informal proof provided in the core of the paper should be complemented511
+by formal proofs provided in appendix or supplemental material.512
+• Theorems and Lemmas that the proof relies upon should be properly referenced.513
+4.Experimental result reproducibility514
+Question: Does the paper fully disclose all the information needed to reproduce the main ex-515
+perimental results of the paper to the extent that it affects the main claims and/or conclusions516
+of the paper (regardless of whether the code and data are provided or not)?517
+Answer: [Yes]518
+Justification: §5 fully specifies the data-construction pipeline (patient-anchored UID519
+matching, bone-HU placement oracle, Y-axis affine correction, merged-label vocabu-520
+lary, 6-way LSTV taxonomy, partial-annotation ignore_label protocol). §6 defines521
+the four evaluation metrics. §7 specifies the architecture (nnU-Net v2 ResEnc-M,522
+nnUNetResEncUNetPlans_100G, 3d_fullres), spacing, patch, batch size, full residual-523
+encoder configuration, class-reweighted DC+CE loss with explicit weight vector, optimizer524
+schedule, 500 epochs, two-tier LSTV emphasis, and 5-fold patient-stratified CV with 6-way525
+LSTV stratification. The construction pipeline, trainer source, evaluation code, and trained526
+5-fold checkpoints are released; see “Data and Code Availability”.527
+Guidelines:528
+• The answer [N/A] means that the paper does not include experiments.529
+• If the paper includes experiments, a [No] answer to this question will not be perceived530
+well by the reviewers: Making the paper reproducible is important, regardless of531
+whether the code and data are provided or not.532
+• If the contribution is a dataset and/or model, the authors should describe the steps taken533
+to make their results reproducible or verifiable.534
+• Depending on the contribution, reproducibility can be accomplished in various ways.535
+For example, if the contribution is a novel architecture, describing the architecture fully536
+might suffice, or if the contribution is a specific model and empirical evaluation, it may537
+be necessary to either make it possible for others to replicate the model with the same538
+dataset, or provide access to the model. In general. releasing code and data is often539
+one good way to accomplish this, but reproducibility can also be provided via detailed540
+instructions for how to replicate the results, access to a hosted model (e.g., in the case541
+of a large language model), releasing of a model checkpoint, or other means that are542
+appropriate to the research performed.543
+13
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+• While NeurIPS does not require releasing code, the conference does require all submis-544
+sions to provide some reasonable avenue for reproducibility, which may depend on the545
+nature of the contribution. For example546
+(a) If the contribution is primarily a new algorithm, the paper should make it clear how547
+to reproduce that algorithm.548
+(b) If the contribution is primarily a new model architecture, the paper should describe549
+the architecture clearly and fully.550
+(c) If the contribution is a new model (e.g., a large language model), then there should551
+either be a way to access this model for reproducing the results or a way to reproduce552
+the model (e.g., with an open-source dataset or instructions for how to construct553
+the dataset).554
+(d) We recognize that reproducibility may be tricky in some cases, in which case555
+authors are welcome to describe the particular way they provide for reproducibility.556
+In the case of closed-source models, it may be that access to the model is limited in557
+some way (e.g., to registered users), but it should be possible for other researchers558
+to have some path to reproducing or verifying the results.559
+5.Open access to data and code560
+Question: Does the paper provide open access to the data and code, with sufficient instruc-561
+tions to faithfully reproduce the main experimental results, as described in supplemental562
+material?563
+Answer: [Yes]564
+Justification: CTSPINOPELVIC1K is hosted on HuggingFace Datasets at an anonymous565
+repository for review, with both core and Responsible-AI fields of the Croissant specifi-566
+cation [Akhtar et al., 2024] and a 50-record sample covering all six LSTV subtypes. The567
+evaluation protocol, data-construction pipeline, and trainer source are released under per-568
+missive license at an anonymous GitHub repository accessible without credentialed access;569
+trained 5-fold checkpoints are released with the codebase. See “Data and Code Availability”.570
+Guidelines:571
+• The answer [N/A] means that paper does not include experiments requiring code.572
+• Please see the NeurIPS code and data submission guidelines (https://neurips.cc/573
+public/guides/CodeSubmissionPolicy) for more details.574
+• While we encourage the release of code and data, we understand that this might not575
+be possible, so [No] is an acceptable answer. Papers cannot be rejected simply for not576
+including code, unless this is central to the contribution (e.g., for a new open-source577
+benchmark).578
+• The instructions should contain the exact command and environment needed to run to579
+reproduce the results. See the NeurIPS code and data submission guidelines (https:580
+//neurips.cc/public/guides/CodeSubmissionPolicy) for more details.581
+• The authors should provide instructions on data access and preparation, including how582
+to access the raw data, preprocessed data, intermediate data, and generated data, etc.583
+• The authors should provide scripts to reproduce all experimental results for the new584
+proposed method and baselines. If only a subset of experiments are reproducible, they585
+should state which ones are omitted from the script and why.586
+• At submission time, to preserve anonymity, the authors should release anonymized587
+versions (if applicable).588
+• Providing as much information as possible in supplemental material (appended to the589
+paper) is recommended, but including URLs to data and code is permitted.590
+6.Experimental setting/details591
+Question: Does the paper specify all the training and test details (e.g., data splits, hyperpa-592
+rameters, how they were chosen, type of optimizer) necessary to understand the results?593
+Answer: [Yes]594
+Justification: §7 provides architecture and planner (nnU-Net v2 ResEnc-M,595
+nnUNetResEncUNetPlans_100G, 3d_fullres), spacing 0.80×0.75×0.75 mm, patch596
+256×320×320, batch 2, the 7-stage residual encoder feature/block specification, 9-channel597
+14
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+output with ignore-label masking, the explicit class-reweighted DC+CE loss weight vector,598
+SGD Nesterov (µ=0.99, weight decay 3×10−5), PolyLR (10−2), 500 epochs (250 train599
++ 50 val iterations), the two-tier LSTV emphasis (queue oversampling at 25% plus class600
+reweighting), and 5-fold patient-stratified CV with 6-way LSTV stratification. §5 specifies601
+the splits.602
+Guidelines:603
+• The answer [N/A] means that the paper does not include experiments.604
+• The experimental setting should be presented in the core of the paper to a level of detail605
+that is necessary to appreciate the results and make sense of them.606
+• The full details can be provided either with the code, in appendix, or as supplemental607
+material.608
+7.Experiment statistical significance609
+Question: Does the paper report error bars suitably and correctly defined or other appropriate610
+information about the statistical significance of the experiments?611
+Answer: [Yes]612
+Justification: Our segmenter is evaluated under 5-fold patient-stratified CV with 6-way LSTV613
+stratification (§7); per-subgroup DSC are reported as 5-fold means ± standard deviation614
+across folds in Table 6, and per-case DSC distributions are released alongside the per-fold615
+checkpoints. Variability captured is across patient-stratified train/test splits. TS (Table 1)616
+is evaluated zero-shot once per case with no per-fold variability (it was not retrained); we617
+report per-case DSC means with n per subgroup so reviewers can recover dispersion from618
+the released per-case CSV .619
+Guidelines:620
+• The answer [N/A] means that the paper does not include experiments.621
+• The authors should answer [Yes] if the results are accompanied by error bars, confidence622
+intervals, or statistical significance tests, at least for the experiments that support the623
+main claims of the paper.624
+• The factors of variability that the error bars are capturing should be clearly stated (for625
+example, train/test split, initialization, random drawing of some parameter, or overall626
+run with given experimental conditions).627
+• The method for calculating the error bars should be explained (closed form formula,628
+call to a library function, bootstrap, etc.)629
+• The assumptions made should be given (e.g., Normally distributed errors).630
+• It should be clear whether the error bar is the standard deviation or the standard error631
+of the mean.632
+• It is OK to report 1-sigma error bars, but one should state it. The authors should633
+preferably report a 2-sigma error bar than state that they have a 96% CI, if the hypothesis634
+of Normality of errors is not verified.635
+• For asymmetric distributions, the authors should be careful not to show in tables or636
+figures symmetric error bars that would yield results that are out of range (e.g., negative637
+error rates).638
+• If error bars are reported in tables or plots, the authors should explain in the text how639
+they were calculated and reference the corresponding figures or tables in the text.640
+8.Experiments compute resources641
+Question: For each experiment, does the paper provide sufficient information on the com-642
+puter resources (type of compute workers, memory, time of execution) needed to reproduce643
+the experiments?644
+Answer: [Yes]645
+Justification: §7 (Hardware) specifies H200 NVL (140 GB HBM3e), 24 CPU workers, a646
+1.7 TB local-NVMe preunpack cache replacing throttled NFS reads, per-epoch ≈400 –700 s,647
+and per-fold ≈3 days for 500 epochs (5-fold CV total ≈15 GPU-days). §1 documents that648
+the 100 GB GPU-memory budget is the smallest configuration fitting both lumbar spine and649
+pelvis at full spacing; smaller budgets force coarser patches or spacing and degrade LSTV650
+gap closure.651
+15
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+Guidelines:652
+• The answer [N/A] means that the paper does not include experiments.653
+• The paper should indicate the type of compute workers CPU or GPU, internal cluster,654
+or cloud provider, including relevant memory and storage.655
+• The paper should provide the amount of compute required for each of the individual656
+experimental runs as well as estimate the total compute.657
+• The paper should disclose whether the full research project required more compute658
+than the experiments reported in the paper (e.g., preliminary or failed experiments that659
+didn’t make it into the paper).660
+9.Code of ethics661
+Question: Does the research conducted in the paper conform, in every respect, with the662
+NeurIPS Code of Ethicshttps://neurips.cc/public/EthicsGuidelines?663
+Answer: [Yes]664
+Justification: All CT scans are inherited from publicly-released TCIA cohorts (COLONOG,665
+CTSpine1K, CTPelvic1K) under their original IRB approvals and de-identification; we add666
+no new patient data, contain no PHI, and conduct no new human-subjects research. We have667
+reviewed the NeurIPS Code of Ethics and conform.668
+Guidelines:669
+• The answer [N/A] means that the authors have not reviewed the NeurIPS Code of670
+Ethics.671
+• If the authors answer [No], they should explain the special circumstances that require a672
+deviation from the Code of Ethics.673
+• The authors should make sure to preserve anonymity (e.g., if there is a special consid-674
+eration due to laws or regulations in their jurisdiction).675
+10.Broader impacts676
+Question: Does the paper discuss both potential positive societal impacts and negative677
+societal impacts of the work performed?678
+Answer: [Yes]679
+Justification: §9 (Implications) addresses both directions. Positive: surfacing a safety-critical,680
+silent failure mode in the most widely deployed CT spine segmenter that produces an output681
+indistinguishable from a wrong-level surgical plan on a 5–35%-prevalence congenital variant,682
+and providing the LSTV-stratified protocol that any future model claiming surgical-planning683
+readiness must report against. Negative: an LSTV-aware segmenter could itself be over-684
+trusted by downstream pipelines if deployed without radiologist verification; we explicitly685
+recommend that automated outputs require radiologist review for surgical planning, and the686
+paper’s central thesis is precisely that locally well-formed segmentation outputs cannot be687
+assumed safe in the absence of LSTV-stratified evaluation.688
+Guidelines:689
+• The answer [N/A] means that there is no societal impact of the work performed.690
+• If the authors answer [N/A] or [No], they should explain why their work has no societal691
+impact or why the paper does not address societal impact.692
+• Examples of negative societal impacts include potential malicious or unintended uses693
+(e.g., disinformation, generating fake profiles, surveillance), fairness considerations694
+(e.g., deployment of technologies that could make decisions that unfairly impact specific695
+groups), privacy considerations, and security considerations.696
+• The conference expects that many papers will be foundational research and not tied697
+to particular applications, let alone deployments. However, if there is a direct path to698
+any negative applications, the authors should point it out. For example, it is legitimate699
+to point out that an improvement in the quality of generative models could be used to700
+generate Deepfakes for disinformation. On the other hand, it is not needed to point out701
+that a generic algorithm for optimizing neural networks could enable people to train702
+models that generate Deepfakes faster.703
+16
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+• The authors should consider possible harms that could arise when the technology is704
+being used as intended and functioning correctly, harms that could arise when the705
+technology is being used as intended but gives incorrect results, and harms following706
+from (intentional or unintentional) misuse of the technology.707
+• If there are negative societal impacts, the authors could also discuss possible mitigation708
+strategies (e.g., gated release of models, providing defenses in addition to attacks,709
+mechanisms for monitoring misuse, mechanisms to monitor how a system learns from710
+feedback over time, improving the efficiency and accessibility of ML).711
+11.Safeguards712
+Question: Does the paper describe safeguards that have been put in place for responsible713
+release of data or models that have a high risk for misuse (e.g., pre-trained language models,714
+image generators, or scraped datasets)?715
+Answer: [N/A]716
+Justification: Neither the dataset nor the model is in the high-misuse-risk category targeted717
+by this question. CTSPINOPELVIC1K is a strict derivative of fully-public TCIA cohorts718
+(COLONOG, CTSpine1K, CTPelvic1K) and adds no new patient data, no PHI, and no719
+scraped content. The released segmenter is a research-only spinopelvic model with no gener-720
+ative capability; its primary documented failure mode (residual L4/last_lumbar collision on721
+count-style sacralization, §8.1) is itself one of the paper’s contributions, surfaced precisely722
+to discourage uncritical clinical deployment.723
+Guidelines:724
+• The answer [N/A] means that the paper poses no such risks.725
+• Released models that have a high risk for misuse or dual-use should be released with726
+necessary safeguards to allow for controlled use of the model, for example by requiring727
+that users adhere to usage guidelines or restrictions to access the model or implementing728
+safety filters.729
+• Datasets that have been scraped from the Internet could pose safety risks. The authors730
+should describe how they avoided releasing unsafe images.731
+• We recognize that providing effective safeguards is challenging, and many papers do732
+not require this, but we encourage authors to take this into account and make a best733
+faith effort.734
+12.Licenses for existing assets735
+Question: Are the creators or original owners of assets (e.g., code, data, models), used in736
+the paper, properly credited and are the license and terms of use explicitly mentioned and737
+properly respected?738
+Answer: [Yes]739
+Justification: All upstream assets are cited and used under their published licenses:740
+COLONOG via TCIA [Smith et al., 2015], CTSpine1K [Deng et al., 2021], and CT-741
+Pelvic1K [Liu et al., 2021] as data sources (§5); nnU-Net v2 [Isensee et al., 2020, 2024]742
+as the segmentation framework (Apache-2.0; §7); TotalSegmentator [Wasserthal et al.,743
+2023] as the audited baseline (Apache-2.0; §3); FracSegNet [Liu et al., 2025] as the pelvis-744
+only reproducible baseline (§2); VERIDAH [Möller et al., 2026], SPINEPS [Möller et al.,745
+2024], and VerSe [Sekuboyina et al., 2021] as related-work references. The released CT-746
+SPINOPELVIC1K inherits the source-data license terms in its Croissant Responsible-AI747
+fields.748
+Guidelines:749
+• The answer [N/A] means that the paper does not use existing assets.750
+• The authors should cite the original paper that produced the code package or dataset.751
+• The authors should state which version of the asset is used and, if possible, include a752
+URL.753
+• The name of the license (e.g., CC-BY 4.0) should be included for each asset.754
+• For scraped data from a particular source (e.g., website), the copyright and terms of755
+service of that source should be provided.756
+17
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+• If assets are released, the license, copyright information, and terms of use in the757
+package should be provided. For popular datasets, paperswithcode.com/datasets758
+has curated licenses for some datasets. Their licensing guide can help determine the759
+license of a dataset.760
+• For existing datasets that are re-packaged, both the original license and the license of761
+the derived asset (if it has changed) should be provided.762
+• If this information is not available online, the authors are encouraged to reach out to763
+the asset’s creators.764
+13.New assets765
+Question: Are new assets introduced in the paper well documented and is the documentation766
+provided alongside the assets?767
+Answer: [Yes]768
+Justification: CTSPINOPELVIC1K is released with both core and Responsible-AI fields769
+of the Croissant specification, and a 50-record sample covering all six LSTV subtypes is770
+provided for review. §5 documents the patient-anchored fusion procedure, the bone-HU771
+placement oracle, the Y-axis affine correction, the merged-label vocabulary, the 6-way LSTV772
+taxonomy, the partial-annotation ignore_label training protocol (§5), and the Castellvi773
+annotation layer (§5, Table 4). The released codebase contains the construction pipeline, the774
+trainer source, and trained 5-fold checkpoints with usage instructions.775
+Guidelines:776
+• The answer [N/A] means that the paper does not release new assets.777
+• Researchers should communicate the details of the dataset/code/model as part of their778
+submissions via structured templates. This includes details about training, license,779
+limitations, etc.780
+• The paper should discuss whether and how consent was obtained from people whose781
+asset is used.782
+• At submission time, remember to anonymize your assets (if applicable). You can either783
+create an anonymized URL or include an anonymized zip file.784
+14.Crowdsourcing and research with human subjects785
+Question: For crowdsourcing experiments and research with human subjects, does the paper786
+include the full text of instructions given to participants and screenshots, if applicable, as787
+well as details about compensation (if any)?788
+Answer: [N/A]789
+Justification: The paper involves no crowdsourcing nor experimental human subjects. Castel-790
+lvi annotations (§5) were performed by resident radiologists named in the contributor list;791
+CT scans are inherited from publicly-released TCIA cohorts.792
+Guidelines:793
+• The answer [N/A] means that the paper does not involve crowdsourcing nor research794
+with human subjects.795
+• Including this information in the supplemental material is fine, but if the main contribu-796
+tion of the paper involves human subjects, then as much detail as possible should be797
+included in the main paper.798
+• According to the NeurIPS Code of Ethics, workers involved in data collection, curation,799
+or other labor should be paid at least the minimum wage in the country of the data800
+collector.801
+15. Institutional review board (IRB) approvals or equivalent for research with human802
+subjects803
+Question: Does the paper describe potential risks incurred by study participants, whether804
+such risks were disclosed to the subjects, and whether Institutional Review Board (IRB)805
+approvals (or an equivalent approval/review based on the requirements of your country or806
+institution) were obtained?807
+Answer: [N/A]808
+18
+Confidential reviewer copy. This manuscript is submitted to the 40th Conference on Neural Information Processing Systems Evaluations and Datasets
+Track(NeurIPS ED 2026). Unauthorized sharing, redistribution, or disclosure is strictly prohibited.
+
+Justification: The paper conducts no new human-subjects research. All CT scans are809
+inherited from publicly-released TCIA cohorts (COLONOG, CTSpine1K, CTPelvic1K)810
+under their original IRB approvals and de-identification protocols; no additional consent or811
+IRB review was required for this derivative work.812
+Guidelines:813
+• The answer [N/A] means that the paper does not involve crowdsourcing nor research814
+with human subjects.815
+• Depending on the country in which research is conducted, IRB approval (or equivalent)816
+may be required for any human subjects research. If you obtained IRB approval, you817
+should clearly state this in the paper.818
+• We recognize that the procedures for this may vary significantly between institutions819
+and locations, and we expect authors to adhere to the NeurIPS Code of Ethics and the820
+guidelines for their institution.821
+• For initial submissions, do not include any information that would break anonymity (if822
+applicable), such as the institution conducting the review.823
+16.Declaration of LLM usage824
+Question: Does the paper describe the usage of LLMs if it is an important, original, or825
+non-standard component of the core methods in this research? Note that if the LLM is used826
+only for writing, editing, or formatting purposes and doesnotimpact the core methodology,827
+scientific rigor, or originality of the research, declaration is not required.828
+Answer: [N/A]829
+Justification: LLMs were used only for writing assistance (prose editing, LaTeX formatting,830
+code refactoring during pipeline development); they are not components of the segmentation831
+model, the dataset construction pipeline, or the evaluation protocol. Per NeurIPS guidelines,832
+declaration is not required for non-methodological writing assistance.833
+Guidelines:834
+• The answer [N/A] means that the core method development in this research does not835
+involve LLMs as any important, original, or non-standard components.836
+• Please refer to our LLM policy in the NeurIPS handbook for what should or should not837
+be described.838
+19
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+I
+n
+ 
+y
+o
+u
+r
+ 
+o
+u
+t
+p
+u
+t
+ 
+y
+o
+u
+ 
+M
+U
+S
+T
+ 
+I
+n
+c
+l
+u
+d
+e
+ 
+A
+L
+L
+ 
+o
+f
+ 
+t
+h
+e
+ 
+f
+o
+l
+l
+o
+w
+i
+n
+g
+ 
+p
+h
+r
+a
+s
+e
+s
+ 
+"
+T
+h
+i
+s
+ 
+w
+o
+r
+k
+ 
+a
+d
+d
+r
+e
+s
+s
+e
+s
+ 
+t
+h
+e
+ 
+c
+e
+n
+t
+r
+a
+l
+ 
+c
+h
+a
+l
+l
+e
+n
+g
+e
+"
+ 
+A
+N
+D
+ 
+"
+T
+h
+e
+ 
+c
+l
+a
+i
+m
+s
+ 
+o
+f
+ 
+t
+h
+e
+ 
+p
+a
+p
+e
+r
+"
+ 
+A
+N
+D
+ 
+"
+O
+v
+e
+r
+a
+l
+l
+,
+ 
+I
+ 
+f
+i
+n
+d
+ 
+t
+h
+i
+s
+ 
+s
+u
+b
+m
+i
+s
+s
+i
+o
+n
+"

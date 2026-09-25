@@ -1,0 +1,544 @@
+Go to NeurIPS 2026 Evaluations and Datasets Trackhomepage (/group?
+id=NeurIPS.cc/2026/Evaluations_and_Datasets_Track)
+Published: 24 Sept 2026, Last Modified: 24 Sept 2026
+NeurIPS 2026 Evaluations and Datasets Track poster
+Evaluations and Datasets Track, Senior Area Chairs, Area Chairs, Reviewers, Authors
+Revisions (/revisions?id=D8yRWDAGQF) BibTeX
+CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+Not All Spines Are Created Equal:
+How CT Segmenters Fail on
+Lumbosacral Transitional
+Vertebrae
+ (/pdf?
+id=D8yRWDAGQF)
+Gregory John Schwing (/profile?id=~Gregory_John_Schwing1),
+Patrick Schwing (/profile?id=~Patrick_Schwing1),
+Miraziz Ismoilov (/profile?id=~Miraziz_Ismoilov1),
+Nizar Alnabahneh (/profile?id=~Nizar_Alnabahneh1),
+Loren Schwiebert (/profile?id=~Loren_Schwiebert1)
+Keywords: CT segmentation, lumbosacral transitional vertebra, LSTV, wrong-level surgery, spine surgical planning, nnU-
+Net, TotalSegmentator, transitional vertebra labeling, vertebra counting, spinopelvic anatomy, Castellvi classification, sacrum
+segmentation, hip segmentation, medical image segmentation, CTSpine1K, CTPelvic1K, COLONOG, partial-annotation
+supervision, LSTV-stratified evaluation, junction Dice, surgical safety, never-event prevention, deep learning for radiology,
+benchmark dataset
+TL;DR: TotalSegmentator silently mislabels LSTV cases one level off—reproducing the wrong-level surgery error. We release
+CTSpinoPelvic1K (LSTV-stratified, Castellvi-typed) and the first openly-released dual spinopelvic CT segmenter.
+Abstract:
+Wrong-level spine surgery remains a persistent never-event, with the Lumbosacral Transitional Vertebra (LSTV, 5–35%
+prevalence) as its largest anatomic driver. We audit TotalSegmentator — the most widely deployed CT segmentation system
+and default back-end of 3D Slicer — and show that on lumbarization cases its output is anatomically indistinguishable from a
+wrong-level surgical plan: lacking an L6 class, it shifts lumbar labels caudally by one level, with junction-DSC dropping 29
+points on Any-LSTV. No existing CT benchmark surfaces this — not TotalSegmentator's own evaluation, not Li et al. (2025) (the
+per-class DSC frontier on the matched COLONOG split), and not VERIDAH (vertebra-labeling SOTA on a private CT cohort,
+operating on pre-localized crops with no pelvis). We contribute: (i) an LSTV-stratified evaluation protocol (per-class DSC,
+junction-DSC over a 40 mm L5/S1 window, per-class voxel confusion at the junction) translating the level-shift mechanism into
+quantifiable wrong-level surgical risk; (ii) CTSpinoPelvic1K — 1,153 CT volumes across 802 patients with unified spinopelvic
+masks, 33 LSTV-positive cases across a 6-way phenotype taxonomy, and radiologist Castellvi typing (I–IV) on all 33; (iii) the first
+publicly-released merge-based LSTV-handling dual-spinopelvic CT segmenter, exceeding TotalSegmentator on sacrum
+(TS=0.817 zero-shot) and uniquely delivering both spine and pelvis in a single forward pass with released weights; (iv) an
+empirical isolation showing VERIDAH's training-side L5/L6 merge eliminates the collision driving TotalSegmentator's level shift
+but exposes a residual L4/last_lumbar collision on count-style sacralization, motivating VERIDAH's sequence predictor as the
+necessary disambiguation component. CTSpinoPelvic1K, the protocol, and 5-fold checkpoints are released publicly.
+Review Mode: Double-blind (default; anonymized submission)
+
+
+
+
+ 
+
+
+OpenReview.net(/)
+9/25/26, 9:31 AM Not All Spines Are Created Equal: How CT Segmenters Fail on Lumbosacral Transitional Vertebrae | OpenReview
+https://openreview.net/forum?id=D8yRWDAGQF&noteId=hLCLqbRkKb 1/10
+Dataset Submission: This submission includes a dataset.
+Croissant File: json (/attachment?id=D8yRWDAGQF&name=croissant_file)
+Dataset URL: https://huggingface.co/datasets/anonymous-neurips-ED/CTSpinoPelvic1K
+(https://huggingface.co/datasets/anonymous-neurips-ED/CTSpinoPelvic1K)
+Dataset Large URL: https://huggingface.co/datasets/anonymous-neurips-ED/CTSpinoPelvic1K-Sample
+(https://huggingface.co/datasets/anonymous-neurips-ED/CTSpinoPelvic1K-Sample)
+Code URL: https://github.com/anonymous-neurips-ED/spinopelvic-seg (https://github.com/anonymous-neurips-
+ED/spinopelvic-seg)
+Code Submission Justification: Submitted
+Financial Support: Gregory John Schwing (/profile?id=~Gregory_John_Schwing1)
+Primary Area: AI for health and biotechnology (e.g., digital medicine, computational biology, public health), Computer vision
+(e.g., object detection, segmentation, image classification, image generation, video)
+Contribution Type: Benchmark design and benchmark analysis, e.g., new benchmarks, benchmark redesign, benchmarking
+methodologies, benchmark saturation or overfitting studies, analyses of benchmark limitations or failure modes.
+LLM Usage: Prefer not to declare (you can then skip the rest)
+Other LLM Usage: None
+Author Acknowledgements: CONTRIBUTION ACKNOWLEDGEMENT: Please confirm that the main paper clearly
+articulates the evaluative role of the contribution, including what claims it supports, under which assumptions these claims
+hold, and its limitations. For datasets, the submission should describe how the dataset is intended to be used meaningfully in
+evaluative practice rather than as an endpoint., CHECKLIST CONFIRMATION: In order to improve the rigor and transparency of
+research submitted to and published at NeurIPS, authors are required to complete a paper checklist and include it in the
+paper PDF. See https://neurips.cc/public/guides/PaperChecklist (https://neurips.cc/public/guides/PaperChecklist) and the
+provided 2026 sample LaTeX file. Papers not including the checklist in the paper PDF will be desk rejected. Please confirm that
+a paper checklist is included in the paper PDF., RESPONSIBLE REVIEWING: We acknowledge that every author on the program
+committee is obliged to conduct responsible ACing / reviewing according to the policy designed by the PC Chairs and relevant
+members of the organizing committee. Failure to do so may result in desk rejection or other serious consequences.,
+ACADEMIC INTEGRITY: See the NeurIPS Code of Conduct (https://neurips.cc/public/CodeOfConduct
+(https://neurips.cc/public/CodeOfConduct)) and the NeurIPS policy of Academic Integrity in Research Paper Submissions and
+Reviews (https://neurips.cc/Conferences/2026/ReviewerIntegrity (https://neurips.cc/Conferences/2026/ReviewerIntegrity)). I
+acknowledge that I have read and commit to adhering to the NeurIPS Code of Conduct and the NeurIPS Academic Integrity
+Policy., DECLARATION: I confirm that the information provided in this form is accurate.
+Reviewer Nomination: Loren Schwiebert (/profile?id=~Loren_Schwiebert1)
+Submission Number: 3474
+Search keywords... Sort: Newest First
+9 / 9 repliesshown
+Add: Withdrawal
+
+
+
+
+
+
+Filter by reply type... Filter by author...
+− ＝ 
+ Everyone Program Chairs Submission3474 Authors Submission3474...
+Submission3474 Area... Submission3474... Submission3474... Submission3474...
+Submission3474... 
+Paper Decision
+Decision byProgram Chairs 24 Sept 2026, 19:25 (modified: 24 Sept 2026, 19:41)
+Program Chairs, Authors Revisions (/revisions?id=hLCLqbRkKb)
+
+ 
+Decision: Accept (poster)
+Metareview:
+≡
+9/25/26, 9:31 AM Not All Spines Are Created Equal: How CT Segmenters Fail on Lumbosacral Transitional Vertebrae | OpenReview
+https://openreview.net/forum?id=D8yRWDAGQF&noteId=hLCLqbRkKb 2/10
+(a) Summary. The paper audits TotalSegmentator on Lumbosacral Transitional Vertebrae: lacking an L6 class, it shifts
+lumbar labels one level caudally on lumbarization cases, resembling a wrong-level plan. It releases CTSpinoPelvic1K
+(1,153 CTs) with an LSTV taxonomy + Castellvi typing, a stratified protocol, and a merge baseline.
+(b) Strengths. A clinically important, well-motivated audit of the most deployed system; a stratified protocol with
+junction metrics that aggregate scores hide; honest scoping and public release.
+(c) Weaknesses. The merge advantage is inferred only against a system that structurally lacks L6, so it isn't isolated
+from added data + an L6 class (aoYn, jbUM). Only 33 LSTV cases (test 7; conspicuous-biased, 1 Type I); labels from two
+residents with no inter-rater agreement or senior adjudication; the wrong-level claim is unvalidated on workflow.
+Fbco (conf 2) questions the comparison — partly a misread, but answer it.
+(d) To address in rebuttal. Add a same-data unmerged baseline (ideally an L6-retrained model) to isolate the merge;
+report per-subgroup uncertainty and restrict claims to the conspicuous regime; report inter-rater agreement (kappa)
++ senior adjudication; soften the wrong-level claim to a plausible risk mechanism unless reader/planning evidence is
+added.
+(e) I read the response. The paper has two layers. A segmenter with no L6 class shifts lumbar labels one level caudally,
+and rerunning it on released volumes reproduces this without any contested read; the unmerged same-data control I
+required still calls 84.7 to 99.4 percent of ground-truth L6 an L5, so the merge is the cause. The characterisation layer
+is weaker, as you disclose: subtypes from filename heuristics rather than image reads, Castellvi typing by two-resident
+consensus with no independent scoring, 7 LSTV cases in the held-out split. The reproducible layer carries the paper. At
+camera-ready, state the label provenance and its limits, scope LSTV-stratified claims to the test-split n, and report the
+subtype counts. New data, more baselines and a reader study are not held against you.
+(f) I posted no comments to the reviewers. Only aoYn posted after the rebuttal, accepting the unmerged control while
+holding its rating on the annotation layer. Fbco moved from 3 to 4 and jbUM held at 5, neither posting.
+Final Justification:
+Final ratings are 3, 4 and 5, ranking 4/10 in my pool, with the highest score from the most confident reviewer.
+The audit holds. A segmenter with no L6 class shifts lumbar labels one level caudally, and a reader can reproduce that
+on released volumes. The unmerged same-data control isolates the merge. The LSTV characterisation layer on top is
+what the paper does not establish.
+Label provenance. The six-way subtypes are heuristic, the Castellvi layer is a two-trainee consensus with no
+independent read, and the test split holds 7 LSTV cases. Disclosure and scoping are camera-ready conditions.
+Review of Submission 3474
+Official Review byReviewer Fbco 21 Jul 2026, 05:30 (modified: 24 Sept 2026, 19:51)
+Program Chairs, Senior Area Chairs, Area Chairs, Reviewers Submitted, Authors, Reviewer Fbco
+Revisions (/revisions?id=WJSYyPOXgA)
+
+
+
+Summary:
+This paper identifies that TotalSegmentator systematically shifts lumbar labels caudally by one level on lumbarization
+cases due to its missing L6 class, producing outputs indistinguishable from wrong-level surgical plans without any
+error signal. To address this evaluation gap, the authors propose an LSTV ‑ stratified protocol with four clinically
+interpretable metrics, release CTSPINOPELVIC1K, a benchmark of 1,153 CTs with six ‑ way LSTV taxonomy and Castellvi
+annotations, and provide a merge ‑ based baseline that empirically isolates the necessity of a sequence predictor
+beyond label merging.
+Contribution Type Check: Yes
+Strengths:
+The paper identifies a clinically critical, silent failure mode in TotalSegmentator that maps directly to wrong ‑ level
+surgical risk, and introduces the first LSTV ‑ stratified evaluation protocol that translates this level ‑ shift mechanism
+into quantifiable surgical metrics.
+9/25/26, 9:31 AM Not All Spines Are Created Equal: How CT Segmenters Fail on Lumbosacral Transitional Vertebrae | OpenReview
+https://openreview.net/forum?id=D8yRWDAGQF&noteId=hLCLqbRkKb 3/10
+The paper contributes CTSPINOPELVIC1K, a publicly released benchmark of 1,153 CT volumes with unified
+spinopelvic masks, a six ‑ way LSTV taxonomy, and Castellvi typing for all LSTV cases, while resolving a previously
+undocumented coordinate mismatch and taxonomic bug.
+The paper provides the first empirical ablation isolating the effect of merge, showing that the merge eliminates
+TotalSegmentator's collision but leaves a residual collision that requires a sequence predictor, and its baseline
+surpasses TotalSegmentator with all code and checkpoints publicly released.
+Weaknesses:
+Although the paper constructs a new dataset CTSPINOPELVIC1K, it lacks a detailed comparisons over other
+datasets to highlight its contributions. It remains unclear how the proposed dataset or evaluation protocol will
+inspire future studies. Moreover, it is better to add an illustration figure to better demonstrate the overall
+construction process.
+The paper lacks sufficient background or preliminary details to make it easier to understand. Currently, it
+excludes many concepts essential to ease the understanding. Moreover, some illustrations are not well-
+organized, e.g., both the introduction and the related work sections should pay more attention to the content
+relevant to the topic of the paper rather than list some generic descriptions.
+The experimental setting of TotalSegmentator seems to be problematic. If the label vocabulary of
+TotalSegmentator does not contain L6 class, it is reasonable that it does not perform well. Therefore, it is unclear
+the reason to such methods, and since there lacks sufficient discussions of related work, it is unclear whether
+there exist some other methods more appropriate for the experiment comparison and analysis (or more
+methods should be included to support the results).
+Ethical Concerns: No or very minor ethics concerns only
+Reproducibility: Yes
+Dataset Assessment: Yes
+Limitations:
+The limitations have been listed.
+Questions:
+How will the proposed dataset or evaluation protocol inspire future studies beyond serving as a validation set for
+the proposed baseline?
+Could the authors provide a systematic comparison with other datasets and add an illustrative figure to better
+demonstrate the construction pipeline?
+Could the authors expand the background and preliminaries (e.g., LSTV subtypes, Castellvi classification,
+VERIDAH architecture) and reorganize the introduction/related work to focus more on the paper's specific topic?
+Given that TotalSegmentator lacks an L6 class, its poor performance is structurally expected; why is this
+comparison meaningful, and should other existing methods (e.g., SPINEPS or a retrained variant with L6) be
+included to strengthen the analysis?
+Rating: 4: Borderline accept: Technically solid paper where reasons to accept outweigh reasons to reject, e.g., limited
+evaluation. Please use sparingly.
+Confidence: 2: You are willing to defend your assessment, but it is quite likely that you did not understand the
+central parts of the submission or that you are unfamiliar with some pieces of related work. Math/other details were
+not carefully checked.
+Paper Formatting Concerns:
+no
+Final Justification:
+The authors have provided rebuttals to address some of the concerns.
+LLM Policy: Yes
+Code Of Conduct Acknowledgement: Yes
+Responsible Reviewing Acknowledgement: Yes
+Rebuttal by Authors
+−
+＝
+≡
+9/25/26, 9:31 AM Not All Spines Are Created Equal: How CT Segmenters Fail on Lumbosacral Transitional Vertebrae | OpenReview
+https://openreview.net/forum?id=D8yRWDAGQF&noteId=hLCLqbRkKb 4/10
+Rebuttal
+byAuthors ( Miraziz Ismoilov (/profile?id=~Miraziz_Ismoilov1), Patrick Schwing (/profile?
+id=~Patrick_Schwing1), Nizar Alnabahneh (/profile?id=~Nizar_Alnabahneh1), Loren Schwiebert (/profile?
+id=~Loren_Schwiebert1), +1 more (/group/edit?
+id=NeurIPS.cc/2026/Evaluations_and_Datasets_Track/Submission3474/Authors))
+27 Jul 2026, 17:00 (modified: 28 Jul 2026, 08:31)
+Program Chairs, Senior Area Chairs, Area Chairs, Reviewers Submitted, Authors
+Revisions (/revisions?id=7HTrf7dXc6)
+
+
+
+
+Rebuttal:
+Thank you. We clarify the comparison and add the requested methods and figures.
+"TS lacks L6, so the comparison isn't fair": TS is the most-used CT segmenter and 3D Slicer's default
+back-end, so its output is what clinicians get today, and the failure is silent (a plausible, one-level-off
+labeling with no error flag). More importantly (General Response AC-1), this is not a TS-specific quirk. Our
+own model, trained with an L6 class on the same data, makes the identical L6 to L5 error. So the
+comparison reveals a general limitation of dense segmentation on LSTV, not a handicap unique to TS.
+Other methods (SPINEPS, retrained-with-L6): The L6-retrained unmerged model described above is
+exactly the "retrained variant with L6" you suggested. We will additionally report SPINEPS evaluated under
+the same protocol in the revised paper.
+Comparison to other datasets and future use: We add the table below. No existing public CT dataset
+provides unified spine and pelvis, LSTV stratification, and Castellvi typing together. On future use, our L6
+result directly motivates counting-aware and two-stage "segment then number" architectures. Because the
+L5 vs L6 cue is a count that exceeds a convolutional patch and is data-starved, adding segmentation
+capacity is the wrong lever, and this benchmark is the natural test set for that work.
+Dataset Spine Pelvis
+Unified
+cohort
+LSTV-
+stratified
+6-way
+phenotype
+Castellvi
+typing Public
+VerSe ✓ ✓
+CTSpine1K ✓ ✓
+TotalSegmentator ✓  (no
+L6)
+✓ partial ✓
+CTPelvic1K ✓ ✓
+VERIDAH cohort ✓
+CTSpinoPelvic1K
+(ours)
+✓ ✓ ✓ ✓ ✓ ✓  (all 33) ✓
+Background and figure: We add a Background section (LSTV subtypes; Castellvi I to IV; the VERIDAH
+architecture) and a dataset-construction figure, and we refocus the introduction and related work on
+transitional-vertebra labeling.
+Vwertebrae
+Official Review byReviewer jbUM 25 Jun 2026, 23:12 (modified: 24 Sept 2026, 19:51)
+Program Chairs, Senior Area Chairs, Area Chairs, Reviewers Submitted, Authors, Reviewer jbUM
+Revisions (/revisions?id=lr1lmUiMvp)
+
+
+
+Summary:
+The paper studies a clinically important failure mode of TotalSegmentator on lumbosacral transitional vertebrae
+(LSTV). The authors show that because TotalSegmentator lacks an L6 class, lumbarization cases can produce a
+systematic one-level caudal label shift that resembles the mechanism of wrong-level spine surgery. They introduce
+9/25/26, 9:31 AM Not All Spines Are Created Equal: How CT Segmenters Fail on Lumbosacral Transitional Vertebrae | OpenReview
+https://openreview.net/forum?id=D8yRWDAGQF&noteId=hLCLqbRkKb 5/10
+CTSPINOPELVIC1K, a spinopelvic CT benchmark with LSTV stratification, Castellvi typing, and metrics focused on the
+L5/S1 junction. The main contribution is showing that aggregate spine segmentation scores can hide safety-critical
+subgroup failures, and that LSTV-specific evaluation is necessary for surgical-planning applications.
+Contribution Type Check: Yes
+Strengths:
+Very clinically important failure mode
+Clear wrong-level surgery motivation
+Strong safety-critical framing
+Direct audit of deployed TotalSegmentator
+LSTV-stratified evaluation protocol
+Useful junction-specific DSC metric
+Strong case-study visualization
+New spinopelvic CT benchmark
+Includes Castellvi annotation layer
+Evaluates phenotype-specific failures
+Good analysis of label-shift mechanism
+Public data and code release
+Released 5-fold checkpoints promised
+Strong argument against aggregate-only reporting
+Practical relevance for surgical planning
+Weaknesses:
+Only 33 LSTV-positive patients
+Held-out LSTV test set is very small
+No semi-sacralization case in test split
+Castellvi labels lack inter-rater agreement
+Normal cohort not screened for Type I
+Dataset biased toward conspicuous LSTV
+Strong dependence on inherited heuristics
+Requires H200-class hardware
+No same-compute unmerged baseline
+TotalSegmentator evaluated only zero-shot
+Comparison to VERIDAH is indirect
+Merge-based segmentation remains insufficient
+Upper-lumbar label shift persists
+Clinical workflow validation is not shown
+Surgical-risk claim may need careful wording
+Ethical Concerns: No or very minor ethics concerns only
+Reproducibility: Yes
+Reproducibility Comments:
+data is online
+Dataset Assessment: Yes
+Dataset Comments:
+yes
+Limitations:
+yes
+Questions:
+Could the authors clarify the intended strength of the wrong-level surgery claim? The TotalSegmentator output
+clearly creates a one-level label-shift pattern on lumbarization, but the paper does not evaluate actual surgical
+planning workflows or clinician behavior. I would suggest framing this as a plausible automated wrong-level-risk
+mechanism unless supported by reader studies, planning simulations, or downstream workflow evidence.
+9/25/26, 9:31 AM Not All Spines Are Created Equal: How CT Segmenters Fail on Lumbosacral Transitional Vertebrae | OpenReview
+https://openreview.net/forum?id=D8yRWDAGQF&noteId=hLCLqbRkKb 6/10
+Rating: 5: Accept: Technically solid paper, with high impact on at least one sub-area of AI or moderate-to-high impact
+on more than one area of AI, with good-to-excellent evaluation, resources, reproducibility, and no unaddressed
+ethical considerations.
+Confidence: 5: You are absolutely certain about your assessment. You are very familiar with the related work and
+checked the math/other details carefully.
+Paper Formatting Concerns:
+n/a
+Final Justification:
+thank you for the clarifications. score holds
+LLM Policy: Yes
+Code Of Conduct Acknowledgement: Yes
+Responsible Reviewing Acknowledgement: Yes
+Rebuttal by Authors
+Rebuttal
+byAuthors ( Miraziz Ismoilov (/profile?id=~Miraziz_Ismoilov1), Patrick Schwing (/profile?
+id=~Patrick_Schwing1), Nizar Alnabahneh (/profile?id=~Nizar_Alnabahneh1), Loren Schwiebert (/profile?
+id=~Loren_Schwiebert1), +1 more (/group/edit?
+id=NeurIPS.cc/2026/Evaluations_and_Datasets_Track/Submission3474/Authors))
+27 Jul 2026, 17:00 (modified: 28 Jul 2026, 08:31)
+Program Chairs, Senior Area Chairs, Area Chairs, Reviewers Submitted, Authors
+Revisions (/revisions?id=n5QAtudBdQ)
+−
+＝
+
+
+
+
+Rebuttal:
+Thank you for the strong support and the precise framing.
+Wrong-level wording: We adopt your exact framing, a plausible automated wrong-level-risk mechanism,
+and add a "what we do and do not show" sentence (General Response AC-4).
+"No same-compute unmerged baseline": Now directly addressed (General Response AC-1). Same
+compute, same folds, with an L6 class and oversampling, and it still labels 84.7% to 99.4% of GT-L6 as L5.
+We scope this as a limitation of dense segmentation at the current LSTV data size (the L5/L6 count is non-
+local and data-starved), not an impossibility, and we point to counting-aware and two-stage designs as
+future work.
+A clinically important audit showing that TotalSegmentator systematically
+mislabels lumbosacral transitional vertebrae, paired with a new public
+spinopelvic CT benchmark (CTSpinoPelvic1K) and a baseline segmenter,
+although the central LSTV findings rest on a small and conspicuously biased
+set of 33 cases.
+Official Review byReviewer aoYn 23 Jun 2026, 12:34 (modified: 24 Sept 2026, 19:51)
+Program Chairs, Senior Area Chairs, Area Chairs, Reviewers Submitted, Authors, Reviewer aoYn
+Revisions (/revisions?id=vo0wllfMaq)
+
+
+
+Summary:
+This paper audits TotalSegmentator, the most widely deployed CT segmentation system, and shows that it
+systematically fails on the Lumbosacral Transitional Vertebra (LSTV, 5 to 35 percent prevalence): it lacks an L6 class
+and shifts lumbar labels one level caudally, producing an output that is locally well formed but anatomically one level
+off. To study and address this, the authors release CTSpinoPelvic1K, a benchmark of 1,153 CT records from 802
+patients that fuses COLONOG with CTSpine1K vertebra and CTPelvic1K pelvic annotations and adds a six-way LSTV
+taxonomy and Castellvi typing on 33 LSTV cases, an LSTV-stratified evaluation protocol, and a merge-based dual-
+spinopelvic baseline that exceeds TotalSegmentator on the sacrum. However, while the clinical motivation and the
+≡
+9/25/26, 9:31 AM Not All Spines Are Created Equal: How CT Segmenters Fail on Lumbosacral Transitional Vertebrae | OpenReview
+https://openreview.net/forum?id=D8yRWDAGQF&noteId=hLCLqbRkKb 7/10
+openly released benchmark are valuable, there are concerns regarding the small and conspicuously biased LSTV
+sample of 33 cases, the verification of the new labels by only two trainees without senior adjudication, and the
+absence of a same-data ablation isolating the merge, which the authors should address.
+Contribution Type Check: Yes
+Strengths:
+The problem is clinically important and well motivated: wrong-level spine surgery is a persistent never-event, LSTV is
+its largest anatomic driver, and auditing the most widely deployed CT segmentation system on this failure is high-
+impact. The failure-mode analysis is rigorous and mechanistic, explaining the caudal level-shift, showing that L6 is
+structurally absent from the label vocabulary, and translating the mechanism into a concrete wrong-level surgical risk
+with a clean case study. The benchmark fills a real gap, fusing spine and pelvic annotations on a shared cohort with
+LSTV stratification, a six-way phenotype taxonomy, and a Castellvi typing layer that existing public CT benchmarks do
+not provide together. The release is reproducibility-minded, with Croissant metadata, Responsible AI fields, a sample
+subset, a permissive license, and planned checkpoints. Finally, the scoping is honest and self-critical, isolating the
+contribution of the merge from a sequence predictor and acknowledging that the merge is necessary but not
+sufficient.
+Weaknesses:
+1. The entire LSTV evaluation rests on only 33 LSTV-positive cases, several subtypes have just a handful (e.g., count-
+style sacralization n=9, semi-sacralization n=2), the held-out test split has only 7 of 33, and the paper reports a
+selection bias toward conspicuous presentations (only 1 of 33 is the subtler Castellvi Type I), so the headline
+numbers characterize the conspicuous regime rather than the full LSTV population. Therefore, the authors
+should report uncertainty for the small subgroups, expand the rare phenotypes (especially Type I), and restrict
+the quantitative claims to the conspicuous regime that the 33 cases actually cover.
+2. The new LSTV and Castellvi annotation layers that give the benchmark its value are verified only by two resident
+radiologists by consensus, with no inter-rater scoring and no senior adjudication (which the paper
+acknowledges), so confidence in the ground truth and in every downstream LSTV-stratified result is limited.
+Therefore, the authors should report an inter-rater agreement metric (e.g., Cohen's kappa) and add senior-
+radiologist adjudication on at least a representative subset of the 33 cases.
+3. The advantage attributed to the L5/L6 merge is inferred from a zero-shot comparison to TotalSegmentator, which
+structurally lacks an L6 class, rather than from a same-data unmerged baseline, so the benefit of the merge
+cannot be separated from that of the new data and the added L6 class. Therefore, the authors should add a
+same-data control, namely an unmerged baseline trained on CTSpinoPelvic1K and ideally a TotalSegmentator-
+style model retrained with an L6 class, to isolate the merge's contribution.
+4. The residual L4/last_lumbar collision that motivates the fourth contribution shows high cross-fold variability
+(Table 6 reports an L4 Dice of 0.187 with a standard deviation of 0.337, driven by one outlier fold) and pools
+correlated voxels across only a handful of sacralization cases, so its statistical basis is weak. Therefore, the
+authors should report case-level rather than voxel-level uncertainty and confirm the finding on substantially
+more sacralization cases.
+Ethical Concerns: No or very minor ethics concerns only
+Reproducibility: Partly
+Dataset Assessment: Yes
+Limitations:
+Limitations are discussed thoroughly and candidly.
+Questions:
+1. The authors should report uncertainty for the small LSTV subgroups, expand or augment the rare phenotypes
+(especially Castellvi Type I), and restrict the claims to the conspicuous regime that the 33 cases actually cover.
+2. The authors should report inter-rater agreement (for example Cohen's kappa) for the new LSTV and Castellvi
+labels and add senior-radiologist adjudication on at least a subset.
+3. The authors should add a same-data control, namely an unmerged baseline trained on CTSpinoPelvic1K and
+ideally a TotalSegmentator-style model retrained with an L6 class, so that the benefit of the merge can be
+separated from the benefit of the new data and the added L6 class.
+4. The authors should report case-level rather than voxel-level uncertainty for the residual L4/last_lumbar collision
+and confirm the finding on a larger number of sacralization cases.
+9/25/26, 9:31 AM Not All Spines Are Created Equal: How CT Segmenters Fail on Lumbosacral Transitional Vertebrae | OpenReview
+https://openreview.net/forum?id=D8yRWDAGQF&noteId=hLCLqbRkKb 8/10
+Rating: 3: Borderline reject: Technically solid paper where reasons to reject, e.g., limited evaluation, outweigh
+reasons to accept, e.g., good evaluation. Please use sparingly.
+Confidence: 4: You are confident in your assessment, but not absolutely certain. It is unlikely, but not impossible,
+that you did not understand some parts of the submission or that you are unfamiliar with some pieces of related
+work.
+Paper Formatting Concerns:
+No violations observed.
+Final Justification:
+I thank the authors for the rebuttal. The unmerged control is the right control, and Question 3 is answered. Training a
+same-data, same-fold, same-architecture model with an explicit L6 class and L6 oversampling, and still finding that
+84.7 to 99.4 percent of ground-truth L6 is labelled L5, does isolate the merge from the extra data and from the added
+class.
+I am nevertheless maintaining my rating of 3.
+Question 3 is the only point answered with a new experiment, and the remaining three answers change what is
+claimed rather than what is shown. Question 2 is answered by a plan. The senior adjudication is described as
+arranged and the agreement statistic as something the revised paper will report, so there is no kappa value and no
+adjudication outcome available to me. I weigh this most heavily, because most of the 1,153 records are inherited from
+COLONOG, CTSpine1K, and CTPelvic1K, so what distinguishes this benchmark from its upstream sources is
+concentrated in the 33 annotated cases. The authors further state that the adjudication may produce corrections in
+the released dataset, which means those labels are expected to change. Every LSTV-stratified result therefore remains
+provisional, including the new unmerged control, whose ground-truth L6 comes from the same annotation layer.
+Question 1 is answered by reporting n and confidence intervals, whose values are not given here, and by placing the
+single Castellvi Type I case out of scope, which narrows the claims rather than enlarging the evidence. The 33-case
+sample is unchanged. Question 4 likewise re-presents the existing L4 number with caveats rather than confirming it
+on more sacralization cases. I would add that the held-out test split contains no semi-sacralization case, so per-
+subgroup reporting will show that subtype as unevaluated rather than measured, and the restriction of the claims
+should say so explicitly.
+LLM Policy: Yes
+Code Of Conduct Acknowledgement: Yes
+Responsible Reviewing Acknowledgement: Yes
+Rebuttal by Authors
+Rebuttal
+byAuthors ( Miraziz Ismoilov (/profile?id=~Miraziz_Ismoilov1), Patrick Schwing (/profile?
+id=~Patrick_Schwing1), Nizar Alnabahneh (/profile?id=~Nizar_Alnabahneh1), Loren Schwiebert (/profile?
+id=~Loren_Schwiebert1), +1 more (/group/edit?
+id=NeurIPS.cc/2026/Evaluations_and_Datasets_Track/Submission3474/Authors))
+27 Jul 2026, 16:51 (modified: 28 Jul 2026, 08:31)
+Program Chairs, Senior Area Chairs, Area Chairs, Reviewers Submitted, Authors
+Revisions (/revisions?id=WXsOoa91LV)
+−
+＝
+
+
+
+
+Rebuttal:
+Thank you. We addressed all four points.
+W3 (isolate the merge): Done, see General Response AC-1. A same-data, same-fold, same-architecture
+unmerged model with an L6 class and L6-oversampling still labels 84.7% to 99.4% of GT-L6 as L5, isolating
+the merge from the extra data and the added class. We scope this as "not learned by a standard dense
+segmenter at this data size" (recoverable via more data or a counting-aware or two-stage design, future
+work), not an impossibility. The reason is architectural: the L5 vs L6 signal is a count that spans more than
+one convolutional patch and appears in very few examples.
+W1 (few, mostly-obvious cases): We now show n next to every subgroup number and add 95% confidence
+intervals on the Dice scores, and we limit our quantitative claims to the obvious (Castellvi II to IV) cases; the
+single Type I case is out of scope for quantitative claims.
+≡
+9/25/26, 9:31 AM Not All Spines Are Created Equal: How CT Segmenters Fail on Lumbosacral Transitional Vertebrae | OpenReview
+https://openreview.net/forum?id=D8yRWDAGQF&noteId=hLCLqbRkKb 9/10
+OpenReview (/about)is a long-term project to advance science through improved peer review
+with legal nonprofit status. We gratefully acknowledge the support of theOpenReview
+Sponsors (/sponsors). © 2026 OpenReview
+W2 (only residents): We have arranged independent senior radiologist adjudication of all 33 LSTV cases.
+The revised paper will report inter-rater agreement (Cohen's kappa) with the resident labels and the
+resulting corrections in the released dataset.
+W4 (weak L4 number): We report it per case rather than pooled, note it is driven by one fold and only 9
+cases, and present it as a directional motivation for the sequence predictor, not a precise value.
+ Replying toRebuttal by Authors
+Official Comment by Reviewer aoYn
+Official Comment byReviewer aoYn 03 Aug 2026, 09:45
+Program Chairs, Senior Area Chairs, Area Chairs, Reviewers Submitted, Authors
+−
+＝ 
+
+
+Comment:
+I thank the authors for the rebuttal. The unmerged control is the right control, and Question 3 is answered.
+Training a same-data, same-fold, same-architecture model with an explicit L6 class and L6 oversampling,
+and still finding that 84.7 to 99.4 percent of ground-truth L6 is labelled L5, does isolate the merge from the
+extra data and from the added class.
+I am nevertheless maintaining my rating of 3.
+Question 3 is the only point answered with a new experiment, and the remaining three answers change
+what is claimed rather than what is shown. Question 2 is answered by a plan. The senior adjudication is
+described as arranged and the agreement statistic as something the revised paper will report, so there is
+no kappa value and no adjudication outcome available to me. I weigh this most heavily, because most of
+the 1,153 records are inherited from COLONOG, CTSpine1K, and CTPelvic1K, so what distinguishes this
+benchmark from its upstream sources is concentrated in the 33 annotated cases. The authors further state
+that the adjudication may produce corrections in the released dataset, which means those labels are
+expected to change. Every LSTV-stratified result therefore remains provisional, including the new
+unmerged control, whose ground-truth L6 comes from the same annotation layer. Question 1 is answered
+by reporting n and confidence intervals, whose values are not given here, and by placing the single
+Castellvi Type I case out of scope, which narrows the claims rather than enlarging the evidence. The 33-
+case sample is unchanged. Question 4 likewise re-presents the existing L4 number with caveats rather than
+confirming it on more sacralization cases. I would add that the held-out test split contains no semi-
+sacralization case, so per-subgroup reporting will show that subtype as unevaluated rather than measured,
+and the restriction of the claims should say so explicitly.About OpenReview (/about) Contact (/contact)
+FAQ (https://docs.openreview.net/getting-
+started/frequently-asked-questions)
+Hosting a Venue (/group?
+id=OpenReview.net/Support)
+Sponsors (/sponsors) Terms of Use (/legal/terms) / Privacy Policy
+(/legal/privacy)
+All Venues (/venues) Donate (/donate)
+≡
+9/25/26, 9:31 AM Not All Spines Are Created Equal: How CT Segmenters Fail on Lumbosacral Transitional Vertebrae | OpenReview
+https://openreview.net/forum?id=D8yRWDAGQF&noteId=hLCLqbRkKb 10/10

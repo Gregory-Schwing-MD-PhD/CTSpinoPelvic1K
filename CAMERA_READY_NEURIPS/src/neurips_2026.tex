@@ -1,0 +1,1056 @@
+\documentclass{article}
+
+% Camera-ready, Evaluations and Datasets Track (accepted, poster).
+% [final] de-anonymises and prints the track notice; [eandd] names the track.
+\usepackage[final,eandd]{neurips_2026}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+\newcommand{\dataset}{\textsc{CTSpinoPelvic1K}}
+\newcommand{\TS}{TotalSegmentator}
+\newcommand{\SOTA}{TotalSegmentator}
+\newcommand{\sota}{TS}
+\newcommand{\VERIDAH}{VERIDAH}
+\newcommand{\VerSe}{VerSe}
+
+% Patrick Schwing's affiliation is not recorded anywhere in the project
+% files; it must be confirmed by the corresponding author before upload.
+\newcommand{\PatrickAffil}{\textcolor{red}{[Affiliation to be confirmed]}}
+
+\title{Not All Spines Are Created Equal:\\
+How CT Segmenters Fail on Lumbosacral Transitional Vertebrae}
+
+\author{%
+  Gregory John Schwing\thanks{Corresponding author:
+    \texttt{gregory.schwing@med.wayne.edu}.} \\
+  Department of Surgery \\
+  Detroit Medical Center and Wayne State University \\
+  Detroit, Michigan, USA \\
+  \And
+  Patrick Schwing \\
+  \PatrickAffil{} \\
+  \And
+  Miraziz Ismoilov \\
+  Department of Radiology \\
+  Detroit Medical Center and Wayne State University \\
+  Detroit, Michigan, USA \\
+  \AND
+  Nizar Alnabahneh \\
+  Department of Radiology \\
+  Detroit Medical Center and Wayne State University \\
+  Detroit, Michigan, USA \\
+  \And
+  Loren Schwiebert \\
+  Department of Computer Science \\
+  Wayne State University \\
+  Detroit, Michigan, USA \\
+}
+
+\begin{document}
+
+\maketitle
+
+% ============================================================================
+\begin{abstract}
+Wrong-level spine surgery remains a persistent
+never-event, and the lumbosacral transitional vertebra
+(LSTV, 5--35\% prevalence) is its largest anatomic
+driver. We audit \TS{}---the most widely deployed CT
+segmentation system and default back-end of
+3D~Slicer---and show that on lumbarization cases its
+output reproduces the pattern of a one-level miscount:
+lacking an L6 class, it shifts lumbar labels caudally by
+one level, and junction-DSC drops 29 points on Any-LSTV
+($0.824 \to 0.534$; $n{=}7$ cases with a scorable
+junction). No existing CT benchmark surfaces this---not
+\TS{}'s own evaluation, not \citet{Li2025LumbarMechanism}
+(the per-class DSC frontier on the matched COLONOG split),
+and not \VERIDAH{} (vertebra-\emph{labeling} SOTA on a
+private cohort, on pre-localized crops with no pelvis).
+We contribute: (i)~an LSTV-stratified evaluation protocol
+(per-class DSC, junction-DSC over a 40\,mm L5/S1 window,
+per-class voxel confusion at the junction) that measures
+the level shift and frames it as a plausible automated
+wrong-level-risk mechanism; (ii)~\dataset{}---1{,}153 CT
+records across 802 patients with unified spinopelvic
+masks, 33 LSTV-positive patients in a six-way phenotype
+taxonomy derived from the source annotations' filenames
+and lumbar counts, and Castellvi typing (I--IV) of all 33
+by two radiology residents ($\kappa{=}0.74$);
+(iii)~the first publicly released merge-based
+dual-spinopelvic CT segmenter, exceeding \TS{} on sacrum
+($0.817 \to 0.969$) with released weights; (iv)~a
+same-data, same-fold unmerged control with an explicit L6
+class that still labels most ground-truth L6 voxels L5,
+isolating the training-side L5/L6 merge as the component
+that removes the collision, while a residual
+L4/last\_lumbar collision on count-style sacralization
+motivates a downstream sequence predictor. Only 7 LSTV
+cases fall in the held-out split; every stratified number
+is reported with its $n$.
+\end{abstract}
+
+% ============================================================================
+\section{Introduction}
+\label{sec:intro}
+
+Wrong-level spine surgery is a persistent never-event in
+operative spine
+care~\citep{Konin2010LumbosacralRelevance}. Despite
+intraoperative imaging and surgical-pause checklists, the
+most common cause---failure to correctly count vertebral
+levels in the presence of an LSTV---continues to account for
+the majority of reported wrong-level lumbar
+incidents~\citep{Carrino2011EffectImaging}. The mechanism is
+well documented: a surgeon counts lumbar bodies upward from
+the sacrum, finds five (because lumbarization presents a
+sixth lumbar body that has not been recognized), and labels
+the bottom body as L5 when it is anatomically L6. Surgery
+proceeds one level caudal to the intended target.
+
+Modern radiology workflows increasingly route automated
+segmentation as an upstream substrate for clinical
+decision-making. The most widely deployed CT segmentation
+system in this role is
+\TS{}~\citep{Wasserthal2023TotalSegmentator:Images}: an
+nnU-Net trained on 1{,}204 routine CTs to delineate 104
+anatomic structures, the default segmentation back-end of
+3D~Slicer, with thousands of clinical and research
+installations. The original paper reports an aggregate
+test-set Dice of 0.943 across all 104 classes and
+qualitatively documents two spine failure modes
+affecting neighboring-vertebrae label confusion (1\%
+of cases) and neighboring-rib confusion (12\%). \TS{} is neither the
+only public CT spine segmenter nor the per-class DSC
+frontier on the matched CTSpine1K~+~CTPelvic1K (COLONOG)
+split (\S\ref{sec:related}); it is, however, the model
+surgeons and downstream tools consume. This paper
+concerns one anatomic class on which \TS{} does not
+perform at its headline level, and the consequences
+when it does not.
+
+\paragraph{The risk mechanism.}
+On lumbarized spines, \SOTA{} produces an output pattern
+that matches the mechanism of the surgical miscount. Its
+label vocabulary contains L1--L5 but no L6 class. On a
+lumbarized spine (six lumbar bodies plus sacrum), the model
+distributes its five lumbar labels across the six bodies by
+shifting caudally by one anatomic level: the body that is
+anatomically L6 receives the L5 label, the body that is
+anatomically L5 receives the L4 label, and so on. A plan
+that took the disc between predicted-L4 and predicted-L5
+as L4--L5 would land on the anatomical L5--L6 disc. We
+present this as a \emph{plausible automated
+wrong-level-risk mechanism}: the paper measures how often
+the shifted output occurs and what it looks like at the
+junction. It does not evaluate surgical-planning software,
+reader behaviour or downstream workflow, and no
+wrong-level event is attributed to a segmenter here.
+
+\paragraph{The architectural alternative: \VERIDAH{}.}
+\citet{Moller2026VERIDAH:Sequences} label transitional
+vertebrae with a per-vertebra classifier trained with
+L5/L6 merged, followed by a constrained sequence predictor
+that restores the count (\S\ref{sec:related}). Whether a
+voxel-wise network trained at full resolution with the same
+merge needs the sequence predictor at all has never been
+tested; we supply that test.
+
+\paragraph{The evaluation gap.}
+Neither \SOTA{}, \VerSe{}~\citep{Sekuboyina2021VerSe:Images},
+CTSpine1K~\citep{Deng2021CTSpine1K:Tomography}, nor
+CTPelvic1K~\citep{Liu2021DeepModels} report LSTV-stratified
+performance; earlier CT labelers excluded the failure
+mode~\citep{Sekuboyina2020LabelingAnatomy}, and \VERIDAH{}
+reports anomaly performance on a private cohort. A
+production model therefore emits a confident, locally
+well-formed, caudally-shifted prediction on a
+5--35\%-prevalence variant with no error signal at
+evaluation time. Closing the gap requires hardware:
+fitting lumbar spine and pelvis at
+$0.75{\times}0.75{\times}0.80$\,mm and a
+$256{\times}320{\times}320$ patch consumes ${\sim}100$\,GB
+of GPU memory, available on an H200 but not on the
+L40S/A100/H100 GPUs that bracket \SOTA{}'s training
+configuration.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+\item[(i)] \textbf{The level shift in \sota{},
+  quantified.} An LSTV-stratified evaluation protocol
+  (per-class DSC, junction-DSC over a 40\,mm L5/S1
+  window, per-class voxel confusion at the junction)
+  measures \sota{}'s systematic one-level caudal shift
+  on lumbarization (L4=0.388, L5=0.291 over 14 patients;
+  95\%+ of GT-L6 voxels labeled L5 on the case study,
+  \S\ref{sec:case_study}) and the structural absence of
+  L6 across all evaluation cases, and frames the shift
+  as a plausible automated wrong-level-risk mechanism.
+\item[(ii)] \textbf{\dataset{}: a stratified spinopelvic
+  benchmark.} 1{,}153 abdominal CT records across 802
+  patients, unified spinopelvic masks, 33 LSTV-positive
+  patients in a six-way subtype taxonomy
+  (lumb $n{=}14$; sacr\_count $n{=}9$; full sacralization
+  $n{=}6$; semi-sacralization $n{=}2$; ambiguous $n{=}2$),
+  and a registration-free fusion pipeline that resolves a
+  previously undocumented Y-axis coordinate-convention
+  mismatch between CTSpine1K and CTPelvic1K. The subtypes
+  come from the source annotations (filename qualifiers
+  and lumbar counts), not from image reads; the Castellvi
+  layer (I--IV, all 33) is a two-resident read with
+  $\kappa{=}0.74$ and no senior adjudication
+  (\S\ref{sec:castellvi}). Both source datasets share
+  the COLONOG cohort that underlies \VerSe{} and
+  CTSpine1K, but neither encodes pelvic context with LSTV
+  stratification.
+\item[(iii)] \textbf{First publicly released merge-based
+  LSTV-handling dual-spinopelvic CT segmenter.} A 5-fold CV nnU-Net
+  3d\_fullres baseline on H200 hardware adopting
+  \VERIDAH{}'s training-side merge
+  (last\_lumbar = L5+L6) at the voxel level, with
+  pelvic-class supervision in a single forward pass.
+  We exceed \sota{} on sacrum and uniquely deliver both
+  spine and pelvis with released weights
+  (Table~\ref{tab:comparison}); \S\ref{sec:related}
+  details the reproducibility tiers separating
+  openly-released from paper-only baselines.
+\item[(iv)] \textbf{Empirical isolation: the merge is
+  necessary and insufficient.} A same-data, same-fold,
+  same-architecture control trained \emph{without} the
+  merge, with an explicit L6 class and L6 oversampling,
+  still labels most GT-L6 voxels L5
+  (\S\ref{sec:unmerged}), so the merge---not the added
+  data or the added class---removes the L5/L6 collision
+  driving \sota{}'s level shift. The merge in turn exposes
+  a residual L4/last\_lumbar collision on count-style
+  sacralization, isolating the component of \VERIDAH{}'s
+  success attributable to its sequence predictor---a
+  direction \VERIDAH{}'s authors could not ablate.
+\end{enumerate}
+
+% ============================================================================
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Wrong-level spine surgery and LSTV.}
+\citep{Konin2010LumbosacralRelevance,Carrino2011EffectImaging,Sekharappa2014LumbosacralSignificance}
+document LSTV-induced miscounting (5--35\% prevalence) without
+addressing automated segmentation as a miscount-propagation
+pathway. \citet{Kwak2025AutomatedModel} detect LSTV on plain
+radiographs (binary; different modality).
+
+\paragraph{Production CT spine and pelvic segmentation.}
+\TS{}~\citep{Wasserthal2023TotalSegmentator:Images}, an nnU-Net
+trained on 1{,}204 CTs and the default 3D~Slicer back-end,
+has no L6 class and no LSTV stratification; we audit it as
+the production system downstream pipelines actually consume,
+not as a per-class DSC frontier.
+\citet{Li2025LumbarMechanism} hold the published per-class
+DSC frontier on a COLONOG split (731 scans; 440/146/145)
+but release neither weights nor code (paper-only) and do
+not stratify by LSTV. \citet{Liu2025AutomaticDataset}
+release FracSegNet (PENGWIN+CTPelvic1K), a pelvic-only
+cascaded 3D nnU-Net providing sacrum and L/R hipbone; their
+qualitative note of sacralization degradation (their
+\S4.3) corroborates the LSTV gap our benchmark surfaces.
+Table~\ref{tab:comparison} compares all baselines.
+
+\paragraph{Vertebra-labeling SOTA: \VERIDAH{}.}
+\citet{Moller2026VERIDAH:Sequences} address transitional-vertebra
+\emph{labeling} (distinct from segmentation): a four-head
+3D DenseNet169 classifier on per-vertebra crops, trained
+with L5/L6 (and T12/T13) merged, plus a constrained
+sequence predictor enforcing 4--6 lumbar bodies (terminal
+double-L5 encodes L6). On a private CT cohort of 1{,}536
+volumes \VERIDAH{} reports 99.18\% subject-level perfect
+labeling versus prior CT SOTA~\citep{Meng2023VertebraeCycle}
+77.81\%. It requires upstream centroids (\VerSe{}-derived
+models or SPINEPS~\citep{Moller2024SPINEPSautomaticSegmentation}),
+excludes the pelvis, and validates privately. Its ablation
+(Table~5) shows the sequence predictor adds substantial
+value, but the comparison against direct semantic
+segmentation on a public LSTV-stratified split is
+missing---the gap our baseline (\S\ref{sec:baseline}) fills.
+
+\paragraph{Benchmarks and evaluation rigor.}
+\VerSe{}~\citep{Sekuboyina2021VerSe:Images} (460 CT volumes)
+is the only public CT benchmark whose label vocabulary
+includes L6 (label~25) but it is unstratified by LSTV and
+lacks pelvic GT; earlier CT labelers explicitly excluded
+the failure mode~\citep{Sekuboyina2020LabelingAnatomy}.
+Stratified safety-critical
+reporting~\citep{Maier-Hein2024MetricsValidation}
+motivates~\S\ref{sec:protocol}.
+
+% ============================================================================
+\section{Failure-Mode Analysis: \sota{} on LSTV}
+\label{sec:audit}
+
+We evaluate \SOTA{} v2 (\texttt{total} task) zero-shot at
+full resolution on the full \dataset{} matched cohort.
+\SOTA{} was not trained on any \dataset{} case, so every
+case is valid; this provides 1{,}152 of \dataset{}'s
+1{,}153 records (one record dropped due to \sota{}
+inference failure) aggregated to 801 patients via
+patient-level merging, including 33 LSTV-positive
+patients. Full-resolution mode isolates the failure as a
+property of label vocabulary and training distribution
+rather than inference resolution.
+
+Table~\ref{tab:sota_stratified} reports performance by
+phenotype. On normal anatomy ($n{=}768$) \SOTA{} performs at
+its published level. On Any-LSTV ($n{=}33$) every lumbar
+metric drops; lumbarization collapses caudally
+(L1=0.878\,$\to$\,L4=0.388\,$\to$\,L5=0.291 over 14
+patients). Junction-DSC is scorable only where the ground
+truth holds both L5 and sacrum: 334 normal patients and 7
+LSTV patients (3 lumbarization: 0.22, 0.23, 0.62; 2
+count-style sacralization: 0.47, 0.93; 2 full
+sacralization: 0.43, 0.84), so the 29-point Any-LSTV drop
+in the abstract rests on 7 patients. Per patient, L5 DSC
+falls below 0.5 in 10 of 14 lumbarization cases (Wilson
+95\% interval 45--88\%) and in 9 of 9 count-style
+sacralization cases (70--100\%), against 9 of 750 normal
+cases (0.6--2.3\%). \textsc{L6} predictions are
+structurally zero across all 1{,}152 records (0--0.3\%).
+
+\begin{table}[t]
+\caption{\sota{} zero-shot stratified by LSTV phenotype on
+\dataset{}, full-resolution mode; $n$ is patients.
+Junction DSC over a 40\,mm L5/S1 axial window is scorable
+only where GT holds L5 and sacrum ($n_\text{jxn}$).
+$\dagger$: no record with a scorable junction.}
+\label{tab:sota_stratified}
+\centering
+\small
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrcccccccrr}
+\toprule
+\bfseries Subgroup & \bfseries $n$ &
+\bfseries L1 & \bfseries L2 & \bfseries L3 & \bfseries L4 & \bfseries L5 &
+\bfseries Sac & \bfseries Hips &
+\bfseries Jxn DSC & \bfseries $n_\text{jxn}$ \\
+\midrule
+All cases                              & 801 & 0.911 & 0.906 & 0.913 & 0.914 & 0.913 & 0.817 & 0.929 & 0.818 & 341 \\
+Normal                                 & 768 & 0.921 & 0.918 & 0.929 & 0.936 & 0.938 & 0.817 & 0.929 & 0.824 & 334 \\
+\midrule
+Any LSTV                               & 33  & 0.681 & 0.615 & 0.523 & 0.367 & 0.314 & 0.822 & 0.929 & 0.534 & 7 \\
+\quad Lumbarization                    & 14  & 0.878 & 0.853 & 0.690 & 0.388 & 0.291 & 0.833 & 0.928 & \textbf{0.357} & 3 \\
+\quad Sacralization (count-style)      &  9  & 0.265 & 0.100 & 0.055 & 0.001 & 0.000 & 0.814 & 0.926 & 0.697 & 2 \\
+\quad Semi-sacralization               &  2  & 0.951 & 0.951 & 0.951 & 0.955 & 0.956 & 0.824 & 0.937 & $\dagger$ & 0 \\
+\quad Sacralization (full)             &  6  & 0.718 & 0.676 & 0.673 & 0.724 & 0.793 & 0.826 & 0.932 & 0.636 & 2 \\
+\quad Ambiguous                        &  2  & 0.952 & 0.951 & 0.882 & 0.678 & 0.374 & 0.771 & 0.932 & $\dagger$ & 0 \\
+\midrule
+\textsc{L6 emit}                       &     &       &       &       &       &       &       &       & \multicolumn{2}{r}{0 / 1152} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\paragraph{The level-shift mechanism.}
+The asymmetry between lumbarization (severe, caudally
+progressive) and count-style sacralization (uniform
+collapse) follows from a single fact: \SOTA{}'s output head
+has no L6 class. For 6-vertebra anatomies the model
+compresses 6 anatomic units into 5 labels by shifting label
+assignment caudally; the most rostral body remains L1
+(escape into thoracic vertebrae), but every successive body
+is misaligned, with the final body labeled L5 when it is
+anatomically L6. For 4-vertebra anatomies the model emits
+standard L1--L5, overshooting the GT lumbar count and
+producing a $+1$-level offset uniformly. The level-shift
+mechanism is the segmentation analog of the surgical
+miscount~\citep{Konin2010LumbosacralRelevance}.
+
+% ============================================================================
+\section{Case Study: the Level Shift at the Junction}
+\label{sec:case_study}
+
+Aggregate metrics establish the population pattern; the
+case study establishes the mechanism at the level a
+surgeon would consume the output. Token~215 is a
+lumbarization case (six lumbar bodies; Castellvi Ib by
+consensus, one of the six cases the two readers graded
+differently, \S\ref{sec:castellvi}). Table~\ref{tab:case215}
+reports per-class DSC: L1 and L2 are well-placed ($0.954$,
+$0.927$), L3 is partially correct ($0.594$), and
+\textbf{L4, L5, and L6 all collapse to dice~zero}---no
+GT-L4 or GT-L5 voxel correctly labeled and no L6 voxel
+emitted. The pelvic classes remain at near-Normal accuracy:
+the failure is local to the lumbosacral count, not a
+general degradation of \sota{} on this patient.
+
+\begin{table}[h]
+\caption{Token~215 (lumbarization, 6 lumbar bodies):
+per-class \sota{} zero-shot DSC. L4, L5 and L6 collapse to
+zero because \sota{} compresses 6 bodies into 5 labels;
+pelvic classes are unaffected. $\dagger$~\sota{} has no L6
+label.}
+\label{tab:case215}
+\centering
+\small
+\begin{tabular}{lccccccccc}
+\toprule
+\bfseries Class & L1 & L2 & L3 & L4 & L5 & L6 & Sacrum & Hip$_L$ & Hip$_R$ \\
+\midrule
+\bfseries DSC & 0.954 & 0.927 & 0.594 & \textbf{0.000} & \textbf{0.000} & \textbf{0.000}$^{\dagger}$ & 0.817 & 0.922 & 0.926 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{figs/lstv_lumbarization_215_spine_only.png}
+\caption{Token~215, lumbarization (6 lumbar bodies): \sota{}
+predictions on CT. Predicted-L3 absorbs anatomical L3 and
+L4, predicted-L4 sits on anatomical L5, predicted-L5 on
+anatomical L6, which has no label in \sota{}'s output head.
+Five compact, well-formed predictions, every label below
+L2 one level off. Quantified in Table~\ref{tab:case215}.}
+\label{fig:case215}
+\end{figure}
+
+\paragraph{Why the pattern matters.}
+A reader who took the segmentation at face value and
+targeted the disc between predicted-L4 (anatomical L5) and
+predicted-L5 (anatomical L6) would be one level caudal to
+an L4--L5 intent. The output is locally well-formed: five
+compact vertebral predictions in roughly correct positions,
+detectable only by counting bodies (six lumbar, not five),
+which downstream pipelines do not perform. Whether a
+surgeon or a planning tool would in fact act on such an
+output is not tested here; the claim is the mechanism and
+its frequency, not a measured clinical harm.
+
+% ============================================================================
+\section{\dataset{}: Construction and Composition}
+\label{sec:dataset}
+
+\dataset{} fuses CT scans from
+COLONOG~\citep{Smith2015DataCOLONOGRAPHY} with annotations
+from CTSpine1K~\citep{Deng2021CTSpine1K:Tomography}
+(\VerSe{}-derived per-vertebra masks) and
+CTPelvic1K~\citep{Liu2021DeepModels} (sacrum and bilateral
+hips). The same COLONOG cohort underlies \VerSe{} and
+CTSpine1K; \dataset{}'s contribution is the patient-level
+fusion of CTSpine1K's vertebra masks with CTPelvic1K's
+pelvic masks plus the LSTV-stratification overlay neither
+source provides. Of 1{,}153 matched records, 342 carry
+fused (spine + pelvis) ground truth, 352 are separate-mode,
+90 are spine-only, and 20 are pelvic-only
+(Table~\ref{tab:scan_stats}).
+
+\paragraph{Release used.}
+Every number in this paper was computed on the April 2026
+release (the HuggingFace export finalized 25 April 2026,
+later labelled v1 in the repository; training began 3 May
+2026): 1{,}153 records across 802 patients, a ten-class
+scheme (background, L1--L6, sacrum, left and right hip)
+merged to nine classes for training, and separate
+spine-only and pelvic-only records for patients whose two
+source annotations lie on different acquisitions. The
+archive of record is the Zenodo concept DOI
+\href{https://doi.org/10.5281/zenodo.22139642}{10.5281/zenodo.22139642},
+whose current version is v11
+(\href{https://doi.org/10.5281/zenodo.22797014}{10.5281/zenodo.22797014},
+18 September 2026). v11 differs from the April release as
+follows: one record per patient (802 records), each
+separate-mode patient's missing pelvis completed on the
+spine's series by out-of-fold pseudolabelling; VerSe-native
+identifiers (L1--L6 = 20--25, sacrum 26, hips 30/31) with
+femora, per-level ribs, lumbar ribs and surgical hardware
+added as further classes; hip-laterality corrections on 22
+records and hand corrections on five; both Castellvi reads
+and their consensus in the manifest; and the CT images
+supplied by TCIA series crosswalk and rebuild script, with
+a HuggingFace mirror carrying the volumes. The 802 patients
+and the 33 Castellvi-graded patients are the same in both.
+Nothing here was recomputed on v11.
+
+\begin{table}[t]
+\caption{\dataset{} composition; LSTV phenotype
+breakdown and split counts in Table~\ref{tab:castellvi_dist}.}
+\label{tab:scan_stats}
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\bfseries Property & \bfseries Value & \bfseries LSTV cases \\
+\midrule
+Patients matched (\dataset{})           & 802     & --- \\
+Records matched (\dataset{})            & 1{,}153 & 33 patients (44 records) \\
+\quad Fused (spine + pelvis)            & 342     & --- \\
+\quad Separate (spine + pelvic)         & 352     & --- \\
+\quad Spine-only / Pelvic-only          & 90 / 20 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Patient-anchored fusion and coordinate
+correction.} Patient identity is resolved via canonical UID
+matching (825/825 patients). Each mask is assigned to its
+source CT acquisition by intra-patient bone-HU
+maximization,
+$s^*(m) = \argmax_{s \in \mathcal{S}_p}
+|\{v \in \mathcal{L}(m, s) : I_s(v) > 200\,\text{HU}\}|/|\mathcal{L}(m, s)|$,
+a metadata-free oracle since \texttt{SeriesDescription}
+fields are unreliable in TCIA releases (99.6\% spine,
+100\% pelvic placement). CTSpine1K and CTPelvic1K were
+converted from DICOM with different \texttt{dcm2niix}
+invocations, producing a systematic Y-axis sign reflection
+in NIfTI affines; we detect via affine-derived center sign
+and reverse along axis~1 with affine update. We adopt
+\VERIDAH{}'s training-side merged-label scheme at the
+voxel level: 0\,=\,bg, 1--4\,=\,L1--L4,
+\textbf{5\,=\,last\_lumbar} (anatomical L5 in 5-vertebra
+spines; both L5 and L6 in 6-vertebra spines), 6\,=\,sacrum,
+7--8\,=\,left/right hip, 9\,=\,ignore.
+
+\paragraph{Six-way LSTV taxonomy, and where its labels come
+from.} No subtype in this benchmark was assigned by reading
+an image. Each is a deterministic function of the two
+source annotations: the number of lumbar labels in the
+CTSpine1K mask (a radiologist's count, in \VerSe{}
+convention, so a sixth lumbar body carries \VerSe{}
+label~25) and the qualifier tag in the CTPelvic1K mask
+filename (\texttt{sacralization},
+\texttt{semisacralization}), whose origin CTPelvic1K does
+not document. The six subtypes are
+\textbf{normal}, \textbf{lumb} (six lumbar labels or
+label~25 present), \textbf{sacr\_count} (four lumbar labels
+and no qualifier), \textbf{semisacralization} and
+\textbf{sacralization} (qualifier tag; the lumbar count is
+five), and \textbf{ambiguous} (the two sources disagree).
+Two of the six therefore rest entirely on a filename tag,
+and the count subtypes inherit each source's naming
+convention for the transitional segment. An earlier
+substring-match parser collapsed semisacralization into
+full sacralization---merging two phenotypes whose failure
+modes diverge (full sacralization preserves the lumbar
+count and near-normal per-class DSC; semisacralization
+confuses the L5/S1 boundary); we identify and fix this.
+Without the corrected taxonomy the qualitatively different
+failure patterns across LSTV variants (\S\ref{sec:audit})
+are invisible.
+
+\paragraph{Partial-annotation training protocol.}
+\label{sec:partial}
+Training only on fused records discards 70\% of the data.
+We use nnU-Net v2's
+\texttt{ignore\_label}~\citep{Isensee2024Nnu-netSegmentation}
+to train on all 1{,}153: voxels in unsupervised regions are
+written as label~9, contributing zero to Dice and
+cross-entropy. Spine classes (1--5) receive supervision
+from 784 records; pelvic classes (6--8) from 714. This is a
+$3.36\times$ effective expansion. Per-record subtype
+refinement gates training-time tags on supervised anatomy.
+
+\paragraph{Castellvi annotation layer.}
+\label{sec:castellvi}
+The 6-way taxonomy captures the \emph{count} dimension of
+LSTV. The Castellvi
+classification~\citep{Castellvi1984LumbosacralDefects}
+captures the orthogonal \emph{morphological} axis:
+Type~I (dysplastic transverse process), II
+(pseudoarticulation), III (bony fusion), or IV (mixed
+II/III), each \texttt{a}~(unilateral) or
+\texttt{b}~(bilateral). It is the surgeon's
+pre-operative wrong-level-risk indicator, and what a CT
+segmenter would need to predict to flag LSTV for review
+rather than silently emit a caudally-shifted label.
+Two PGY-2 radiology residents each graded all 33 LSTV
+cases independently, extending the schema---originally
+sacralization-specific---to score the bony junction
+uniformly across variants with per-side laterality. They
+agreed on 27 of 33 (Cohen's $\kappa{=}0.74$ on the full
+grade with laterality, 95\% interval 0.55--0.92;
+$\kappa{=}0.70$ on type I--IV alone; $n{=}33$) and resolved
+the six disagreements by consensus; five of the six cross
+the II/III boundary (articulation versus bony fusion) and
+one the I/II boundary. There was no attending or
+neuroradiologist read, no blinded re-read and no screening
+of the \texttt{normal} cohort, so the grades are a
+two-trainee consensus and every Castellvi-stratified
+statement below inherits that limit. Both reads and the
+consensus are released with the data.
+
+\begin{table}[h]
+\caption{Two-reader consensus Castellvi grade for all 33
+LSTV patients of \dataset{}, by count subtype, with the
+number of patients in the training pool (5-fold CV) and
+the held-out test split.}
+\label{tab:castellvi_dist}
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrrrr|rr}
+\toprule
+\bfseries Subtype & \bfseries Ib & \bfseries IIa & \bfseries IIb & \bfseries IIIa & \bfseries IIIb & \bfseries IV & \bfseries Total & \bfseries Train & \bfseries Test \\
+\midrule
+Lumbarization                  & 2 & 1 & 3 & 1 &  6 & 1 & 14 & 11 & 3 \\
+Sacralization (count-style)    & 0 & 0 & 0 & 0 &  9 & 0 &  9 &  8 & 1 \\
+Sacralization (full)           & 0 & 1 & 2 & 0 &  1 & 2 &  6 &  4 & 2 \\
+Semi-sacralization             & 0 & 2 & 0 & 0 &  0 & 0 &  2 &  2 & 0 \\
+Ambiguous                      & 0 & 0 & 1 & 0 &  0 & 1 &  2 &  1 & 1 \\
+\midrule
+Total                          & 2 & 4 & 6 & 1 & 16 & 4 & 33 & 26 & 7 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Morphology-stratified failure interpretation.}
+The cross-tabulation (Table~\ref{tab:castellvi_dist})
+surfaces two findings with direct bearing on model
+behavior. (1)~\textbf{All 9 count-style sacralization
+cases are Castellvi~IIIb}---bilateral bony fusion, a grade
+both readers assigned to all nine---and 16/33 (48\%) of
+LSTV overall is IIIb. The residual L4/last\_lumbar
+collision (\S\ref{sec:residual}) therefore occurs precisely
+when the discriminating cue is locally observable: bony
+fusion of the bottom lumbar to sacrum is visually distinct
+from a normal L5--S1 junction, yet the segmenter still
+emits last\_lumbar for those voxels. Direct semantic
+segmentation has not learned the Castellvi correlate of the
+count anomaly even when it is morphologically present in
+the input---an empirical argument for downstream
+Castellvi-aware reasoning at the lumbosacral junction
+(whether \VERIDAH{}-style global count constraints or a
+dedicated Type~III morphology head). (2)~Only 2/33 cases
+are Type~I (population prevalence
+14--16\%~\citep{Sekharappa2014LumbosacralSignificance}),
+reflecting source-dataset selection bias toward
+morphologically conspicuous presentations. Every
+quantitative claim in this paper is therefore scoped to the
+conspicuous regime (Castellvi II--IV, 31 of 33 cases); the
+clinically subtler Type~I fraction is uncharacterized here.
+
+% ============================================================================
+\section{Evaluation Protocol}
+\label{sec:protocol}
+
+We define four metrics as the minimum required to attribute
+LSTV failure modes to the wrong-level-risk
+mechanism~\citep{Maier-Hein2024MetricsValidation}: (1) per-class
+DSC stratified by 6-way LSTV subgroup, exposing class-level
+degradation; (2) junction-DSC over a 40\,mm L5/S1 axial
+window, the clinical window for surgical planning;
+(3) per-class voxel confusion at the L5/S1 junction, which
+exposes structured failure modes (the level shift) that
+DSC alone cannot characterize; and (4) for the merged-label
+baseline, three focused per-epoch confusion blocks anchored
+on the L4/last\_lumbar boundary that drives the residual
+collision (\texttt{last\_lumbar\_GT\_on\_lumb},
+\texttt{L4\_GT\_on\_sacr\_count},
+\texttt{pred\_last\_lumbar\_on\_sacr\_count}) plus a
+specificity number
+(\texttt{last\_lumbar\_specificity\_on\_sacr\_count}).
+Every stratified number is reported with its $n$; where a
+stratum holds three or fewer cases we give the per-case
+values, and proportions carry Wilson 95\% intervals.
+
+% ============================================================================
+\section{Spinopelvic Baseline}
+\label{sec:baseline}
+
+\paragraph{Architecture and training.}
+nnU-Net v2~\citep{Isensee2020NnU-Net:Segmentation,Isensee2024Nnu-netSegmentation}
+ResEnc-M planner, \texttt{3d\_fullres},
+\texttt{nnUNetResEncUNetPlans\_100G} (100\,GB GPU budget).
+Spacing $0.80{\times}0.75{\times}0.75$\,mm, patch
+$\mathbf{256{\times}320{\times}320}$, batch~2; 7-stage
+residual encoder
+($n_\text{features}{=}[32,64,128,256,320,320,320]$,
+$n_\text{blocks}{=}[1,3,4,6,6,6,6]$, $3^3$ kernels, $2^3$
+strides, instance norm, deep supervision at 5 levels);
+9-channel output (bg + 8 fg); ignore-label masked from
+loss. Class-reweighted DC\_and\_CE loss
+($\mathbf{w}{=}[0.5,1,1,1,1,\mathbf{1.5},\mathbf{2.0},1,1]$;
+last\_lumbar boost targets the clinically-important
+boundary, sacrum boost supports Castellvi precision); SGD
+Nesterov 0.99, $\lambda{=}3{\times}10^{-5}$, PolyLR
+$10^{-2}$, 500 epochs (250 train + 50 val iters); 5-fold
+patient-stratified CV with 6-way LSTV stratification on a
+training pool of 805 records; 174 records (7 LSTV patients,
+Table~\ref{tab:castellvi_dist}) are held out.
+
+\paragraph{Two-tier LSTV emphasis.}
+\textbf{Queue-level oversampling}: all five non-normal
+subtypes duplicated to 25\% of per-fold training samples
+(matching \VERIDAH{}'s 4$\times$ rate).
+\textbf{Class-reweighted CE} (above). No per-patch
+foreground biasing: under merged labels, biasing toward
+an L6 class is ill-defined, and biasing the
+L4/last\_lumbar boundary on sacr\_count would confound
+the residual-collision measurement.
+
+\paragraph{Hardware.}
+H200 NVL (140\,GB HBM3e), 24 CPU workers, preunpacking
+once per job to a 1.7\,TB local-NVMe cache (replacing NFS
+reads that throttled at 21\,MB/s under 5-fold contention).
+Per-epoch ${\approx}\,400$--$700$\,s; per-fold
+${\approx}\,3$ days for 500 epochs. Reducing the GPU memory
+budget forces either smaller patch (loses spinopelvic
+context) or coarser spacing (loses Castellvi-defining
+detail); 100\,GB is the smallest budget fitting both.
+
+% ============================================================================
+\section{Results}
+\label{sec:results}
+
+\paragraph{Headline, with its $n$.}
+The merged-label spinopelvic baseline closes the LSTV
+junction-DSC gap on lumbarization: junction-DSC rises
+from \sota{}\,=\,$0.357$ (3 patients) to
+ours\,=\,$\textbf{0.946} \pm 0.007$ (5-fold mean $\pm$ std;
+ensemble $0.950$), a $\Delta{=}\,\textbf{+58.9} \pm 0.7$
+points. That number is measured on the \emph{one} held-out
+lumbarization case whose ground truth holds both L5 and
+sacrum; the other two held-out lumbarization cases are
+spine-only records, so the $\pm$ is the spread of five fold
+checkpoints on a single patient, not a population spread.
+The model emits non-degenerate last\_lumbar on all 3/3
+held-out lumbarization cases (Wilson 95\% interval
+44--100\%) with per-case ensemble last\_lumbar DSC of
+$0.645$, $0.666$ and $0.725$ (5-fold mean $0.698 \pm
+0.038$), eliminating the structural absence that drives
+\sota{}'s level shift. A residual class collision persists
+on count-style sacralization: on the single held-out
+sacr\_count case, evaluated by all five fold checkpoints
+(${\sim}720$K GT-L4 voxel evaluations), \textbf{82.7\%} of
+GT-L4 voxels are mis-predicted as last\_lumbar
+(\S\ref{sec:residual}, Block~2), with per-case L4 DSC of
+$0.187 \pm 0.337$ across folds (one fold's checkpoint
+scores mid-range, the others near zero; ensemble $0.032$).
+\S\ref{sec:residual} characterizes this as the empirical
+signature of direct semantic segmentation's limit on
+transitional anatomy. On pelvic classes, our model exceeds
+\TS{} on sacrum by $\Delta{=}\,\textbf{+15.2} \pm
+0.2$~points (\sota{}\,=\,$0.817 \to \textbf{0.969} \pm
+0.002$ 5-fold; $0.970$ ensemble; 113 held-out records with
+sacral GT) and establishes state-of-the-art for
+openly-released dual spinopelvic CT segmentation
+(Table~\ref{tab:comparison}).
+
+\begin{table}[t]
+\caption{Per-class DSC ($\times 100$). \textbf{L5} is the
+unmerged anatomical L5 class; \textbf{last\_lumbar} is the
+merged class L5+L6 (identical to L5 on 5-vertebra Normal
+anatomy). Hip$_\text{m}$ merges LH+RH; we train per-side
+and report both. \TS{} numbers are Normal-subgroup
+zero-shot on \dataset{} (Table~\ref{tab:sota_stratified}),
+combined Hips placed in Hip$_\text{m}$. Top-block numbers
+are reproduced from those works' own test sets and are not
+directly comparable; bold marks best in column.
+$^{\dagger}$Case-weighted mean over the 7 LSTV test
+patients (per-subgroup in Table~\ref{tab:baseline}).}
+\label{tab:comparison}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lcccccccccc}
+\toprule
+\bfseries Method & \bfseries L1 & \bfseries L2 &
+\bfseries L3 & \bfseries L4 & \bfseries L5 & \bfseries last\_lumbar &
+\bfseries Sacrum & \bfseries LH & \bfseries RH &
+\bfseries Hip$_\text{m}$ \\
+\midrule
+\multicolumn{11}{l}{\emph{Reproduced from prior work; not evaluated on \dataset{} (Li~et~al.\ on COLONOG split, FracSegNet on PENGWIN test set)}} \\
+3D U-Net                & 77.19 & 78.34 & 81.71 & 82.86 & 92.13 & --- & 90.02 & 93.74 & 93.42 & --- \\
+ResNet-50               & 80.29 & 76.41 & 80.62 & 83.77 & 91.05 & --- & 88.37 & 94.72 & 94.01 & --- \\
+ResNet-101              & 74.57 & 78.11 & 78.54 & 83.84 & 86.35 & --- & 89.05 & 95.69 & 94.42 & --- \\
+SwinUNETR               & 88.87 & 83.12 & 84.36 & 89.04 & 92.15 & --- & 91.38 & 92.33 & 93.38 & --- \\
+AttentionUNet           & 80.26 & 75.84 & 79.64 & 82.32 & 90.39 & --- & 92.48 & 93.41 & 95.45 & --- \\
+nnU-Net~\citep{Isensee2020NnU-Net:Segmentation}     & 89.35 & 91.37 & 92.41 & 93.37 & 95.74 & --- & 96.72 & 95.50 & 96.78 & --- \\
+Li et al.\ (CFFM+LT)~\citep{Li2025LumbarMechanism}  & 92.98 & 92.36 & 93.92 & 93.31 & \textbf{97.07} & --- & 96.98 & 94.37 & 96.77 & --- \\
+FracSegNet~\citep{Liu2025AutomaticDataset}          & ---   & ---   & ---   & ---   & ---   & --- & \textbf{98.7}  & \textbf{99.3}  & \textbf{99.2}  & --- \\
+\midrule
+\multicolumn{11}{l}{\emph{Reproducible baseline (publicly-released weights), evaluated zero-shot on \dataset{}}} \\
+\TS{}~\citep{Wasserthal2023TotalSegmentator:Images}  & 92.1 & 91.8 & 92.9 & 93.6 & 93.8 & --- & 81.7 & --- & --- & 92.9 \\
+\midrule
+\multicolumn{11}{l}{\emph{Ours: \dataset{}, 5-fold ensemble on held-out test, partial-annotation supervision}} \\
+Ours, Normal ($n{=}167$)   & \textbf{95.3} & \textbf{95.5} & \textbf{95.9} & \textbf{96.7} & --- & \textbf{97.1} & 97.1 & 95.0 & 93.6 & \textbf{98.8} \\
+Ours, Any-LSTV ($n{=}7$)$^{\dagger}$ & 60.1 & 46.6 & 31.1 & 15.8 & --- & 65.2 & 92.0 & 97.5 & 97.6 & 97.6 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\paragraph{LSTV-stratified per-subgroup view.}
+Table~\ref{tab:baseline} exposes the LSTV-induced
+degradation that aggregate per-class DSC masks; the
+residual L4 DSC drop on sacr\_count cases
+(\S\ref{sec:residual}) persists. Semi-sacralization has no
+held-out case and is therefore unevaluated, not measured;
+with 7 LSTV test patients the Wilson 95\% interval for
+7/7 cases emitting last\_lumbar is 65--100\%.
+
+\begin{table}[t]
+\caption{\dataset{} 5-fold ensemble on the held-out test
+split ($n{=}174$ records), cross-fold mean $\pm$ std.
+\textsc{LL emit}: cases emitting $\geq 100$ last\_lumbar
+voxels. Dashes: no GT for that class in the subtype.
+Semi-sacralization is absent from the test split.
+$\Delta$ vs.\ \sota{} zero-shot
+(Table~\ref{tab:sota_stratified}). $^{\ast}$$n{=}1$: $\pm$
+omitted. $^{\ddagger}$Junction DSC scorable on one case of
+the subtype; $\pm$ is five checkpoints on that case.}
+\label{tab:baseline}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrcccccccccr}
+\toprule
+\bfseries Subgroup & \bfseries $n$ &
+\bfseries L1 & \bfseries L2 & \bfseries L3 & \bfseries L4 &
+\bfseries last\_lumbar & \bfseries Sac &
+\bfseries Hip$_\text{m}$ & \bfseries Jxn DSC & \bfseries LL emit \\
+\midrule
+Normal                  & 167 & $.953\!\pm\!.008$ & $.955\!\pm\!.005$ & $.959\!\pm\!.004$ & $.967\!\pm\!.005$ & $.971\!\pm\!.005$ & $.971\!\pm\!.002$ & $.988\!\pm\!.001$ & $.907\!\pm\!.016$ ($n{=}50$) & 167/167 \\
+Lumbarization           &   3 & $.872\!\pm\!.050$ & $.611\!\pm\!.123$ & $.377\!\pm\!.147$ & $.213\!\pm\!.114$ & $\textbf{.698}\!\pm\!\textbf{.038}$ & $.946\!\pm\!.004$ & $.960\!\pm\!.002$ & $\textbf{.946}\!\pm\!\textbf{.007}$$^{\ddagger}$ & 3/3 \\
+Sacralization (count)$^{\ast}$   &   1 & $.988$ & $.959$ & $.734$ & $.187$ & ---   & ---   & ---   & ---   & 1/1 \\
+Sacralization (full)    &   2 & $.001\!\pm\!.002$ & $.000\!\pm\!.000$ & $.001\!\pm\!.002$ & $.062\!\pm\!.083$ & $.583\!\pm\!.136$ & $.910\!\pm\!.039$ & $.989\!\pm\!.000$ & $.927\!\pm\!.068$$^{\ddagger}$ & 2/2 \\
+Ambiguous$^{\ast}$               &   1 & ---   & ---   & ---   & ---   & ---   & $.862$ & $1.000$ & ---   & 1/1 \\
+\midrule
+$\Delta$ vs.\ \sota{} (lumb)        & --- & $-0.6$ & $-24.2$ & $-31.3$ & $-17.5$ & N/A   & $+11.3$ & $+3.2$ & $\textbf{+58.9}$ & --- \\
+$\Delta$ vs.\ \sota{} (sacr\_count) & --- & $+72.3$ & $+85.9$ & $+67.9$ & $+18.6$ & ---   & ---   & ---   & ---   & --- \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\subsection{The Residual Class Collision}
+\label{sec:residual}
+
+The merged scheme eliminates the L5/L6 collision driving
+\sota{}'s level shift. Each fold's checkpoint
+evaluates the same 174-case test split; voxel counts
+below pool 5 evaluations per case (15 case-fold pairs on
+the 3 lumb cases, 5 on the single sacr\_count case). Across
+5-fold predictions on lumb cases (${\sim}4.06$M aggregated
+GT-last\_lumbar voxels), \textbf{58.2\%} of
+GT-last\_lumbar voxels are correctly predicted as
+last\_lumbar (Block~1), against \sota{}'s
+structurally-zero last\_lumbar emission. The residual
+$40.1\%$ misallocation to L4 is the cost of label-merging
+at the joint, not a re-emergence of \sota{}'s full
+collapse. The merge does, however, expose a residual
+collision at the L4/last\_lumbar boundary on the
+sacr\_count case: GT-L4 voxels are predicted as
+last\_lumbar in \textbf{82.7\%} of voxels (Block~2;
+${\sim}720$K GT-L4 voxels aggregated across 5 folds), and
+predicted-last\_lumbar voxels on that case are anatomically
+L4 in \textbf{100.0\%} (Block~3). last\_lumbar specificity
+on sacr\_count = $0.778 \pm 0.074$ across folds. Voxels
+within a case are correlated, so these are dependent
+observations on one patient: a directional signal that
+motivates the sequence predictor, not a population
+estimate.
+
+\begin{table}[t]
+\caption{Residual class confusion under merged labels on
+the held-out split, focused on L4/last\_lumbar. Voxel
+counts aggregated across 5 fold checkpoints; percentages
+from summed counts. Block~1: GT-last\_lumbar on the 3 lumb
+cases (${\sim}4.06$M voxels). Block~2: GT-L4 on the 1
+sacr\_count case (${\sim}720$K). Block~3: pred-last\_lumbar
+on that case (${\sim}595$K).}
+\label{tab:confusion_blocks}
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+\bfseries Block & last\_lumbar & sacrum & L4 & background \\
+\midrule
+Block~1: last\_lumbar GT on lumb ($n{=}3$)         & \textbf{58.2\%} & 0.4\%  & 40.1\%  & 1.2\% \\
+Block~2: L4 GT on sacr\_count ($n{=}1$)            & \emph{82.7\%}   & 0.3\%  & \textbf{14.9\%} & 2.2\% \\
+Block~3: pred-last\_lumbar on sacr\_count ($n{=}1$) & ---             & 0.0\%  & \textbf{100.0\%} & 0.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Same-data unmerged control.}
+\label{sec:unmerged}
+To separate the merge from the added data and the added
+class, we trained the identical network (same planner,
+patch, loss weights, optimizer, 500 epochs, queue-level
+LSTV oversampling and the same five folds) on the
+\emph{unmerged} ten-class scheme (background, L1--L6,
+sacrum, hips, ignore), with an explicit L6 class and
+patch-level L6 oversampling switched on. It did not learn
+L6. In the per-epoch validation confusion block, the share
+of ground-truth L6 voxels predicted as L5, averaged over
+the final 100 of 500 epochs, was 83\%, 65\%, 66\% and 97\%
+in the four folds whose validation split holds a
+lumbarization case (100\%, 93\%, 65\% and 100\% at the
+final epoch; the fifth fold's validation split holds
+none), and the validation L6 Dice averaged 0.01--0.13 per
+fold over the same epochs against 0.91--0.95 for L5. The
+metric is computed on the validation patches drawn each
+epoch, so it fluctuates epoch to epoch (29--100\% within
+one fold over the last 100 epochs); the fold-level means
+are the stable statistic. With the same data, folds and
+capacity, adding an L6 class does not remove the L5/L6
+collision; merging does. This is a limit of dense
+segmentation at this LSTV sample size (11 lumbarization
+patients in the training pool), not an impossibility: the
+L5-versus-L6 cue is a count that exceeds one patch and is
+data-starved, so counting-aware or two-stage designs, not
+capacity, are the next test.
+
+\paragraph{Residual upper-lumbar caudal-shift cascade.}
+While the merge restores correct labeling at the
+bottom-most boundary (Block~1), per-class DSC for upper
+lumbars on lumb cases shows a residual caudal-shift the
+merge does not resolve: L1\,=\,$0.872$, L2\,=\,$0.611$,
+L3\,=\,$0.377$, L4\,=\,$0.213$
+(Table~\ref{tab:baseline}; two of the three cases shift,
+the third scores L1--L3 above $0.98$). \sota{}'s shift
+concentrates at the bottom (no L6 class); ours distributes
+it through the upper lumbars, the merge absorbing the
+bottom shift into last\_lumbar---on per-class L2--L4,
+\sota{} is in fact better, trading upper-lumbar precision
+for bottom-anchor correctness. Junction-DSC, centered on
+L5/S1, closes the surgically critical gap (+58.9~pts on
+the one scorable case) regardless. Resolving the upper
+cascade requires a sequence predictor with explicit count
+constraints---contribution (iv): the merge is necessary but
+insufficient.
+
+\paragraph{Interpretation.}
+The model recovers the merged last\_lumbar class on
+lumbarization, but on count-style sacralization the
+positional prior dominates: the bottom-most lumbar visible
+in a patch is treated as last\_lumbar regardless of the
+global count. The disambiguating signal is non-local; a
+$256{\times}320{\times}320$ patch does not reliably contain
+both the lumbosacral and the cervico-thoracic boundary
+needed to count. This confirms the hypothesis behind
+\VERIDAH{}'s two-stage design: the merge addresses class
+imbalance, and distinguishing the last lumbar voxels of a
+4-vertebra spine from those of a 5-vertebra spine must be
+deferred to a component with access to global structure.
+
+% ============================================================================
+\section{Discussion and Future Work}
+\label{sec:discussion}
+
+\paragraph{Generalization and hardware.}
+Any spine segmentation model lacking an L6 class will
+exhibit the level shift on lumbarization, and
+\S\ref{sec:unmerged} shows that adding the class at this
+sample size does not remove it; the LSTV gap is the
+symptom, not a model-specific bug. Our 100\,GB patch budget
+requires H200-class hardware.
+
+\paragraph{Future work.}
+\textbf{(1)~\VerSe{} expansion via sacrum
+pseudolabeling.} \VerSe{}~\citep{Sekuboyina2021VerSe:Images}
+contains 460 CT volumes labeling L6 (label~25) but no
+pelvis; our segmenter's sacral DSC ($0.969 \pm 0.002$,
+5-fold) supports sacrum pseudolabeling on \VerSe{} for a
+$1{,}613$-volume spinopelvic cohort.
+\textbf{(2)~Two-stage integration with \VERIDAH{}.}
+Our segmenter can replace \VERIDAH{}'s \VerSe{}-derived
+CT upstream, supplying sacrum and per-vertebra centroids
+in a single forward pass.
+
+\paragraph{Limitations.}
+\label{sec:limits-test-set}
+COLONOG is a US screening cohort (ages 45--75);
+generalization to emergency/pediatric populations is not
+evaluated. The six subtypes are functions of the source
+annotations' filenames and lumbar counts, not image
+reads, and the Castellvi grades are a two-resident
+consensus ($\kappa{=}0.74$, $n{=}33$) with no senior
+read, no blinded re-read and no screening of the
+\texttt{normal} cohort for Type~I; the source-dataset
+construction biases against morphologically mild Type~I
+presentations (2 of 33), so every quantitative claim is
+scoped to the conspicuous regime. The held-out test split
+contains 7 of the 33 LSTV patients (3 lumb, 1 sacr\_count,
+2 full sacralization, 1 ambiguous, 0 semi-sacralization,
+which is therefore unevaluated), and junction-DSC is
+scorable on one lumbarization and one full-sacralization
+case among them; fold-level evaluation pools five
+checkpoints over the same 174-case test set, giving 15
+case-fold pairs for lumbarization and 5 for sacr\_count in
+the voxel-confusion analysis but only the test-split $n$
+for case-level Dice, and the Wilson intervals for
+strata of 1--7 cases span from 21--65\% to 100\%. The
+unmerged control (\S\ref{sec:unmerged}) is read from the
+per-epoch validation confusion block within the
+cross-validation folds rather than from a full-volume
+evaluation on the held-out split. \sota{} is evaluated
+zero-shot, the correct comparison for using \sota{} as a
+production system but underselling what it could achieve
+if retrained with an L6 class on far more LSTV data. The
+wrong-level framing is a mechanism, not a measured
+outcome: no reader study, planning simulation or workflow
+evidence is presented.
+
+\paragraph{Implications.}
+A production CT segmenter that emits a confident,
+well-formed, caudally-shifted prediction on a
+5--35\%-prevalence variant gives no error signal and, when
+consumed downstream, reproduces the pattern of the
+wrong-level miscount. Any spine segmentation model claiming
+readiness for surgical-planning integration should report
+per-subgroup DSC and per-class confusion at the L5/S1
+junction on a stratified LSTV cohort, with the $n$ of each
+stratum beside the number.
+
+% ============================================================================
+\section*{Data and Code Availability}
+
+\dataset{} is archived on Zenodo under concept DOI
+\href{https://doi.org/10.5281/zenodo.22139642}{10.5281/zenodo.22139642}
+(current version v11,
+\href{https://doi.org/10.5281/zenodo.22797014}{10.5281/zenodo.22797014};
+see ``Release used'' in \S\ref{sec:dataset} for the April
+2026 release the experiments ran on) with core and
+Responsible AI fields of the Croissant
+specification~\citep{Akhtar2024Croissant:Datasets}; the
+CT volumes are mirrored at
+\url{https://huggingface.co/datasets/OpenSpineConsortium/CTSpinoPelvic1K}.
+The five fold checkpoints are at
+\url{https://huggingface.co/OpenSpineConsortium/spinopelvic-seg-checkpoints},
+trained with
+\url{https://github.com/Gregory-Schwing-MD-PhD/spinesurg-ct-nnunet}
+at commit \texttt{50b209f}; the inference code and a
+released copy of the trainer are at
+\url{https://github.com/OpenSpineConsortium/spinopelvic-seg},
+and the data-construction pipeline, the evaluation
+protocol and the \TS{} benchmark script at
+\url{https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K}.
+All are accessible without credentialed access.
+
+\begin{ack}
+This work received no funding. The imaging analyzed here
+was made available by The Cancer Imaging Archive and by
+the investigators who published the source annotations
+(CTSpine1K and CTPelvic1K). The authors have no relevant
+conflicts of interest to disclose.
+\end{ack}
+
+\bibliographystyle{plainnat}
+\bibliography{bib/references}
+
+\newpage
+\input{checklist.tex}
+
+\end{document}

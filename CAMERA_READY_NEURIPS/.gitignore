@@ -1,0 +1,13 @@
+# LaTeX build artifacts (the compiled src/neurips_2026.pdf is kept)
+src/*.aux
+src/*.log
+src/*.bbl
+src/*.blg
+src/*.out
+src/*.fls
+src/*.fdb_latexmk
+src/*.synctex.gz
+src/*.toc
+src/*.600gf
+src/*.png
+!src/figs/*.png
