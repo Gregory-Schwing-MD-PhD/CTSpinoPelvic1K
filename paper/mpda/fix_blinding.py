@@ -12,6 +12,11 @@ and a named review board identifies the authors as surely as a named department.
 
 The reference list keeps its self-citation: the guidelines permit citing the authors' own
 publications provided the running text refers to them in the third person, which it does.
+
+SUPERSEDED 2026-09-25 on that last point: the review copy printed the consortium's name and
+its authors in the reference list under a running text that had redacted them, while the
+cover letter said the self-citation was redacted. Both self-citations (osc2026,
+neurips2026lstv) are now behind \ifreview in main.tex's bibliography.
 """
 from pathlib import Path
 

@@ -16,7 +16,7 @@ memory — which looks alarming and means only that it tried to compile the wron
 | file | what it is |
 |---|---|
 | `main.tex` | the article, as submitted: review format, anonymised, no abstract |
-| `supplementary.tex` | the supporting information (inputs `supplement_body.tex`, `census_table.tex`) |
+| `supplementary.tex` | the supporting information, ONE document: Figures S1–S3 then Tables S1–S3 (inputs `supplement_body.tex`, `census_table.tex`) |
 | `title_page.tex` | the separate title page: authors, affiliations, declarations |
 
 Compiler **pdfLaTeX**, two passes (Overleaf does this; if a reference shows `??`, recompile).
@@ -26,7 +26,7 @@ No bibtex/biber: each bibliography is an inline `thebibliography`.
 
 | switch | as shipped | meaning |
 |---|---|---|
-| `\reviewtrue` | on | redacts authors, the consortium name and the repository URLs |
+| `\reviewtrue` | on | redacts authors, the consortium name, the two self-citations and the repository URLs |
 | `\captionlisttrue` | on | lists the figure captions again after the references, as the form asks |
 | `\supplementfalse` | off | appends the supplement (on only for arXiv) |
 | `\abstractfalse` | off | the abstract is entered in the submission form, not the main document |
@@ -45,7 +45,7 @@ the published count, change all four of these and recompile:
     \captionlisttrue                  ->  \captionlistfalse       (captions print once)
     \abstractfalse                    ->  \abstracttrue           (the published article prints it)
 
-That is what `build.sh --reprint` does. It is **10 pages with about six body lines to
+That is what `build.sh --reprint` does. It is **10 pages with about five body lines to
 spare**; anything added has to be paid for. Change all four back before committing.
 
 ## Figures

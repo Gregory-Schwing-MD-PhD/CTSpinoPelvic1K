@@ -271,8 +271,8 @@ the vertebrae. TotalSegmentator~\cite{totalsegmentator} has no class for a sixth
 lumbar vertebra, and VerSe~\cite{verse2021}, the one collection with an L6 class, stops at the sacrum and
 carries no ribs. As such, none of these collections can record a spine with six lumbar vertebrae together with both of its
 borders, and a segmenter trained on them must shift the
-whole column by a level or absorb a vertebra into its neighbor when it encounters an enumeration anomaly. This problem has now been measured
-on CT, where prior labeling methods assigned every vertebra correctly in 77\% of subjects and
+whole column by a level or absorb a vertebra into its neighbor when it encounters an enumeration anomaly. An audit of TotalSegmentator on an earlier release of this dataset found exactly that: lacking an L6 class, it shifts the lumbar labels one level caudally on lumbarization cases~\cite{neurips2026lstv}. Measured more broadly
+on CT, prior labeling methods assigned every vertebra correctly in 77\% of subjects and
 an anomaly-aware extension of SPINEPS~\cite{spineps2025} raised that to
 99\%~\cite{veridah2026}. Its weights label L6 and T13 on CT, but its 1{,}536-scan CT cohort is in-house and
 unreleased, so what exists is a capability, not a dataset. 
@@ -637,7 +637,7 @@ framework~\cite{nnunet}. The pelvic completion for records whose pelvis was abse
 applied out-of-fold, so no record is completed by a model that has seen it. The five fold
 checkpoints, with their nnU-Net plans and dataset descriptor, are released alongside the
 data (\ifreview the repository URL identifies the authors; it is on the title page and will be
-restored here for the camera-ready version\else\url{https://huggingface.co/OpenSpineConsortium/spinopelvic-seg-checkpoints}, trained with \url{https://github.com/Gregory-Schwing-MD-PhD/spinesurg-ct-nnunet} at commit 50b209f\fi). Image handling throughout used NiBabel and SciPy; no image is resampled or reoriented when a
+restored here for the camera-ready version\else\url{https://huggingface.co/OpenSpineConsortium/spinopelvic-seg-checkpoints}, with the trainer and inference code at \url{https://github.com/OpenSpineConsortium/spinopelvic-seg}\fi). Image handling throughout used NiBabel and SciPy; no image is resampled or reoriented when a
 label is written, so every label shares its image's grid and affine exactly.
 
 Dimensions and spinopelvic parameters come from code released with the
@@ -912,7 +912,7 @@ VerSe~\cite{verse2021,versedata2021} comes closest in intent to this dataset, bu
 sacral mask for the structure a Castellvi grade describes, which this release segments as L6
 or as sacrum, and has neither the pelvis and femora a spinopelvic measurement needs nor prone
 acquisitions. What this release adds
-over TotalSegmentator~\cite{totalsegmentator} is the classes for anatomical anomalies, not necessarily more
+over TotalSegmentator~\cite{totalsegmentator,neurips2026lstv} is the classes for anatomical anomalies, not necessarily more
 anatomy per scan.
 
 Applying the released weights to VerSe would add the sacrum and the
@@ -933,12 +933,12 @@ measurements to settle the question but not yet the number of transitional recor
 classifier would need. 
 
 \section*{Supporting Information}
-Supporting information is available online and is not part of the article PDF.
-Fig.~S1, the instrumentation gallery, one exemplar of each implant class drawn through
-bone. Fig.~S2, the spinopelvic measures against standing reference bands. Fig.~S3, the
-records carrying each vertebral level. Table~S1, the pelvic pseudolabeller's held-out
-fold Dice. Table~S2, data types and metadata and the records populating each.
-Table~S3, the per-identifier label census.
+% A POINTER, NOT A LIST. The 2026-09-21 submission described the six items here, one line
+% each, and the editorial office read that as "Supplementary Figures and Tables S1, S2 and
+% S3 are provided within the main manuscript document". The items live in ONE separate
+% document (supplementary.tex), Figures S1--S3 then Tables S1--S3, numbered as cited here.
+Figures S1--S3 and Tables S1--S3 are supplied as one separate document, available online;
+they are not part of the article.
 
 \section*{Data Availability}
 The release described here is \datasetversion{}, permanently archived at
@@ -978,6 +978,8 @@ research under 45 CFR 46 and requires no oversight.
 % substyle emits its own \bibdata and a second \bibliography command makes bibtex refuse
 % the run. To change a reference, edit the .bib and re-run:
 %     pdflatex bibtest && bibtex bibtest && python inline_bbl.py
+% and then RE-WRAP the two self-citations (neurips2026lstv, osc2026) in
+% \ifreview ... \else ... \fi: inline_bbl.py knows nothing about the redaction.
 %
 % Every entry was verified against the publisher record, Crossref or arXiv in September
 % 2026. Verification corrected three errors that had survived in the hand-typed list:
@@ -1053,6 +1055,17 @@ A.~Sekuboyina et~al.,
 \newblock {VerSe}: a vertebrae labelling and segmentation benchmark for multi-detector {CT} images,
 \newblock Med. Image Anal. {\bf 73}, 102166 (2021),
 \newblock doi:10.1016/j.media.2021.102166.
+
+\bibitem{neurips2026lstv}
+% SELF-CITATION: redacted in the review copy exactly as osc2026 is; the cover letter says two.
+\ifreview
+[Reference removed for double-anonymized review.]
+\else
+G.~J. Schwing, P.~Schwing, M.~Ismoilov, N.~Alnabahneh, and L.~Schwiebert,
+\newblock Not all spines are created equal: how {CT} segmenters fail on lumbosacral transitional vertebrae,
+\newblock in {\em 40th Conference on Neural Information Processing Systems (NeurIPS 2026), Evaluations and Datasets Track}, poster, 2026,
+\newblock \url{https://openreview.net/forum?id=D8yRWDAGQF}.
+\fi
 
 \bibitem{spineps2025}
 H.~M{\"o}ller et~al.,
@@ -1238,10 +1251,18 @@ H.~M{\"o}ller et~al.,
 \newblock arXiv:2505.05004. doi:10.48550/arXiv.2505.05004.
 
 \bibitem{osc2026}
+% SELF-CITATION. Under \reviewtrue the running text says "a student research consortium",
+% and this entry printed the consortium's name and three authors under it in the 2026-09-21
+% review copy, undoing that redaction while the cover letter claimed it. Redacted here the
+% same way as the author block; \reviewfalse restores it for the camera-ready.
+\ifreview
+[Reference removed for double-anonymized review.]
+\else
 A.~Schehr, J.~Kim, and G.~Schwing,
 \newblock {OpenSpineConsortium}: an open-source framework for medical student engagement in computational spine imaging research,
 \newblock Cureus  (2026),
 \newblock doi:10.7759/cureus.112661.
+\fi
 
 \bibitem{veilleux2020}
 N.~J. Veilleux, N.~V. Kalore, J.~A. Vossen, and J.~S. Wayne,

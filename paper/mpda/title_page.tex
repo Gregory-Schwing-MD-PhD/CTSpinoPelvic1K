@@ -111,15 +111,15 @@ Code: \url{https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K}, tagged at
 commit.\\
 Mirror: \url{https://huggingface.co/datasets/OpenSpineConsortium/CTSpinoPelvic1K}, a
 convenience mirror, not the archive of record.\\
-Pseudolabel model checkpoints (Sec.~II.F of the manuscript):
+Pseudolabel model checkpoints (Sec.~II.E of the manuscript):
 \url{https://huggingface.co/OpenSpineConsortium/spinopelvic-seg-checkpoints}. The five folds
-were trained with \url{https://github.com/Gregory-Schwing-MD-PhD/spinesurg-ct-nnunet} at
-commit \texttt{50b209f} on \texttt{master} (2 May 2026; training began 3 May 2026), trainer
+were trained from 3 May 2026 with trainer
 \texttt{nnUNetTrainerWandB\_500ep\_LSTVOversample}, plans \texttt{nnUNetResEncUNetPlans\_100G},
 configuration \texttt{3d\_fullres}, 500 epochs per fold, on the nine-class merged dataset
 (Dataset803); inference used \texttt{checkpoint\_best.pth} of the fold that held each record
-out. The inference code and a released copy of the trainer are at
-\url{https://github.com/OpenSpineConsortium/spinopelvic-seg}.\\
+out. The trainer, the training scripts and the inference code are released at
+\url{https://github.com/OpenSpineConsortium/spinopelvic-seg}; the development repository
+they were copied from (commit \texttt{50b209f}, 2 May 2026) is not public.\\
 Measurement toolkit, which computes every per-level dimension reported in the
 manuscript: \url{https://github.com/OpenSpineConsortium/OpenSpineToolkit}.\\
 Build archive, every input to v11 that no script regenerates (source-mask placements, the

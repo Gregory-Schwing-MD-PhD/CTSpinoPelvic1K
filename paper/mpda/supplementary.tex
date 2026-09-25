@@ -1,5 +1,11 @@
 % ============================================================================
-%  SUPPLEMENTARY MATERIAL -- uploaded as a separate document.
+%  SUPPORTING INFORMATION -- uploaded as ONE separate document.
+%
+%  One document, not six. The 2026-09-21 packet uploaded these floats as six files titled
+%  "Supplemental Material 1..6" while the article cites Fig. S1-S3 and Table S1-S3; the
+%  editorial office read the inventory as S1-S6 against an article naming S1-S3 and asked
+%  for "all supplementary figures and tables in the correct sequential order". Figure S1,
+%  S2, S3, then Table S1, S2, S3, in one file, numbered as the text cites them.
 %
 %  MPDA allows supplementary material and it does not count against the ten published
 %  pages, so the floats that would not fit the main article live here: the hardware
@@ -42,10 +48,16 @@
 % A plain centred heading is all this document needs.
 \onecolumngrid
 \begin{center}
-{\large\bfseries Supplementary Material}\\[3pt]
+{\large\bfseries Supporting Information}\\[3pt]
 CTSpinoPelvic1K: spine, pelvis, ribs and femora in one coordinate frame,\\
 annotated for lumbosacral transitional anatomy
 \end{center}
+\vspace{6pt}
+% "Figure S1", not the aapm substyle's small-caps "Fig. S1": the article cites Fig. S1 and
+% Table S1, the office checks those names against the file inventory, so spell them out.
+\renewcommand{\figurename}{Figure}
+\renewcommand{\tablename}{Table}
+\noindent Figures S1--S3 and Tables S1--S3, in that order, as cited in the article.
 \vspace{6pt}
 
 \input{supplement_body}

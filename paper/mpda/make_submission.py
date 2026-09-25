@@ -2,15 +2,26 @@ r"""paper/mpda/make_submission.py -- the upload set for the journal's submission
 
 The form wants: the manuscript with figures embedded and captions beneath them AND a list of
 figure captions after the references; each figure as its own numbered file; the title page
-as a separate item; supporting information separately; and NO abstract in the main document
--- for a Dataset and Software article the structured abstract goes in the form's own box,
-from Abstract.txt, and a main document carrying one was returned unreviewed. This script:
+as a separate item; the supporting information as ONE separate document; and NO abstract in
+the main document -- for a Dataset and Software article the structured abstract goes in the
+form's own box, from Abstract.txt, and a main document carrying one was returned unreviewed.
+
+ONE SUPPORTING INFORMATION DOCUMENT. The 2026-09-21 packet uploaded the supplement as six
+files titled "Supplemental Material 1..6" while the article cites Fig. S1-S3 and Table
+S1-S3 and listed the six items, one line each, in a Supporting Information section. The
+editorial office read that list as the items themselves and the inventory as S1-S6: "Kindly
+provide all supplementary figures and tables in the correct sequential order." One document,
+Figure S1, S2, S3 then Table S1, S2, S3, numbered as the text cites them, and a main
+document that carries no supplementary figure, table or caption. This script:
 
   1. writes figure_captions.tex from the \caption{} of every figure in main.tex, in order,
      which main.tex \input{}s after the bibliography when \captionlisttrue (the preprint;
      the ten-page typeset check sets it false so captions are not counted twice);
   2. exports Fig. 1 (drawn in TikZ inside main.tex) as a standalone PDF;
-  3. assembles dist/submission/ with the files named as the form expects.
+  3. builds supplementary.pdf and title_page.pdf, so neither can be older than its source;
+  4. checks the supplement carries the six items in that order under the labels the text
+     cites, and that the main document carries none of them and no abstract;
+  5. assembles dist/submission/ with the files named as the form expects.
 
     python paper/mpda/make_submission.py        (after the PDFs are built)
 """
@@ -87,6 +98,10 @@ out = ROOT / "dist" / "submission"
 # Windows, and a half-deleted packet is worse than a stale file. Anything the build writes
 # is replaced; anything it no longer produces is reported below.
 out.mkdir(parents=True, exist_ok=True)
+# The six split files must not be uploaded again; remove them rather than report them stale.
+for _p in sorted(out.glob("Supplemental_Material_*.pdf")):
+    _p.unlink()
+    print("removed", _p.name, "(superseded by Supporting_Information_CTSpinoPelvic1K.pdf)")
 _before = {p.name for p in out.iterdir() if p.is_file()}
 # Numbered figures are whatever main.tex actually includes, read off the source rather
 # than listed here -- a hard-coded list breaks the moment a figure moves to supporting
@@ -101,22 +116,39 @@ print("supporting figures: %s" % (", ".join(si_figs) if si_figs else "(none)"))
 # build.sh writes CTSpinoPelvic1K_dataset_article.pdf, NOT main.pdf. Copying main.pdf
 # shipped whatever the previous hand-copy left there, one build behind the source.
 # MPDA DOES allow supplementary material, and it does not count against the ten published
-# pages. supplementary.pdf therefore ships, and main.tex may reference Fig. Sn / Table Sn --
-# but every such reference must resolve to something the supplement actually contains.
+# pages. supplementary.pdf ships as the one Supporting Information document, and main.tex
+# may reference Fig. Sn / Table Sn -- but every such reference must resolve to something
+# the supplement actually contains, under that label.
 copies = {"CTSpinoPelvic1K_dataset_article.pdf": "Main_Document_CTSpinoPelvic1K.pdf",
           "title_page.pdf": "Title_Page_CTSpinoPelvic1K.pdf",
+          "supplementary.pdf": "Supporting_Information_CTSpinoPelvic1K.pdf",
           }
-# The journal takes supporting information as separately numbered uploads, so the
-# combined PDF above is a convenience copy and these are what get attached.
-# Routed through wsl for the same reason the Fig. 1 export is: pdflatex is TinyTeX
-# inside WSL, and this script runs from Windows.
-_ss = "/mnt/" + str(HERE / "make_supplemental_files.py").replace(":", "").replace("\\", "/")
-_ss = _ss[:5] + _ss[5].lower() + _ss[6:]
-_rs = subprocess.run(
-    ["wsl", "-e", "bash", "-lc",
-     "export PATH=$HOME/.TinyTeX/bin/x86_64-linux:$PATH; python3 " + _ss],
-    capture_output=True, text=True)
-print(_rs.stdout.strip())
+# Both built here, in WSL like the Fig. 1 export: pdflatex is TinyTeX inside WSL and this
+# script runs from Windows. supplementary.pdf was last built by hand on 2026-09-19 and
+# title_page.pdf the same day; a packet must not ship a PDF older than its .tex.
+_d = "/mnt/" + str(HERE).replace(":", "").replace("\\", "/")
+_d = _d[:5] + _d[5].lower() + _d[6:]
+
+
+def _wsl_pdflatex(stem, extra):
+    sh = ("export PATH=$HOME/.TinyTeX/bin/x86_64-linux:$PATH; "
+          "rm -rf /tmp/mpda_{s} && mkdir -p /tmp/mpda_{s}/figures && cd /tmp/mpda_{s} && "
+          "cp {d}/{s}.tex . && {x} "
+          "pdflatex -interaction=nonstopmode {s}.tex >/dev/null 2>&1; "
+          "pdflatex -interaction=nonstopmode {s}.tex >/dev/null 2>&1; "
+          "cp {s}.log {d}/{s}.log; cp {s}.pdf {d}/{s}.pdf").format(s=stem, d=_d, x=extra)
+    r = subprocess.run(["wsl", "-e", "bash", "-lc", sh], capture_output=True, text=True)
+    log = (HERE / (stem + ".log")).read_text(encoding="utf-8", errors="replace")
+    bad = [l for l in log.splitlines()
+           if l.startswith("!") or re.search(r"(Reference|Citation) `[^']*' .*undefined", l)]
+    if r.returncode or bad or not (HERE / (stem + ".pdf")).exists():
+        raise SystemExit("%s.tex failed to build: %s" % (stem, bad[0] if bad else (r.stderr or r.stdout)[-400:]))
+    print("%s.pdf rebuilt from source" % stem)
+
+
+_wsl_pdflatex("supplementary",
+              "cp {d}/supplement_body.tex {d}/census_table.tex . && cp {d}/figures/*.pdf figures/ &&".format(d=_d))
+_wsl_pdflatex("title_page", "")
 
 # the abstract as plain text for the form's paste box; written here because the directory
 # is rebuilt on every run and a file dropped in by hand would not survive
@@ -127,17 +159,39 @@ _ra = subprocess.run(["wsl", "-e", "bash", "-lc", "python3 " + _ab],
 if _ra.returncode != 0:
     raise SystemExit("abstract extraction failed:" + _ra.stdout[-400:] + _ra.stderr[-400:])
 print([l for l in _ra.stdout.splitlines() if "words" in l][-1])
-if _rs.returncode != 0:
-    raise SystemExit("supplemental build failed:\n" + _rs.stdout[-800:] + _rs.stderr[-800:])
-refs = set(re.findall(r"(?:Fig\.|Figure|Table)~(S\d+)", src))
-sup_pdf = fitz.open(str(HERE / "supplementary.pdf")) if fitz else None
-if sup_pdf is not None:
-    sup_txt = "".join(p.get_text() for p in sup_pdf)
-    for r in sorted(refs):
-        kind = "FIG" if r.startswith("S") else ""
-        if r not in sup_txt.replace(" ", ""):
-            raise SystemExit("main.tex cites %s but supplementary.pdf does not contain it" % r)
-    print("supplementary references resolved: %s" % (", ".join(sorted(refs)) or "(none)"))
+if fitz is None:
+    raise SystemExit("pymupdf is needed to check the packet")
+# THE SIX ITEMS, IN ORDER, UNDER THE LABELS THE TEXT CITES. Read the rendered supplement,
+# not the source: the combined supplement once compiled cleanly with all three figures
+# missing. Each caption is located by its label plus its own first words, because a
+# cross-reference inside a caption ("in Table S3") would otherwise be taken for the caption.
+_sup = re.sub(r"\s+", " ", " ".join(p.get_text() for p in fitz.open(str(HERE / "supplementary.pdf"))))
+_body = (HERE / "supplement_body.tex").read_text(encoding="utf-8")
+_body = _body.replace("\\input{census_table}", (HERE / "census_table.tex").read_text(encoding="utf-8"))
+_items, _nf, _nt = [], 0, 0
+for _m in re.finditer(r"\\begin\{(figure|table)\*?\}(.*?)\\end\{\1\*?\}", _body, re.S):
+    _c = re.search(r"\\caption\{(.*)", _m.group(2), re.S).group(1)
+    _c = re.sub(r"\\label\{[^}]*\}", "", _c)
+    _first = " ".join(re.findall(r"[A-Za-z][A-Za-z-]*", _c.split("\\")[0].split("$")[0])[:4])
+    if _m.group(1) == "figure":
+        _nf += 1; _items.append(("Figure S%d" % _nf, _first))
+    else:
+        _nt += 1; _items.append(("Table S%d" % _nt, _first))
+_pos = []
+for _lab, _first in _items:
+    _hit = re.search(re.escape(_lab) + r"\.?\s+" + re.escape(_first).replace(r"\ ", r"\s*"), _sup)
+    if not _hit:
+        raise SystemExit("supplementary.pdf does not carry %s (%r)" % (_lab, _first))
+    _pos.append(_hit.start())
+if _pos != sorted(_pos):
+    raise SystemExit("supplementary items are out of order: %s" % [l for l, _ in _items])
+print("supporting information: %s, in that order" % ", ".join(l for l, _ in _items))
+for _kind, _num in set(re.findall(r"(Fig\.|Figure|Table)~(S\d+)", src)):
+    _lab = ("Table " if _kind == "Table" else "Figure ") + _num
+    if _lab not in [l for l, _ in _items]:
+        raise SystemExit("main.tex cites %s %s but the supplement has no %s" % (_kind, _num, _lab))
+print("supplementary references resolved: %s" % ", ".join(sorted(set(
+    "%s %s" % kn for kn in re.findall(r"(Fig\.|Figure|Table)~(S\d+)", src)))))
 
 # The main document is written by build.sh, not here, so a packet assembled before a
 # rebuild would ship the returned version with its abstract. Read the PDF and refuse.
@@ -150,6 +204,15 @@ for _mark in ("Purpose:", "Data Format and Usage Notes:", "Potential Application
         raise SystemExit("the main document PDF still carries the abstract (%r) -- run "
                          "build.sh first" % _mark)
 print("main document: no abstract (it goes in the form, from Abstract.txt)")
+# ... AND NO SUPPLEMENTARY ITEM. Neither a caption from the supplement, nor the split files'
+# title, nor the one-line-per-item list the office read as the items themselves.
+for _lab, _first in _items:
+    if re.search(re.escape(_first).replace(r"\ ", r"\s*"), _mt):
+        raise SystemExit("the main document carries the caption of %s (%r)" % (_lab, _first))
+for _mark in ("Supplemental Material", "Fig. S1, the", "Table S1, the"):
+    if _mark in _mt:
+        raise SystemExit("the main document still carries supplementary material (%r)" % _mark)
+print("main document: no supplementary figure, table or caption")
 
 for s_, d_ in copies.items():
     shutil.copy(HERE / s_, out / d_)
