@@ -53,8 +53,14 @@ the labels is not used anywhere in the paper or in this file's prose.
   recorded nowhere in the project files (title page, Zenodo metadata, CITATION.cff, IRB drafts,
   docx/pptx on the Desktop, web search) and OpenReview's profile page is behind a browser
   challenge. Must be filled before upload.
-* **Acknowledgments** (`\begin{ack}`): "This work received no funding" plus TCIA and source
-  annotators, matching the MDPA title page; conflicts: none.
+* **Acknowledgments and Disclosure of Funding** (`\begin{ack}`): "G.J.S. was supported by the
+  National Institutes of Health (National Institute of General Medical Sciences, F30GM147909)
+  during the first months of this work; the work received no other funding." — the sentence
+  the coordinator supplied on 2026-09-25, identical to the updated MDPA title page
+  (`paper/mpda/title_page.tex` line 101) and cover letter; the award (5F30GM147909, ended
+  31 May 2026) is also named in the WSU invention disclosure. Plus TCIA and the source
+  annotators; conflicts: none. The NeurIPS checklist has no funding item, so the disclosure
+  lives only in this section, where the template puts it.
 * **URLs**: anonymous HF/GitHub links replaced by Zenodo concept DOI 10.5281/zenodo.22139642
   (current v11 = 10.5281/zenodo.22797014), HF mirror
   `OpenSpineConsortium/CTSpinoPelvic1K`, checkpoints
@@ -126,7 +132,8 @@ The checklist (item 5) carries the same note in short form.
    URL to `github.com/OpenSpineConsortium/spinopelvic-seg`; re-upload the **Croissant file**
    with the public dataset URL (regenerate with `zenodo/make_croissant.py` or use the v11
    deposit's `croissant.json`); the "Financial Support" field lists the first author — the paper
-   now says "no funding", consistent with the title page.
+   now discloses the NIH F30 fellowship (F30GM147909) for G.J.S. and no other funding; if the
+   form has a funding field, it should say the same.
 4. **Decide on the rebuttal promises not delivered**: SPINEPS under the protocol, a Background
    section, a dataset-construction figure, the dataset-comparison table. None is a metareview
    condition; all would need page budget.
