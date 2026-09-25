@@ -10,7 +10,7 @@ The manuscript is submitted in review format (single column, double spaced, line
 
 Related work by the authors. A preliminary analysis on an earlier release of this dataset, an audit of how a widely used CT segmenter fails on lumbosacral transitional vertebrae rather than a description of the dataset, has been accepted as a poster at the NeurIPS 2026 Evaluations and Datasets Track (Schwing et al., "Not All Spines Are Created Equal: How CT Segmenters Fail on Lumbosacral Transitional Vertebrae", https://openreview.net/forum?id=D8yRWDAGQF). It is cited in the manuscript, redacted in the review copy, and shares no text, figure or table with it. A preprint of this manuscript is posted on arXiv, a non-commercial server (arXiv:2609.22760, https://arxiv.org/abs/2609.22760), and will be linked to the article DOI on acceptance. The manuscript is not under consideration by another journal.
 
-All authors have read and approved the submission; there are no conflicts of interest and no funding to declare. The work uses publicly available de-identified imaging; the institutional review board determined it is not human participant research (determination on the title page).
+All authors have read and approved the submission; there are no conflicts of interest. The corresponding author was supported by a National Institutes of Health fellowship (F30GM147909, NIGMS) during the first months of this work; the work received no other funding. The work uses publicly available de-identified imaging; the institutional review board determined it is not human participant research (determination on the title page).
 
 Thank you for considering it.
 
