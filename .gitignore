@@ -87,3 +87,9 @@ paper/mpda/paper/
 # Overleaf round-trip downloads: the source of record is paper/mpda/main.tex
 paper/mpda/CTSpinoPelvic1K_MDPA_overleaf/
 paper/mpda/*.docx
+
+# Invention-disclosure material: personal data and an unpublished manuscript; never in this public repository
+TTO_package_2026-09-25/
+TTO_package_*.zip
+WSU_Invention_Disclosure_*.docx
+idf_work/
