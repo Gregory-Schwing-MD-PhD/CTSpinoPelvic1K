@@ -26,9 +26,11 @@
 \newcommand{\VERIDAH}{VERIDAH}
 \newcommand{\VerSe}{VerSe}
 
-% Patrick Schwing's affiliation is not recorded anywhere in the project
-% files; it must be confirmed by the corresponding author before upload.
-\newcommand{\PatrickAffil}{\textcolor{red}{[Affiliation to be confirmed]}}
+% Patrick Schwing's affiliation, supplied by the corresponding author on 2026-09-25
+% (it is recorded in no project file).
+\newcommand{\PatrickAffil}{School of Medicine \\
+  LSU Health Sciences Center New Orleans \\
+  New Orleans, Louisiana, USA}
 
 \title{Not All Spines Are Created Equal:\\
 How CT Segmenters Fail on Lumbosacral Transitional Vertebrae}
@@ -901,35 +903,28 @@ final epoch; the fifth fold's validation split holds
 none), and the validation L6 Dice averaged 0.01--0.13 per
 fold over the same epochs against 0.91--0.95 for L5. The
 metric is computed on the validation patches drawn each
-epoch, so it fluctuates epoch to epoch (29--100\% within
-one fold over the last 100 epochs); the fold-level means
-are the stable statistic. With the same data, folds and
-capacity, adding an L6 class does not remove the L5/L6
-collision; merging does. This is a limit of dense
-segmentation at this LSTV sample size (11 lumbarization
-patients in the training pool), not an impossibility: the
-L5-versus-L6 cue is a count that exceeds one patch and is
-data-starved, so counting-aware or two-stage designs, not
-capacity, are the next test.
+epoch and fluctuates (29--100\% within one fold over the
+last 100 epochs); the fold-level means are the statistic.
+With the same data, folds and capacity, adding an L6 class
+does not remove the L5/L6 collision; merging does. This is
+a limit of dense segmentation at this LSTV sample size (11
+lumbarization patients in the training pool), not an
+impossibility.
 
 \paragraph{Residual upper-lumbar caudal-shift cascade.}
-While the merge restores correct labeling at the
-bottom-most boundary (Block~1), per-class DSC for upper
-lumbars on lumb cases shows a residual caudal-shift the
-merge does not resolve: L1\,=\,$0.872$, L2\,=\,$0.611$,
-L3\,=\,$0.377$, L4\,=\,$0.213$
-(Table~\ref{tab:baseline}; two of the three cases shift,
-the third scores L1--L3 above $0.98$). \sota{}'s shift
-concentrates at the bottom (no L6 class); ours distributes
-it through the upper lumbars, the merge absorbing the
-bottom shift into last\_lumbar---on per-class L2--L4,
-\sota{} is in fact better, trading upper-lumbar precision
+The merge restores the bottom-most boundary (Block~1) but
+leaves a residual caudal shift in the upper lumbars on lumb
+cases: per-class DSC L1\,=\,$0.872$, L2\,=\,$0.611$,
+L3\,=\,$0.377$, L4\,=\,$0.213$ (Table~\ref{tab:baseline};
+two of the three cases shift, the third scores L1--L3 above
+$0.98$). \sota{}'s shift sits at the bottom (no L6 class),
+ours through the upper lumbars, so on per-class L2--L4
+\sota{} is better, trading upper-lumbar precision
 for bottom-anchor correctness. Junction-DSC, centered on
 L5/S1, closes the surgically critical gap (+58.9~pts on
-the one scorable case) regardless. Resolving the upper
-cascade requires a sequence predictor with explicit count
-constraints---contribution (iv): the merge is necessary but
-insufficient.
+the one scorable case) regardless; the upper cascade needs
+a sequence predictor with count constraints (contribution
+iv): the merge is necessary but insufficient.
 
 \paragraph{Interpretation.}
 The model recovers the merged last\_lumbar class on
@@ -939,35 +934,31 @@ in a patch is treated as last\_lumbar regardless of the
 global count. The disambiguating signal is non-local; a
 $256{\times}320{\times}320$ patch does not reliably contain
 both the lumbosacral and the cervico-thoracic boundary
-needed to count. This confirms the hypothesis behind
-\VERIDAH{}'s two-stage design: the merge addresses class
-imbalance, and distinguishing the last lumbar voxels of a
-4-vertebra spine from those of a 5-vertebra spine must be
-deferred to a component with access to global structure.
+needed to count. This is the case for \VERIDAH{}'s
+two-stage design: the merge addresses class imbalance;
+telling a 4-vertebra spine's last lumbar from a 5-vertebra
+spine's needs a component with global structure.
 
 % ============================================================================
 \section{Discussion and Future Work}
 \label{sec:discussion}
 
 \paragraph{Generalization and hardware.}
-Any spine segmentation model lacking an L6 class will
-exhibit the level shift on lumbarization, and
-\S\ref{sec:unmerged} shows that adding the class at this
-sample size does not remove it; the LSTV gap is the
-symptom, not a model-specific bug. Our 100\,GB patch budget
-requires H200-class hardware.
+Any spine segmenter lacking an L6 class shifts labels on
+lumbarization, and \S\ref{sec:unmerged} shows that adding
+the class at this sample size does not remove it: the gap
+is the symptom, not a model-specific bug. The 100\,GB patch
+budget requires H200-class hardware.
 
 \paragraph{Future work.}
 \textbf{(1)~\VerSe{} expansion via sacrum
 pseudolabeling.} \VerSe{}~\citep{Sekuboyina2021VerSe:Images}
-contains 460 CT volumes labeling L6 (label~25) but no
-pelvis; our segmenter's sacral DSC ($0.969 \pm 0.002$,
-5-fold) supports sacrum pseudolabeling on \VerSe{} for a
-$1{,}613$-volume spinopelvic cohort.
-\textbf{(2)~Two-stage integration with \VERIDAH{}.}
-Our segmenter can replace \VERIDAH{}'s \VerSe{}-derived
-CT upstream, supplying sacrum and per-vertebra centroids
-in a single forward pass.
+labels L6 (label~25) in 460 CT volumes but has no pelvis;
+sacrum pseudolabeling with our segmenter (sacral DSC
+$0.969 \pm 0.002$, 5-fold) would give a $1{,}613$-volume
+spinopelvic cohort.
+\textbf{(2)~Two-stage integration with \VERIDAH{}}, our
+segmenter replacing its \VerSe{}-derived CT upstream.
 
 \paragraph{Limitations.}
 \label{sec:limits-test-set}
@@ -987,11 +978,11 @@ contains 7 of the 33 LSTV patients (3 lumb, 1 sacr\_count,
 which is therefore unevaluated), and junction-DSC is
 scorable on one lumbarization and one full-sacralization
 case among them; fold-level evaluation pools five
-checkpoints over the same 174-case test set, giving 15
-case-fold pairs for lumbarization and 5 for sacr\_count in
-the voxel-confusion analysis but only the test-split $n$
-for case-level Dice, and the Wilson intervals for
-strata of 1--7 cases span from 21--65\% to 100\%. The
+checkpoints over one 174-case test set (15 case-fold pairs
+for lumbarization and 5 for sacr\_count in the voxel
+confusion, the test-split $n$ for case-level Dice), and the
+Wilson intervals for strata of 1--7 cases span 21--65\% to
+100\%. The
 unmerged control (\S\ref{sec:unmerged}) is read from the
 per-epoch validation confusion block within the
 cross-validation folds rather than from a full-volume
@@ -1005,14 +996,13 @@ evidence is presented.
 
 \paragraph{Implications.}
 A production CT segmenter that emits a confident,
-well-formed, caudally-shifted prediction on a
-5--35\%-prevalence variant gives no error signal and, when
-consumed downstream, reproduces the pattern of the
-wrong-level miscount. Any spine segmentation model claiming
-readiness for surgical-planning integration should report
-per-subgroup DSC and per-class confusion at the L5/S1
-junction on a stratified LSTV cohort, with the $n$ of each
-stratum beside the number.
+well-formed, caudally shifted prediction on a
+5--35\%-prevalence variant gives no error signal and
+reproduces the pattern of the wrong-level miscount
+downstream. Any model claiming readiness for surgical
+planning should report per-subgroup DSC and L5/S1
+confusion on a stratified LSTV cohort, with each
+stratum's $n$.
 
 % ============================================================================
 \section*{Data and Code Availability}
@@ -1021,33 +1011,26 @@ stratum beside the number.
 \href{https://doi.org/10.5281/zenodo.22139642}{10.5281/zenodo.22139642}
 (current version v11,
 \href{https://doi.org/10.5281/zenodo.22797014}{10.5281/zenodo.22797014};
-see ``Release used'' in \S\ref{sec:dataset} for the April
-2026 release the experiments ran on) with core and
+the experiments ran on the April 2026 release, \S\ref{sec:dataset}) with core and
 Responsible AI fields of the Croissant
 specification~\citep{Akhtar2024Croissant:Datasets}; the
 CT volumes are mirrored at
 \url{https://huggingface.co/datasets/OpenSpineConsortium/CTSpinoPelvic1K}.
 The five fold checkpoints are at
 \url{https://huggingface.co/OpenSpineConsortium/spinopelvic-seg-checkpoints},
-trained with
+trained with the released trainer and inference code at
 \url{https://github.com/OpenSpineConsortium/spinopelvic-seg}
-at commit \texttt{50b209f}; the inference code and a
-released copy of the trainer are at
-\url{https://github.com/OpenSpineConsortium/spinopelvic-seg},
-and the data-construction pipeline, the evaluation
-protocol and the \TS{} benchmark script at
+(commit \texttt{50b209f}); the data-construction pipeline,
+the evaluation protocol and the \TS{} benchmark script are at
 \url{https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K}.
 All are accessible without credentialed access.
 
 \begin{ack}
 G.J.S. was supported by the National Institutes of Health
-(National Institute of General Medical Sciences,
-F30GM147909) during the first months of this work; the
-work received no other funding. The imaging analyzed here
-was made available by The Cancer Imaging Archive and by
-the investigators who published the source annotations
-(CTSpine1K and CTPelvic1K). The authors have no relevant
-conflicts of interest to disclose.
+(NIGMS F30GM147909) during the first months of this work;
+the work received no other funding. Imaging: The Cancer
+Imaging Archive; source annotations: the CTSpine1K and
+CTPelvic1K investigators. No conflicts of interest.
 \end{ack}
 
 \bibliographystyle{plainnat}

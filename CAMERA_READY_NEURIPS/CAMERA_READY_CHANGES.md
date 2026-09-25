@@ -8,6 +8,9 @@ file.
 
 ## Page budget
 
+**2026-09-25 afternoon rebuild.** With Patrick Schwing's affiliation filled and the public-link sentence, the acknowledgments had slipped onto page 11 (the 10:33 PDF predated the link edit). Tightened without changing a number or claim: the availability paragraph (one spinopelvic-seg URL instead of two, the release note as a section reference), the unmerged-control and cascade paragraphs, Interpretation, Generalization, Implications, future-work item (2), the Limitations fold-pooling sentence, and the acknowledgments. Build: 21 pages, content pages 1-10 with the acknowledgments ending page 10, references 11-12, checklist 13-21, zero overfull boxes.
+
+
 The NeurIPS 2026 handbook (MainTrackHandbook, applies to the E&D track's shared style file):
 nine content pages at submission, **one additional content page for the camera-ready (ten)**;
 references, technical appendices and the mandatory checklist do not count; all of it goes in one
@@ -49,10 +52,10 @@ the labels is not used anywhere in the paper or in this file's prose.
   Computer Science, Wayne State University (from the IRB filing in
   `spinesurg-ct-nnunet/docs/IRB/`). Corresponding-author footnote:
   `gregory.schwing@med.wayne.edu`.
-* **Patrick Schwing's affiliation is a red placeholder** (`\PatrickAffil`, line ~31). It is
-  recorded nowhere in the project files (title page, Zenodo metadata, CITATION.cff, IRB drafts,
-  docx/pptx on the Desktop, web search) and OpenReview's profile page is behind a browser
-  challenge. Must be filled before upload.
+* **Patrick Schwing's affiliation** (`\PatrickAffil`, line ~31): School of Medicine, Louisiana
+  State University Health Sciences Center, New Orleans, Louisiana, USA — supplied by the
+  corresponding author on 2026-09-25 (it is recorded in no project file; the red placeholder of
+  the 10:33 build is gone).
 * **Acknowledgments and Disclosure of Funding** (`\begin{ack}`): "G.J.S. was supported by the
   National Institutes of Health (National Institute of General Medical Sciences, F30GM147909)
   during the first months of this work; the work received no other funding." — the sentence
@@ -123,9 +126,9 @@ The checklist (item 5) carries the same note in short form.
 
 ## What remains for Greg
 
-1. **Patrick Schwing's affiliation** — replace `\PatrickAffil` (line ~31) and recompile.
-2. **`spinesurg-ct-nnunet` is private (404)** — make it public, or edit the Data and Code
-   Availability sentence so the only trainer link is the spinopelvic-seg copy.
+1. ~~Patrick Schwing's affiliation~~ — done 2026-09-25 (LSU Health Sciences Center, New Orleans, School of Medicine); recompiled.
+2. ~~`spinesurg-ct-nnunet` is private (404)~~ — done 2026-09-25: the Data and Code Availability sentence cites only the
+   public spinopelvic-seg copy.
 3. **OpenReview camera-ready form**: upload `src/neurips_2026.pdf` (21 pages: 10 content +
    references + checklist); update Dataset URL to the Zenodo concept DOI / HF mirror, Dataset
    Large URL (the anonymous `-Sample` repo has no public counterpart in the repo — decide), Code
