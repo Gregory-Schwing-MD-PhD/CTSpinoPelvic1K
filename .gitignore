@@ -95,3 +95,11 @@ WSU_Invention_Disclosure_*.docx
 idf_work/
 IRB_VinDr_2026-09-25/
 IRB_VinDr_*.zip
+
+# personal employment documents never enter this public repository
+IRB_IndContract_GSchwing_24926.pdf
+# signed IRB determination notices carry a phone number and a home address: never in the public repo
+*IRB*Determination*.pdf
+*HPR*Determination*.pdf
+*Contract*GSchwing*.pdf
+*Resident*Contract*.pdf
