@@ -1,6 +1,6 @@
 Dear Editor,
 
-We submit "CTSpinoPelvic1K: spine, pelvis, ribs and femora in one coordinate frame, annotated for lumbosacral transitional anatomy" for consideration as a Dataset and Software Article in Medical Physics.
+We submit "CT Spinopelvic One-thousand: spine, pelvis, ribs and femora in one coordinate frame, annotated for lumbosacral transitional anatomy" for consideration as a Dataset and Software Article in Medical Physics.
 
 The article describes an open dataset of 802 abdominal CT records from a single prospective screening protocol (ACRIN 6664), with radiologist-sourced vertebral and pelvic annotation placed on one coordinate frame, per-level ribs and femora, a label scheme that can record a sixth lumbar vertebra, a thirteenth thoracic vertebra, a lumbar rib and surgical instrumentation, two-reader consensus Castellvi grades, and layered validation. The dataset is archived on Zenodo under a persistent identifier (concept DOI 10.5281/zenodo.22139642; the version described, v11, is 10.5281/zenodo.22797014, published 18 September 2026) and is publicly available under a Creative Commons licence (CC BY-NC-SA 4.0), with no restriction on scientific use, together with the label-scheme definition and the quality-control tables. The code that built and measured it, the measurement toolkit and the pseudolabelling checkpoints are in public repositories, listed on the title page.
 
