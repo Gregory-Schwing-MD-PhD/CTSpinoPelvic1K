@@ -650,6 +650,6 @@ whether its radiographs were standing; the word "standing" in the manuscript sen
 to Vialle's cohort, not to this one, and the claim borrowed from here is the modality
 difference alone.
 
-**Provenance note.** An intermediate literature search recorded this paper's numbers as
+**Source note.** An intermediate literature search recorded this paper's numbers as
 snippet-only and its publisher page as unfetchable. They were re-verified directly against
 the Europe PMC record on 10 September 2026, which is the text quoted above.
