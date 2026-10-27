@@ -1,5 +1,5 @@
 measure,level,series,sex,mean,sd,dispersion,cohort,n,modality,source_kind,notes,citation
-h_post,L1,Panjabi 1992,all,23.8,0.92,SEM,cadaveric dry bone,12,3-D digitiser,primary,,Panjabi MM et al. Spine 1992;17(3):299-306
+h_post,L1,Panjabi 1992,all,23.8,1.03,SEM,cadaveric dry bone,12,3-D digitiser,primary,,Panjabi MM et al. Spine 1992;17(3):299-306
 h_post,L2,Panjabi 1992,all,24.3,0.95,SEM,cadaveric dry bone,12,3-D digitiser,primary,,Panjabi MM et al. Spine 1992;17(3):299-306
 h_post,L3,Panjabi 1992,all,23.8,1.1,SEM,cadaveric dry bone,12,3-D digitiser,primary,,Panjabi MM et al. Spine 1992;17(3):299-306
 h_post,L4,Panjabi 1992,all,24.1,1.1,SEM,cadaveric dry bone,12,3-D digitiser,primary,,Panjabi MM et al. Spine 1992;17(3):299-306
