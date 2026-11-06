@@ -1,0 +1,22 @@
+\section{Training and hardware details}
+\label{app:training}
+
+\paragraph{Network.}
+nnU-Net v2 ResEnc-M planner, \texttt{3d\_fullres},
+\texttt{nnUNetResEncUNetPlans\_100G}: a 7-stage residual
+encoder with $n_\text{features}{=}[32,64,128,256,320,320,320]$
+and $n_\text{blocks}{=}[1,3,4,6,6,6,6]$, $3^3$ kernels,
+$2^3$ strides, instance normalization and deep supervision
+at 5 levels; a 9-channel output (background and eight
+foreground classes), with the ignore label (9) masked from
+the loss. In the class-reweighted DC\_and\_CE loss,
+$\mathbf{w}{=}[0.5,1,1,1,1,1.5,2.0,1,1]$, the 1.5 on
+last\_lumbar targets the lumbosacral boundary and the 2.0
+on sacrum the junction the Castellvi grade describes.
+
+\paragraph{Hardware.}
+Training ran on H200 NVL (140\,GB HBM3e) with 24 CPU
+workers. The preprocessed data were unpacked once per
+job to a 1.7\,TB local-NVMe cache, replacing network-file
+reads that throttled at 21\,MB/s when five folds read at
+once.

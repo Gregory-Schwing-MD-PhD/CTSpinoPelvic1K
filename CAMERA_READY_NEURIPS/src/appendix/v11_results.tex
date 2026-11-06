@@ -1,0 +1,98 @@
+% Appendix J: the reproducible layer rerun on Zenodo v11. Integrated 2026-09-27 (third pass) from
+% scratchpad/neurips_v11/drafts/app_v11.tex. Changes on integration: "on \PENDING{} of 112 cases"
+% became "on \PENDING{} of \PENDING{} cases" (the same paragraph gives 115 admissible patients and
+% nothing records why 112; the final pass states the count SUMMARY.md reports), and the
+% \providecommand{\PENDING} moved to appendix/appendix.tex. Main-text edit (1) below is made
+% (Section 5 "Release used" now points here); decision (2) is still Greg's.
+% Grid status 2026-09-27 ~02:00: 40480728 (TS, 16), 40480730 (ensemble, 8), 40480731-33 all PENDING.
+% Numbers marked \PENDING{} come from the grid run in /rs/rs_grp_oschome/go2432/neurips_v11 (JOBS.txt):
+%   TS rows       out/ts/SUMMARY.md      (L6 emission; the junction-window GT-L6 list; the L5<0.5 table, V11-M/AM
+%                                          column; Table-1 V11-M/AM and V11-M/S1 blocks; the positive-control line)
+%   Ensemble rows out/ens/SUMMARY.md     (LSTV per-case table, v11_manual column; the reproduction line)
+% Fill a cell only if that SUMMARY.md carries no NOT REPORTABLE banner.
+% Two edits to the main text go with this section (not made here; src is read-only for this workflow):
+%   (1) Section 5 "Release used" ends "Nothing here was recomputed on v11."; that becomes false.
+%       Replace with e.g. "Appendix~\ref{app:v11} reruns the zero-shot benchmark and the released ensemble on v11."
+%   (2) DECISION for Greg, row marked (S1) below: the published TS sacrum (0.817) counts TS's separate S1-body
+%       class as a miss (scout SCOUT.md section 0 A; fixed in benchmark_totalseg.py on 15 June, never rerun).
+%       Keeping this row puts the corrected value next to the abstract's "0.817 -> 0.969" / "+15.3 pts", so it
+%       stands only together with a decision about those main-text numbers. Delete the row to defer.
+
+\section{Results on the current release (v11)}
+\label{app:v11}
+
+\paragraph{What differs, and what does not.}
+The archived v11
+(\href{https://doi.org/10.5281/zenodo.22797014}{10.5281/zenodo.22797014})
+keeps the April release's 802 patients and 33
+Castellvi-graded patients but not its records
+(Appendix~\ref{app:release}): it holds one volume per
+patient, so the 351 separate-mode pelvic CTs are absent,
+and the pelvis of 440 spine-series volumes and the spine
+of 20 pelvis-only volumes are pseudolabels, which
+Table~\ref{tab:v11} does not score. The images are
+unchanged: 799 of the 802 v11 CTs are byte-identical
+(SHA-256) to the April file for the same patient and
+series, and the other three could not be compared because
+the April copy stored each under a filename shared with
+another patient. So are the manual labels, to within a
+few voxels: over the 779 records labelled in both
+releases, every lumbar level of more than 1{,}000 voxels
+agrees at Dice $\geq 0.996$ (below 0.999 twice: an L1
+that lost 0.7\% of its voxels to v11's new lumbar-rib
+class and an L2 trimmed by 0.2\%), the 31 LSTV patients
+with a spine label agree at $\geq 0.9989$ at every level,
+the 362 sacra at $\geq 0.994$ and the 362 hip pairs voxel
+for voxel, and no level is renumbered.
+
+\paragraph{What was rerun.}
+\sota{}~2.4.0 ran on all 802 v11 CTs in the April
+container with the April call, adding the S1 body to the
+requested structures; scored as in April (S1 dropped,
+April labels), it reproduces the 30 April per-record Dice
+to within $10^{-3}$ on \PENDING{} of \PENDING{} records.
+The five released fold checkpoints ran on the 115
+held-out patients whose v11 CT was their April test
+image: 75 with no acquisition in the cross-validation
+pool and 40 whose other acquisition was in it ($^\ast$).
+The 52 held-out patients whose v11 CT was a pool image,
+LSTV patients 104, 123 and 4 among them, are excluded. On
+the April labels the ensemble reproduces the 6 May
+per-case Dice to within $10^{-3}$ on \PENDING{} of \PENDING{}
+cases.
+
+\begin{table}[h]
+\caption{\sota{} (zero-shot, per patient) and the released
+five-fold ensemble (held-out patients) on the April 2026
+release as published and rerun on v11, scoring only
+manually labelled structures. Junction-window rows are
+fused records. $^\ast$: the patient's other acquisition
+was in the training pool. Brackets: Wilson 95\% intervals.}
+\label{tab:v11}
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\bfseries Quantity & \bfseries April (published) & \bfseries v11 \\
+\midrule
+\multicolumn{3}{@{}l}{\itshape \sota{}, zero-shot} \\
+\textsc{L6} labels emitted                              & 0 / 1{,}152 records          & \PENDING{} / 802 volumes \\
+GT-L6 voxels labelled L5, junction window: 167, 699     & 95.2\%, 97.1\%               & \PENDING{}, \PENDING{} \\
+\quad 189 (the rest background)                         & 0.8\%                        & \PENDING{} \\
+L5 DSC $<$ 0.5: lumbarization                           & 10/14 (45--88\%)             & \PENDING{} \\
+\quad count-style sacralization                         & 9/9 (70--100\%)              & \PENDING{} \\
+\quad normal                                            & 9/750 (0.6--2.3\%)           & \PENDING{} \\
+L1--L5 DSC, all patients (range of level means)         & 0.906--0.914 ($n{=}801$)     & \PENDING{} \\
+L4 / L5 DSC, lumbarization                              & 0.388 / 0.291 ($n{=}14$)     & \PENDING{} \\
+L5 DSC, any LSTV                                        & 0.314                        & \PENDING{} \\
+Sacrum DSC, S1 body scored as a miss                    & 0.817 ($n{=}712$)            & \PENDING{} ($n{=}362$) \\
+Sacrum DSC, S1 body counted as sacrum (S1)              & ---                          & \PENDING{} ($n{=}362$) \\
+\midrule
+\multicolumn{3}{@{}l}{\itshape Released ensemble, held-out} \\
+last\_lumbar DSC, lumbarization 167, 672, 401$^\ast$    & 0.645, 0.666, 0.725          & \PENDING{} \\
+last\_lumbar DSC, full sacralization 125                & 0.623                        & \PENDING{} \\
+L4 DSC, count-style sacralization 555$^\ast$            & 0.032                        & \PENDING{} \\
+Junction DSC, 167                                       & 0.950                        & \PENDING{} \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,158 @@
+% Appendix F: Background (promised to reviewer Fbco: "a Background section (LSTV subtypes;
+% Castellvi I to IV; the VERIDAH architecture)"). Integrated 2026-09-27 (third pass) from the
+% verified draft scratchpad/neurips_promises/drafts/app_background.tex; notes in
+% app_background_NOTES.md. Uses sec:dataset, sec:castellvi, tab:castellvi_dist, sec:audit,
+% sec:unmerged, app:spineps and app:tsv3 (appendix/spineps.tex). If the SPINEPS section is cut,
+% replace "(Appendix~\ref{app:spineps})" with "(the current release)"; if the total_v3 slot is
+% cut, end the footnote with "It was not evaluated here."
+%
+% Every factual sentence is sourced. Where each number was checked (27 Sep 2026):
+%  Konin & Walz 2010, AJNR 31:1778: 4-30%; Castellvi definitions; morphology ("varying degrees
+%    of lumbarization, such as ..." - the S1 features are examples, not all required); p.1778
+%    (first page, not 1779; checked page-by-page in MANUAL_REFS/KONIN_WALZ.pdf) "does not provide
+%    information relevant to accurate enumeration of the involved segment".
+%  Castellvi 1984: classification; 60 of 200 myelography patients (PubMed 6495013 abstract,
+%    saved in paper/mpda/_schehr/sources.json). Full text NOT read; the type definitions are
+%    Konin & Walz's restatement and are attributed to them.
+%  Carrino 2011: 147 subjects; LSTV associated with anomalous total count, OR 7.4 (Europe PMC
+%    abstract). Sekharappa 2014: 3 x 1,000; 8.1/14/16.9%; type I "not called a transitional
+%    vertebra in our study" (PMC3939369). Hanhivaara 2022: 310 of 1,468 (21.1%), Castellvi
+%    classification used, type I findings reported (Europe PMC abstract). Nagata 2025: 551
+%    whole-spine CTs, 16.3%; sacralization = 23 presacral, lumbarization = 25 (PubMed abstract).
+%    Lian 2018: counting caudally from C2 is the gold standard (abstract).
+%  Liebl 2021 (VerSe'20, PMC8553749): Wigh's definition (ribs < 38 mm on both sides = TLTV) is
+%    quoted, but VerSe'20 itself labels a vertebra thoracic if at least one rib > 38 mm (with
+%    diagonal downward alignment) and LUMBAR if both are shorter; Castellvi II-IV graded ("only
+%    Castellvi II-IV were classified"); "did not segment vertebrae that showed partial fusion
+%    with the sacrum (Castellvi grades III and IV)"; variants per subject in Suppl. Table 1.
+%  VerSe ids: github.com/anjany/verse README ("20-25: lumbar spine: L1-L6", "28: ... T13").
+%  CTSpine1K (Deng et al.): "Every vertebra (from C1 to L6) is labeled with integer values from
+%    1 to 25"; "containing L6 (resulting from sacral lumbarization) or losing L5 (resulting from
+%    lumbar sacralization)"; "the DSC of L6 is almost 0 ... the existence of L6 confuses the
+%    model, resulting in prediction dislocations".
+%  VERIDAH (arXiv:2601.14066v1, the only version): Sec. 2.1-2.2, Tables 2, 3, 5, Figs 1D, 5.
+%    The label head is stated as "23 classes" while the cost set C is "all 24 vertebra labels"
+%    C1..L5 (the paper's own inconsistency), so the text says only "no T13 or L6 class". The CT
+%    cohort is "in-house" (not called private). Locations come from instance segmentations; the
+%    method "requires the centroids of vertebrae beforehand".
+%  SPINEPS paper (Eur Radiol 35:1178): MRI only; "the instance labels are counted from top to
+%    bottom regardless of the field of view or the presence of enumeration abnormalities".
+%  SPINEPS 2.1.2 (PyPI, uploaded 24 Sep 2026): CT_semantic, CT_instance, ct_labeling
+%    (DenseNet169); post-map "L1..L6 -> 20..25, T13 -> 28" (scout_spineps/s212/.../phase_labeling.py).
+%  TotalSegmentator: 'total' map = C1..L5, sacrum, S1, no L6/T13 (map_to_binary.py in the
+%    2.4.0 wheel, 117 classes; README "Class details" table); vertebrae_S1 new in v2
+%    (improvements_in_v2.md); the audit ran TotalSegmentator==2.4.0
+%    (docker/Dockerfile.totalsegmentator @ c53d2dc). Footnote, re-checked 27 Sep 2026: the
+%    PyPI wheels 2.15.0 (1 Jul 2026), 2.17.0 and 2.18.0 (12 Aug) all define
+%    class_map["total_v3"] = total with [26]="vertebrae_L6" (2.12.0-2.14.0 do not);
+%    map_tasks_config.py maps total_v3 to task ids 831-837 with version "v3.0.0-weights"; the
+%    GitHub release v3.0.0-weights (pre-release, published 2026-09-07, body "Add weights for
+%    v3.0.0") carries Dataset831-837 zips, and a range request for 836 returned HTTP 206, so the
+%    weights ARE downloadable (not license-gated: total_v3 is not in commercial_models). Only the
+%    "download all" script download_pretrained_weights.py omits 831-837. CHANGELOG and README
+%    do not mention total_v3 or L6.
+%  MDPA (arXiv:2609.22760v1, describes release v11): "no scan in this dataset contains C2";
+%    v11 adds lower thoracic levels, ribs, lumbar ribs and classes for L6 and T13. April has 1,153
+%    records, not v11's 802: the 351 extra series are the other acquisition of the same CT
+%    colonography exams (ACRIN 6664), so "no C2" carries over by field of view, not by identity
+%    of series. (v11 Table S3 lists id 1 "C1" in 2 records and id 6 "C6" in 1 record, isolated
+%    labels with no C2-C5 or T1-T2 anywhere; the highest contiguous level is T3. Not checked
+%    further; it does not bear on this appendix.)
+
+\section{Background: transitional vertebrae, Castellvi grading and \VERIDAH{}}
+\label{app:background}
+
+\paragraph{Enumeration and transition.}
+The spine usually has seven cervical, twelve thoracic and five lumbar vertebrae. An
+enumeration anomaly gives eleven or thirteen thoracic or four or six lumbar vertebrae; a
+transitional vertebra is a border segment with features of both neighbouring
+regions~\citep{Moller2026VERIDAH:Sequences,Konin2010LumbosacralRelevance}. The two co-occur: a
+lumbosacral transitional vertebra (LSTV) is associated with an anomalous total
+count~\citep{Carrino2011EffectImaging}. An LSTV is either
+sacralization of the lowest lumbar segment, from a broadened transverse process to complete
+fusion with the sacrum, or lumbarization of the uppermost sacral segment, which may
+articulate rather than fuse and may show lumbar-type facets or a fully sized S1--S2
+disc~\citep{Konin2010LumbosacralRelevance}. The same words also name counts:
+\citet{Nagata2025LSTVWholeSpine} define sacralization as 23 presacral vertebrae and
+lumbarization as 25. Rib conventions differ as well: \VERIDAH{} calls any vertebra with a true
+rib thoracic, whatever the rib's length~\citep{Moller2026VERIDAH:Sequences}; VerSe'20 calls it
+thoracic only if one rib exceeds 38\,mm, and lumbar if both are
+shorter~\citep{Liebl2021VerSeData}. The reference standard for numbering
+remains a count from C2 on whole-spine imaging~\citep{Lian2018LSTVNumeration}. Reported LSTV
+prevalence is 4--30\%~\citep{Konin2010LumbosacralRelevance},
+21.1\% of 1{,}468 lumbar MRIs~\citep{Hanhivaara2022LSTV} and 16.3\% of 551 whole-spine CTs by
+count~\citep{Nagata2025LSTVWholeSpine}. It varies with the population, from 8.1\% to 16.9\%
+across three clinic groups in one series, which did not count Castellvi type~I as
+transitional~\citep{Sekharappa2014LumbosacralSignificance}.
+
+\paragraph{The six subtypes in these terms.}
+The taxonomy of \S\ref{sec:dataset} inherits its sources' conventions. CTSpine1K numbers
+C1--L6 as 1--25 and attributes an L6 to sacral lumbarization and a missing L5 to lumbar
+sacralization~\citep{Deng2021CTSpine1K:Tomography}; \texttt{lumb} and
+\texttt{sacr\_count} are these counts. A count does not place the anomaly: six lumbar
+vertebrae can follow eleven thoracic ones, and four can follow a
+T13 (\citealp{Moller2026VERIDAH:Sequences}, Figs.~1D and~5), and no scan here, all CT
+colonography of the abdomen and pelvis, contains C2~\citep{Schwing2026CTSpinoPelvic1KArxiv}.
+\texttt{sacralization} and \texttt{semisacralization} rest on CTPelvic1K's undocumented
+filename tag. The April release has no thoracic, T13 or rib class, so the thoracolumbar border
+cannot be checked on it; the current release (v11) adds thoracic levels, ribs, lumbar ribs and
+a T13 class~\citep{Schwing2026CTSpinoPelvic1KArxiv}.
+
+\paragraph{Castellvi classification.}
+\citet{Castellvi1984LumbosacralDefects} typed the transitional segment mainly by the
+morphology of its transverse process. As restated by \citet{Konin2010LumbosacralRelevance}, with \emph{a} marking a
+unilateral and \emph{b} a bilateral finding, type~I (Ia, Ib) is a dysplastic transverse
+process at least 19\,mm in craniocaudal width. Type~II (IIa, IIb) is an enlarged transverse process forming a
+diarthrodial joint with the sacrum. Type~III (IIIa, IIIb) is complete osseous fusion of the
+transverse process to the sacrum. Type~IV is type~II on one side and type~III on the other.
+The grade ``does not provide information relevant to accurate enumeration of the involved
+segment''~\citep[p.~1778]{Konin2010LumbosacralRelevance}, which is why \S\ref{sec:castellvi}
+treats it as orthogonal to the count; type~IIIb occurs here at lumbar counts of four, five
+and six (Table~\ref{tab:castellvi_dist}). VerSe'20 classified only types II--IV, lists each
+subject's variants, and left vertebrae partly fused to the sacrum (III, IV)
+unsegmented~\citep{Liebl2021VerSeData}; \VERIDAH{}'s reference labels
+call any Castellvi-bearing vertebra a sacralized lumbar one, and it outputs no
+grade~\citep{Moller2026VERIDAH:Sequences}.
+
+\paragraph{\VERIDAH{} and SPINEPS.}
+\VERIDAH{}~\citep{Moller2026VERIDAH:Sequences} labels vertebrae whose positions are given
+(the paper takes them from instance segmentations). A 3-D DenseNet169 classifies a crop
+centred on each vertebra with four heads: vertebra label (no T13 or L6 class), region,
+transition (last cervical, first thoracic, last thoracic, first lumbar, last lumbar, or none)
+and visibility. For training, T13 and L6 are relabelled T12 and L5, so an extra vertebra is a repeated T12 or L5 that only the transition
+head separates, and anomalous cases are drawn four times per epoch. A sequence predictor
+combines the heads into a path cost weighted by each vertebra's visibility and minimises it by
+dynamic programming under hard constraints: consecutive, spatially ordered labels; 11--13
+thoracic and 4--6 lumbar; at most one repeated T12 and one repeated L5, renamed T13 and L6.
+On 365 in-house test CTs enriched for anomalies it labelled every vertebra correctly in
+99.18\% of subjects, against 77.81\% for the method of \citet{Meng2022VertebraeMLMI}, and
+recalled 97.22\% of lumbar enumeration anomalies; in its ablation one label head without the
+predictor recalls 30.56\%, with it 63.89\%, and four heads without it 30.56\%.
+SPINEPS~\citep{Moller2024SPINEPSautomaticSegmentation} is a semantic-then-instance
+segmentation of T2-weighted MRI whose instances are counted top to bottom ``regardless of the
+field of view or the presence of enumeration abnormalities''; \VERIDAH{} supplies the
+labelling step and ships with its code~\citep{Moller2026VERIDAH:Sequences}. SPINEPS~2.1.2
+(the current release) runs CT models before the \VERIDAH{} labeller and writes \VerSe{}
+ids, L6 as 25 and T13 as 28~\citep{MollerSPINEPSSoftware}; the peer-reviewed SPINEPS paper
+covers MRI only.
+
+\paragraph{Why a missing class shifts labels.}
+A segmenter gives each voxel one label from a fixed vocabulary. \VerSe{} numbers L1--L6 as
+20--25 and T13 as 28~\citep{VerSeRepo}, and CTSpine1K and the April release have an L6 class;
+the \texttt{total} task of \TS{} (version 2.4.0 was audited) has C1--L5, the sacrum and S1 but
+no L6 or T13~\citep{Wasserthal2023TotalSegmentator:Images,TotalSegmentatorCode}.\footnote{Since
+version 2.15.0 (1 July 2026) the \TS{} package has also defined a \texttt{total\_v3} task whose
+class map puts \texttt{vertebrae\_L6} where \texttt{total} has \texttt{vertebrae\_S1}; its
+weights were posted as a GitHub pre-release on 7 September 2026, and neither the changelog
+nor the README describes it~\citep{TotalSegmentatorCode}. It postdates the
+benchmark of \S\ref{sec:audit}. It was not evaluated here.} Given
+six lumbar-type segments and five lumbar labels, a model must reuse a label or give a segment
+a thoracic, sacral or no label; on lumbarized spines \TS{} gives the L6 the L5 label in two of
+three scorable junctions, and its lumbar Dice falls level by level toward the sacrum
+(\S\ref{sec:audit}). An L6 output label is necessary but not sufficient, and it need not be a
+trained class. CTSpine1K's own nnU-Net baseline scored an L6 Dice of almost
+zero~\citep{Deng2021CTSpine1K:Tomography}; our unmerged control, trained with an L6
+class, still labels most ground-truth L6 voxels in its validation patches L5
+(\S\ref{sec:unmerged}); and \VERIDAH{} as published has no L6 class, yet names an L6 as a
+repeated L5 that its transition head and sequence predictor
+place~\citep{Moller2026VERIDAH:Sequences}.

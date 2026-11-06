@@ -1,0 +1,30 @@
+% Technical appendix master file (camera-ready, NeurIPS 2026 E&D).
+% Placed after the references and before the checklist, as the official 2026 template
+% orders them; appendices do not count toward the 10 content pages.
+% One file per section; each file begins with its own \section{...}. After \appendix the
+% sections are lettered A, B, C, ... in the order of the \input lines below.
+%
+% \PENDING marks a number that the final numbers pass fills from the grid runs
+% (SPINEPS: /rs/rs_grp_oschome/go2432/data/ctsp_april/.../neurips_spineps/score_v212/REPORT.md;
+%  v11: /rs/rs_grp_oschome/go2432/neurips_v11/out/{ts,ens}/SUMMARY.md). It prints a red
+% "[pending]". THE PDF MUST NOT BE UPLOADED WHILE ANY \PENDING REMAINS: fill every slot, or
+% cut the section (and the main-text sentences that point to it; see INTEGRATE.md).
+\providecommand{\PENDING}{\textcolor{red}{\textbf{[pending]}}}
+%
+% Written 2026-09-27 with the camera-ready corrections:
+\input{appendix/release_split}      % A  Release used, records and the evaluated split
+\input{appendix/castellvi_history}  % B  Castellvi grades before and after review
+\input{appendix/unmerged_control}   % C  The unmerged control: split, loss and readings
+\input{appendix/training_details}   % D  Network and hardware details moved from Section 7
+\input{appendix/intervals}          % E  Per-class n and case-bootstrap intervals (added 2026-09-27, second pass)
+% Added 2026-09-27, third pass (drafts promised to reviewer Fbco; slots for the final numbers pass):
+\input{appendix/background}           % F  Background: transitional vertebrae, Castellvi, VERIDAH
+\input{appendix/construction_figure}  % G  How the April 2026 release was built (figure)
+\input{appendix/dataset_comparison}   % H  Comparison with other CT collections
+% CUT for the camera-ready (6 November 2026). Both were skeletons whose numbers were to come from
+% grid runs submitted 27 September; those runs produced logs and no results (neurips_spineps/
+% ctsp_april_v212 and neurips_v11/out are empty), so every cell would have printed "[pending]".
+% The area chair's final justification states that new data and more baselines are not held against
+% the paper. What Appendix J disclosed about the sacrum comparison is now in the Limitations.
+% \input{appendix/spineps}              % I  SPINEPS under the benchmark protocol (+ TS total_v3 slot)
+% \input{appendix/v11_results}          % J  Results on the current release (v11)

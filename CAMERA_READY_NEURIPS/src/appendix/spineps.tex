@@ -1,0 +1,125 @@
+% Appendix I: SPINEPS under the benchmark protocol (promised to reviewer Fbco: "We will
+% additionally report SPINEPS evaluated under the same protocol in the revised paper"), with the
+% slot for TotalSegmentator's later total_v3 task. Skeleton written 2026-09-27 (third pass).
+%
+% FILL FROM (final numbers pass):
+%   SPINEPS  /rs/rs_grp_oschome/go2432/data/ctsp_april/.../neurips_spineps/score_v212/REPORT.md
+%            grid jobs 40481323 (GPU array, 1,153 records) -> 40481314 (score) -> 40481315 (aggregate);
+%            status: bash /rs/rs_grp_oschome/go2432/data/ctsp_april/run/status_spineps.sh
+%            Fill only if REPORT.md shows 0 GT-gate mismatches (no "DO NOT REPORT" banner).
+%   total_v3 NOT RUN, no job submitted (Greg decides whether it enters the paper; SCOUT_spineps,
+%            RESUME "Findings" 1). If it is not run: delete the total_v3 column of
+%            tab:spineps_l6 and the \paragraph{...total_v3} below, and change the three main-text
+%            pointers to app:tsv3 (Section 3, Limitations) and the footnote in background.tex and
+%            note g in dataset_comparison.tex to "not evaluated here".
+% Method facts below are from scratchpad/neurips_promises/SCOUT_spineps.md sections 0-5.
+% The TS column of tab:spineps_l6: L5 < 0.5 rows recomputed 2026-09-27 from
+% Desktop/NeurIPS/bm/benchmark_per_case.csv by neurips_integrate/l5_subgroups.py (it reproduces the
+% published 10/14, 9/9, 9/750); GT-L6 rows and junction rows are the published Section 3 values
+% (189: 0.8% from the v11 scout). Junction DSC here is the Table 1 scorer's window
+% (benchmark_totalseg.py @ c53d2dc, junction_analysis); if the final pass redefines Table 1's
+% junction window (v11 defect B), redefine this row the same way.
+\section{SPINEPS under the benchmark protocol}
+\label{app:spineps}
+
+\paragraph{What was run.}
+SPINEPS~2.1.2~\citep{MollerSPINEPSSoftware}, released on 24 September 2026, segments a CT
+with a semantic and an instance model and names the instances with the \VERIDAH{}
+labeller, writing \VerSe{} identifiers with L6 as 25 and T13 as 28
+(Appendix~\ref{app:background}); unlike 2.1.1, it labels CT without rotating each
+vertebra's crop, so the two versions can name the same spine differently. It ran on the
+native CT of each of the 1{,}153 April records with the three CT models it ships, without
+bias-field correction and otherwise at its defaults; a record on which it fails counts as
+a failure, as \TS{}'s one failure did. Its identifiers were mapped onto the April scheme
+(20--24 to L1--L5, 25 to L6, 26 to sacrum; thoracic levels, T13 and discs to background)
+and scored with the unchanged functions of the \TS{} benchmark script: per-class DSC gated
+by record type, the patient-level merge, the six-way subgroups and the junction window of
+Table~\ref{tab:sota_stratified}. Before scoring, each record's ground-truth quantities
+(classes present and, on fused records, the junction window and its voxel counts) were
+checked against the 30 April \TS{} run; a mismatch would void the tables. SPINEPS has no
+hip class, so hips are not applicable (N/A). Its sacrum includes the S1 body, which the
+published \TS{} sacrum scores as a miss; the like-for-like \TS{} sacrum is the S1-inclusive
+row of Table~\ref{tab:v11}. \PENDING{} records failed.
+
+\begin{table}[h]
+\caption{SPINEPS~2.1.2 zero-shot on \dataset{} (April release), stratified as
+Table~\ref{tab:sota_stratified}: per-class DSC, $n$ patients. Sacrum includes the S1 body.
+Hips: N/A (no hip class). Junction DSC over the window of
+Table~\ref{tab:sota_stratified} on fused records ($n_\text{jxn}$).}
+\label{tab:spineps_strat}
+\centering
+\small
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrccccccccr}
+\toprule
+\bfseries Subgroup & \bfseries $n$ &
+\bfseries L1 & \bfseries L2 & \bfseries L3 & \bfseries L4 & \bfseries L5 & \bfseries L6 &
+\bfseries Sac & \bfseries Jxn DSC & \bfseries $n_\text{jxn}$ \\
+\midrule
+All cases                         & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING \\
+Normal                            & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING \\
+\midrule
+Any LSTV                          & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING \\
+\quad Lumbarization               & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING \\
+\quad Sacralization (count-style) & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING \\
+\quad Semi-sacralization          & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING \\
+\quad Sacralization (full)        & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING \\
+\quad Ambiguous                   & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING & \PENDING \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\begin{table}[h]
+\caption{Level naming at the lumbosacral junction under one protocol: the audited \TS{}~2.4.0
+(\texttt{total} task, \S\ref{sec:audit}), SPINEPS~2.1.2 and \TS{} \texttt{total\_v3}. Per
+patient unless stated; brackets, Wilson 95\% intervals. GT-L6 voxel shares are over the
+junction window of the three junction-scorable lumbarization patients (tokens).}
+\label{tab:spineps_l6}
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}llll@{}}
+\toprule
+\bfseries Quantity & \bfseries \TS{} 2.4.0 \texttt{total} & \bfseries SPINEPS 2.1.2 & \bfseries \TS{} \texttt{total\_v3} \\
+\midrule
+\multicolumn{4}{@{}l}{\itshape L5 DSC $<$ 0.5, patients with a scorable L5} \\
+\quad Lumbarization               & 10/14 (45--88\%)     & \PENDING & \PENDING \\
+\quad Sacralization (count-style) & 9/9 (70--100\%)      & \PENDING & \PENDING \\
+\quad Sacralization (full)        & 1/5 (4--62\%)        & \PENDING & \PENDING \\
+\quad Semi-sacralization          & 0/1 (0--79\%)        & \PENDING & \PENDING \\
+\quad Ambiguous                   & 2/2 (34--100\%)      & \PENDING & \PENDING \\
+\quad Any LSTV                    & 22/31 (53--84\%)     & \PENDING & \PENDING \\
+\quad Normal                      & 9/750 (0.6--2.3\%)   & \PENDING & \PENDING \\
+\midrule
+\multicolumn{4}{@{}l}{\itshape L6 emitted (any L6 voxel)} \\
+\quad Records                     & 0/1{,}152 (no class) & \PENDING{}/\PENDING & \PENDING \\
+\quad Lumbarization patients      & 0/14                 & \PENDING{}/14 & \PENDING \\
+\quad Normal patients             & 0/768                & \PENDING{}/768 & \PENDING \\
+\midrule
+\multicolumn{4}{@{}l}{\itshape GT-L6 voxels in the junction window named \ldots{} (167, 699, 189)} \\
+\quad L5                          & 95.2, 97.1, 0.8\%    & \PENDING & \PENDING \\
+\quad L6                          & 0, 0, 0\%            & \PENDING & \PENDING \\
+\midrule
+\multicolumn{4}{@{}l}{\itshape Junction DSC, fused records} \\
+\quad Normal                      & 0.824 ($n{=}334$)    & \PENDING & \PENDING \\
+\quad Any LSTV                    & 0.534 ($n{=}7$)      & \PENDING & \PENDING \\
+\quad Lumbarization               & 0.357 ($n{=}3$)      & \PENDING & \PENDING \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\paragraph{What the tables show.}
+\PENDING{}
+
+\paragraph{\TS{} \texttt{total\_v3}.}
+\label{app:tsv3}
+\TS{}~2.15.0 (1 July 2026) added a \texttt{total\_v3} task whose class map puts
+\texttt{vertebrae\_L6} where the audited \texttt{total} task has \texttt{vertebrae\_S1}; its
+weights were posted as a GitHub pre-release on 7 September
+2026~\citep{TotalSegmentatorCode}. Both came after the benchmark of \S\ref{sec:audit} ran
+(30 April 2026), whose findings therefore describe the \texttt{total} task of 2.4.0, not
+\TS{} as shipped today. Its column of Table~\ref{tab:spineps_l6} applies the same
+protocol, with \texttt{vertebrae\_L6} mapped to L6. \PENDING{}

@@ -1,0 +1,125 @@
+\section{Release used, records and the evaluated split}
+\label{app:release}
+
+\paragraph{The April 2026 release and Zenodo v11.}
+The segmentation experiments ran on the April 2026 release
+(\S\ref{sec:dataset}). Its separate spine-only and
+pelvic-only records, for patients whose two source
+annotations lie on different acquisitions, are what the
+partial-annotation protocol (\S\ref{sec:partial}) trains
+on. The current archived version, v11, differs from it as
+follows: one record per patient (802 records), each
+separate-mode patient's missing pelvis completed on the
+spine's series by out-of-fold pseudolabelling; VerSe-native
+identifiers (L1--L6 = 20--25, sacrum 26, hips 30/31) with
+femora, per-level ribs, lumbar ribs and surgical hardware
+added as further classes; hip-laterality corrections on 22
+records and hand corrections on five; both Castellvi reads
+and their consensus in the manifest; and the CT images
+supplied by TCIA series crosswalk and rebuild script, with
+a HuggingFace mirror carrying the volumes. The 802 patients
+and the 33 Castellvi-graded patients are the same in both.
+
+\paragraph{Records and split.}
+\label{app:split}
+Table~\ref{tab:scan_stats} gives the composition and the
+record sets the experiments used. The train, validation
+and test manifests are those of the release's 1 May 2026
+revision, redrawn two days before training began; the
+converter sends the train and validation manifests to the
+cross-validation pool and holds out the test manifest.
+The five folds are the release's patient-level fold
+assignment copied onto the pool's records, so within the
+pool no patient spans two validation folds. Each
+validation-manifest record therefore trains four of the
+five fold models, and each fold's best checkpoint is
+selected on that fold's validation records, never on the
+test manifest.
+
+\begin{table}[h]
+\caption{\dataset{} composition (April 2026 release) and
+the record sets of the experiments.}
+\label{tab:scan_stats}
+\centering
+\small
+\begin{tabular}{lrr}
+\toprule
+\bfseries Set & \bfseries Patients & \bfseries Records \\
+\midrule
+Fused (spine + pelvis)                         & 342 & 342 \\
+Separate-mode (spine record + pelvic record)   & 351 & 702 \\
+Spine-only / pelvic-only                       & 89 / 20 & 89 / 20 \\
+All                                            & 802 & 1{,}153 \\
+\quad with spine / pelvic labels               & --- & 782 / 713 \\
+\quad of the 33 LSTV patients                  & 33 & 53 \\
+\midrule
+Train manifest                                 & 639 & 805 \\
+Validation manifest                            & 170 & 174 \\
+Cross-validation pool (train + validation)     & --- & 979 \\
+Test manifest (held out)                       & 167 & 174 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The test manifest is a record-level split stratified by
+LSTV class and match type. Of its 174 records (167
+patients), 82 records from 75 patients are
+patient-disjoint from the pool: 52 fused and 16
+single-mode patients (14 spine-only, 2 pelvic-only), and
+7 separate-mode patients with both records held out. The
+other 92 are separate-mode records (52 pelvic, 40 spine)
+whose sibling---the patient's other acquisition, labelled
+only for the other region---is in the pool (81 from the
+train manifest, 11 from the validation manifest) and
+trains four of the five fold models. Among the 33 LSTV
+patients, 167, 672 and 125 are held out entirely; 401,
+555, 123 and 4 have an LSTV-tagged held-out record and a
+pool record (tagged normal for 401, 555 and 123 by the
+refinement rule of \S\ref{sec:partial}, ambiguous for 4);
+104 has its spine record (tagged sacr\_count) in the pool
+and its pelvic record, tagged normal, held out. The pool
+siblings of 104 and 4 carry an LSTV tag and were
+therefore oversampled in the folds that trained on them.
+By record, the 33 LSTV patients' 53 records are 44 in the
+pool (28 LSTV-tagged) and 9 held out (7 LSTV-tagged).
+Table~\ref{tab:castellvi_dist} counts patients: the Pool
+and Test columns overlap in one patient (4) by tag, and in
+five (401, 555, 123, 4, 104) by any record.
+
+\paragraph{The Normal stratum.}
+The Normal rows of Tables~\ref{tab:comparison}
+and~\ref{tab:baseline} hold 167 records from 161
+patients: 165 records of 159 normal patients and the
+pelvic records of LSTV patients 104 (count-style
+sacralization) and 672 (lumbarization), tagged normal
+because they carry no spine labels. Removing those two
+records moves the Normal ensemble sacrum mean from 0.9719
+to 0.9717, the merged hip from 0.9884 to 0.9882 and the
+mean foreground Dice from 0.9658 to 0.9655; spine classes
+and junction-DSC are unaffected.
+
+\paragraph{What is public.}
+Neither the April release's 1{,}153 records nor the
+evaluated split is at a location this paper cites. The
+Zenodo archive (v11) and the OpenSpineConsortium
+HuggingFace mirror hold the 802-record v11 layout, and the
+archive's \texttt{splits\_5fold.json} is the patient-level
+fold assignment over the 802 patients, with no test split.
+Its per-patient subtype map is not the six-way taxonomy of
+this paper: like the unmerged control's
+(Appendix~\ref{app:unmerged}), it has no count-style class
+and tags one more patient lumbarization (lumbarization 15,
+sacralization 15, semi-sacralization 2, ambiguous 2, normal
+768), so strata drawn from it differ from those of
+Tables~\ref{tab:sota_stratified}
+and~\ref{tab:castellvi_dist}. The six-way subtypes are the
+\texttt{lstv\_phenotype} field of the v11 manifest
+(lumbarization 14, count-style sacralization 9, full
+sacralization 6, semi-sacralization 2, ambiguous 2, empty
+for the 769 normal patients).
+The anonymous HuggingFace dataset available during review
+had been re-uploaded on 18--20 May 2026 with a different
+record-level split, which shares 25 of the 174 held-out
+records. Until the April manifests and the held-out record
+list are published, the segmentation results cannot be
+reproduced exactly from public files.

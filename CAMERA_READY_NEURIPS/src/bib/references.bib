@@ -23,8 +23,8 @@
     pages = {1511487},
     volume = {12},
     publisher = {Frontiers Media SA},
-    url = {https://github.com/YzzLiu/FracSegNet.},
-    doi = {10.3389/FMED.2025.1511487/TEXT},
+    url = {https://github.com/YzzLiu/FracSegNet},
+    doi = {10.3389/fmed.2025.1511487},
     issn = {2296858X},
     keywords = {CT segmentation, deep learning, image-guided surgery, pelvic fracture, reduction planning}
 }
@@ -64,7 +64,7 @@
     pages = {82133--82148},
     volume = {37},
     publisher = {Neural information processing systems foundation},
-    url = {https://github.com/mlcommons/},
+    url = {https://github.com/mlcommons/croissant},
     doi = {10.52202/079017-2610},
     issn = {10495258}
 }
@@ -141,13 +141,13 @@
 @article{Sekuboyina2020LabelingAnatomy,
     title = {{Labeling Vertebrae with Two-dimensional Reformations of Multidetector                     CT Images: An Adversarial Approach for Incorporating Prior Knowledge of Spine                     Anatomy}},
     year = {2020},
-    journal = {https://doi.org/10.1148/ryai.2020190074},
+    journal = {Radiology: Artificial Intelligence},
     author = {Sekuboyina, Anjany and Rempfler, Markus and Valentinitsch, Alexander and Menze, Bjoern H. and Kirschke, Jan S.},
     number = {2},
     month = {3},
     volume = {2},
     publisher = { Radiological Society of North America },
-    url = {/doi/pdf/10.1148/ryai.2020190074?download=true},
+    url = {https://doi.org/10.1148/ryai.2020190074},
     doi = {10.1148/RYAI.2020190074},
     issn = {26386100},
     keywords = {Computer Applications-3D, Convolutional Neural Network (CNN), Localization, Spine, Supervised learning}
@@ -224,7 +224,7 @@
     pages = {1778--1786},
     volume = {31},
     publisher = {American Journal of Neuroradiology},
-    url = {https://www.ajnr.org/content/31/10/1778 https://www.ajnr.org/content/31/10/1778.abstract},
+    url = {https://www.ajnr.org/content/31/10/1778},
     doi = {10.3174/AJNR.A2036},
     issn = {0195-6108},
     pmid = {20203111}
@@ -346,13 +346,15 @@
     author = {Warszawer, Yehuda and Molinier, Nathan and Valo{\v{s}}ek, Jan and Benveniste, Pierre-Louis and B{\'{e}}dard, Sandrine and Shirbint, Emanuel and Mohamed, Feroze B and Tsagkas, Charidimos and Kolind, Shannon and Lynd, Larry}
 }
 
-@article{Moller2026VERIDAH:Sequences,
+% arXiv 2601.14066: v1 (20 Jan 2026) is the only version and carries no journal reference
+% (checked 27 Sep 2026). Was an article entry with no journal and month = {1}, which printed
+% "... Sequences. 1 2026."; now an arXiv misc entry (camera-ready third pass).
+@misc{Moller2026VERIDAH:Sequences,
     title = {{VERIDAH: Solving Enumeration Anomaly Aware Vertebra Labeling across Imaging Sequences}},
     year = {2026},
     author = {M{\"{o}}ller, Hendrik and Schoen, Hanna and Graf, Robert and Atad, Matan and Molinier, Nathan and Sekuboyina, Anjany and Budai, Bettina K. and Bamberg, Fabian and Ringhof, Steffen and Schlett, Christopher and Pischon, Tobias and Niendorf, Thoralf and Decker, Josua A. and Weber, Marc-André and Menze, Bjoern and Rueckert, Daniel and Kirschke, Jan S.},
-    month = {1},
-    url = {https://arxiv.org/pdf/2601.14066},
-    arxivId = {2601.14066},
+    howpublished = {arXiv preprint arXiv:2601.14066},
+    url = {https://arxiv.org/abs/2601.14066},
     keywords = {cs.CV}
 }
 
@@ -393,9 +395,203 @@
     pages = {102235},
     volume = {107},
     publisher = {Pergamon},
-    url = {https://www.sciencedirect.com/science/article/abs/pii/S0895611123000538?casa_token=_i1sw04zsNgAAAAA:9_A1ldZm88y8V3QpGihmVw8YIui8wWuhoE-JkOuDC3-ejHkMRYW1c6RpRWwaUMF4XKI_P0UU},
+    url = {https://www.sciencedirect.com/science/article/abs/pii/S0895611123000538},
     doi = {10.1016/J.COMPMEDIMAG.2023.102235},
     issn = {0895-6111},
     pmid = {37130486},
     keywords = {Labeling, Segmentation, Spine, Transitional vertebrae, Vertebrae}
+}
+
+% ========================================================================================
+% Merged 2026-09-27 (camera-ready third pass) from scratchpad/neurips_promises/drafts/app_extra.bib
+% (entries for appendices F and H and the SPINEPS appendix). Keys checked unique.
+% ========================================================================================
+
+% Extra bibliography for the NeurIPS 2026 camera-ready appendices (drafts; not yet in src/bib).
+% Append-only: other appendix drafts add their entries below, never overwrite.
+% Author names are given as initials wherever the full first name was not read in the source
+% (the two MDPA bibs disagree on several first names).
+
+% ---------------------------------------------------------------------------------------
+% Added by app_background.tex (27 Sep 2026). Each entry was checked against the record named.
+% ---------------------------------------------------------------------------------------
+
+% PubMed 34711848 / PMC8553749 (author list from the PubMed record, complete).
+@article{Liebl2021VerSeData,
+  author  = {Liebl, H. and Schinz, D. and Sekuboyina, A. and Malagutti, L. and L{\"o}ffler, M. T.
+             and Bayat, A. and El Husseini, M. and Tetteh, G. and Grau, K. and Niederreiter, E.
+             and Baum, T. and Wiestler, B. and Menze, B. and Braren, R. and Zimmer, C. and
+             Kirschke, J. S.},
+  title   = {A computed tomography vertebral segmentation dataset with anatomical variations and
+             multi-vendor scanner data},
+  journal = {Scientific Data},
+  volume  = {8},
+  number  = {1},
+  pages   = {284},
+  year    = {2021},
+  doi     = {10.1038/s41597-021-01060-0}
+}
+
+% Europe PMC, PMID 34610612.
+@article{Hanhivaara2022LSTV,
+  author  = {Hanhivaara, J. and M{\"a}{\"a}tt{\"a}, J. H. and Karppinen, J. and
+             Niinim{\"a}ki, J. and Nevalainen, M. T.},
+  title   = {The association of lumbosacral transitional vertebrae with low back pain and lumbar
+             degenerative findings in {MRI}: a large cohort study},
+  journal = {Spine},
+  volume  = {47},
+  number  = {2},
+  pages   = {153--162},
+  year    = {2022},
+  doi     = {10.1097/BRS.0000000000004244}
+}
+
+% PubMed 40381031 (record saved in paper/mpda/_schehr/sources.json).
+@article{Nagata2025LSTVWholeSpine,
+  author  = {Nagata, S. and Yamada, C. and Sawano, M. and Shouji, Y. and Shioyama, G. and
+             Nakamura, S. and Uchiyama, Y. and Nishimura, H. and Tanoue, S.},
+  title   = {Lumbosacral transitional vertebra on whole-spine {CT}: prevalence and association
+             with rib abnormalities},
+  journal = {Skeletal Radiology},
+  volume  = {54},
+  number  = {10},
+  pages   = {2169--2177},
+  year    = {2025},
+  doi     = {10.1007/s00256-025-04952-z}
+}
+
+% PubMed 29564611 (record saved in paper/mpda/_schehr/sources.json).
+@article{Lian2018LSTVNumeration,
+  author  = {Lian, J. and Levine, N. and Cho, W.},
+  title   = {A review of lumbosacral transitional vertebrae and associated vertebral numeration},
+  journal = {European Spine Journal},
+  volume  = {27},
+  number  = {5},
+  pages   = {995--1004},
+  year    = {2018},
+  doi     = {10.1007/s00586-018-5554-8}
+}
+
+% arxiv.org/abs/2609.22760: v1 submitted 19 Sep 2026 04:41 UTC, the only version on 27 Sep 2026.
+% Describes release v11 (802 records, VerSe-native ids, ribs, femora, hardware), NOT the April
+% release the NeurIPS experiments used. Cite it only for what v11 adds or for properties the two
+% releases share (same 802 patients and CT series, no scan containing C2).
+@misc{Schwing2026CTSpinoPelvic1KArxiv,
+  author       = {Schwing, Gregory and Schehr, Ashley and Tekumulla, Annika and Khoushi, Margret
+                  and Christian, Ryan and Hubers, Dane and Mahjoub, Faris and Saad, Hassan and
+                  Sooch, Mia and Siddapureddy, Sathyagopal and McLellan, Michael and Kim, Jerick
+                  and Ismoilov, Miraziz and Alnabahneh, Nizar},
+  title        = {{CTSpinoPelvic1K}: spine, pelvis, ribs and femora in one coordinate frame,
+                  annotated for lumbosacral transitional anatomy},
+  howpublished = {arXiv preprint arXiv:2609.22760},
+  year         = {2026},
+  url          = {https://arxiv.org/abs/2609.22760}
+}
+
+% VERIDAH's CT comparator is its reference [16], this workshop paper, not the 2023 CMIG
+% journal version (Meng2023VertebraeCycle) that the main text cites. Crossref, DOI
+% 10.1007/978-3-031-21014-3_32 (checked 27 Sep 2026): Lecture Notes in Computer Science,
+% Machine Learning in Medical Imaging, pp. 307-317, Springer Nature Switzerland, 2022; authors
+% Di Meng, Eslam Mohammed, Edmond Boyer, Sergi Pujades. LNCS volume number not given by
+% Crossref, so omitted.
+@inproceedings{Meng2022VertebraeMLMI,
+  author    = {Meng, Di and Mohammed, Eslam and Boyer, Edmond and Pujades, Sergi},
+  title     = {Vertebrae localization, segmentation and identification using a graph optimization
+               and an anatomic consistency cycle},
+  booktitle = {Machine Learning in Medical Imaging (MLMI 2022)},
+  series    = {Lecture Notes in Computer Science},
+  pages     = {307--317},
+  publisher = {Springer},
+  year      = {2022},
+  doi       = {10.1007/978-3-031-21014-3_32}
+}
+
+% pypi.org/pypi/spineps/2.1.2/json: author Hendrik M\"oller; Apache-2.0; wheel uploaded
+% 2026-09-24T10:37:20. The Eur Radiol SPINEPS paper (Moller2024SPINEPSautomaticSegmentation)
+% covers MRI only; the CT models and the VERIDAH labeller are described nowhere peer-reviewed
+% except VERIDAH (arXiv) for the labeller.
+@misc{MollerSPINEPSSoftware,
+  author       = {M{\"o}ller, Hendrik},
+  title        = {{SPINEPS}, version 2.1.2},
+  howpublished = {Python package, \url{https://pypi.org/project/spineps/2.1.2/}; source at
+                  \url{https://github.com/Hendrik-code/spineps}},
+  note         = {Released 24 September 2026},
+  year         = {2026}
+}
+
+% github.com/anjany/verse README, read 27 Sep 2026: "1-7: cervical spine: C1-C7, 8-19: thoracic
+% spine: T1-T12, 20-25: lumbar spine: L1-L6, 26: sacrum - not labeled in this dataset, 27:
+% cocygis - not labeled in this dataset, 28: additional 13th thoracic vertebra, T13";
+% "374 scans from 355 patients"; data CC BY-SA 4.0.
+@misc{VerSeRepo,
+  author       = {{VerSe organisers}},
+  title        = {{VerSe}: large scale vertebrae segmentation challenge, data repository},
+  howpublished = {\url{https://github.com/anjany/verse}},
+  note         = {README, label convention; accessed 27 September 2026},
+  year         = {2026}
+}
+
+% github.com/wasserth/TotalSegmentator, master, read 27 Sep 2026:
+%  map_to_binary.py: class_map["total"] 25 sacrum, 26 vertebrae_S1, 27-31 vertebrae_L5..L1,
+%    32-43 T12..T1, 44-50 C7..C1, 77/78 hip_left/right; no vertebrae_L6 or vertebrae_T13.
+%    Same in the PyPI 2.4.0 wheel (117 classes) that the audit ran, and in the README table.
+%    class_map["total_v3"] = total.copy() with [26] = "vertebrae_L6".
+%  total_v3 is NOT master-only: it is in the PyPI wheels 2.15.0 (1 Jul 2026) to 2.18.0
+%    (12 Aug 2026); absent from 2.12.0-2.14.0.
+%  map_tasks_config.py: "total_v3" task ids 831-837 ("total" is 291-298), weights version
+%    "v3.0.0-weights". GitHub release v3.0.0-weights (pre-release, 2026-09-07) carries the
+%    Dataset831-837 zips and they download (HTTP 206 on a range request). The earlier note here
+%    that the weights were not downloadable was wrong: only the "download all" script
+%    download_pretrained_weights.py omits 831-837.
+%  CHANGELOG.md: no mention of total_v3 or L6; latest numbered release 2.18.0 (12.08.2026).
+%  resources/improvements_in_v2.md: vertebrae_S1 among the classes new in v2; 104 -> 117.
+@misc{TotalSegmentatorCode,
+  author       = {Wasserthal, Jakob},
+  title        = {{TotalSegmentator} source code},
+  howpublished = {\url{https://github.com/wasserth/TotalSegmentator}},
+  note         = {Class and task maps, README and releases (PyPI 2.4.0 and 2.15.0--2.18.0; GitHub
+                  pre-release v3.0.0-weights); accessed 27 September 2026},
+  year         = {2026}
+}
+
+% ---------------------------------------------------------------------------------------
+% Added by app_comparison.tex (27 Sep 2026). It also cites Liebl2021VerSeData,
+% Schwing2026CTSpinoPelvic1KArxiv, VerSeRepo and TotalSegmentatorCode above, and keys already
+% in src/bib/references.bib. Each entry below was checked against the record named.
+% ---------------------------------------------------------------------------------------
+
+% DataCite, doi 10.5281/zenodo.6802614: title as below, version 1.0, 2022, Zenodo, creator
+% "Wasserthal, Jakob", CC BY 4.0. (The TotalSegmentator paper cites the concept DOI
+% 10.5281/zenodo.6802613, which resolves to the latest version, not to v1.)
+@misc{Wasserthal2022TSDatasetV1,
+  author       = {Wasserthal, Jakob},
+  title        = {Dataset with segmentations of 104 important anatomical structures in 1204
+                  {CT} images},
+  howpublished = {Zenodo, version 1.0},
+  year         = {2022},
+  doi          = {10.5281/zenodo.6802614}
+}
+
+% DataCite, doi 10.5281/zenodo.10047292: title as below, version 2.0.1, 2023, Zenodo, creator
+% "Jakob Wasserthal", CC BY 4.0.
+@misc{Wasserthal2023TSDatasetV2,
+  author       = {Wasserthal, Jakob},
+  title        = {Dataset with segmentations of 117 important anatomical structures in 1228
+                  {CT} images},
+  howpublished = {Zenodo, version 2.0.1},
+  year         = {2023},
+  doi          = {10.5281/zenodo.10047292}
+}
+
+% DataCite, doi 10.5281/zenodo.4588403: "CTPelvic1K Dataset", 2020, Zenodo, 12 creators as
+% below, licence listed as CC BY 4.0 (the paper, Liu2021DeepModels Sec. 2.1, says
+% CC-BY-NC-SA; see app_comparison_NOTES.md).
+@misc{Liu2020CTPelvic1KData,
+  author       = {Liu, Pengbo and Han, Hu and Du, Yuanqi and Zhu, Heqin and Li, Yinhao and
+                  Gu, Feng and Xiao, Honghu and Li, Jun and Zhao, Chunpeng and Xiao, Li and
+                  Wu, Xinbao and Zhou, S. Kevin},
+  title        = {{CTPelvic1K} Dataset},
+  howpublished = {Zenodo},
+  year         = {2020},
+  doi          = {10.5281/zenodo.4588403}
 }

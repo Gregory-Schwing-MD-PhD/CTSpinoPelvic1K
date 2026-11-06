@@ -1,0 +1,62 @@
+\section{Per-class \texorpdfstring{$n$}{n} and intervals for the stratified results}
+\label{app:ci}
+
+Table~\ref{tab:ci} gives, for each row of
+Table~\ref{tab:sota_stratified}, the number of patients
+scorable for each class and a 95\% case-bootstrap interval
+for the mean: patients resampled with replacement within
+the subgroup, $B{=}10{,}000$, percentile, seed 20260926.
+Where three or fewer patients are scorable the
+per-patient values are listed instead. A class is
+unscored for a patient when none of its records carries
+that region's labels. The Normal$-$Any-LSTV junction drop of 29.0 points
+has a two-sample case-bootstrap interval of 9.9--47.4
+points; under the stricter rule of \S\ref{sec:audit} (5
+LSTV patients) the drop is 35.5 points (15.1--55.5). Hips
+are omitted: no row differs from Normal by more than 0.01.
+
+\begin{table}[h]
+\caption{\sota{} zero-shot: 95\% case-bootstrap interval
+of each Table~\ref{tab:sota_stratified} mean, with the
+number of scorable patients ($n$) below it; per-patient
+values where three or fewer are scorable.}
+\label{tab:ci}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccccccc}
+\toprule
+\bfseries Subgroup & \bfseries L1 & \bfseries L2 & \bfseries L3 & \bfseries L4 & \bfseries L5 & \bfseries Sac & \bfseries Jxn DSC \\
+\midrule
+Normal              & .909--.931 & .906--.929 & .920--.937 & .928--.944 & .931--.945 & .816--.817 & .820--.828 \\
+\quad $n$           & 750 & 750 & 750 & 750 & 750 & 683 & 334 \\[2pt]
+Any LSTV            & .535--.820 & .459--.763 & .385--.660 & .226--.513 & .175--.458 & .810--.833 & .348--.722 \\
+\quad $n$           & 31 & 31 & 31 & 31 & 31 & 29 & 7 \\[2pt]
+Lumbarization       & .740--.953 & .710--.943 & .545--.817 & .184--.602 & .099--.507 & .816--.854 & .221, .234, .618 \\
+\quad $n$           & 14 & 14 & 14 & 14 & 14 & 11 & 3 \\[2pt]
+Sacr.\ (count)      & .011--.532 & .000--.296 & .000--.163 & .000--.001 & .000--.000 & .805--.822 & .467, .927 \\
+\quad $n$           & 9 & 9 & 9 & 9 & 9 & 8 & 2 \\[2pt]
+Semi-sacralization  & .951 & .951 & .951 & .955 & .956 & .821, .828 & none \\
+\quad $n$           & 1 & 1 & 1 & 1 & 1 & 2 & 0 \\[2pt]
+Sacr.\ (full)       & .339--.952 & .297--.953 & .317--.953 & .371--.954 & .500--.953 & .801--.851 & .433, .838 \\
+\quad $n$           & 5 & 5 & 5 & 5 & 5 & 6 & 2 \\[2pt]
+Ambiguous           & .951, .952 & .949, .953 & .863, .901 & .649, .707 & .336, .413 & .730, .813 & none \\
+\quad $n$           & 2 & 2 & 2 & 2 & 2 & 2 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Our model, per case.}
+No population interval is possible for our held-out LSTV
+strata, which hold one to three records per class.
+Table~\ref{tab:baseline} gives the mean of the five fold
+checkpoints; the per-record values below are the five-fold
+ensemble's, which is what the per-case evaluation file
+holds. On the three held-out lumbarization records
+(167, 401\_r1, 672), L1 is .805, 1.000 and .797; L2 .492,
+1.000 and .403; L3 .175, .988 and .006; L4 .0003, .675 and
+.0003; and last\_lumbar .645, .725 and .666 (ensemble means
+.867, .632, .389, .225 and .678, against the checkpoint
+means .872, .611, .377, .213 and .698 of
+Table~\ref{tab:baseline}). Two of the three (167 and 672)
+shift through the upper lumbars; 401\_r1 does not.

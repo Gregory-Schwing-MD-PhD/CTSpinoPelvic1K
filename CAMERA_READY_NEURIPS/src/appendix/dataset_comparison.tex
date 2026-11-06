@@ -1,0 +1,125 @@
+% Appendix H: comparison with other CT collections (promised to reviewer Fbco in the author
+% response of 27 Jul 2026). Integrated 2026-09-27 (third pass) from the verified draft
+% scratchpad/neurips_promises/drafts/app_comparison.tex; the licence line now also gives ours
+% per host, and note g points to the total_v3 slot.
+%
+% Needs only what neurips_2026.tex already loads (booktabs; amssymb for \checkmark) and its
+% macros \dataset, \TS, \VerSe, \VERIDAH. Its bib entries are merged into bib/references.bib.
+% Every cell and its source: drafts/app_comparison_NOTES.md.
+% The CTSpinoPelvic1K row is the April 2026 release (1,153 records, 802 patients).
+% Label tab:dataset_comparison (tab:comparison is taken by the baselines table).
+\section{Comparison with other CT collections}
+\label{app:comparison}
+
+Table~\ref{tab:dataset_comparison} compares \dataset{} with the CT collections that label
+anatomy at the lumbosacral junction; each cell was checked against the collection's own
+paper or data page. \VerSe{} comes closest in intent: it labels L6 and T13, lists anatomical
+variants per subject and grades Castellvi II--IV, but it segments neither the sacrum nor a
+transitional vertebra partially fused to it, so its type~III and IV cases cannot be scored
+at L5/S1. CTSpine1K labels L6 but no pelvis, and its nnU-Net baseline already scored L6 at
+a Dice of 0 on all three of its test sets, with shifted predictions on lumbarization and
+sacralization cases (its Table~2 and Fig.~4)~\citep{Deng2021CTSpine1K:Tomography}, which is
+consistent with the unmerged control of \S\ref{sec:unmerged}. Among these collections, only
+\dataset{} puts numbered lumbar levels including L6, the sacrum and both hip bones on the
+same patients, with a per-patient LSTV label and, for its 33 LSTV patients, a Castellvi grade.
+
+\begin{table}[h]
+\caption{CT collections labelling the lumbosacral junction. \checkmark{}
+present; (\checkmark) partial; -- absent; letters refer to the notes. Patients in
+parentheses where reported and different from scans. Pelvis: S sacrum, H hip bones,
+F femora. Unified: spine and pelvis in the same patients. Adapted from Table~I of the
+dataset article~\citep{Schwing2026CTSpinoPelvic1KArxiv}, which describes a later release.}
+\label{tab:dataset_comparison}
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrlcccccc@{}}
+\toprule
+\bfseries Collection & \bfseries Scans & \bfseries Levels & \bfseries Pelvis
+  & \bfseries Unified & \bfseries LSTV & \bfseries Six-way & \bfseries Castellvi
+  & \bfseries Public \\
+ & (patients) & labelled & & cohort & labels & subtype & grade & data \\
+\midrule
+\VerSe{}
+  & 374 (355) & C1--L6, T13\textsuperscript{a} & --
+  & -- & (\checkmark)\textsuperscript{b} & -- & (\checkmark)\textsuperscript{c} & \checkmark \\
+CTSpine1K
+  & 1{,}005 & C1--L6\textsuperscript{d} & --
+  & -- & (\checkmark)\textsuperscript{d} & -- & -- & \checkmark \\
+CTPelvic1K
+  & 1{,}184 & lumbar, 1 class\textsuperscript{e} & S, H
+  & (\checkmark)\textsuperscript{e} & (\checkmark)\textsuperscript{f} & -- & -- & \checkmark \\
+\TS{}
+  & 1{,}204 & C1--L5\textsuperscript{g} & S, H, F
+  & (\checkmark)\textsuperscript{g} & -- & -- & -- & \checkmark \\
+\VERIDAH{} CT cohort
+  & 1{,}536 & C1--L6, T13\textsuperscript{h} & --\textsuperscript{h}
+  & -- & (\checkmark)\textsuperscript{h} & -- & --\textsuperscript{h} & -- \\
+\dataset{}
+  & 1{,}153 (802)\textsuperscript{i} & L1--L6 & S, H
+  & \checkmark\textsuperscript{i} & \checkmark\textsuperscript{j} & \checkmark\textsuperscript{j}
+  & \checkmark\textsuperscript{k} & \checkmark\textsuperscript{i} \\
+\bottomrule
+\end{tabular}
+
+\smallskip
+\footnotesize
+\raggedright
+\textsuperscript{a}Identifiers 1--25 (C1--L6) and 28 (T13); sacrum and coccyx not
+labelled~\citep{VerSeRepo}; 374 scans of 355 patients~\citep{Sekuboyina2021VerSe:Images}.
+\textsuperscript{b}VerSe'20 was assembled partly from reports of anatomical variants and
+lists them per subject; 85 of its cases have six lumbar vertebrae~\citep{Liebl2021VerSeData}.
+\textsuperscript{c}Castellvi II--IV graded in VerSe'20 (IIa 35, IIb 25, IIIa 14, IIIb 28,
+IV 7), types 0 and I pooled; the sacrum and vertebrae partially fused to it (III, IV) are
+not segmented~\citep{Liebl2021VerSeData}.
+\textsuperscript{d}Identifiers 1--25 (C1--L6); 784 of the 1{,}005 volumes are COLONOG.
+Its Table~1 counts 17 lumbarization and 11 sacralization cases, ungraded; the authors list
+their IDs with the data~\citep{Deng2021CTSpine1K:Tomography}.
+\textsuperscript{e}Four classes: lumbar spine (one class), sacrum, left and right hip, on
+the same scan, cropped to the pelvic region; patient count not
+reported~\citep{Liu2021DeepModels}.
+\textsuperscript{f}Undocumented tags in ten of the 713 COLONOG mask filenames on Zenodo:
+sacralization 7, semisacralization 2, hard\_sacralization 1~\citep{Liu2020CTPelvic1KData,Schwing2026CTSpinoPelvic1KArxiv}.
+\textsuperscript{g}The cited paper's dataset (v1, 104 classes)~\citep{Wasserthal2023TotalSegmentator:Images,Wasserthal2022TSDatasetV1};
+v2.0.1 has 1{,}228 scans and 117 classes and adds
+S1~\citep{Wasserthal2023TSDatasetV2,TotalSegmentatorCode}; neither has L6 (the software's
+later \texttt{total\_v3} task has an L6 class, not evaluated here). Every
+structure in the field of view is labelled; how many scans hold both lumbar spine and
+pelvis is not reported.
+\textsuperscript{h}In-house cohort, patient count not reported; reference labels include
+T13 and L6, merged into T12 and L5 for training; enumeration anomalies are labelled by
+count, and a Castellvi transitional vertebra is labelled sacralized lumbar whatever its type;
+lumbar and sacral vertebrae are distinguished, but no sacral or pelvic segmentation is
+described; code and weights public, no image release
+described~\citep{Moller2026VERIDAH:Sequences}.
+\textsuperscript{i}Records of the April 2026 release used here (Appendix~\ref{app:release}).
+Spine and pelvis for 693 of 802 patients: on one series for 342, on two acquisitions of the
+same patient (two records) for 351; 89 spine-only, 20 pelvis-only. Public as v11 (the same
+802 patients, one record each); the April records and evaluated split are not yet at a
+cited location.
+\textsuperscript{j}For all 802 patients (33 LSTV), from the source masks' lumbar counts and
+filename tags, not image reads (\S\ref{sec:dataset}); the six subtypes are listed per
+patient in the v11 manifest (\texttt{lstv\_phenotype}).
+\textsuperscript{k}Types I--IV for all 33 LSTV patients: a two-resident consensus completed
+in September 2026, after the April release, and distributed from Zenodo v8 onward
+(\S\ref{sec:castellvi}, Appendix~\ref{app:castellvi}); normal patients not screened for
+type I.
+Licences: \VerSe{} CC BY-SA 4.0; CTSpine1K CC BY-NC-SA 4.0; CTPelvic1K CC BY-NC-SA (paper)
+or CC BY 4.0 (Zenodo record); \TS{} data CC BY 4.0; \dataset{} CC BY-NC-SA 4.0 on Zenodo, the
+archive of record, and CC BY-NC 4.0 on the dataset card of its HuggingFace mirror (checked
+27 September 2026).
+\end{table}
+
+\paragraph{How the benchmark will be used.}
+Its first use is as a stratified test: a CT segmenter or vertebra labeller is scored per
+LSTV subtype with junction-DSC and voxel confusion at L5/S1,
+each stratum reported with its $n$ (\S\ref{sec:protocol}), which is what a model claiming
+readiness for surgical planning should show. Adding an L6 class did not remove the L5/L6
+collision at this sample size (\S\ref{sec:unmerged}), and the signal that separates a last
+lumbar vertebra from its neighbour is a count that one patch does not reliably contain, so
+the benchmark is meant as the test set for counting-aware and two-stage ``segment, then
+number'' designs, such as a segmenter feeding \VERIDAH{}'s sequence predictor
+(\S\ref{sec:discussion}). Its LSTV strata are small (33 patients, 7 with an LSTV-tagged
+held-out record; Wilson intervals for strata of 3--4 cases start at 44--51\%,
+\S\ref{sec:limits-test-set}), so it exposes a failure mode and its direction rather than
+ranking methods that differ by a few points.

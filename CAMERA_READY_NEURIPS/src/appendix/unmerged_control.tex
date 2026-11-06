@@ -1,0 +1,62 @@
+\section{The unmerged control: split, loss and readings}
+\label{app:unmerged}
+
+\paragraph{Split and subtype map.}
+The unmerged control (\S\ref{sec:unmerged}) was trained on
+26--31 July 2026 on a later conversion of the same 1{,}153
+records: another record-level 805/174/174 split with a
+979-record cross-validation pool, fold train/validation
+sizes 765/214, 791/188, 798/181, 774/205 and 788/191. It
+shares 25 of the 174 records held out in this paper; 149
+of those 174 lie in its pool, among them held-out LSTV
+records of patients 167 (its validation fold~3), 672
+(fold~0), 123 (fold~2), 4 (fold~1) and 104 (fold~4). Its
+subtype map has no count-style class (count-style
+sacralization is merged into sacralization) and tags 15
+records lumbarization, one more than this paper's
+taxonomy (token 500).
+
+\paragraph{Loss and sampling.}
+Cross-entropy weights were
+$[0.5,1,1,1,1,1.5,4.0,2.0,1,1]$ (background, L1--L4, L5,
+L6, sacrum, hips), the merged model's weights plus L6 at
+4.0. Patch-level L6 biasing was configured at probability
+0.60 and forced an L6 patch in 0.98--1.41\% of
+foreground-forced draws per fold; the merged model ran
+without patch-level biasing.
+
+\begin{table}[h]
+\caption{Unmerged control per fold: validation
+lumbarization records (tokens), share of GT-L6 voxels
+predicted L5 (mean and range over the final 100 epochs;
+final epoch), and validation pseudo-Dice over the same
+epochs.}
+\label{tab:unmerged_folds}
+\centering
+\small
+\begin{tabular}{llcccc}
+\toprule
+\bfseries Fold & \bfseries Lumbarization (val) & \bfseries L6$\to$L5, mean (range) & \bfseries Final & \bfseries L6 Dice & \bfseries L5 Dice \\
+\midrule
+0 & 500, 672, 737 & 83.0\% (29.0--99.9) & 99.9\% & 0.092 & 0.950 \\
+1 & none          & ---                 & ---    & 0.099 & 0.928 \\
+2 & 189, 261, 666 & 65.4\% (26.0--99.5) & 93.3\% & 0.047 & 0.936 \\
+3 & 167, 267, 344 & 66.3\% (17.9--98.2) & 64.7\% & 0.134 & 0.951 \\
+4 & 175, 215, 587 & 96.8\% (64.3--100)  & 99.8\% & 0.014 & 0.907 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Fold~4's validation lumbarizations include both Type~I
+patients (175 and 215). Fold~1's confusion block reports no
+lumbarization case in any of its 500 epochs.
+
+\paragraph{The figure quoted during review.}
+A range of 84.7--99.4\% was quoted on 27 July 2026, about
+17:00. At that time only folds 0 and 4 were running, at
+epochs 279 and 277 of 500; folds 1--3 started on 28 July.
+The logs admit one moment at which the latest single-epoch
+readings of folds 0 and 4 were 84.7\% and 99.4\%: 27 July,
+14:02--14:06 (epochs 257 and 255). The figures in
+\S\ref{sec:unmerged} are from the completed runs, under
+the rule stated there.
