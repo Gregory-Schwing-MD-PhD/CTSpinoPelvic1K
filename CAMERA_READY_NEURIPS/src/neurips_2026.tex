@@ -1010,13 +1010,24 @@ folds rather than from a full-volume evaluation on the
 held-out split. \sota{} is evaluated
 zero-shot, as a production system; its later
 \texttt{total\_v3} task (with L6) postdates the benchmark
-and is not evaluated here. The sacrum comparison is not
-like-for-like: \TS{} emits the S1 body as a separate
-class, which the benchmark's sacrum score counts as a
-miss, so $0.817$ understates \TS{} and the $+15.2$-point
-margin is an upper bound; the level-shift findings of
-\S\ref{sec:audit}, which concern lumbar labels, do not
-depend on it. The
+and is not evaluated here. Two cross-arm margins are not
+like-for-like. The sacrum: \TS{} emits the S1 body as a
+separate class, which the benchmark's sacrum score counts
+as a miss, so $0.817$ understates \TS{} and the
+$+15.2$-point margin is an upper bound. The junction: the
+two arms implement the 40\,mm window differently---\TS{}'s
+is centred on the \textsc{l5} centroid and averages
+$\{$\textsc{l5}, \textsc{l6}, sacrum$\}$, the baseline's
+midway between the last\_lumbar and sacrum centroids,
+averaging $\{$\textsc{l4}, last\_lumbar, sacrum$\}$---and
+both differences favour the baseline, since \TS{}'s mean
+carries an \textsc{l6} term that is near zero on
+lumbarized spines while the baseline's carries an easy
+\textsc{l4} term, so the paired $+72.5$ above is likewise
+an upper bound. Neither affects the level-shift findings
+of \S\ref{sec:audit}: the 29-point junction drop compares
+\sota{} with itself under one definition, and the lumbar
+label shift does not use the window at all. The
 wrong-level framing is a mechanism, not a measured
 outcome: no reader study, planning simulation or workflow
 evidence is presented.
@@ -1055,13 +1066,12 @@ inference code, is at
 (commit \texttt{c105981}). The data-construction pipeline,
 the evaluation protocol and the \TS{} benchmark script are at
 \url{https://github.com/Gregory-Schwing-MD-PhD/CTSpinoPelvic1K}.
-The April release's 1{,}153-record manifest and the
-174-record evaluated split are at
-\url{https://github.com/OpenSpineConsortium/CTSpinoPelvic1K/tree/master/release/april2026}. All are open without credentials. The
-five-fold assignment within the 979-record pool is not
-released: the only copy on disk disagrees with the
-training logs published with the weights, and the 3 May
-assignment is not recoverable (Appendix~\ref{app:split}).
+The April manifest and the evaluated 174-record split are
+at
+\url{https://github.com/OpenSpineConsortium/CTSpinoPelvic1K/tree/master/release/april2026};
+all are open without credentials. The five-fold
+assignment within the pool is not recoverable and is not
+released (Appendix~\ref{app:split}).
 
 \begin{ack}
 G.J.S. was supported by the National Institutes of Health
