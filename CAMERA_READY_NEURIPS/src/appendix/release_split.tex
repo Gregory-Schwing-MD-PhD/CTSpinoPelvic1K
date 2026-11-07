@@ -99,9 +99,25 @@ mean foreground Dice from 0.9658 to 0.9655; spine classes
 and junction-DSC are unaffected.
 
 \paragraph{What is public.}
-Neither the April release's 1{,}153 records nor the
-evaluated split is at a location this paper cites. The
-Zenodo archive (v11) and the OpenSpineConsortium
+The April release's 1{,}153-record manifest, the
+174-record evaluated split and the 979-record
+cross-validation pool are at
+\url{https://github.com/OpenSpineConsortium/CTSpinoPelvic1K/tree/master/release/april2026}. The held-out list is read from the
+per-case table of 6 May 2026 that produced the reported
+ensemble numbers, rather than from a dataset directory:
+the nnU-Net directory's own test folder shares only 34 of
+those 174 records and its per-fold counts disagree with
+the published training logs, being a 19 May rebuild. The
+published list reproduces, independently, the 174
+records, 167 patients, 113 records with sacral ground
+truth and 7 LSTV-tagged records (3 lumbarization, 1
+count-style sacralization, 2 full sacralization, 1
+ambiguous, 0 semi-sacralization) that this paper states,
+and the pool follows by complement at 979. What is not
+released is the five-fold assignment within that pool,
+which is not recoverable; the training logs record its
+per-fold validation counts as 198, 205, 193, 193 and 190.
+The Zenodo archive (v11) and the OpenSpineConsortium
 HuggingFace mirror hold the 802-record v11 layout, and the
 archive's \texttt{splits\_5fold.json} is the patient-level
 fold assignment over the 802 patients, with no test split.
